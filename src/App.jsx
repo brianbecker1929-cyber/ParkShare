@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { GoogleMap, useJsApiLoader, OverlayView } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 
 // Palette: "curbside" — asphalt ink, chalk concrete, curb-paint yellow,
@@ -142,146 +143,97 @@ function milesBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function ListingsMap({ listings, selected, onSelect, userLoc }) {
-  const wrapRef = useRef(null);
-  const [pan, setPan] = useState({ x: 0, y: 0 }); // px offset, on top of the centered position
-  const dragRef = useRef({ dragging: false, startX: 0, startY: 0, startPan: { x: 0, y: 0 } });
-  const CONTENT_SCALE = 1.6; // content is rendered 60% bigger than the visible frame, so there's room to pan
+const GOOGLE_MAPS_LIBRARIES = []; // stable empty array reference — required by useJsApiLoader to avoid reload loops
 
-  if (listings.length === 0 && !userLoc) {
+// Muted "curbside" map styling so Google's default map matches the app's palette.
+const MAP_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#F4F1E8" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#71695A" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#FAF7F0" }] },
+  { featureType: "poi", stylers: [{ visibility: "off" }] },
+  { featureType: "road", elementType: "geometry", stylers: [{ color: "#FFFFFF" }] },
+  { featureType: "road.arterial", elementType: "geometry", stylers: [{ color: "#F0EBDD" }] },
+  { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#E3DDC9" }] },
+  { featureType: "water", elementType: "geometry", stylers: [{ color: "#BBD8E8" }] },
+  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#E1EAD9" }] },
+  { featureType: "transit", stylers: [{ visibility: "off" }] },
+];
+
+function ListingsMap({ listings, selected, onSelect, userLoc }) {
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+  const mapRef = useRef(null);
+
+  const withCoords = listings.filter(l => typeof l.lat === "number" && typeof l.lng === "number");
+
+  // Fit the map to show every pin (plus the user's location, if known) whenever the
+  // underlying set of listings changes — e.g. after a new search or filter.
+  useEffect(() => {
+    if (!mapRef.current || !window.google) return;
+    const pts = userLoc ? [...withCoords, userLoc] : withCoords;
+    if (pts.length === 0) return;
+    if (pts.length === 1) {
+      mapRef.current.panTo({ lat: pts[0].lat, lng: pts[0].lng });
+      mapRef.current.setZoom(14);
+      return;
+    }
+    const bounds = new window.google.maps.LatLngBounds();
+    pts.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    mapRef.current.fitBounds(bounds, 48);
+  }, [withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
+
+  if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
+    return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 }}>Map unavailable — missing Google Maps API key</div>;
+  }
+  if (loadError) {
+    return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.red, fontSize: 13, textAlign: "center", padding: 16 }}>Couldn't load Google Maps</div>;
+  }
+  if (!isLoaded) {
+    return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>Loading map…</div>;
+  }
+  if (withCoords.length === 0 && !userLoc) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>No driveways to show on the map</div>;
   }
 
-  // Project lat/lng onto a 0–100 canvas based on the bounding box of what's shown.
-  const pts0 = userLoc ? [...listings, { lat: userLoc.lat, lng: userLoc.lng }] : listings;
-  const lats = pts0.map(p => p.lat), lngs = pts0.map(p => p.lng);
-  const padLat = Math.max((Math.max(...lats) - Math.min(...lats)) * 0.3, 0.015);
-  const padLng = Math.max((Math.max(...lngs) - Math.min(...lngs)) * 0.3, 0.015);
-  const minLat = Math.min(...lats) - padLat, maxLat = Math.max(...lats) + padLat;
-  const minLng = Math.min(...lngs) - padLng, maxLng = Math.max(...lngs) + padLng;
-  const toXY = (lat, lng) => ({
-    x: ((lng - minLng) / (maxLng - minLng)) * 100,
-    y: ((maxLat - lat) / (maxLat - minLat)) * 100,
-  });
-
-  // Place pins, then relax any that would overlap so every price tag stays readable.
-  const minDist = 11;
-  const pts = listings.map(l => ({ ...toXY(l.lat, l.lng), l }));
-  for (let iter = 0; iter < 60; iter++) {
-    let moved = false;
-    for (let i = 0; i < pts.length; i++) {
-      for (let j = i + 1; j < pts.length; j++) {
-        const a = pts[i], b = pts[j];
-        let dx = b.x - a.x, dy = b.y - a.y;
-        let dist = Math.hypot(dx, dy);
-        if (dist < minDist) {
-          moved = true;
-          if (dist < 0.01) {
-            const ang = (i * 47 + j * 91) * (Math.PI / 180);
-            dx = Math.cos(ang); dy = Math.sin(ang); dist = 1;
-          }
-          const push = (minDist - dist) / 2;
-          const ux = dx / dist, uy = dy / dist;
-          a.x -= ux * push; a.y -= uy * push;
-          b.x += ux * push; b.y += uy * push;
-        }
-      }
-    }
-    pts.forEach(p => { p.x = Math.min(96, Math.max(4, p.x)); p.y = Math.min(96, Math.max(4, p.y)); });
-    if (!moved) break;
-  }
-
-  const userXY = userLoc ? toXY(userLoc.lat, userLoc.lng) : null;
-
-  const clampPan = (x, y) => {
-    const rect = wrapRef.current?.getBoundingClientRect();
-    const maxX = rect ? rect.width * (CONTENT_SCALE - 1) / 2 : 0;
-    const maxY = rect ? rect.height * (CONTENT_SCALE - 1) / 2 : 0;
-    return { x: Math.min(maxX, Math.max(-maxX, x)), y: Math.min(maxY, Math.max(-maxY, y)) };
-  };
-
-  const onPointerDown = (e) => {
-    dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, startPan: pan };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-  const onPointerMove = (e) => {
-    const d = dragRef.current;
-    if (!d.dragging) return;
-    const next = clampPan(d.startPan.x + (e.clientX - d.startX), d.startPan.y + (e.clientY - d.startY));
-    setPan(next);
-  };
-  const onPointerUp = () => { dragRef.current.dragging = false; };
+  const center = userLoc || (withCoords[0] ? { lat: withCoords[0].lat, lng: withCoords[0].lng } : { lat: 40.7128, lng: -74.006 });
 
   return (
-    <div ref={wrapRef} style={{ position: "relative", width: "100%", height: "100%", borderRadius: 12, overflow: "hidden", background: "#F4F1E8", touchAction: "none", cursor: dragRef.current.dragging ? "grabbing" : "grab" }}
-      onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerUp}>
-
-      <div style={{
-        position: "absolute",
-        left: "50%", top: "50%",
-        width: (CONTENT_SCALE * 100) + "%", height: (CONTENT_SCALE * 100) + "%",
-        transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))`,
-        userSelect: "none",
-      }}>
-        <svg viewBox="0 0 400 400" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-          <rect x="0" y="0" width="400" height="400" fill="#F4F1E8" />
-
-          {/* green space blocks */}
-          <polygon points="30,90 120,84 132,172 68,196 22,164" fill="#E1EAD9" />
-          <polygon points="135,196 240,180 255,285 158,308 113,255" fill="#E1EAD9" />
-          <polygon points="22,255 98,248 105,352 30,368" fill="#DCE8DA" />
-
-          {/* water */}
-          <path d="M90,45 C105,90 82,120 112,165 C135,203 120,240 143,270" stroke="#BBD8E8" strokeWidth="5" fill="none" />
-          <path d="M225,45 C240,105 265,135 248,195" stroke="#BBD8E8" strokeWidth="4" fill="none" />
-
-          {/* grid streets */}
-          <g stroke="#C9C2AE" strokeWidth="1">
-            <line x1="0" y1="52" x2="400" y2="52" /><line x1="0" y1="112" x2="400" y2="112" />
-            <line x1="0" y1="172" x2="400" y2="172" /><line x1="0" y1="232" x2="400" y2="232" />
-            <line x1="0" y1="292" x2="400" y2="292" /><line x1="0" y1="352" x2="400" y2="352" />
-            <line x1="38" y1="0" x2="38" y2="400" /><line x1="98" y1="0" x2="98" y2="400" />
-            <line x1="158" y1="0" x2="158" y2="400" /><line x1="218" y1="0" x2="218" y2="400" />
-            <line x1="270" y1="0" x2="270" y2="400" /><line x1="330" y1="0" x2="330" y2="400" />
-          </g>
-
-          {/* curved neighborhood roads */}
-          <g stroke="#8B8272" strokeWidth="1.2" fill="none">
-            <path d="M15,30 C68,15 105,45 90,90 C75,135 30,127 45,172" />
-            <path d="M188,15 C195,60 165,82 195,120 C225,157 195,195 225,225" />
-            <path d="M30,225 C75,217 90,255 68,292 C45,330 90,345 75,382" />
-            <path d="M150,247 C180,262 210,255 225,285 C240,315 210,338 240,368" />
-          </g>
-
-          {/* major road */}
-          <line x1="248" y1="0" x2="172" y2="400" stroke="#B23A48" strokeWidth="5.5" />
-          <line x1="248" y1="0" x2="172" y2="400" stroke="#F0EBDD" strokeWidth="1" strokeDasharray="5,5" />
-
-          {/* rail line */}
-          <line x1="0" y1="180" x2="400" y2="143" stroke="#B08D3D" strokeWidth="1.5" strokeDasharray="2,4" />
-
-          {/* amber accent cross-streets */}
-          <rect x="0" y="192" width="400" height="1.8" fill={C.amber} opacity="0.85" />
-          <rect x="139" y="0" width="1.8" height="400" fill={C.amber} opacity="0.85" />
-        </svg>
-
-        {userXY && (
-          <div title="You are here" style={{ position: "absolute", left: userXY.x + "%", top: userXY.y + "%", transform: "translate(-50%,-50%)", width: 16, height: 16, borderRadius: "50%", background: C.hazard, border: "3px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)", zIndex: 5, pointerEvents: "none" }} />
+    <div style={{ width: "100%", height: "100%", borderRadius: 12, overflow: "hidden" }}>
+      <GoogleMap
+        mapContainerStyle={{ width: "100%", height: "100%" }}
+        center={center}
+        zoom={13}
+        onLoad={(map) => { mapRef.current = map; }}
+        options={{
+          styles: MAP_STYLE,
+          disableDefaultUI: true,
+          zoomControl: true,
+          clickableIcons: false,
+        }}
+      >
+        {userLoc && (
+          <OverlayView position={{ lat: userLoc.lat, lng: userLoc.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+            <div title="You are here" style={{ width: 16, height: 16, borderRadius: "50%", background: C.hazard, border: "3px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)", transform: "translate(-50%,-50%)" }} />
+          </OverlayView>
         )}
 
-        {pts.map(({ x, y, l }) => {
+        {withCoords.map(l => {
           const on = selected?.id === l.id;
           return (
-            <button key={l.id} onClick={() => onSelect(l)} style={{
-              position: "absolute", left: x + "%", top: y + "%", transform: "translate(-50%,-100%)" + (on ? " scale(1.12)" : ""),
-              background: on ? C.hazard : C.warmWhite, color: on ? "#fff" : C.navy, fontWeight: 700, fontSize: 12,
-              padding: "4px 9px", borderRadius: 7, border: "2px solid " + (on ? C.hazard : C.navy),
-              boxShadow: "0 2px 8px rgba(0,0,0,0.22)", whiteSpace: "nowrap", cursor: "pointer",
-              fontFamily: "'Space Grotesk', Inter, system-ui, sans-serif", zIndex: on ? 10 : 2, transition: "transform 0.15s",
-            }}>${l.price}/hr</button>
+            <OverlayView key={l.id} position={{ lat: l.lat, lng: l.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+              <button onClick={() => onSelect(l)} style={{
+                transform: "translate(-50%,-100%)" + (on ? " scale(1.12)" : ""),
+                background: on ? C.hazard : C.warmWhite, color: on ? "#fff" : C.navy, fontWeight: 700, fontSize: 12,
+                padding: "4px 9px", borderRadius: 7, border: "2px solid " + (on ? C.hazard : C.navy),
+                boxShadow: "0 2px 8px rgba(0,0,0,0.22)", whiteSpace: "nowrap", cursor: "pointer",
+                fontFamily: "'Space Grotesk', Inter, system-ui, sans-serif", transition: "transform 0.15s",
+              }}>${l.price}/hr</button>
+            </OverlayView>
           );
         })}
-      </div>
+      </GoogleMap>
     </div>
   );
 }
