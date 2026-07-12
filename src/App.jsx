@@ -1381,8 +1381,8 @@ function DrivewayFrame({ children }) {
       borderRadius: 18, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)",
       backgroundImage: `url(${DRIVEWAY_IMG})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundColor: "#EFEAE0",
     }}>
-      {/* Pavement region, measured from the template photo — this is where spot tiles sit */}
-      <div style={{ position: "absolute", top: "25%", left: "23%", right: "23%", bottom: "19%", display: "flex", alignItems: "center" }}>
+      {/* Pavement region, measured from the template photo with an inward margin so tiles never spill onto the grass */}
+      <div style={{ position: "absolute", top: "29%", left: "27%", right: "27%", bottom: "23%", display: "flex", alignItems: "center", padding: "2% 3%" }}>
         {children}
       </div>
     </div>
@@ -1394,7 +1394,7 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6%", width: "100%" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4%", width: "100%" }}>
         {labels.map((l, i) => {
           const isAvailable = i < availableCount;
           const isChosen = chosen === i;
@@ -1431,7 +1431,7 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
   });
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "6%", width: "100%" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "4%", width: "100%" }}>
         {labels.map((l, i) => {
           const on = !!selected[i];
           return (
