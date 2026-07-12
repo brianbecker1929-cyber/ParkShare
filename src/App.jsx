@@ -475,22 +475,9 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
                   <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
                 </div>
               ) : (
-                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                  <div style={{ width: 96, flexShrink: 0 }}>
-                    <div style={{ borderRadius: 8, overflow: "hidden", border: "2px solid "+C.navy }}>
-                      <div style={{ textAlign: "center", background: C.navy, color: C.white, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 0" }}>Road</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, background: C.navy, padding: 2 }}>
-                        {Array.from({ length: Math.max(4, chosenSpot + 1) }, (_, i) => spotLabel(i)).map((l, i) => (
-                          <div key={l} style={{ aspectRatio: "1.15 / 1", borderRadius: 3, background: i === chosenSpot ? C.hazard : C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: i === chosenSpot ? C.white : C.muted }}>{i === chosenSpot ? "🚗" : l}</div>
-                        ))}
-                      </div>
-                      <div style={{ textAlign: "center", background: C.navy, color: C.white, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 0" }}>House</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 2 }}>Reserved for you</div>
-                    <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
-                  </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} />
+                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
                 </div>
               )}
             </div>
@@ -1372,7 +1359,14 @@ function MessagesView({ onOpenThread, user }) {
 // itself) and positions spot tiles precisely over the pavement region.
 // Add the image file to your repo at: public/driveway-template.png
 const DRIVEWAY_IMG = "/driveway-template.png";
-const DRIVEWAY_ASPECT = 1122 / 1402; // matches the template image's own width/height
+const DRIVEWAY_ASPECT = 1065 / 1477; // matches the current template image's own width/height
+
+// Pavement boundary, measured pixel-for-pixel from the template photo (as a % of
+// the frame's total width/height). This is the ONLY place that needs updating if
+// the template image is ever swapped — every driveway view in the app (host
+// spot-marking, renter spot picker, booking summary) reads from here, so tiles
+// stay correctly scaled and positioned on the pavement everywhere at once.
+const DRIVEWAY_PAVEMENT = { top: "16%", left: "23%", right: "24%", bottom: "18%" };
 
 function DrivewayFrame({ children }) {
   return (
@@ -1381,8 +1375,8 @@ function DrivewayFrame({ children }) {
       borderRadius: 18, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)",
       backgroundImage: `url(${DRIVEWAY_IMG})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundColor: "#EFEAE0",
     }}>
-      {/* Pavement region, measured from the template photo with an inward margin so tiles never spill onto the grass */}
-      <div style={{ position: "absolute", top: "29%", left: "27%", right: "27%", bottom: "23%", display: "flex", alignItems: "center", padding: "2% 3%", boxSizing: "border-box", overflow: "hidden" }}>
+      {/* Pavement region — reads from DRIVEWAY_PAVEMENT above so it's consistent everywhere */}
+      <div style={{ position: "absolute", ...DRIVEWAY_PAVEMENT, display: "flex", alignItems: "center", justifyContent: "center", padding: "5% 6%", boxSizing: "border-box", overflow: "hidden" }}>
         {children}
       </div>
     </div>
@@ -1394,22 +1388,22 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4%", width: "100%", maxWidth: "100%", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5%", width: "92%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden", alignContent: "center", justifyContent: "center" }}>
         {labels.map((l, i) => {
           const isAvailable = i < availableCount;
           const isChosen = chosen === i;
           return (
             <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
-              aspectRatio: "1.1 / 1", borderRadius: 8, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
-              border: isChosen ? "3px solid " + C.navy : "2.5px solid " + (isAvailable ? C.amber : "#B9B2A0"),
-              background: isChosen ? C.hazard : isAvailable ? "rgba(255,246,224,0.92)" : "rgba(237,233,221,0.92)", opacity: isAvailable ? 1 : 0.75,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "2px 4px", overflow: "hidden",
-              fontFamily: "'Space Grotesk', sans-serif", color: isChosen ? C.white : C.navy, transition: "all 0.15s",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              aspectRatio: "0.62 / 1", borderRadius: 16, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
+              border: isChosen ? "4px solid " + C.hazard : "3px solid " + (isAvailable ? C.moss : "#B0AA9C"),
+              background: isChosen ? C.mossLight : isAvailable ? "#F7F3E7" : "#EAE6DA", opacity: isAvailable ? 1 : 0.8,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "4% 4%", overflow: "hidden",
+              fontFamily: "'Space Grotesk', sans-serif", color: C.navy, transition: "all 0.15s",
+              boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span style={{ fontWeight: 800, fontSize: 13 }}>Spot {l}</span>
-              <span style={{ fontSize: 22 }}>{isChosen ? "🚗" : isAvailable ? "✓" : "🚫"}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, opacity: 0.85, textAlign: "center", lineHeight: 1.15 }}>{isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent"}</span>
+              <span style={{ fontWeight: 800, fontSize: 15 }}>Spot {l}</span>
+              <span style={{ fontSize: 34 }}>{isAvailable ? "🚗" : "🚫"}</span>
+              <span style={{ fontSize: 11, fontWeight: 800, textAlign: "center", lineHeight: 1.2, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent"}</span>
             </button>
           );
         })}
@@ -1422,30 +1416,21 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
 function DrivewaySpotMap({ total, selected, onToggle }) {
   const labels = Array.from({ length: total }, (_, i) => String.fromCharCode(65 + i));
   const cols = total <= 1 ? 1 : 2;
-  const bracket = (pos, on) => ({
-    position: "absolute", width: 11, height: 11, [pos.includes("top") ? "top" : "bottom"]: 5, [pos.includes("left") ? "left" : "right"]: 5,
-    borderTop: pos.includes("top") ? "2.5px solid " + (on ? C.amber : "#B9B2A0") : "none",
-    borderBottom: pos.includes("bottom") ? "2.5px solid " + (on ? C.amber : "#B9B2A0") : "none",
-    borderLeft: pos.includes("left") ? "2.5px solid " + (on ? C.amber : "#B9B2A0") : "none",
-    borderRight: pos.includes("right") ? "2.5px solid " + (on ? C.amber : "#B9B2A0") : "none",
-  });
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "4%", width: "100%", maxWidth: "100%", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "5%", width: "92%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden", alignContent: "center", justifyContent: "center" }}>
         {labels.map((l, i) => {
           const on = !!selected[i];
           return (
             <button key={l} onClick={() => onToggle(i)} style={{
-              position: "relative", aspectRatio: "1.2 / 1", borderRadius: 8, cursor: "pointer", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
-              background: on ? "rgba(255,246,224,0.92)" : "rgba(237,233,221,0.92)", border: "2.5px solid " + (on ? C.navy : "#B9B2A0"),
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: "2px 4px", overflow: "hidden",
-              fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+              position: "relative", aspectRatio: "0.62 / 1", borderRadius: 16, cursor: "pointer", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
+              background: on ? "#F7F3E7" : "#EAE6DA", border: "3px solid " + (on ? C.moss : "#B0AA9C"),
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "4% 4%", overflow: "hidden",
+              fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span style={bracket("top-left", on)} /><span style={bracket("top-right", on)} />
-              <span style={bracket("bottom-left", on)} /><span style={bracket("bottom-right", on)} />
-              <span style={{ fontWeight: 800, fontSize: 12, color: C.navy }}>Spot {l}</span>
-              <span style={{ fontSize: 22 }}>{on ? "🚗" : "🔒"}</span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: "0.03em", textAlign: "center" }}>{on ? "FOR RENT" : "PRIVATE"}</span>
+              <span style={{ fontWeight: 800, fontSize: 15, color: C.navy }}>Spot {l}</span>
+              <span style={{ fontSize: 34 }}>{on ? "🚗" : "🔒"}</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: on ? C.moss : C.muted, letterSpacing: "0.02em", textAlign: "center" }}>{on ? "FOR RENT" : "PRIVATE"}</span>
             </button>
           );
         })}
@@ -1458,9 +1443,9 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
 // ─── Driveway spot template — satellite view ───────────────────────────────────
 // Lets a host draw a box over their actual driveway (aerial imagery) for each
 // parking spot they're offering, instead of guessing at an abstract grid.
-const SPOT_FILL_RENT = "rgba(255,177,0,0.35)";   // amber — for rent
+const SPOT_FILL_RENT = "rgba(63,122,94,0.35)";   // moss green — for rent
 const SPOT_FILL_PRIVATE = "rgba(28,43,57,0.35)"; // navy — private / not for rent
-const SPOT_STROKE_RENT = "#FFB100";
+const SPOT_STROKE_RENT = "#3F7A5E";
 const SPOT_STROKE_PRIVATE = "#1C2B39";
 
 function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRemoveSpot, maxSpots = 8 }) {
