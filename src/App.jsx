@@ -1388,13 +1388,13 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "5%", width: "92%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden", alignContent: "center", justifyContent: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "5%", width: "92%", height: "100%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
           const isAvailable = i < availableCount;
           const isChosen = chosen === i;
           return (
             <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
-              aspectRatio: "0.62 / 1", borderRadius: 16, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
+              borderRadius: 16, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
               border: isChosen ? "4px solid " + C.hazard : "3px solid " + (isAvailable ? C.moss : "#B0AA9C"),
               background: isChosen ? C.mossLight : isAvailable ? "#F7F3E7" : "#EAE6DA", opacity: isAvailable ? 1 : 0.8,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
@@ -1420,14 +1420,15 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
 function DrivewaySpotMap({ total, selected, onToggle }) {
   const labels = Array.from({ length: total }, (_, i) => String.fromCharCode(65 + i));
   const cols = total <= 1 ? 1 : 2;
+  const rows = Math.ceil(total / cols);
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "5%", width: "92%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden", alignContent: "center", justifyContent: "center" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: "5%", width: "92%", height: "100%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
           const on = !!selected[i];
           return (
             <button key={l} onClick={() => onToggle(i)} style={{
-              position: "relative", aspectRatio: "0.62 / 1", borderRadius: 16, cursor: "pointer", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
+              position: "relative", borderRadius: 16, cursor: "pointer", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
               background: on ? "#F7F3E7" : "#EAE6DA", border: "3px solid " + (on ? C.moss : "#B0AA9C"),
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
               fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
