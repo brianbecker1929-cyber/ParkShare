@@ -1,5 +1,7 @@
 {
   "rewrites": [
-    { "source": "/((?!api/)(?!.*\\..*).*)", "destination": "/index.html" }
+    { "source": "/driveway-template.png", "destination": "/driveway-template.png" },
+    { "source": "/car-icon.png", "destination": "/car-icon.png" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
