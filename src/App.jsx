@@ -1130,6 +1130,7 @@ function HostDashboard({ user }) {
         setDbListings(
           data.map(row => ({
             id: "db-" + row.id,
+            rawId: row.id,
             title: row.title,
             address: row.address,
             price: Number(row.price),
@@ -1164,20 +1165,22 @@ function HostDashboard({ user }) {
       });
   }, [user]);
 
-  const myListings = [
-    ...dbListings,
-    { id: 1, title: "My Front Driveway", address: "12 Oak St, Brooklyn", price: 14, active: true, earnings: 420, bookings: 31, rating: 4.8, img: "🏠" },
-    { id: 2, title: "Side Gate Spot", address: "12 Oak St, Brooklyn", price: 10, active: false, earnings: 90, bookings: 9, rating: 4.5, img: "🏡" },
-  ];
-  const upcomingBookings = [
-    ...dbBookings,
-    { id: 1, listing: "Front Driveway", driver: "Alex K.", time: "Jun 25 · 9–11am", total: 28, status: "Confirmed" },
-    { id: 2, listing: "Front Driveway", driver: "Priya S.", time: "Jun 26 · 2–5pm", total: 42, status: "Confirmed" },
-    { id: 3, listing: "Side Gate", driver: "Tom B.", time: "Jul 1 · 10am–12pm", total: 20, status: "Pending" },
-  ];
+  const myListings = dbListings;
+  const upcomingBookings = dbBookings;
+  const [deletingId, setDeletingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  const deleteListing = async (rawId, displayId) => {
+    setDeletingId(displayId);
+    const { error } = await supabase.from("listings").delete().eq("id", rawId);
+    setDeletingId(null);
+    setConfirmDeleteId(null);
+    if (error) { alert("Couldn't delete listing: " + error.message); return; }
+    setDbListings(prev => prev.filter(l => l.id !== displayId));
+  };
   const totalEarnings = myListings.reduce((s, l) => s + l.earnings, 0);
   const totalBookings = myListings.reduce((s, l) => s + l.bookings, 0);
-  const avgRating = (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1);
+  const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", background: C.warmWhite, height: "calc(100vh - 88px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -1237,7 +1240,10 @@ function HostDashboard({ user }) {
             <span>🏠 Listings</span>
             <button style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "2px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>+ Add</button>
           </div>
-          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 5 }}>
+            {myListings.length === 0 && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "12px 0" }}>No listings yet.</div>
+            )}
             {myListings.map(l => (
               <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", borderBottom: "1px solid "+C.concrete }}>
                 <span style={{ fontSize: 18, flexShrink: 0 }}>{l.img}</span>
@@ -1246,6 +1252,14 @@ function HostDashboard({ user }) {
                   <div style={{ fontSize: 9, color: C.muted }}>${l.price}/hr · ★{l.rating} · {l.bookings} bookings</div>
                 </div>
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
+                {confirmDeleteId === l.id ? (
+                  <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                    <button onClick={() => deleteListing(l.rawId, l.id)} disabled={deletingId === l.id} style={{ background: C.red, color: C.white, border: "none", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Confirm"}</button>
+                    <button onClick={() => setConfirmDeleteId(null)} style={{ background: C.concrete, color: C.navy, border: "none", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDeleteId(l.id)} title="Delete listing" style={{ background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", flexShrink: 0, padding: "2px 4px" }}>🗑️</button>
+                )}
               </div>
             ))}
             <div style={{ fontSize: 11, color: C.amber, fontWeight: 700, textAlign: "center", marginTop: 4 }}>${totalEarnings} total earned</div>
