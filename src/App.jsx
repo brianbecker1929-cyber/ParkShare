@@ -60,6 +60,16 @@ const INITIAL_THREADS = {
 };
 
 // ─── Shared UI ────────────────────────────────────────────────────────────────
+// Renders the host's actual first uploaded photo when there is one, falling
+// back to the simple emoji icon for listings that don't have a photo yet.
+function ListingThumb({ listing, size, fontSize, style }) {
+  const isPhoto = typeof listing.img === "string" && listing.img.startsWith("data:");
+  if (isPhoto) {
+    return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
+  }
+  return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{listing.img}</span>;
+}
+
 function Badge({ children, color = C.moss }) {
   return (
     <span style={{
@@ -433,7 +443,7 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
           <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 10, padding: 16, marginBottom: 20 }}>
             <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Booking summary</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <div style={{ fontSize: 32 }}>{listing.img}</div>
+              <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={listing} fontSize={32} /></div>
               <div>
                 <div style={{ fontWeight: 600, color: C.navy, fontSize: 14 }}>{listing.title}</div>
                 <div style={{ fontSize: 12, color: C.muted }}>📍 {listing.address}</div>
@@ -755,8 +765,8 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
     <div style={{ padding: 24, fontFamily: "Inter, system-ui, sans-serif", maxWidth: 580, margin: "0 auto" }}>
       <button onClick={onBack} style={{ background: C.amber, border: "2px solid "+C.white, color: C.navy, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 16, padding: "5px 13px", borderRadius: 20 }}>← Back</button>
 
-      <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", borderRadius: 14, height: 170, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 80, marginBottom: 20 }}>
-        {listing.img}
+      <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", borderRadius: 14, height: 170, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 80, marginBottom: 20, overflow: "hidden" }}>
+        <ListingThumb listing={listing} fontSize={80} />
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
@@ -884,6 +894,7 @@ function useAllListings() {
             spaces: row.spaces,
             features: row.features || [],
             img: row.img || "🏠",
+            photos: row.photos || [],
             distance: "—",
             lat: row.lat,
             lng: row.lng,
@@ -1072,7 +1083,7 @@ function BrowseView({ onMessage, user }) {
                   transition: "box-shadow 0.15s",
                 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ fontSize: 24, flexShrink: 0 }}>{l.img}</div>
+                  <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={24} /></div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 13, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
                     <div style={{ fontSize: 10, color: C.navy, opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.address}</div>
@@ -1234,7 +1245,7 @@ function HostDashboard({ user }) {
             )}
             {myListings.map(l => (
               <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", borderBottom: "1px solid "+C.concrete }}>
-                <span style={{ fontSize: 18, flexShrink: 0 }}>{l.img}</span>
+                <div style={{ width: 22, height: 22, borderRadius: 5, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={18} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
                   <div style={{ fontSize: 9, color: C.muted }}>${l.price}/hr · ★{l.rating} · {l.bookings} bookings</div>
@@ -1642,7 +1653,8 @@ function ListDrivewayView({ user }) {
       price: Number(form.price) || 12,
       spaces: rentableSpots,
       features,
-      img: "🏠",
+      img: form.photos[0]?.url || "🏠",
+      photos: form.photos.map(p => p.url),
       lat: form.lat || null,
       lng: form.lng || null,
       spots: form.spots || [],
