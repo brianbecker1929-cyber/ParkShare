@@ -1359,7 +1359,7 @@ function MessagesView({ onOpenThread, user }) {
 // itself) and positions spot tiles precisely over the pavement region.
 // Add the image file to your repo at: public/driveway-template.png
 const DRIVEWAY_IMG = "/driveway-template.png";
-const DRIVEWAY_ASPECT = 1065 / 1477; // matches the current template image's own width/height
+const DRIVEWAY_ASPECT = 1065 / 1477; // matches the Garage-top template image's own width/height
 
 // Pavement boundary, measured pixel-for-pixel from the template photo (as a % of
 // the frame's total width/height). This is the ONLY place that needs updating if
