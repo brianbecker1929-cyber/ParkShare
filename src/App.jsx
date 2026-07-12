@@ -1397,13 +1397,17 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
               aspectRatio: "0.62 / 1", borderRadius: 16, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
               border: isChosen ? "4px solid " + C.hazard : "3px solid " + (isAvailable ? C.moss : "#B0AA9C"),
               background: isChosen ? C.mossLight : isAvailable ? "#F7F3E7" : "#EAE6DA", opacity: isAvailable ? 1 : 0.8,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "4% 4%", overflow: "hidden",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
               fontFamily: "'Space Grotesk', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span style={{ fontWeight: 800, fontSize: 15 }}>Spot {l}</span>
-              <span style={{ fontSize: 34 }}>{isAvailable ? "🚗" : "🚫"}</span>
-              <span style={{ fontSize: 11, fontWeight: 800, textAlign: "center", lineHeight: 1.2, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent"}</span>
+              <span style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
+              {isAvailable ? (
+                <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
+              ) : (
+                <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
+              )}
+              <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent"}</span>
             </button>
           );
         })}
@@ -1425,12 +1429,16 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
             <button key={l} onClick={() => onToggle(i)} style={{
               position: "relative", aspectRatio: "0.62 / 1", borderRadius: 16, cursor: "pointer", minWidth: 0, minHeight: 0, width: "100%", boxSizing: "border-box",
               background: on ? "#F7F3E7" : "#EAE6DA", border: "3px solid " + (on ? C.moss : "#B0AA9C"),
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6, padding: "4% 4%", overflow: "hidden",
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
               fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span style={{ fontWeight: 800, fontSize: 15, color: C.navy }}>Spot {l}</span>
-              <span style={{ fontSize: 34 }}>{on ? "🚗" : "🔒"}</span>
-              <span style={{ fontSize: 11, fontWeight: 800, color: on ? C.moss : C.muted, letterSpacing: "0.02em", textAlign: "center" }}>{on ? "FOR RENT" : "PRIVATE"}</span>
+              <span style={{ fontWeight: 800, fontSize: 13, color: C.navy, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
+              {on ? (
+                <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
+              ) : (
+                <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🔒</span>
+              )}
+              <span style={{ fontSize: 9, fontWeight: 800, color: on ? C.moss : C.muted, letterSpacing: "0.02em", textAlign: "center", lineHeight: 1.15, flexShrink: 0 }}>{on ? "FOR RENT" : "PRIVATE"}</span>
             </button>
           );
         })}
