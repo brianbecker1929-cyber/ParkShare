@@ -698,11 +698,11 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
   }
 
   return (
-    <div style={{ borderRadius: 12, overflow: "hidden", border: "2px solid " + C.navy }}>
+    <div style={{ borderRadius: 12, overflow: "hidden", border: "2px solid " + C.navy, background: "#E3DDC9" }}>
       <GoogleMap
         mapContainerStyle={{ width: "100%", height }}
         center={{ lat, lng }}
-        zoom={20}
+        zoom={19}
         mapTypeId="satellite"
         options={{ disableDefaultUI: true, zoomControl: false, tilt: 0, clickableIcons: false, gestureHandling: interactive ? "greedy" : "none", draggable: interactive, keyboardShortcuts: false }}
       >
@@ -1374,7 +1374,7 @@ const DRIVEWAY_ASPECT = 1065 / 1477; // matches the Garage-top template image's 
 // the template image is ever swapped — every driveway view in the app (host
 // spot-marking, renter spot picker, booking summary) reads from here, so tiles
 // stay correctly scaled and positioned on the pavement everywhere at once.
-const DRIVEWAY_PAVEMENT = { top: "16%", left: "23%", right: "24%", bottom: "18%" };
+const DRIVEWAY_PAVEMENT = { top: "16%", left: "25%", right: "26%", bottom: "18%" };
 
 function DrivewayFrame({ children }) {
   return (
@@ -1384,7 +1384,7 @@ function DrivewayFrame({ children }) {
       backgroundImage: `url(${DRIVEWAY_IMG})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundColor: "#EFEAE0",
     }}>
       {/* Pavement region — reads from DRIVEWAY_PAVEMENT above so it's consistent everywhere */}
-      <div style={{ position: "absolute", ...DRIVEWAY_PAVEMENT, display: "flex", alignItems: "center", justifyContent: "center", padding: "5% 6%", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ position: "absolute", ...DRIVEWAY_PAVEMENT, display: "flex", alignItems: "center", justifyContent: "center", padding: "6% 9%", boxSizing: "border-box", overflow: "hidden" }}>
         {children}
       </div>
     </div>
@@ -1396,7 +1396,7 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "5%", width: "92%", height: "100%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "5%", width: "82%", height: "100%", maxWidth: "82%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
           const isAvailable = i < availableCount;
           const isChosen = chosen === i;
@@ -1431,7 +1431,7 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
   const rows = Math.ceil(total / cols);
   return (
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: "5%", width: "92%", height: "100%", maxWidth: "92%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: "5%", width: "82%", height: "100%", maxWidth: "82%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
           const on = !!selected[i];
           return (
@@ -1493,7 +1493,7 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
         <GoogleMap
           mapContainerStyle={{ width: "100%", height: 320 }}
           center={center}
-          zoom={20}
+          zoom={19}
           mapTypeId="satellite"
           onLoad={(map) => { mapRef.current = map; }}
           options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false }}
