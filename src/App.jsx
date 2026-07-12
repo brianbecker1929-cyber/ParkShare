@@ -1367,33 +1367,54 @@ function MessagesView({ onOpenThread, user }) {
   );
 }
 
+// Shared driveway frame — renders the reference photo you supplied as the
+// background (road, sidewalk, hedges, and garage baked into the image
+// itself) and positions spot tiles precisely over the pavement region.
+// Add the image file to your repo at: public/driveway-template.png
+const DRIVEWAY_IMG = "/driveway-template.png";
+const DRIVEWAY_ASPECT = 1122 / 1402; // matches the template image's own width/height
+
+function DrivewayFrame({ children }) {
+  return (
+    <div style={{
+      position: "relative", width: "100%", aspectRatio: DRIVEWAY_ASPECT,
+      borderRadius: 18, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)",
+      backgroundImage: `url(${DRIVEWAY_IMG})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundColor: "#EFEAE0",
+    }}>
+      {/* Pavement region, measured from the template photo — this is where spot tiles sit */}
+      <div style={{ position: "absolute", top: "25%", left: "23%", right: "23%", bottom: "19%", display: "flex", alignItems: "center" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
 function SpotPicker({ availableCount, chosen, onChoose }) {
   const labels = ["A", "B", "C", "D"];
-  const capStyle = { textAlign: "center", background: C.navy, color: C.white, fontWeight: 800, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", padding: "8px 0" };
   return (
-    <div style={{ borderRadius: 14, overflow: "hidden", border: "3px solid "+C.navy }}>
-      <div style={capStyle}>🛣️ Road</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3, background: C.navy, padding: 3 }}>
+    <DrivewayFrame>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6%", width: "100%" }}>
         {labels.map((l, i) => {
           const isAvailable = i < availableCount;
           const isChosen = chosen === i;
           return (
             <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
-              aspectRatio: "1.15 / 1", borderRadius: 6, cursor: isAvailable ? "pointer" : "default", border: isChosen ? "3px solid "+C.navy : "none",
-              background: isChosen ? C.hazard : isAvailable ? C.amber : C.white, opacity: isAvailable ? 1 : 0.5,
+              aspectRatio: "1.1 / 1", borderRadius: 8, cursor: isAvailable ? "pointer" : "default",
+              border: isChosen ? "3px solid " + C.navy : "2.5px solid " + (isAvailable ? C.amber : "#B9B2A0"),
+              background: isChosen ? C.hazard : isAvailable ? "rgba(255,246,224,0.92)" : "rgba(237,233,221,0.92)", opacity: isAvailable ? 1 : 0.75,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4,
-              fontFamily: "'Space Grotesk', sans-serif", color: isChosen ? C.white : C.navy,
+              fontFamily: "'Space Grotesk', sans-serif", color: isChosen ? C.white : C.navy, transition: "all 0.15s",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
             }}>
               <span style={{ fontWeight: 800, fontSize: 13 }}>Spot {l}</span>
-              <span style={{ fontSize: 24 }}>{isChosen ? "🚗" : isAvailable ? "✓" : "🚫"}</span>
+              <span style={{ fontSize: 22 }}>{isChosen ? "🚗" : isAvailable ? "✓" : "🚫"}</span>
               <span style={{ fontSize: 10, fontWeight: 700, opacity: 0.85 }}>{isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent"}</span>
             </button>
           );
         })}
       </div>
-      <div style={capStyle}>🏠 House</div>
-    </div>
+    </DrivewayFrame>
   );
 }
 
@@ -1401,7 +1422,6 @@ function SpotPicker({ availableCount, chosen, onChoose }) {
 function DrivewaySpotMap({ total, selected, onToggle }) {
   const labels = Array.from({ length: total }, (_, i) => String.fromCharCode(65 + i));
   const cols = total <= 1 ? 1 : 2;
-  const capStyle = { textAlign: "center", color: C.white, fontWeight: 800, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", padding: "10px 0", position: "relative" };
   const bracket = (pos, on) => ({
     position: "absolute", width: 11, height: 11, [pos.includes("top") ? "top" : "bottom"]: 5, [pos.includes("left") ? "left" : "right"]: 5,
     borderTop: pos.includes("top") ? "2.5px solid " + (on ? C.amber : "#B9B2A0") : "none",
@@ -1410,44 +1430,30 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
     borderRight: pos.includes("right") ? "2.5px solid " + (on ? C.amber : "#B9B2A0") : "none",
   });
   return (
-    <div style={{ borderRadius: 18, overflow: "hidden", border: "3px solid "+C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)" }}>
-      {/* Road end, with a painted lane-stripe nod at the seam */}
-      <div style={{ ...capStyle, background: C.navy }}>
-        🛣️ Road
-        <div style={{ position: "absolute", left: "50%", bottom: -2, transform: "translateX(-50%)", width: 26, height: 4, background: C.amber, borderRadius: 2 }} />
+    <DrivewayFrame>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: "6%", width: "100%" }}>
+        {labels.map((l, i) => {
+          const on = !!selected[i];
+          return (
+            <button key={l} onClick={() => onToggle(i)} style={{
+              position: "relative", aspectRatio: "1.2 / 1", borderRadius: 8, cursor: "pointer",
+              background: on ? "rgba(255,246,224,0.92)" : "rgba(237,233,221,0.92)", border: "2.5px solid " + (on ? C.navy : "#B9B2A0"),
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+              fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+            }}>
+              <span style={bracket("top-left", on)} /><span style={bracket("top-right", on)} />
+              <span style={bracket("bottom-left", on)} /><span style={bracket("bottom-right", on)} />
+              <span style={{ fontWeight: 800, fontSize: 12, color: C.navy }}>Spot {l}</span>
+              <span style={{ fontSize: 22 }}>{on ? "🚗" : "🔒"}</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: "0.03em" }}>{on ? "FOR RENT" : "PRIVATE"}</span>
+            </button>
+          );
+        })}
       </div>
-
-      {/* Textured asphalt surface holding the parking bays */}
-      <div style={{
-        padding: 14,
-        backgroundColor: "#DCD5C2",
-        backgroundImage: "repeating-linear-gradient(135deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 2px, transparent 2px, transparent 10px)",
-      }}>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10 }}>
-          {labels.map((l, i) => {
-            const on = !!selected[i];
-            return (
-              <button key={l} onClick={() => onToggle(i)} style={{
-                position: "relative", aspectRatio: "1.3 / 1", borderRadius: 8, cursor: "pointer",
-                background: on ? "#FFF6E0" : "#EDE9DD", border: "2.5px solid " + (on ? C.navy : "#B9B2A0"),
-                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
-                fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s",
-              }}>
-                <span style={bracket("top-left", on)} /><span style={bracket("top-right", on)} />
-                <span style={bracket("bottom-left", on)} /><span style={bracket("bottom-right", on)} />
-                <span style={{ fontWeight: 800, fontSize: 12, color: C.navy }}>Spot {l}</span>
-                <span style={{ fontSize: 22 }}>{on ? "🚗" : "🔒"}</span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: "0.03em" }}>{on ? "FOR RENT" : "PRIVATE"}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={{ ...capStyle, background: C.navy }}>🏠 House</div>
-    </div>
+    </DrivewayFrame>
   );
 }
+
 
 // ─── Driveway spot template — satellite view ───────────────────────────────────
 // Lets a host draw a box over their actual driveway (aerial imagery) for each
