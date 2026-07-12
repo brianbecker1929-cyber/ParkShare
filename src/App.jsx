@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { GoogleMap, useJsApiLoader, OverlayView } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 
 // Palette: "curbside" — asphalt ink, chalk concrete, curb-paint yellow,
@@ -143,7 +143,7 @@ function milesBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const GOOGLE_MAPS_LIBRARIES = []; // stable empty array reference — required by useJsApiLoader to avoid reload loops
+const GOOGLE_MAPS_LIBRARIES = ["drawing"]; // stable array reference — required by useJsApiLoader to avoid reload loops. "drawing" powers the satellite spot-marking tool in the host listing flow.
 
 // Muted "curbside" map styling so Google's default map matches the app's palette.
 const MAP_STYLE = [
@@ -337,7 +337,7 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
-  const spotLabels = ["A", "B", "C", "D"];
+  const spotLabel = (i) => String.fromCharCode(65 + i);
 
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
@@ -363,7 +363,7 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
           hours,
           total,
           listingTitle: listing.title,
-          spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabels[chosenSpot] : undefined,
+          spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
         }),
       });
       const data = await res.json();
@@ -407,7 +407,7 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
         <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 6 }} />
         <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 8 }}>You're booked!</h3>
         <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>
-          <strong>{listing.title}</strong> · {hours} hr{hours > 1 ? "s" : ""}{chosenSpot !== null && chosenSpot !== undefined ? " · Spot " + spotLabels[chosenSpot] : ""}
+          <strong>{listing.title}</strong> · {hours} hr{hours > 1 ? "s" : ""}{chosenSpot !== null && chosenSpot !== undefined ? " · Spot " + spotLabel(chosenSpot) : ""}
         </p>
         <p style={{ color: C.amber, fontWeight: 800, fontSize: 20, marginBottom: 20 }}>${total} charged</p>
         <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "12px 16px", color: C.moss, fontSize: 13, fontWeight: 600, marginBottom: 24 }}>
@@ -457,23 +457,30 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
           {chosenSpot !== null && chosenSpot !== undefined && (
             <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 10, padding: 16, marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
-              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                <div style={{ width: 96, flexShrink: 0 }}>
-                  <div style={{ borderRadius: 8, overflow: "hidden", border: "2px solid "+C.navy }}>
-                    <div style={{ textAlign: "center", background: C.navy, color: C.white, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 0" }}>Road</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, background: C.navy, padding: 2 }}>
-                      {["A","B","C","D"].map((l, i) => (
-                        <div key={l} style={{ aspectRatio: "1.15 / 1", borderRadius: 3, background: i === chosenSpot ? C.hazard : C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: i === chosenSpot ? C.white : C.muted }}>{i === chosenSpot ? "🚗" : l}</div>
-                      ))}
+              {typeof listing.lat === "number" && typeof listing.lng === "number" && Array.isArray(listing.spots) && listing.spots.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} chosen={chosenSpot} height={130} />
+                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                  <div style={{ width: 96, flexShrink: 0 }}>
+                    <div style={{ borderRadius: 8, overflow: "hidden", border: "2px solid "+C.navy }}>
+                      <div style={{ textAlign: "center", background: C.navy, color: C.white, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 0" }}>Road</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, background: C.navy, padding: 2 }}>
+                        {Array.from({ length: Math.max(4, chosenSpot + 1) }, (_, i) => spotLabel(i)).map((l, i) => (
+                          <div key={l} style={{ aspectRatio: "1.15 / 1", borderRadius: 3, background: i === chosenSpot ? C.hazard : C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: i === chosenSpot ? C.white : C.muted }}>{i === chosenSpot ? "🚗" : l}</div>
+                        ))}
+                      </div>
+                      <div style={{ textAlign: "center", background: C.navy, color: C.white, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 0" }}>House</div>
                     </div>
-                    <div style={{ textAlign: "center", background: C.navy, color: C.white, fontSize: 8, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "3px 0" }}>House</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 2 }}>Reserved for you</div>
+                    <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 2 }}>Reserved for you</div>
-                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabels[chosenSpot]}</div>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -678,6 +685,62 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 }
 
 // ─── Listing Detail ────────────────────────────────────────────────────────────
+// ─── Renter-facing satellite view ──────────────────────────────────────────────
+// Shows the real aerial photo of the driveway. When the host marked spots in
+// step 4 of listing, they're drawn here too — tappable when used inside the
+// spot picker so renters choose their exact space on the actual property.
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220 }) {
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+
+  if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY || typeof lat !== "number" || typeof lng !== "number" || loadError) return null;
+  if (!isLoaded) {
+    return <div style={{ width: "100%", height, borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>Loading satellite photo…</div>;
+  }
+
+  return (
+    <div style={{ borderRadius: 12, overflow: "hidden", border: "2px solid " + C.navy }}>
+      <GoogleMap
+        mapContainerStyle={{ width: "100%", height }}
+        center={{ lat, lng }}
+        zoom={20}
+        mapTypeId="satellite"
+        options={{ disableDefaultUI: true, zoomControl: false, tilt: 0, clickableIcons: false, gestureHandling: interactive ? "greedy" : "none", draggable: interactive, keyboardShortcuts: false }}
+      >
+        {spots.length === 0 && (
+          <OverlayView position={{ lat, lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+            <div style={{ transform: "translate(-50%,-100%)", fontSize: 30, filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.5))" }}>📍</div>
+          </OverlayView>
+        )}
+        {spots.map((s, i) => {
+          // Label by draw order (same index the host sees in step 4, private spots
+          // included) — not a rent-only recount — so "Spot C" means the same
+          // physical space to both host and renter.
+          const isRent = s.forRent;
+          const myLabel = i;
+          const isChosen = isRent && chosen === myLabel;
+          return (
+            <Rectangle
+              key={s.id}
+              bounds={s.bounds}
+              options={{
+                fillColor: isChosen ? C.hazard : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                fillOpacity: isChosen ? 0.55 : 0.35,
+                strokeColor: isChosen ? C.hazard : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                strokeWeight: isChosen ? 3 : 2,
+                clickable: interactive && isRent,
+              }}
+              onClick={isRent && interactive ? () => onChoose(myLabel) : undefined}
+            />
+          );
+        })}
+      </GoogleMap>
+    </div>
+  );
+}
+
 function ListingDetail({ listing, onBack, onMessage, user }) {
   const [hours, setHours] = useState(2);
   const [showPayment, setShowPayment] = useState(false);
@@ -685,8 +748,12 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
-  const spotLabels = ["A", "B", "C", "D"];
-  const availableCount = Math.min(listing.spaces || 1, 4);
+  const hasSatelliteSpots = typeof listing.lat === "number" && typeof listing.lng === "number"
+    && Array.isArray(listing.spots) && listing.spots.some(s => s.forRent)
+    && !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const rentableSpots = hasSatelliteSpots ? listing.spots.filter(s => s.forRent) : null;
+  const availableCount = rentableSpots ? rentableSpots.length : Math.min(listing.spaces || 1, 4);
+  const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
   const confirmBooking = async () => {
     // Only reached for demo listings — real (host-listed) bookings are now
@@ -714,6 +781,13 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         {listing.features.map(f => <Badge key={f}>{f}</Badge>)}
       </div>
+
+      {typeof listing.lat === "number" && typeof listing.lng === "number" && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Where you'll park</div>
+          <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots || []} />
+        </div>
+      )}
 
       {/* Host */}
       <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -751,7 +825,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
               <button onClick={() => setShowSpotPicker(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
-              {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabels[chosenSpot]}
+              {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
@@ -767,8 +841,14 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
       {showSpotPicker && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>This driveway has {availableCount} spot{availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.</p>
-          <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} />
-          <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabels[chosenSpot]}</Btn>
+          {hasSatelliteSpots ? (
+            <div style={{ marginBottom: 16 }}>
+              <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
+            </div>
+          ) : (
+            <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} />
+          )}
+          <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
         </Modal>
       )}
 
@@ -816,6 +896,7 @@ function useAllListings() {
             distance: "—",
             lat: row.lat,
             lng: row.lng,
+            spots: row.spots || [],
             host: row.profiles?.name || "Host",
             hostImg: "🧑",
           }))
@@ -1352,6 +1433,102 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
   );
 }
 
+// ─── Driveway spot template — satellite view ───────────────────────────────────
+// Lets a host draw a box over their actual driveway (aerial imagery) for each
+// parking spot they're offering, instead of guessing at an abstract grid.
+const SPOT_FILL_RENT = "rgba(255,177,0,0.35)";   // amber — for rent
+const SPOT_FILL_PRIVATE = "rgba(28,43,57,0.35)"; // navy — private / not for rent
+const SPOT_STROKE_RENT = "#FFB100";
+const SPOT_STROKE_PRIVATE = "#1C2B39";
+
+function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRemoveSpot, maxSpots = 8 }) {
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+  const [drawing, setDrawing] = useState(false);
+  const mapRef = useRef(null);
+
+  const boxStyle = { width: "100%", height: 320, borderRadius: 14, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 };
+
+  if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) return <div style={boxStyle}>Satellite view unavailable — missing Google Maps API key</div>;
+  if (loadError) return <div style={boxStyle}>Couldn't load satellite imagery</div>;
+  if (!isLoaded) return <div style={boxStyle}>Loading satellite imagery…</div>;
+
+  const onRectangleComplete = (rect) => {
+    const b = rect.getBounds();
+    const ne = b.getNorthEast(), sw = b.getSouthWest();
+    onAddSpot({ north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng() });
+    rect.setMap(null); // remove the raw drawing-tool rectangle; we render our own below
+    setDrawing(false);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ borderRadius: 14, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)" }}>
+        <GoogleMap
+          mapContainerStyle={{ width: "100%", height: 320 }}
+          center={center}
+          zoom={20}
+          mapTypeId="satellite"
+          onLoad={(map) => { mapRef.current = map; }}
+          options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false }}
+        >
+          <DrawingManager
+            drawingMode={drawing ? window.google.maps.drawing.OverlayType.RECTANGLE : null}
+            onRectangleComplete={onRectangleComplete}
+            options={{
+              drawingControl: false,
+              rectangleOptions: { fillColor: SPOT_STROKE_RENT, fillOpacity: 0.35, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false, editable: false },
+            }}
+          />
+          {spots.map((s) => (
+            <Rectangle
+              key={s.id}
+              bounds={s.bounds}
+              options={{
+                fillColor: s.forRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE,
+                fillOpacity: 0.35,
+                strokeColor: s.forRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE,
+                strokeWeight: 2,
+                clickable: true,
+              }}
+              onClick={() => onToggleSpot(s.id)}
+            />
+          ))}
+          {spots.map((s, i) => {
+            const cLat = (s.bounds.north + s.bounds.south) / 2, cLng = (s.bounds.east + s.bounds.west) / 2;
+            return (
+              <OverlayView key={"lbl-" + s.id} position={{ lat: cLat, lng: cLng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+                <div style={{ transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, pointerEvents: "none" }}>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
+                    Spot {String.fromCharCode(65 + i)} {s.forRent ? "· FOR RENT" : "· PRIVATE"}
+                  </span>
+                  <button onClick={() => onRemoveSpot(s.id)} style={{ pointerEvents: "auto", width: 18, height: 18, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
+                </div>
+              </OverlayView>
+            );
+          })}
+        </GoogleMap>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 11, color: C.muted }}>Tap a drawn spot to switch it between for-rent and private.</span>
+        <button
+          onClick={() => setDrawing(d => !d)}
+          disabled={spots.length >= maxSpots}
+          style={{
+            flexShrink: 0, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none",
+            borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: spots.length >= maxSpots ? "not-allowed" : "pointer",
+            opacity: spots.length >= maxSpots ? 0.5 : 1, fontFamily: "'Space Grotesk', sans-serif",
+          }}
+        >
+          {drawing ? "Cancel drawing" : spots.length === 0 ? "✏️ Draw your first spot" : "+ Draw another spot"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── List Driveway ────────────────────────────────────────────────────────────
 function ListDrivewayView({ user }) {
   const [step, setStep] = useState(1);
@@ -1359,7 +1536,7 @@ function ListDrivewayView({ user }) {
   const [publishing, setPublishing] = useState(false);
   const [form, setForm] = useState({
     street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false,
-    photos: [], totalSpots: 3, selectedSpots: [true, true, false],
+    photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
     price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, access: "24hr", description: "",
   });
   const [suggestions, setSuggestions] = useState([]);
@@ -1416,6 +1593,17 @@ function ListDrivewayView({ user }) {
     return { ...f, totalSpots, selectedSpots };
   });
 
+  // Satellite-drawn spots keep totalSpots/selectedSpots in sync so pricing (step 6)
+  // and publish() — which only look at those two fields — work unchanged.
+  const syncSpots = (f, spots) => ({ ...f, spots, totalSpots: Math.max(spots.length, 1), selectedSpots: spots.length ? spots.map(s => s.forRent) : [true] });
+  const addSatelliteSpot = (bounds) => setForm(f => {
+    if (f.spots.length >= 8) return f;
+    const spots = [...f.spots, { id: Date.now() + Math.random(), bounds, forRent: true }];
+    return syncSpots(f, spots);
+  });
+  const toggleSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.map(s => s.id === id ? { ...s, forRent: !s.forRent } : s)));
+  const removeSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.filter(s => s.id !== id)));
+
   const [submitted, setSubmitted] = useState(false);
 
   const publish = async () => {
@@ -1444,6 +1632,7 @@ function ListDrivewayView({ user }) {
       img: "🏠",
       lat: form.lat || null,
       lng: form.lng || null,
+      spots: form.spots || [],
     });
     setPublishing(false);
     if (error) {
@@ -1455,7 +1644,7 @@ function ListDrivewayView({ user }) {
 
   const resetAll = () => {
     setSubmitted(false); setStep(1);
-    setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, access: "24hr", description: "" });
+    setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, access: "24hr", description: "" });
   };
 
   if (submitted) {
@@ -1591,17 +1780,35 @@ function ListDrivewayView({ user }) {
       {/* Step 4: Spot template */}
       {step === 4 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <label style={{ ...labelStyle, marginBottom: 0 }}>How many spots does your driveway have?</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => setTotalSpots(form.totalSpots - 1)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid "+C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>–</button>
-              <span style={{ fontWeight: 800, color: C.navy, fontSize: 15, minWidth: 14, textAlign: "center" }}>{form.totalSpots}</span>
-              <button onClick={() => setTotalSpots(form.totalSpots + 1)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid "+C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>+</button>
-            </div>
-          </div>
-          <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>Your driveway is gridded into {form.totalSpots} section{form.totalSpots !== 1 ? "s" : ""}. Tap a spot to mark it available for rent — leave the ones you still need for your own car as private.</p>
-          <DrivewaySpotMap total={form.totalSpots} selected={form.selectedSpots} onToggle={toggleSpot} />
-          <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center" }}>{form.selectedSpots.filter(Boolean).length} of {form.totalSpots} spots available for rent</div>
+          {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
+            <>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Mark your parking spots on the aerial photo</label>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Draw a box over each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
+              <DrivewaySpotSatelliteMap
+                center={{ lat: form.lat, lng: form.lng }}
+                spots={form.spots}
+                onAddSpot={addSatelliteSpot}
+                onToggleSpot={toggleSatelliteSpot}
+                onRemoveSpot={removeSatelliteSpot}
+                maxSpots={8}
+              />
+              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center" }}>{form.selectedSpots.filter(Boolean).length} of {form.spots.length || 0} marked spot{form.spots.length !== 1 ? "s" : ""} available for rent</div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>How many spots does your driveway have?</label>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button onClick={() => setTotalSpots(form.totalSpots - 1)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid "+C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>–</button>
+                  <span style={{ fontWeight: 800, color: C.navy, fontSize: 15, minWidth: 14, textAlign: "center" }}>{form.totalSpots}</span>
+                  <button onClick={() => setTotalSpots(form.totalSpots + 1)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid "+C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>+</button>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>{form.street ? "We couldn't load satellite imagery for your address, so use this simple layout instead. " : "Add your address in step 1 to mark spots on an aerial photo of your actual driveway. For now, use this simple layout: "}your driveway is gridded into {form.totalSpots} section{form.totalSpots !== 1 ? "s" : ""}. Tap a spot to mark it available for rent — leave the ones you still need for your own car as private.</p>
+              <DrivewaySpotMap total={form.totalSpots} selected={form.selectedSpots} onToggle={toggleSpot} />
+              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center" }}>{form.selectedSpots.filter(Boolean).length} of {form.totalSpots} spots available for rent</div>
+            </>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <Btn variant="pill" onClick={() => setStep(3)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -2291,3 +2498,4 @@ export default function App() {
     </div>
   );
 }
+
