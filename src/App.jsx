@@ -1119,26 +1119,50 @@ function EditListingModal({ listing, onClose, onSave }) {
   const [price, setPrice] = useState(String(listing.price));
   const [description, setDescription] = useState(listing.description || "");
   const [features, setFeatures] = useState(listing.features || []);
-  const [spots, setSpots] = useState(listing.spots || []);
-  const [spaces, setSpaces] = useState(listing.spaces || 1);
+  // Unify both data shapes into one editable total-count + per-tile-toggle model,
+  // regardless of whether this listing originally had real drawn spots (with geo
+  // bounds) or just a simple total-spaces number.
+  const initialTotal = listing.spots?.length || listing.spaces || 1;
+  const initialSelected = listing.spots?.length
+    ? listing.spots.map(s => s.forRent)
+    : Array.from({ length: initialTotal }, () => true);
+  const [totalSpots, setTotalSpots] = useState(initialTotal);
+  const [selectedSpots, setSelectedSpots] = useState(initialSelected);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
-  const hasSpots = spots.length > 0;
+  const toggleSpotAt = (i) => setSelectedSpots(prev => prev.map((v, idx) => idx === i ? !v : v));
+  const changeTotal = (n) => {
+    const clamped = Math.max(1, Math.min(8, n));
+    setTotalSpots(clamped);
+    setSelectedSpots(prev => {
+      const next = prev.slice(0, clamped);
+      while (next.length < clamped) next.push(true); // new spots default to for-rent
+      return next;
+    });
+  };
   const toggleFeature = (f) => setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
-  const toggleSpotAt = (i) => setSpots(prev => prev.map((s, idx) => idx === i ? { ...s, forRent: !s.forRent } : s));
 
   const save = async () => {
     setErr("");
-    const rentableCount = hasSpots ? spots.filter(s => s.forRent).length : spaces;
+    const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
     setSaving(true);
+    // Preserve real geo bounds for spots that existed before (needed for the
+    // satellite map view); new spots added here only exist in the simple
+    // template view, since we have no real-world coordinates for them.
+    const existingSpots = listing.spots || [];
+    const newSpots = Array.from({ length: totalSpots }, (_, i) => ({
+      id: existingSpots[i]?.id ?? "new-" + i + "-" + Date.now(),
+      bounds: existingSpots[i]?.bounds ?? null,
+      forRent: selectedSpots[i],
+    }));
     const ok = await onSave({
       ...listing,
       price,
       description,
       features,
-      spots,
+      spots: newSpots,
       spaces: rentableCount,
     });
     setSaving(false);
@@ -1177,24 +1201,19 @@ function EditListingModal({ listing, onClose, onSave }) {
         </div>
 
         <div>
-          <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 8 }}>
-            {hasSpots ? "Which spots are for rent?" : "Spots for rent"}
-          </label>
-          {hasSpots ? (
-            <>
-              <DrivewaySpotMap total={spots.length} selected={spots.map(s => s.forRent)} onToggle={toggleSpotAt} />
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 8 }}>
-                {spots.filter(s => s.forRent).length} of {spots.length} marked for rent
-              </div>
-            </>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={() => setSpaces(s => Math.max(1, s - 1))} style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid " + C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>–</button>
-              <span style={{ fontWeight: 800, color: C.navy, fontSize: 16, minWidth: 20, textAlign: "center" }}>{spaces}</span>
-              <button onClick={() => setSpaces(s => Math.min(8, s + 1))} style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid " + C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>+</button>
-              <span style={{ fontSize: 12, color: C.muted }}>spots available for rent</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <label style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>How many spots does your driveway have?</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => changeTotal(totalSpots - 1)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid " + C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>–</button>
+              <span style={{ fontWeight: 800, color: C.navy, fontSize: 14, minWidth: 14, textAlign: "center" }}>{totalSpots}</span>
+              <button onClick={() => changeTotal(totalSpots + 1)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid " + C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>+</button>
             </div>
-          )}
+          </div>
+          <p style={{ fontSize: 11, color: C.muted, margin: "0 0 8px" }}>Tap a spot below to mark it for rent or keep it private.</p>
+          <DrivewaySpotMap total={totalSpots} selected={selectedSpots} onToggle={toggleSpotAt} />
+          <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 8 }}>
+            {selectedSpots.filter(Boolean).length} of {totalSpots} marked for rent
+          </div>
         </div>
 
         {err && <div style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
