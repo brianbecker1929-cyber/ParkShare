@@ -898,7 +898,11 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
           </div>
         </div>
       )}
-
+{showCalendar && (
+        <Modal title="Choose a date" onClose={() => setShowCalendar(false)}>
+          <MiniCalendar selected={date} onSelect={(d) => { setDate(d); setShowCalendar(false); }} />
+        </Modal>
+      )}
       {showSpotPicker && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>This driveway has {availableCount} spot{availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.</p>
