@@ -863,6 +863,16 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, color: C.navy, marginBottom: 12 }}>Book this spot</div>
           <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: C.muted }}>Date</div>
+              <button onClick={() => setShowCalendar(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>Change</button>
+            </div>
+            <button onClick={() => setShowCalendar(true)} style={{ width: "100%", textAlign: "left", background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontFamily: "Inter, system-ui, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>📅</span>
+              <span style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
+            </button>
+          </div>
+          <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Hours needed</div>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <button onClick={() => setHours(h => Math.max(1, h - 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid "+C.concrete, background: C.white, fontSize: 18, cursor: "pointer", color: C.navy }}>−</button>
