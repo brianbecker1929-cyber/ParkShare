@@ -1,6 +1,5 @@
-
 name: Apply ParkShare fixes
 "on": { workflow_dispatch: {} }
 permissions: { contents: write }
-jobs: { apply-fixes: { runs-on: ubuntu-latest, steps: [ { name: "Check out the repo", uses: "actions/checkout@v4" }, { name: "Set up Node.js", uses: "actions/setup-node@v4", with: { node-version: 20 } }, { name: "Apply fixes to src/App.jsx", run: "node .github/scripts/apply-parkshare-fixes.js" }, { name: "Commit and push if anything changed", run: "git config user.name github-actions-bot && git config user.email github-actions-bot@users.noreply.github.com && git add src/App.jsx && (git diff --cached --quiet && echo Nothing changed. || (git commit -m Apply_ParkShare_fixes && git push))" } ] } }
+jobs: { apply-fixes: { runs-on: ubuntu-latest, steps: [ { name: "Check out the repo", uses: "actions/checkout@v4" }, { name: "Set up Node.js", uses: "actions/setup-node@v4", with: { node-version: 20 } }, { name: "Apply fixes to src/App.jsx", run: "node .github/scripts/apply-parkshare-fixes.js" }, { name: "Commit and push if anything changed", run: "git config user.name github-actions-bot && git config user.email github-actions-bot@users.noreply.github.com && git add src/App.jsx && (git diff --cached --quiet && echo Nothing changed. || (git commit -m Apply_ParkShare_fixes && git push origin HEAD:main))" } ] } }
 
