@@ -788,8 +788,16 @@ function MiniCalendar({ selected, onSelect }) {
     </div>
   );
 }
+const HOUR_OPTIONS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am–11pm
+const formatHour = (h) => {
+  const period = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return h12 + ":00 " + period;
+};
 function ListingDetail({ listing, onBack, onMessage, user }) {
-  const [hours, setHours] = useState(2);
+  const [startHour, setStartHour] = useState(9);
+  const [endHour, setEndHour] = useState(11);
+  const hours = Math.max(1, endHour - startHour);
   const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [showCalendar, setShowCalendar] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -873,12 +881,20 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
             </button>
           </div>
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
-            <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Hours needed</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <button onClick={() => setHours(h => Math.max(1, h - 1))} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid "+C.concrete, background: C.white, fontSize: 18, cursor: "pointer", color: C.navy }}>−</button>
-              <span style={{ fontWeight: 700, fontSize: 20, color: C.navy, minWidth: 20, textAlign: "center" }}>{hours}</span>
-              <button onClick={() => setHours(h => h + 1)} style={{ width: 32, height: 32, borderRadius: "50%", border: "1px solid "+C.concrete, background: C.white, fontSize: 18, cursor: "pointer", color: C.navy }}>+</button>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <select value={startHour} onChange={e => { const v = Number(e.target.value); setStartHour(v); setEndHour(eh => eh <= v ? v + 1 : eh); }}
+                style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+              </select>
+              <span style={{ color: C.muted, fontSize: 13 }}>to</span>
+              <select value={endHour} onChange={e => setEndHour(Number(e.target.value))}
+                style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+                {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+              </select>
             </div>
+            <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
+          </div>
           </div>
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
