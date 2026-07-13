@@ -737,9 +737,61 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
     </div>
   );
 }
+function MiniCalendar({ selected, onSelect }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [viewMonth, setViewMonth] = useState(new Date(selected.getFullYear(), selected.getMonth(), 1));
 
+  const monthLabel = viewMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  const firstDay = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const isSameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const canGoBack = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1) > new Date(today.getFullYear(), today.getMonth(), 1);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <button onClick={() => canGoBack && setViewMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))} disabled={!canGoBack}
+          style={{ background: "none", border: "1px solid " + C.concrete, borderRadius: 8, width: 30, height: 30, cursor: canGoBack ? "pointer" : "default", opacity: canGoBack ? 1 : 0.35, color: C.navy, fontSize: 14 }}>‹</button>
+        <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{monthLabel}</div>
+        <button onClick={() => setViewMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+          style={{ background: "none", border: "1px solid " + C.concrete, borderRadius: 8, width: 30, height: 30, cursor: "pointer", color: C.navy, fontSize: 14 }}>›</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+          <div key={i} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: C.muted }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+        {cells.map((d, i) => {
+          if (d === null) return <div key={i} />;
+          const cellDate = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), d);
+          const isPast = cellDate < today;
+          const isChosen = isSameDay(cellDate, selected);
+          const isToday = isSameDay(cellDate, today);
+          return (
+            <button key={i} disabled={isPast} onClick={() => onSelect(cellDate)} style={{
+              aspectRatio: "1", borderRadius: 8, border: isChosen ? "2px solid " + C.hazard : isToday ? "1.5px solid " + C.moss : "1px solid " + C.concrete,
+              background: isChosen ? C.hazard : isPast ? C.concrete : C.white, color: isChosen ? C.white : isPast ? C.muted : C.navy,
+              fontSize: 12, fontWeight: isChosen || isToday ? 700 : 500, cursor: isPast ? "default" : "pointer", opacity: isPast ? 0.5 : 1,
+              display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif",
+            }}>{d}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 function ListingDetail({ listing, onBack, onMessage, user }) {
   const [hours, setHours] = useState(2);
+  const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [showCalendar, setShowCalendar] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
