@@ -1113,6 +1113,98 @@ function BrowseView({ onMessage, user }) {
 }
 
 // ─── Host Dashboard ───────────────────────────────────────────────────────────
+const LISTING_FEATURE_OPTIONS = ["Covered", "CCTV", "Well-lit", "Gated", "24hr Access"];
+
+function EditListingModal({ listing, onClose, onSave }) {
+  const [price, setPrice] = useState(String(listing.price));
+  const [description, setDescription] = useState(listing.description || "");
+  const [features, setFeatures] = useState(listing.features || []);
+  const [spots, setSpots] = useState(listing.spots || []);
+  const [spaces, setSpaces] = useState(listing.spaces || 1);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const hasSpots = spots.length > 0;
+  const toggleFeature = (f) => setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
+  const toggleSpotAt = (i) => setSpots(prev => prev.map((s, idx) => idx === i ? { ...s, forRent: !s.forRent } : s));
+
+  const save = async () => {
+    setErr("");
+    const rentableCount = hasSpots ? spots.filter(s => s.forRent).length : spaces;
+    if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
+    setSaving(true);
+    const ok = await onSave({
+      ...listing,
+      price,
+      description,
+      features,
+      spots,
+      spaces: rentableCount,
+    });
+    setSaving(false);
+    if (ok) onClose();
+  };
+
+  return (
+    <Modal title={"Edit — " + listing.title} onClose={onClose}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div>
+          <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
+          <input type="number" min="1" value={price} onChange={e => setPrice(e.target.value)}
+            style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "Inter,system-ui,sans-serif" }} />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Description</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Anything useful for drivers to know…"
+            style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "Inter,system-ui,sans-serif", resize: "vertical", minHeight: 70 }} />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 8 }}>Features</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {LISTING_FEATURE_OPTIONS.map(f => {
+              const on = features.includes(f);
+              return (
+                <button key={f} onClick={() => toggleFeature(f)} style={{
+                  background: on ? C.moss : C.warmWhite, color: on ? C.white : C.navy,
+                  border: "1.5px solid " + (on ? C.moss : C.concrete), borderRadius: 20, padding: "6px 14px",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}>{on ? "✓ " : ""}{f}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 8 }}>
+            {hasSpots ? "Which spots are for rent?" : "Spots for rent"}
+          </label>
+          {hasSpots ? (
+            <>
+              <DrivewaySpotMap total={spots.length} selected={spots.map(s => s.forRent)} onToggle={toggleSpotAt} />
+              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 8 }}>
+                {spots.filter(s => s.forRent).length} of {spots.length} marked for rent
+              </div>
+            </>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button onClick={() => setSpaces(s => Math.max(1, s - 1))} style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid " + C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>–</button>
+              <span style={{ fontWeight: 800, color: C.navy, fontSize: 16, minWidth: 20, textAlign: "center" }}>{spaces}</span>
+              <button onClick={() => setSpaces(s => Math.min(8, s + 1))} style={{ width: 30, height: 30, borderRadius: "50%", border: "1.5px solid " + C.concrete, background: C.white, cursor: "pointer", fontWeight: 700, color: C.navy }}>+</button>
+              <span style={{ fontSize: 12, color: C.muted }}>spots available for rent</span>
+            </div>
+          )}
+        </div>
+
+        {err && <div style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
+
+        <Btn variant="amber" full onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 function HostDashboard({ user }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
@@ -1138,6 +1230,10 @@ function HostDashboard({ user }) {
             bookings: 0,
             rating: 5,
             img: row.img || "🏠",
+            description: row.description || "",
+            features: row.features || [],
+            spaces: row.spaces || 1,
+            spots: row.spots || [],
           }))
         );
 
@@ -1168,6 +1264,7 @@ function HostDashboard({ user }) {
   const upcomingBookings = dbBookings;
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [editingListing, setEditingListing] = useState(null);
 
   const deleteListing = async (rawId, displayId) => {
     setDeletingId(displayId);
@@ -1176,6 +1273,19 @@ function HostDashboard({ user }) {
     setConfirmDeleteId(null);
     if (error) { alert("Couldn't delete listing: " + error.message); return; }
     setDbListings(prev => prev.filter(l => l.id !== displayId));
+  };
+
+  const saveListingEdit = async (updated) => {
+    const { error } = await supabase.from("listings").update({
+      price: Number(updated.price) || 1,
+      description: updated.description,
+      features: updated.features,
+      spots: updated.spots,
+      spaces: updated.spaces,
+    }).eq("id", updated.rawId);
+    if (error) { alert("Couldn't save changes: " + error.message); return false; }
+    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
+    return true;
   };
   const totalEarnings = myListings.reduce((s, l) => s + l.earnings, 0);
   const totalBookings = myListings.reduce((s, l) => s + l.bookings, 0);
@@ -1257,7 +1367,10 @@ function HostDashboard({ user }) {
                     <button onClick={() => setConfirmDeleteId(null)} style={{ background: C.concrete, color: C.navy, border: "none", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
                   </div>
                 ) : (
-                  <button onClick={() => setConfirmDeleteId(l.id)} title="Delete listing" style={{ background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", flexShrink: 0, padding: "2px 4px" }}>🗑️</button>
+                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                    <button onClick={() => setEditingListing(l)} title="Edit listing" style={{ background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>✏️</button>
+                    <button onClick={() => setConfirmDeleteId(l.id)} title="Delete listing" style={{ background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>🗑️</button>
+                  </div>
                 )}
               </div>
             ))}
@@ -1300,6 +1413,14 @@ function HostDashboard({ user }) {
         </div>
 
       </div>
+
+      {editingListing && (
+        <EditListingModal
+          listing={editingListing}
+          onClose={() => setEditingListing(null)}
+          onSave={saveListingEdit}
+        />
+      )}
     </div>
   );
 }
@@ -1654,6 +1775,7 @@ function ListDrivewayView({ user }) {
       price: Number(form.price) || 12,
       spaces: rentableSpots,
       features,
+      description: form.description || "",
       img: form.photos[0]?.url || "🏠",
       photos: form.photos.map(p => p.url),
       lat: form.lat || null,
