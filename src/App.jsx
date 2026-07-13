@@ -798,6 +798,8 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(11);
   const hours = Math.max(1, endHour - startHour);
+  const handleStartChange = (e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(v + 1); };
+const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [showCalendar, setShowCalendar] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
