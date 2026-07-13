@@ -882,21 +882,18 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
               <span style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
             </button>
           </div>
-          <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
+<div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <select value={startHour} onChange={e => { const v = Number(e.target.value); setStartHour(v); setEndHour(eh => eh <= v ? v + 1 : eh); }}
-                style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+              <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
                 {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
               </select>
               <span style={{ color: C.muted, fontSize: 13 }}>to</span>
-              <select value={endHour} onChange={e => setEndHour(Number(e.target.value))}
-                style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+              <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
                 {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
               </select>
             </div>
             <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
-          </div>
           </div>
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
