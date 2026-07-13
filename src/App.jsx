@@ -463,19 +463,19 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
           </div>
 
           {chosenSpot !== null && chosenSpot !== undefined && (
-            <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+            <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
               {typeof listing.lat === "number" && typeof listing.lng === "number" && Array.isArray(listing.spots) && listing.spots.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
                   <SpotMapBoundary fallback={null}>
                     <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} chosen={chosenSpot} height={130} />
                   </SpotMapBoundary>
-                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
+                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
                   <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} />
-                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy }}>Spot {spotLabel(chosenSpot)}</div>
+                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
                 </div>
               )}
             </div>
@@ -1380,6 +1380,7 @@ function DrivewayFrame({ children }) {
   return (
     <div style={{
       position: "relative", width: "100%", maxWidth: "100%", aspectRatio: DRIVEWAY_ASPECT, boxSizing: "border-box",
+      flexShrink: 0, flexGrow: 0, flexBasis: "auto", alignSelf: "stretch",
       borderRadius: 18, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)",
       backgroundImage: `url(${DRIVEWAY_IMG})`, backgroundSize: "100% 100%", backgroundRepeat: "no-repeat", backgroundColor: "#EFEAE0",
     }}>
