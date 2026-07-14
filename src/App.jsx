@@ -1637,7 +1637,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates }) {
     <DrivewayFrame>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
-          const isAvailable = i < availableCount;
+          const isAvailable = spotStates ? !!spotStates[i] : i < availableCount;
           const isChosen = chosen === i;
           return (
             <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
