@@ -823,6 +823,9 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
     && !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const rentableSpots = hasSatelliteSpots ? listing.spots.filter(s => s.forRent) : null;
   const availableCount = rentableSpots ? rentableSpots.length : Math.min(listing.spaces || 1, 4);
+  const spotStates = Array.isArray(listing.spots) && listing.spots.length > 0
+    ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent)
+    : undefined;
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
   const confirmBooking = async () => {
