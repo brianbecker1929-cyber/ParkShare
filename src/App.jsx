@@ -939,14 +939,14 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
           </div>
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>This driveway has {availableCount} spot{availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.</p>
           {hasSatelliteSpots ? (
-            <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} />}>
-              <div style={{ marginBottom: 16 }}>
-                <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
-              </div>
-            </SpotMapBoundary>
-          ) : (
-            <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />}>
-          )}
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />}>
+                  <div style={{ marginBottom: 16 }}>
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
+                  </div>
+                </SpotMapBoundary>
+              ) : (
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />
+              )}
           <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
         </Modal>
       )}
