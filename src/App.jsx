@@ -929,6 +929,9 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
       )}
       {showSpotPicker && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
+          <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
+            <ListingThumb listing={listing} size="100%" />
+          </div>
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>This driveway has {availableCount} spot{availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.</p>
           {hasSatelliteSpots ? (
             <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} />}>
