@@ -1130,13 +1130,13 @@ function BrowseView({ onMessage, user }) {
                 )}
                 {suggestions.map((s, i) => (
                   <div key={i} onClick={() => pickSuggestion(s)}
-                    style={{ padding: "9px 12px", borderBottom: i < suggestions.length - 1 ? "1px solid "+C.concrete : "none", cursor: "pointer", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <span style={{ flexShrink: 0, marginTop: 1 }}>📍</span>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 12, color: C.navy }}>{s.short}</div>
-                      <div style={{ fontSize: 10, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.full}</div>
-                    </div>
-                  </div>
+              style={{ padding: "9px 12px", borderBottom: i < suggestions.length - 1 ? "1px solid "+C.concrete : "none", cursor: "pointer", display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span style={{ flexShrink: 0, marginTop: 1 }}>📍</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 12, color: C.navy, whiteSpace: "normal", wordBreak: "break-word" }}>{s.short}</div>
+                  <div style={{ fontSize: 10, color: C.muted, whiteSpace: "normal", wordBreak: "break-word" }}>{s.full}</div>
+                </div>
+              </div>
                 ))}
               </div>
             )}
