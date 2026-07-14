@@ -339,7 +339,7 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, onClose, onSuccess, user }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
