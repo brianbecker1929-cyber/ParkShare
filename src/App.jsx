@@ -945,7 +945,7 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
               </div>
             </SpotMapBoundary>
           ) : (
-            <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} />
+            <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />}>
           )}
           <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
         </Modal>
