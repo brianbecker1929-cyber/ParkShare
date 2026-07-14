@@ -1631,7 +1631,7 @@ function DrivewayFrame({ children }) {
 }
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
-function SpotPicker({ availableCount, chosen, onChoose }) {
+function SpotPicker({ availableCount, chosen, onChoose, spotStates }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
