@@ -816,8 +816,10 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
+  const hasValidBounds = (s) => s?.bounds && typeof s.bounds.north === "number" && typeof s.bounds.south === "number" && typeof s.bounds.east === "number" && typeof s.bounds.west === "number";
   const hasSatelliteSpots = typeof listing.lat === "number" && typeof listing.lng === "number"
     && Array.isArray(listing.spots) && listing.spots.some(s => s.forRent)
+    && listing.spots.filter(s => s.forRent).every(hasValidBounds)
     && !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const rentableSpots = hasSatelliteSpots ? listing.spots.filter(s => s.forRent) : null;
   const availableCount = rentableSpots ? rentableSpots.length : Math.min(listing.spaces || 1, 4);
