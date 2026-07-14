@@ -852,11 +852,11 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
         {listing.features.map(f => <Badge key={f}>{f}</Badge>)}
       </div>
 
-      {typeof listing.lat === "number" && typeof listing.lng === "number" && (
+ {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Where you'll park</div>
-            <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots || []} />
+            <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={(listing.spots || []).filter(hasValidBounds)} />
           </div>
         </SpotMapBoundary>
       )}
