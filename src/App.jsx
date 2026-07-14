@@ -471,25 +471,15 @@ const subtotal = listing.price * hours;
             </div>
           </div>
 
-          {chosenSpot !== null && chosenSpot !== undefined && (
+{chosenSpot !== null && chosenSpot !== undefined && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
-              {typeof listing.lat === "number" && typeof listing.lng === "number" && Array.isArray(listing.spots) && listing.spots.length > 0 ? (
-                <div>
-                  <SpotMapBoundary fallback={null}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} chosen={chosenSpot} height={130} />
-                  </SpotMapBoundary>
-                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
-                </div>
-              ) : (
-                <div>
-                  <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} />
-                  <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
-                </div>
-              )}
+              <div>
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} />
+                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
+              </div>
             </div>
           )}
-
           {stripeError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
           {isRealListing ? (
             <>
