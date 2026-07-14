@@ -350,9 +350,11 @@ function PaymentModal({ listing, hours, chosenSpot, onClose, onSuccess, user }) 
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-  const subtotal = listing.price * hours;
+const subtotal = listing.price * hours;
   const serviceFee = Math.round(subtotal * 0.12);
   const total = subtotal + serviceFee;
+  const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
+  const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
   const payWithStripe = async () => {
     setStripeError("");
