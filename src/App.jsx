@@ -447,10 +447,18 @@ const subtotal = listing.price * hours;
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={listing} fontSize={32} /></div>
               <div>
+                <div>
                 <div style={{ fontWeight: 600, color: C.navy, fontSize: 14 }}>{listing.title}</div>
                 <div style={{ fontSize: 12, color: C.muted }}>📍 {listing.address}</div>
               </div>
             </div>
+
+            {(dateLabel || timeLabel) && (
+              <div style={{ background: C.mossLight, borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 13, color: C.moss, fontWeight: 700 }}>
+                {dateLabel && <div>📅 {dateLabel}</div>}
+                {timeLabel && <div style={{ marginTop: 2 }}>🕐 {timeLabel} ({hours} hr{hours > 1 ? "s" : ""})</div>}
+              </div>
+            )}
             {[
               [listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal],
               ["Service fee (12%)", "$"+serviceFee],
