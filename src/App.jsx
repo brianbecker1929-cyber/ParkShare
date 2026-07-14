@@ -947,10 +947,13 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
       <ReviewsSection listing={listing} user={user} />
 
       {showPayment && (
-        <PaymentModal
+      <PaymentModal
           listing={listing}
           hours={hours}
           chosenSpot={chosenSpot}
+          date={date}
+          startHour={startHour}
+          endHour={endHour}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
