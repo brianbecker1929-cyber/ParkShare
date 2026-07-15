@@ -1812,7 +1812,8 @@ function PinAdjustMap({ lat, lng, onChange }) {
       </GoogleMap>
     </div>
   );
-}function ListDrivewayView({ user }) {
+}
+function ListDrivewayView({ user }) {
   const [step, setStep] = useState(1);
   const [publishError, setPublishError] = useState("");
   const [publishing, setPublishing] = useState(false);
