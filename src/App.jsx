@@ -2467,16 +2467,19 @@ function SignInModal({ onClose, onAuth }) {
               <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>Disclaimer of Liability</div>
               <div style={{ background: C.warmWhite, border: "1.5px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", maxHeight: 220, overflowY: "auto", fontSize: 12.5, color: C.navy, lineHeight: 1.6 }}>
                 <p style={{ margin: "0 0 10px" }}>
-                  ParkShare is a platform that connects drivers ("Renters") with driveway owners ("Hosts") to arrange private parking. ParkShare does not own, inspect, or manage any parking space listed on the platform and is not a party to any parking agreement between a Host and a Renter.
+                  ParkShare is a booking platform, not an insurer or property manager. We connect driveway owners ("Hosts") with drivers ("Renters") and are not a party to the parking arrangement between you.
                 </p>
                 <p style={{ margin: "0 0 10px" }}>
-                  <strong>Renter responsibility:</strong> By booking and parking a vehicle through ParkShare, the Renter assumes full responsibility for their vehicle while it is parked at a Host's location. This includes, without limitation, any damage to the Renter's vehicle, any damage the Renter's vehicle causes to the Host's property or other property, and any towing, impound, or storage costs incurred as a result of the booking, improper parking, or violation of a Host's posted instructions. ParkShare and the Host are not liable for such costs.
+                  <strong>Renters</strong> are responsible for their vehicle while parked, including any damage, theft, towing, or fines — even through no fault of their own.
                 </p>
                 <p style={{ margin: "0 0 10px" }}>
-                  <strong>Host responsibility:</strong> Hosts are responsible for accurately describing their space and any restrictions, and for ensuring they have the right to offer the space for parking. Hosts assume responsibility for their property and agree that ParkShare is not liable for disputes, losses, or damages arising from a booking.
+                  <strong>Hosts</strong> are responsible for their property and for accurately describing their listing.
+                </p>
+                <p style={{ margin: "0 0 10px" }}>
+                  ParkShare is not liable for damage, injury, disputes, or losses connected to a booking, to the fullest extent the law allows.
                 </p>
                 <p style={{ margin: 0 }}>
-                  ParkShare's role is limited to facilitating bookings and payments between Hosts and Renters. Neither party may hold ParkShare liable for any loss, damage, theft, towing fee, fine, injury, or dispute arising from a booking. This is a summary disclaimer and does not replace ParkShare's full Terms of Service.
+                  This is a summary. <a href="https://myparkshare.ca/legal.html#liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
                 </p>
               </div>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
