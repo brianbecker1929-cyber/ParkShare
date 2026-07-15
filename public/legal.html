@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Legal — ParkShare</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --navy: #1C2B39;
+    --warm-white: #FAF7F0;
+    --concrete: #E3DDC9;
+    --amber: #FFB100;
+    --moss: #3F7A5E;
+    --moss-light: #E9F2ED;
+    --amber-light: #FFF3D6;
+    --muted: #71695A;
+    --white: #fff;
+    --hazard: #E2571C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--warm-white);
+    color: var(--navy);
+    line-height: 1.6;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--navy), #33465A);
+    padding: 20px 20px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+
+  .wordmark-badge {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: var(--amber);
+    border: 2px solid var(--white);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--navy);
+    flex-shrink: 0;
+  }
+
+  .wordmark-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--white);
+  }
+  .wordmark-text span { color: var(--amber); }
+
+  .subtitle {
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    margin-top: 4px;
+    margin-left: 50px;
+  }
+
+  nav {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 14px 20px 0;
+    background: var(--navy);
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+
+  nav a {
+    flex-shrink: 0;
+    text-decoration: none;
+    color: rgba(255,255,255,0.8);
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  nav a:hover, nav a:focus-visible {
+    border-color: var(--white);
+    color: var(--white);
+  }
+
+  .navbar-underline {
+    height: 3px;
+    background: var(--amber);
+    opacity: 0.55;
+  }
+
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 28px 20px 80px;
+  }
+
+  .doc {
+    background: var(--white);
+    border: 1px solid var(--concrete);
+    border-radius: 14px;
+    padding: 28px 24px;
+    margin-bottom: 24px;
+    scroll-margin-top: 110px;
+  }
+
+  .doc-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--moss);
+    background: var(--moss-light);
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 10px;
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 26px;
+    margin: 0 0 4px;
+  }
+
+  h1 .accent { color: var(--amber); }
+
+  .updated {
+    color: var(--muted);
+    font-size: 12.5px;
+    margin: 0 0 22px;
+  }
+
+  h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    color: var(--navy);
+    margin: 26px 0 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--concrete);
+  }
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 18px; }
+
+  p { font-size: 14px; color: #2c3b47; margin: 0 0 12px; }
+  strong { color: var(--navy); }
+
+  ul { margin: 0 0 12px; padding-left: 20px; font-size: 14px; color: #2c3b47; }
+  li { margin-bottom: 6px; }
+
+  a.inline-link { color: var(--moss); font-weight: 600; }
+
+  .callout {
+    background: var(--amber-light);
+    border: 1px solid var(--amber);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--navy);
+    margin: 0 0 18px;
+  }
+
+  .toc {
+    background: var(--warm-white);
+    border: 1px solid var(--concrete);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+  }
+  .toc h2 { margin-top: 0; border-top: none; }
+  .toc ul { list-style: none; padding: 0; margin: 0; }
+  .toc li { margin-bottom: 10px; }
+  .toc a {
+    color: var(--navy);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .toc a:hover { color: var(--moss); }
+  .toc .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--hazard); flex-shrink: 0; }
+
+  footer {
+    text-align: center;
+    padding: 30px 20px 50px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  footer a { color: var(--moss); }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="wordmark">
+    <div class="wordmark-badge">P</div>
+    <div class="wordmark-text">Park<span>Share</span></div>
+  </a>
+  <div class="subtitle">Legal & policies</div>
+</header>
+
+<nav>
+  <a href="#terms">Terms of Service</a>
+  <a href="#privacy">Privacy Policy</a>
+  <a href="#payments">Payment Processing</a>
+  <a href="#liability">Liability Disclaimer</a>
+</nav>
+<div class="navbar-underline"></div>
+
+<main>
+
+  <div class="toc">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#terms"><span class="dot"></span>Terms of Service</a></li>
+      <li><a href="#privacy"><span class="dot"></span>Privacy Policy</a></li>
+      <li><a href="#payments"><span class="dot"></span>Payment Processing Agreement</a></li>
+      <li><a href="#liability"><span class="dot"></span>Disclaimer of Liability</a></li>
+    </ul>
+  </div>
+
+  <!-- ───────────── TERMS OF SERVICE ───────────── -->
+  <section class="doc" id="terms">
+    <div class="doc-eyebrow">Legal document 1 of 4</div>
+    <h1>Terms of <span class="accent">Service</span></h1>
+    <p class="updated">Last updated: [DATE]</p>
+
+    <h2>1. Agreement to Terms</h2>
+    <p>These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"), operated by [LEGAL ENTITY NAME] ("ParkShare," "we," "us," or "our"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</p>
+    <p>If you do not agree to these Terms, do not use the Platform.</p>
+
+    <h2>2. What ParkShare Is</h2>
+    <p>ParkShare is a marketplace that connects individuals who own or control private driveways and parking spaces ("Hosts") with individuals seeking to rent parking ("Renters"). ParkShare does not own, operate, inspect, or manage any parking space listed on the Platform. ParkShare is not a party to the parking arrangement formed between a Host and a Renter — we merely provide the platform, booking tools, and payment facilitation.</p>
+
+    <h2>3. Eligibility and Accounts</h2>
+    <ul>
+      <li>You must be at least 18 years old (or the age of majority in your jurisdiction) to create an account.</li>
+      <li>You agree to provide accurate, current, and complete information when registering, and to keep it updated.</li>
+      <li>You are responsible for maintaining the confidentiality of your account credentials and for all activity under your account.</li>
+      <li>We may suspend or terminate accounts that violate these Terms, provide false information, or engage in fraudulent or harmful conduct.</li>
+    </ul>
+
+    <h2>4. Host Responsibilities</h2>
+    <p>If you list a driveway or parking space as a Host, you represent and warrant that:</p>
+    <ul>
+      <li>You own the property or have express legal authority (e.g., as a tenant, with landlord permission) to offer the space for parking.</li>
+      <li>The listing accurately describes the space, its dimensions, access restrictions, availability windows, and features.</li>
+      <li>You will honor confirmed bookings and provide the access described in your listing in a timely manner.</li>
+      <li>You are responsible for ensuring the space is reasonably safe and free of hazards you are aware of.</li>
+      <li>You are solely responsible for any tax obligations, permits, HOA/condo restrictions, insurance requirements, or municipal bylaws applicable to renting out your driveway.</li>
+    </ul>
+
+    <h2>5. Renter Responsibilities</h2>
+    <ul>
+      <li>You will park only in the exact space you booked, for the exact time window booked, and will vacate promptly at the end of your booking.</li>
+      <li>You assume full responsibility for your vehicle while it is parked at a Host's location, including risk of damage, theft, or towing resulting from your own actions or violation of the Host's posted instructions.</li>
+      <li>You will not cause damage to the Host's property, and you agree to reimburse the Host for any damage you cause.</li>
+      <li>Failure to vacate on time may result in additional charges, towing at your expense, or account suspension.</li>
+    </ul>
+
+    <h2>6. Bookings, Payments, and Fees</h2>
+    <p>All bookings are paid for through the Platform via our third-party payment processor (Stripe). See the <a class="inline-link" href="#payments">Payment Processing Agreement</a> for details. ParkShare charges a service fee on each booking, shown at checkout. Prices are set by Hosts, subject to any platform minimums or maximums we may establish.</p>
+
+    <h2>7. Cancellations and Refunds</h2>
+    <p>Renters may cancel a booking in accordance with the cancellation window shown at the time of booking. Hosts who cancel a confirmed booking without cause may be subject to penalties. ParkShare reserves the right to issue refunds or credits at its discretion in cases of Platform error, fraud, or unresolved disputes.</p>
+
+    <h2>8. Reviews</h2>
+    <p>Reviews must be honest, based on an actual completed booking, and must not contain harassment, discriminatory content, or false statements. We reserve the right to remove reviews that violate this policy.</p>
+
+    <h2>9. Prohibited Conduct</h2>
+    <ul>
+      <li>Listing a space you do not have the right to offer.</li>
+      <li>Providing false information about a listing, vehicle, or identity.</li>
+      <li>Using the Platform for any unlawful purpose.</li>
+      <li>Circumventing ParkShare's payment system to avoid fees.</li>
+      <li>Harassing, threatening, or discriminating against other users.</li>
+      <li>Interfering with the security or proper functioning of the Platform.</li>
+    </ul>
+
+    <h2>10. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law, ParkShare shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of the Platform. See the <a class="inline-link" href="#liability">Disclaimer of Liability</a> for full details. ParkShare's total aggregate liability shall not exceed the greater of (a) fees you paid ParkShare in the preceding 12 months, or (b) CAD $100.</p>
+
+    <h2>11. Disclaimer of Warranties</h2>
+    <p>The Platform is provided "as is" and "as available" without warranties of any kind, express or implied. We do not guarantee that listings are accurate or that the Platform will be uninterrupted or error-free.</p>
+
+    <h2>12. Indemnification</h2>
+    <p>You agree to indemnify and hold harmless ParkShare from claims, damages, and expenses arising from your use of the Platform or violation of these Terms.</p>
+
+    <h2>13. Dispute Resolution</h2>
+    <p>Disputes between a Host and a Renter should first be addressed directly using the Platform's messaging feature. Any dispute between you and ParkShare shall be resolved through binding arbitration in [JURISDICTION], except where prohibited by law.</p>
+
+    <h2>14. Modifications</h2>
+    <p>We may modify, suspend, or discontinue any part of the Platform, and may update these Terms, at any time. Continued use after changes take effect constitutes acceptance.</p>
+
+    <h2>15. Governing Law</h2>
+    <p>These Terms are governed by the laws of [PROVINCE/STATE, COUNTRY].</p>
+
+    <h2>16. Contact</h2>
+    <p>Questions about these Terms: <a class="inline-link" href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</a></p>
+  </section>
+
+  <!-- ───────────── PRIVACY POLICY ───────────── -->
+  <section class="doc" id="privacy">
+    <div class="doc-eyebrow">Legal document 2 of 4</div>
+    <h1>Privacy <span class="accent">Policy</span></h1>
+    <p class="updated">Last updated: [DATE]</p>
+
+    <p>This Privacy Policy explains how [LEGAL ENTITY NAME] ("ParkShare," "we," "us," or "our") collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</p>
+
+    <h2>1. Information We Collect</h2>
+    <p><strong>Information you provide:</strong> account details, listing info (Hosts), booking info (Renters), payment info (processed by Stripe), messages, reviews, and support requests.</p>
+    <p><strong>Information collected automatically:</strong> location data (with your permission), usage data, and cookies.</p>
+    <p><strong>From third parties:</strong> authentication data (Supabase), address/geocoding data (Google Maps / OpenStreetMap), and transaction metadata (Stripe).</p>
+
+    <h2>2. How We Use Your Information</h2>
+    <ul>
+      <li>Create and manage your account, display listings, and process bookings.</li>
+      <li>Facilitate payments and payouts.</li>
+      <li>Enable Host–Renter communication and send booking notifications.</li>
+      <li>Verify Host identity and property ownership.</li>
+      <li>Detect and prevent fraud and abuse.</li>
+      <li>Improve the Platform and comply with legal obligations.</li>
+    </ul>
+    <div class="callout">We do not sell your personal information to third parties.</div>
+
+    <h2>3. How We Share Your Information</h2>
+    <p><strong>Between Hosts and Renters:</strong> limited info (name, listing address, access instructions, messages) is shared to facilitate a booking.</p>
+    <p><strong>Service providers:</strong> Stripe (payments), Supabase (authentication/database), Vercel (hosting), Google Maps / OpenStreetMap (mapping).</p>
+    <p><strong>Legal requirements:</strong> we may disclose information if required by law or to protect rights, property, or safety.</p>
+
+    <h2>4. Payment Information</h2>
+    <p>All payment card information is collected and processed directly by <strong>Stripe</strong>. ParkShare does not store your full card number, expiry date, or CVV.</p>
+
+    <h2>5. Data Retention</h2>
+    <p>We retain your information for as long as your account is active or as needed to provide services and comply with legal obligations. You may request deletion at any time.</p>
+
+    <h2>6. Data Security</h2>
+    <p>We use encrypted data transmission (HTTPS) and secure authentication practices. No system is completely secure, and we cannot guarantee absolute security.</p>
+
+    <h2>7. Your Rights and Choices</h2>
+    <p>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <a class="inline-link" href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</a> to exercise these rights.</p>
+
+    <h2>8. Account Deletion</h2>
+    <p>Request account deletion via <a class="inline-link" href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</a>. We will delete or anonymize your information within [X] days, except where retention is legally required.</p>
+
+    <h2>9. Children's Privacy</h2>
+    <p>The Platform is not intended for anyone under 18. We do not knowingly collect information from children.</p>
+
+    <h2>10. International Users</h2>
+    <p>ParkShare is operated from [COUNTRY]. Your information may be transferred to and processed in [COUNTRY] or other jurisdictions where our service providers operate.</p>
+
+    <h2>11. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. Material changes will be reflected with a new "Last updated" date.</p>
+
+    <h2>12. Contact Us</h2>
+    <p>[LEGAL ENTITY NAME]<br>[ADDRESS]<br><a class="inline-link" href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</a></p>
+  </section>
+
+  <!-- ───────────── PAYMENT PROCESSING ───────────── -->
+  <section class="doc" id="payments">
+    <div class="doc-eyebrow">Legal document 3 of 4</div>
+    <h1>Payment Processing <span class="accent">Agreement</span></h1>
+    <p class="updated">Last updated: [DATE]</p>
+
+    <p>This Agreement explains how payments, fees, and payouts work on the ParkShare Platform, and forms part of the ParkShare <a class="inline-link" href="#terms">Terms of Service</a>.</p>
+
+    <h2>1. Payment Processor</h2>
+    <p>ParkShare uses <strong>Stripe, Inc.</strong> to process all payments. ParkShare is not a bank and does not directly hold or store your payment card details.</p>
+
+    <h2>2. How Charges Work (Renters)</h2>
+    <p>Your total charge is calculated as (hourly rate × hours booked) + service fee, and charged in full via Stripe Checkout at booking confirmation. You'll receive a receipt via email.</p>
+
+    <h2>3. Service Fees</h2>
+    <p>ParkShare charges a service fee, shown at checkout, on each booking. Service fees are non-refundable except where a booking is cancelled or refunded per Section 5.</p>
+
+    <h2>4. Payouts to Hosts</h2>
+    <p>Hosts receive payouts for completed bookings, less the service fee, via Stripe. Hosts must complete Stripe's identity verification before receiving payouts. Timing follows Stripe's standard payout schedule.</p>
+
+    <h2>5. Cancellations, Refunds, and Disputes</h2>
+    <p>Approved refunds are issued to the original payment method. If a Renter disputes a charge with their bank ("chargeback"), Hosts may have payouts withheld or reversed if the dispute is upheld.</p>
+
+    <h2>6. Taxes</h2>
+    <p>Hosts are solely responsible for any taxes owed on income earned through ParkShare. ParkShare does not provide tax advice.</p>
+
+    <h2>7. Currency and Exchange Rates</h2>
+    <p>All prices are listed in [CURRENCY]. Card issuers may apply currency conversion fees; ParkShare is not responsible for these.</p>
+
+    <h2>8. Failed or Declined Payments</h2>
+    <p>Bookings are not confirmed until payment succeeds. ParkShare is not liable for a space becoming unavailable while payment is completed.</p>
+
+    <h2>9. Security</h2>
+    <p>Stripe employs industry-standard encryption and fraud detection. No internet data transmission can be guaranteed 100% secure.</p>
+
+    <h2>10. Changes to Fees</h2>
+    <p>ParkShare may change its fee structure at any time; changes apply only to future bookings, shown at checkout.</p>
+
+    <h2>11. Limitation of Liability</h2>
+    <p>ParkShare's liability for payment processing is limited as set out in the <a class="inline-link" href="#terms">Terms of Service</a> and <a class="inline-link" href="#liability">Liability Disclaimer</a>.</p>
+
+    <h2>12. Contact</h2>
+    <p>Payment questions: <a class="inline-link" href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</a></p>
+  </section>
+
+  <!-- ───────────── LIABILITY DISCLAIMER ───────────── -->
+  <section class="doc" id="liability">
+    <div class="doc-eyebrow">Legal document 4 of 4</div>
+    <h1>Disclaimer of <span class="accent">Liability</span></h1>
+    <p class="updated">Last updated: [DATE]</p>
+
+    <p>This Disclaimer supplements the ParkShare <a class="inline-link" href="#terms">Terms of Service</a> and applies to all use of the Platform.</p>
+
+    <h2>1. ParkShare Is a Marketplace, Not a Party to Bookings</h2>
+    <p>ParkShare does not own, inspect, maintain, or control any parking space listed, and is not a party to the arrangement formed between a Host and a Renter.</p>
+
+    <h2>2. Renter Assumption of Risk</h2>
+    <p>By booking and parking, the Renter assumes full responsibility for their vehicle, including:</p>
+    <ul>
+      <li>Any damage to the Renter's vehicle while parked at the Host's location.</li>
+      <li>Any damage the Renter's vehicle causes to the Host's property or others.</li>
+      <li>Towing, impound, ticketing, or storage costs from improper parking or overstaying.</li>
+      <li>Theft or vandalism affecting the Renter's vehicle while parked.</li>
+    </ul>
+    <div class="callout">ParkShare and the Host are not liable for any of the above.</div>
+
+    <h2>3. Host Responsibility for Property</h2>
+    <p>Hosts are solely responsible for accurately describing their space, having the legal right to offer it, addressing hazards on their property, and complying with applicable bylaws, HOA rules, or lease terms.</p>
+
+    <h2>4. No Warranty on Listings</h2>
+    <p>ParkShare does not guarantee the accuracy of any listing. Renters are encouraged to review listing details and communicate with the Host before booking.</p>
+
+    <h2>5. Limitation of Liability</h2>
+    <p>To the maximum extent permitted by law, ParkShare shall not be liable for indirect, incidental, special, consequential, or punitive damages, or any dispute, loss, theft, towing fee, fine, injury, or property damage arising from a booking. Where liability cannot be fully excluded, ParkShare's total liability shall not exceed the greater of fees paid to ParkShare in the preceding 12 months, or CAD $100.</p>
+
+    <h2>6. Personal Injury</h2>
+    <p>Any personal injury occurring on a Host's property is a matter between the Host and the injured party under applicable premises liability law. ParkShare assumes no liability.</p>
+
+    <h2>7. Indemnification</h2>
+    <p>Users agree to indemnify ParkShare from claims arising from their use of the Platform, breach of these terms, or interactions with other users.</p>
+
+    <h2>8. Acknowledgment</h2>
+    <p>By creating an account, listing a space, or booking, you confirm you've read and agree to this Disclaimer, and that all risk connected to a booking is your responsibility.</p>
+
+    <h2>9. Severability</h2>
+    <p>If any provision is found unenforceable, the remaining provisions continue in full force.</p>
+
+    <h2>10. Contact</h2>
+    <p>Questions: <a class="inline-link" href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</a></p>
+  </section>
+
+</main>
+
+<footer>
+  © ParkShare. All rights reserved. This page contains draft legal templates — review with legal counsel before publishing.
+</footer>
+
+</body>
+</html>
