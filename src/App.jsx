@@ -1786,7 +1786,33 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
 }
 
 // ─── List Driveway ────────────────────────────────────────────────────────────
-function ListDrivewayView({ user }) {
+function PinAdjustMap({ lat, lng, onChange }) {
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+  if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY || typeof lat !== "number" || typeof lng !== "number" || loadError) return null;
+  if (!isLoaded) {
+    return <div style={{ width: "100%", height: 200, borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>Loading map…</div>;
+  }
+  return (
+    <div style={{ borderRadius: 12, overflow: "hidden", border: "2px solid " + C.navy }}>
+      <GoogleMap
+        mapContainerStyle={{ width: "100%", height: 200 }}
+        center={{ lat, lng }}
+        zoom={19}
+        mapTypeId="satellite"
+        options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false }}
+      >
+        <Marker
+          position={{ lat, lng }}
+          draggable
+          onDragEnd={(e) => onChange({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
+        />
+      </GoogleMap>
+    </div>
+  );
+}function ListDrivewayView({ user }) {
   const [step, setStep] = useState(1);
   const [publishError, setPublishError] = useState("");
   const [publishing, setPublishing] = useState(false);
