@@ -1987,13 +1987,16 @@ function ListDrivewayView({ user }) {
             <div style={{ flex: 1 }}><label style={labelStyle}>State / Province</label><input style={inputStyle} placeholder="e.g. NY" value={form.region} onChange={e => update("region", e.target.value)} /></div>
           </div>
           <div><label style={labelStyle}>Postal / ZIP code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="e.g. 11201" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
-          {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
-            <div>
-              <label style={labelStyle}>Fine-tune pin location</label>
-              <p style={{ fontSize: 12, color: C.muted, margin: "0 0 8px" }}>Drag the pin if the satellite view doesn't line up with your driveway.</p>
-              <PinAdjustMap lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm(f => ({ ...f, lat, lng }))} />
-            </div>
-          )}
+          {form.street && form.city && form.region && form.postal && suggestions.length === 0 && (
+                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>✓ Address confirmed: {fullAddress}</div>
+              )}
+              {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
+                <div>
+                  <label style={labelStyle}>Fine-tune pin location</label>
+                  <p style={{ fontSize: 12, color: C.muted, margin: "0 0 8px" }}>Drag the pin if the satellite view doesn't line up with your driveway.</p>
+                  <PinAdjustMap lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm(f => ({ ...f, lat, lng }))} />
+                </div>
+              )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
             <Btn onClick={() => setStep(2)} disabled={!form.street || !form.city || !form.region || !form.postal}>Continue →</Btn>
