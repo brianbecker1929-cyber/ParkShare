@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, Component } from "react";
-import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 
 // Palette: "curbside" — asphalt ink, chalk concrete, curb-paint yellow,
