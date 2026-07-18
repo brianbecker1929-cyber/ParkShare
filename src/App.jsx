@@ -1003,7 +1003,7 @@ function useAllListings() {
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, user }) {
+function BrowseView({ onMessage, user, autoFocusSearch, autoLocate }) {
   const allListings = useAllListings();
   const [query, setQuery] = useState("");
   const [locatedSearch, setLocatedSearch] = useState(false);
@@ -1018,6 +1018,7 @@ function BrowseView({ onMessage, user }) {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
   const debounceRef = useRef(null);
+  const searchInputRef = useRef(null);
 
   // If the live geocoder can't be reached, fall back to matching against our
   // own listing addresses so the dropdown still shows something useful.
@@ -1088,6 +1089,16 @@ function BrowseView({ onMessage, user }) {
     );
   };
 
+  // Arriving from the landing page: honor whichever action the person picked there.
+  useEffect(() => {
+    if (autoLocate) {
+      getLocation();
+    } else if (autoFocusSearch && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filtered = allListings
     .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
     .map(l => ({ ...l, distMiles: userLoc ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng) : parseFloat(l.distance) }))
@@ -1104,7 +1115,7 @@ function BrowseView({ onMessage, user }) {
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
           <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: C.muted }}>Destination</span>
           <div style={{ flex: 1, position: "relative" }}>
-            <input value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search address or driveway…"
+            <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search address or driveway…"
               style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
             {loadingSug && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11 }}>⏳</span>}
             {/* Autocomplete dropdown */}
@@ -1151,10 +1162,8 @@ function BrowseView({ onMessage, user }) {
               <button key={v} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* Content — fills all remaining height, no scroll */}
+        {/* Content — fills all remaining height, no scroll */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
         {/* Listing column */}
@@ -2696,14 +2705,123 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
   );
 }
 
+// ─── Landing Page — the first thing people see ─────────────────────────────────
+function LandingPage({ onSearchAddress, onUseLocation, onSignIn, onBecomeHost }) {
+  const [waving, setWaving] = useState(true);
+  const [pointing, setPointing] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setWaving(false), 1600);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleUseLocation = () => {
+    setPointing(true);
+    setTimeout(() => {
+      setPointing(false);
+      onUseLocation();
+    }, 550);
+  };
+
+  const parkerImg = pointing ? PARKER.signpose : PARKER.welcome;
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "Inter, system-ui, sans-serif" }}>
+      <style>{`
+        @keyframes ps-wave { 0%,100%{ transform: rotate(0deg);} 25%{ transform: rotate(-4deg);} 75%{ transform: rotate(4deg);} }
+        @keyframes ps-idle { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-4px);} }
+        @keyframes ps-fadeUp { from{ opacity:0; transform: translateY(12px);} to{ opacity:1; transform: translateY(0);} }
+        .ps-parker { animation: ${"ps-idle 3.2s ease-in-out infinite"}; }
+      `}</style>
+
+      {/* Header */}
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", background: C.navy }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img src={PARKER.icon} alt="" style={{ width: 34, height: 34, borderRadius: "50%", objectFit: "cover", border: "2px solid " + C.amber }} />
+          <span style={{ color: C.white, fontWeight: 800, fontSize: 18, fontFamily: "'Space Grotesk', sans-serif" }}>Park<span style={{ color: C.amber }}>Share</span></span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <button onClick={onSignIn} style={{ background: "none", border: "none", color: C.white, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
+          <button onClick={onBecomeHost} style={{ display: "flex", alignItems: "center", gap: 6, background: C.amber, border: "none", color: C.navy, fontSize: 13, fontWeight: 700, padding: "9px 16px", borderRadius: 20, cursor: "pointer", whiteSpace: "nowrap" }}>
+            🏠 Host your space
+          </button>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section style={{ maxWidth: 480, margin: "0 auto", padding: "36px 24px 8px", textAlign: "center" }}>
+        <div style={{ position: "relative", display: "inline-block", marginBottom: 8 }}>
+          <div style={{ width: 220, height: 220, borderRadius: "50%", background: C.amber, opacity: 0.18, position: "absolute", top: 10, left: 10 }} />
+          <img
+            src={parkerImg}
+            alt="Parker waving hello"
+            className={waving ? "" : "ps-parker"}
+            style={{ position: "relative", width: 220, height: 220, objectFit: "cover", borderRadius: "50%", border: "4px solid " + C.white, boxShadow: "0 8px 24px rgba(28,43,57,0.18)", animation: waving ? "ps-wave 0.5s ease-in-out 3" : undefined, transition: "transform 0.15s ease" }}
+          />
+        </div>
+
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: C.navy, margin: "10px 0 0" }}>Welcome to</h1>
+        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 46, fontWeight: 800, margin: "0 0 8px", lineHeight: 1 }}>
+          <span style={{ color: C.navy }}>Park</span><span style={{ color: C.amber }}>Share</span>
+        </h2>
+        <p style={{ color: C.muted, fontSize: 15, margin: "0 0 26px" }}>
+          Let <span style={{ color: C.navy, fontWeight: 700, textDecoration: "underline", textDecorationColor: C.amber, textDecorationThickness: 2 }}>Parker</span> find you great parking anywhere!
+        </p>
+
+        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 22, fontWeight: 700, color: C.navy, margin: "0 0 4px" }}>Where do you want to park?</h3>
+        <p style={{ color: C.muted, fontSize: 13, margin: "0 0 22px" }}>Find safe, convenient parking near you in seconds.</p>
+
+        <button onClick={onSearchAddress} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: C.white, border: "2px solid " + C.concrete, borderRadius: 16, padding: "14px 16px", marginBottom: 12, cursor: "pointer", boxShadow: "0 2px 10px rgba(28,43,57,0.05)" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🔍</span>
+            <span style={{ textAlign: "left" }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>Search an address</div>
+              <div style={{ fontSize: 12, color: C.muted }}>Find parking near any location</div>
+            </span>
+          </span>
+          <span style={{ fontSize: 18, color: C.navy }}>›</span>
+        </button>
+
+        <button onClick={handleUseLocation} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: C.white, border: "2px solid " + C.amber, borderRadius: 16, padding: "14px 16px", marginBottom: 20, cursor: "pointer", boxShadow: "0 2px 10px rgba(28,43,57,0.05)" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 40, height: 40, borderRadius: "50%", background: C.amber, color: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🎯</span>
+            <span style={{ textAlign: "left" }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>Use my current location</div>
+              <div style={{ fontSize: 12, color: C.muted }}>Find parking near you</div>
+            </span>
+          </span>
+          <span style={{ fontSize: 18, color: C.amber }}>›</span>
+        </button>
+
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, background: C.white, borderRadius: 16, padding: "14px 12px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", marginBottom: 24 }}>
+          {[
+            { icon: "🛡️", label: "Safe & Secure", sub: "Verified hosts" },
+            { icon: "👍", label: "Trusted Community", sub: "Real reviews" },
+            { icon: "🕐", label: "24/7 Access", sub: "Park on your time" },
+          ].map(item => (
+            <div key={item.label} style={{ flex: 1, textAlign: "center" }}>
+              <div style={{ fontSize: 16, marginBottom: 2 }}>{item.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 10.5, color: C.navy }}>{item.label}</div>
+              <div style={{ fontSize: 9.5, color: C.muted }}>{item.sub}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [screen, setScreen] = useState("landing"); // "landing" | "app" — landing shows first on every fresh visit
   const [tab, setTab] = useState("Browse");
   const [messageThread, setMessageThread] = useState(null);
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
+  const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
+  const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
 
   // Detect returning from Stripe's hosted checkout page and show a banner,
   // then strip the query params so refreshing doesn't re-show it.
@@ -2774,6 +2892,25 @@ export default function App() {
     return content;
   };
 
+  // Landing-page actions route straight into the real app logic —
+  // no duplicated search/geolocation code, just a different entry point.
+  const enterApp = (nextTab) => { setScreen("app"); if (nextTab) setTab(nextTab); };
+  const handleLandingSearch = () => { setBrowseAutoLocate(false); setBrowseAutoFocus(true); enterApp("Browse"); };
+  const handleLandingLocation = () => { setBrowseAutoFocus(false); setBrowseAutoLocate(true); enterApp("Browse"); };
+  const handleLandingHost = () => enterApp("List Your Driveway");
+  const handleLandingSignIn = () => { enterApp("Browse"); setShowAuth(true); };
+
+  if (screen === "landing") {
+    return (
+      <LandingPage
+        onSearchAddress={handleLandingSearch}
+        onUseLocation={handleLandingLocation}
+        onSignIn={handleLandingSignIn}
+        onBecomeHost={handleLandingHost}
+      />
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');`}</style>
@@ -2790,7 +2927,7 @@ export default function App() {
           <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
         </div>
       )}
-      {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} />}
+      {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} />}
       {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
       {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
       {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} user={user} />, "Sign in to view your bookings.")}
@@ -2801,4 +2938,5 @@ export default function App() {
     </div>
   );
 }
+
 
