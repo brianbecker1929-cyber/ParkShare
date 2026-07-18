@@ -2724,7 +2724,7 @@ function LandingPage({ onSearchAddress, onUseLocation, onSignIn, onBecomeHost })
   }, []);
 
   return (
-    <div style={{ height: "100dvh", minHeight: "100vh", overflow: "hidden", display: "flex", flexDirection: "column", background: C.warmWhite, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "Inter, system-ui, sans-serif" }}>
       <style>{`
         @keyframes ps-wave { 0%,100%{ transform: rotate(0deg);} 25%{ transform: rotate(-4deg);} 75%{ transform: rotate(4deg);} }
         @keyframes ps-idle { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-4px);} }
@@ -2733,82 +2733,82 @@ function LandingPage({ onSearchAddress, onUseLocation, onSignIn, onBecomeHost })
         .ps-btn:active { transform: scale(0.98); }
       `}</style>
 
-      {/* Header — fixed, compact */}
-      <header style={{ flexShrink: 0, display: "flex", flexWrap: "nowrap", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", background: C.navy, gap: 10 }}>
+      {/* Header */}
+      <header style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", background: C.navy, gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, minWidth: 0 }}>
-          <img src={PARKER.icon} alt="" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", border: "2px solid " + C.amber, flexShrink: 0 }} />
-          <span style={{ color: C.white, fontWeight: 800, fontSize: 15, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap" }}>Park<span style={{ color: C.amber }}>Share</span></span>
+          <img src={PARKER.icon} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover", border: "2px solid " + C.amber, flexShrink: 0 }} />
+          <span style={{ color: C.white, fontWeight: 800, fontSize: 16, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap" }}>Park<span style={{ color: C.amber }}>Share</span></span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <button onClick={onSignIn} style={{ background: "none", border: "none", color: C.white, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, padding: 0 }}>Sign in</button>
-          <button onClick={onBecomeHost} style={{ display: "flex", alignItems: "center", gap: 4, background: C.amber, border: "none", color: C.navy, fontSize: 11, fontWeight: 700, padding: "6px 10px", borderRadius: 18, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+          <button onClick={onSignIn} style={{ background: "none", border: "none", color: C.white, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, padding: 0 }}>Sign in</button>
+          <button onClick={onBecomeHost} style={{ display: "flex", alignItems: "center", gap: 5, background: C.amber, border: "none", color: C.navy, fontSize: 12, fontWeight: 700, padding: "8px 12px", borderRadius: 20, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
             🏠 Host your space
           </button>
         </div>
       </header>
 
-      {/* Hero — Parker fills ~50% of the screen, background sits right behind him */}
+      {/* Hero — Parker + welcome text sit on the faint map background, sized to match the reference (Parker ≈ 58% of content width) */}
       <div
         style={{
-          flex: "0 0 50%",
-          minHeight: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
           backgroundImage: `url(${LANDING.background})`,
           backgroundSize: "cover",
-          backgroundPosition: "center",
+          backgroundPosition: "center 20%",
           backgroundRepeat: "no-repeat",
         }}
       >
-        <img
-          src={LANDING.parkerLogo}
-          alt="Parker waving hello — ParkShare"
-          className={waving ? "" : "ps-parker-logo"}
-          style={{ height: "100%", maxHeight: "100%", width: "auto", animation: waving ? "ps-wave 0.5s ease-in-out 3" : undefined, display: "block" }}
-        />
+        <section style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 4px", textAlign: "center" }}>
+          <img
+            src={LANDING.parkerLogo}
+            alt="Parker waving hello — ParkShare"
+            className={waving ? "" : "ps-parker-logo"}
+            style={{ width: "min(76vw, 270px)", height: "auto", animation: waving ? "ps-wave 0.5s ease-in-out 3" : undefined, display: "inline-block" }}
+          />
+
+          <img
+            src={LANDING.welcomeText}
+            alt="Welcome to ParkShare — Let Parker find you great parking anywhere!"
+            style={{ width: "min(88vw, 360px)", height: "auto", display: "block", margin: "6px auto 0" }}
+          />
+        </section>
       </div>
 
-      {/* Rest of the screen: welcome text, both buttons (minimal gap), trust bar */}
-      <div style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column", justifyContent: "center", padding: "4px 20px", gap: "1.4vh" }}>
-        <img
-          src={LANDING.welcomeText}
-          alt="Welcome to ParkShare — Let Parker find you great parking anywhere!"
-          style={{ width: "100%", maxWidth: 360, maxHeight: "11vh", height: "auto", objectFit: "contain", display: "block", margin: "0 auto" }}
-        />
+      {/* Below the map art: plain background */}
+      <section style={{ maxWidth: 460, margin: "0 auto", padding: "0 24px 28px", textAlign: "center" }}>
+        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: C.navy, margin: "24px 0 4px" }}>Where do you want to park?</h3>
+        <p style={{ color: C.muted, fontSize: 13.5, margin: "0 0 18px" }}>Find safe, convenient parking near you in seconds.</p>
 
-        {/* Search an address — real clickable button, minimal gap to the one below */}
+        {/* Search an address — real clickable button skinned with the exported bar image */}
         <button
           onClick={onSearchAddress}
           className="ps-btn"
-          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer" }}
+          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", marginBottom: 12 }}
         >
           <img src={LANDING.searchBar} alt="Search an address — Find parking near any location" style={{ width: "100%", height: "auto", display: "block" }} />
         </button>
 
-        {/* Use my current location — real clickable button */}
+        {/* Use my current location — real clickable button skinned with the exported bar image */}
         <button
           onClick={onUseLocation}
           className="ps-btn"
-          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer" }}
+          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", marginBottom: 18 }}
         >
           <img src={LANDING.locationBar} alt="Use my current location — Find parking near you" style={{ width: "100%", height: "auto", display: "block" }} />
         </button>
 
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, background: C.white, borderRadius: 14, padding: "1.2vh 10px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", flexShrink: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, background: C.white, borderRadius: 16, padding: "14px 12px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)" }}>
           {[
             { icon: "🛡️", label: "Safe & Secure", sub: "Verified hosts" },
             { icon: "👍", label: "Trusted Community", sub: "Real reviews" },
             { icon: "🕐", label: "24/7 Access", sub: "Park on your time" },
           ].map(item => (
             <div key={item.label} style={{ flex: 1, textAlign: "center" }}>
-              <div style={{ fontSize: 14, marginBottom: 1 }}>{item.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 9.5, color: C.navy, lineHeight: 1.2 }}>{item.label}</div>
-              <div style={{ fontSize: 8.5, color: C.muted, lineHeight: 1.2 }}>{item.sub}</div>
+              <div style={{ fontSize: 16, marginBottom: 2 }}>{item.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 10.5, color: C.navy }}>{item.label}</div>
+              <div style={{ fontSize: 9.5, color: C.muted }}>{item.sub}</div>
             </div>
           ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }
