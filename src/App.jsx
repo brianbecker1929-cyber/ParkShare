@@ -2756,46 +2756,44 @@ function LandingPage({ onSearchAddress, onUseLocation, onSignIn, onBecomeHost })
           backgroundRepeat: "no-repeat",
         }}
       >
-        <section style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 4px", textAlign: "center" }}>
+        <section style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 4px", textAlign: "center" }}>
           <img
             src={LANDING.parkerLogo}
             alt="Parker waving hello — ParkShare"
             className={waving ? "" : "ps-parker-logo"}
-            style={{ width: "min(76vw, 270px)", height: "auto", animation: waving ? "ps-wave 0.5s ease-in-out 3" : undefined, display: "inline-block" }}
+            style={{ width: "min(94vw, 360px)", height: "auto", animation: waving ? "ps-wave 0.5s ease-in-out 3" : undefined, display: "inline-block" }}
           />
 
           <img
             src={LANDING.welcomeText}
             alt="Welcome to ParkShare — Let Parker find you great parking anywhere!"
-            style={{ width: "min(88vw, 360px)", height: "auto", display: "block", margin: "6px auto 0" }}
+            style={{ width: "min(88vw, 360px)", height: "auto", display: "block", margin: "-8px auto 0" }}
           />
         </section>
       </div>
 
       {/* Below the map art: plain background */}
-      <section style={{ maxWidth: 460, margin: "0 auto", padding: "0 24px 28px", textAlign: "center" }}>
-        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: C.navy, margin: "24px 0 4px" }}>Where do you want to park?</h3>
-        <p style={{ color: C.muted, fontSize: 13.5, margin: "0 0 18px" }}>Find safe, convenient parking near you in seconds.</p>
-
+      <section style={{ maxWidth: 460, margin: "0 auto", padding: "24px 24px 28px", textAlign: "center" }}>
         {/* Search an address — real clickable button skinned with the exported bar image */}
         <button
           onClick={onSearchAddress}
           className="ps-btn"
-          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", marginBottom: 12 }}
+          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", marginBottom: 4 }}
         >
           <img src={LANDING.searchBar} alt="Search an address — Find parking near any location" style={{ width: "100%", height: "auto", display: "block" }} />
         </button>
 
-        {/* Use my current location — real clickable button skinned with the exported bar image */}
+        {/* Use my current location — real clickable button skinned with the exported bar image, sits directly under the search bar */}
         <button
           onClick={onUseLocation}
           className="ps-btn"
-          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", marginBottom: 18 }}
+          style={{ display: "block", width: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", marginBottom: 4 }}
         >
           <img src={LANDING.locationBar} alt="Use my current location — Find parking near you" style={{ width: "100%", height: "auto", display: "block" }} />
         </button>
 
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, background: C.white, borderRadius: 16, padding: "14px 12px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)" }}>
+        {/* Trust bar — sits directly under the location button */}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, background: C.white, borderRadius: 16, padding: "14px 12px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", marginTop: 0 }}>
           {[
             { icon: "🛡️", label: "Safe & Secure", sub: "Verified hosts" },
             { icon: "👍", label: "Trusted Community", sub: "Real reviews" },
