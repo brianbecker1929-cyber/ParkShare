@@ -1143,10 +1143,10 @@ function BrowseView({ onMessage, user }) {
         {locationError && (
           <div style={{ fontSize: 11, color: C.red, marginBottom: 6 }}>⚠️ {locationError}</div>
         )}
-        {/* Row 2: view toggle */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 10, color: C.muted }}>{filtered.length} driveways {locatedSearch ? "near \"" + query + "\"" : userLoc ? "near you" : "available"}</span>
-          <div style={{ display: "flex", background: C.concrete, borderRadius: 20, padding: 2 }}>
+        <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, background: userLoc ? C.moss : C.concrete, color: userLoc ? C.white : C.muted, border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+              <span>{locating ? "⏳" : "📍"}</span>
+              <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
+            </button>
             {[["split","⊞"],["list","☰"],["map","🗺"]].map(([v,label]) => (
               <button key={v} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
