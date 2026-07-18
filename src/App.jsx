@@ -1102,10 +1102,7 @@ function BrowseView({ onMessage, user }) {
       <div style={{ background: C.white, borderBottom: "1px solid "+C.concrete, padding: "8px 12px", flexShrink: 0 }}>
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-          <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, background: userLoc ? C.moss : C.concrete, color: userLoc ? C.white : C.muted, border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-            <span>{locating ? "⏳" : "📍"}</span>
-            <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
-          </button>
+          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: C.muted }}>Destination</span>
           <div style={{ flex: 1, position: "relative" }}>
             <input value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search address or driveway…"
               style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
