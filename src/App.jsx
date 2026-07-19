@@ -2672,7 +2672,7 @@ function FloatingParkerHelp() {
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
 function Footer() {
-  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 12, width: 108, height: 58, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 };
+  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 8, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 };
   return (
     <footer style={{ background: C.navy, fontFamily: "Inter, system-ui, sans-serif", padding: "18px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <button style={btnStyle}>Contact Us</button>
@@ -2691,7 +2691,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
       {/* Top row: logo + user */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
-          {!user && <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 12, width: 108, height: 58, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Sign in</button>}
+          {!user && <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 8, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Sign in</button>}
         </div>
         <button onClick={onLogoClick} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifySelf: "center" }}>
           <div style={{ display: "inline-block", textAlign: "center" }}>
@@ -2716,7 +2716,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
           </div>
         ) : (
           <div style={{ display: "flex", justifySelf: "end" }}>
-            <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 12, width: 108, height: 58, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Join free</button>
+            <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 8, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Join free</button>
           </div>
         )}
       </div>
