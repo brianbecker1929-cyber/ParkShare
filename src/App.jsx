@@ -1124,7 +1124,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
       <div style={{ background: C.white, borderBottom: "1px solid "+C.concrete, padding: "8px 12px", flexShrink: 0 }}>
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: C.muted }}>Destination</span>
+          <span style={{ flexShrink: 0, background: C.amber, color: C.navy, border: "2px solid " + C.white, borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: 700 }}>Destination</span>
           <div style={{ flex: 1, position: "relative" }}>
             <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search address or driveway…"
               style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
@@ -1165,14 +1165,19 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
         {locationError && (
           <div style={{ fontSize: 11, color: C.red, marginBottom: 6 }}>⚠️ {locationError}</div>
         )}
-        <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, background: userLoc ? C.moss : C.concrete, color: userLoc ? C.white : C.muted, border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-              <span>{locating ? "⏳" : "📍"}</span>
-              <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
-            </button>
+        {/* Row 2: location button (left) and view toggles, positioned under the sort dropdown (right) */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, background: userLoc ? C.moss : C.concrete, color: userLoc ? C.white : C.muted, border: "none", borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <span>{locating ? "⏳" : "📍"}</span>
+            <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
+          </button>
+          <div style={{ display: "flex", flexShrink: 0 }}>
             {[["split","⊞"],["list","☰"],["map","🗺"]].map(([v,label]) => (
               <button key={v} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
           </div>
+        </div>
+      </div>
 
         {/* Content — fills all remaining height, no scroll */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
