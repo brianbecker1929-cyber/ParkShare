@@ -2708,12 +2708,14 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
           </div>
         )}
       </div>
-      {/* Nav tabs */}
-      <div style={{ display: "flex", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
-        {tabs.map(t => (
-          <button key={t} onClick={() => onTabChange(t)} style={{ flexShrink: 0, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t}</button>
-        ))}
-      </div>
+      {/* Nav tabs — only shown once signed in; guests reach Browse via the landing page actions instead */}
+      {user && (
+        <div style={{ display: "flex", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
+          {tabs.map(t => (
+            <button key={t} onClick={() => onTabChange(t)} style={{ flexShrink: 0, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t}</button>
+          ))}
+        </div>
+      )}
       {/* Lane-line divider */}
       <div style={{ borderTop: "3px solid " + C.amber, opacity: 0.55 }} />
     </header>
