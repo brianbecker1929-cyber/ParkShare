@@ -2672,11 +2672,11 @@ function FloatingParkerHelp() {
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
 function Footer() {
-  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 };
+  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
   return (
-    <footer style={{ background: C.navy, fontFamily: "Inter, system-ui, sans-serif", padding: "18px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <footer style={{ background: C.navy, fontFamily: "Inter, system-ui, sans-serif", padding: "18px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
       <button style={btnStyle}>Contact Us</button>
-      <button style={btnStyle}>Legal &amp; T&amp;C</button>
+      <button style={btnStyle}>Legal &amp; T/C</button>
     </footer>
   );
 }
