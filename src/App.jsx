@@ -1013,7 +1013,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
   const [mapHovered, setMapHovered] = useState(null);
-  const [view, setView] = useState("split");
+  const [view, setView] = useState("map");
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
@@ -1124,7 +1124,6 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
       <div style={{ background: C.white, borderBottom: "1px solid "+C.concrete, padding: "8px 12px", flexShrink: 0 }}>
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
-          <span style={{ flexShrink: 0, background: C.amber, color: C.navy, border: "2px solid " + C.white, borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: 700 }}>Destination</span>
           <div style={{ flex: 1, position: "relative" }}>
             <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search address or driveway…"
               style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
