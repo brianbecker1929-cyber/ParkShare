@@ -3263,7 +3263,6 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>Reach us</div>
           <div style={{ fontSize: 14, color: C.navy, lineHeight: 1.8 }}>
             <div><strong>Email:</strong> <a href="mailto:Support@myparkshare.ca" style={{ color: C.moss, textDecoration: "underline" }}>Support@myparkshare.ca</a></div>
-            <div><strong>Address:</strong> Vaughan, Ontario</div>
           </div>
         </div>
 
