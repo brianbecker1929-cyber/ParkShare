@@ -3268,7 +3268,7 @@ export default function App() {
     };
   }, []);
 
-  const goHome = () => { setScreen("app"); setTab("Browse"); setBrowseKey(k => k + 1); };
+  const goHome = () => { setScreen("landing"); setTab("Browse"); setBrowseKey(k => k + 1); };
   const openLegal = () => setScreen("legal");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
