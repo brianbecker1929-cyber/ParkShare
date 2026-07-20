@@ -2939,7 +2939,7 @@ function LegalCallout({ children }) {
 }
 
 function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) {
-  const UPDATED = "[DATE]";
+  const UPDATED = "July 18, 2026";
   const nav = [
     ["terms", "Terms of Service"],
     ["privacy", "Privacy Policy"],
@@ -2967,7 +2967,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
         <div id="terms">
           <LegalDoc eyebrow="Legal document 1 of 4" title="Terms of" accent="Service" updated={UPDATED}>
             <LegalH2>1. Agreement to Terms</LegalH2>
-            <LegalP>These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"), operated by [LEGAL ENTITY NAME] ("ParkShare," "we," "us," or "our"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
+            <LegalP>These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"), operated by ESKA Technologies Inc. ("ParkShare," "we," "us," or "our"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
             <LegalP>If you do not agree to these Terms, do not use the Platform.</LegalP>
 
             <LegalH2>2. What ParkShare Is</LegalH2>
@@ -3031,22 +3031,22 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
 
             <LegalH2>13. Dispute Resolution</LegalH2>
             <LegalP>Disputes between a Host and a Renter regarding a specific booking should first be addressed directly between the parties using the Platform's messaging feature. ParkShare may, but is not obligated to, assist in resolving disputes.</LegalP>
-            <LegalP>Any dispute between you and ParkShare arising from these Terms shall be resolved through binding arbitration in [JURISDICTION], except where prohibited by law. You waive any right to participate in a class action.</LegalP>
+            <LegalP>Any dispute between you and ParkShare arising from these Terms shall be resolved through binding arbitration in Ontario, Canada, except where prohibited by law. You waive any right to participate in a class action.</LegalP>
 
             <LegalH2>14. Modifications to the Platform and Terms</LegalH2>
             <LegalP>We may modify, suspend, or discontinue any part of the Platform at any time. We may update these Terms from time to time; continued use of the Platform after changes take effect constitutes acceptance of the revised Terms.</LegalP>
 
             <LegalH2>15. Governing Law</LegalH2>
-            <LegalP>These Terms are governed by the laws of [PROVINCE/STATE, COUNTRY], without regard to conflict of law principles.</LegalP>
+            <LegalP>These Terms are governed by the laws of Ontario, Canada, without regard to conflict of law principles.</LegalP>
 
             <LegalH2>16. Contact</LegalH2>
-            <LegalP>Questions about these Terms: <LegalLink href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</LegalLink></LegalP>
+            <LegalP>Questions about these Terms: <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
           </LegalDoc>
         </div>
 
         <div id="privacy">
           <LegalDoc eyebrow="Legal document 2 of 4" title="Privacy" accent="Policy" updated={UPDATED}>
-            <LegalP>This Privacy Policy explains how [LEGAL ENTITY NAME] ("ParkShare," "we," "us," or "our") collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
+            <LegalP>This Privacy Policy explains how ESKA Technologies Inc. ("ParkShare," "we," "us," or "our") collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
 
             <LegalH2>1. Information We Collect</LegalH2>
             <LegalP><strong>Information you provide:</strong> account details, listing info (Hosts), booking info (Renters), payment info (processed by Stripe), messages, reviews, and support requests.</LegalP>
@@ -3079,22 +3079,22 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
             <LegalP>We use encrypted data transmission (HTTPS) and secure authentication practices. No system is completely secure, and we cannot guarantee absolute security.</LegalP>
 
             <LegalH2>7. Your Rights and Choices</LegalH2>
-            <LegalP>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <LegalLink href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</LegalLink> to exercise these rights.</LegalP>
+            <LegalP>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink> to exercise these rights.</LegalP>
 
             <LegalH2>8. Account Deletion</LegalH2>
-            <LegalP>Request account deletion via <LegalLink href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</LegalLink>. We will delete or anonymize your information within [X] days, except where retention is legally required.</LegalP>
+            <LegalP>Request account deletion via <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>. We will delete or anonymize your information within 90 days, except where retention is legally required.</LegalP>
 
             <LegalH2>9. Children's Privacy</LegalH2>
             <LegalP>The Platform is not intended for anyone under 18. We do not knowingly collect information from children. If we learn that we have collected information from a child under 18, we will delete it.</LegalP>
 
             <LegalH2>10. International Users</LegalH2>
-            <LegalP>ParkShare is operated from [COUNTRY]. Your information may be transferred to and processed in [COUNTRY] or other jurisdictions where our service providers operate.</LegalP>
+            <LegalP>ParkShare is operated from Canada. Your information may be transferred to and processed in Canada or other jurisdictions where our service providers operate.</LegalP>
 
             <LegalH2>11. Changes to This Policy</LegalH2>
             <LegalP>We may update this Privacy Policy from time to time. Material changes will be reflected with a new "Last updated" date.</LegalP>
 
             <LegalH2>12. Contact Us</LegalH2>
-            <LegalP>[LEGAL ENTITY NAME]<br />[ADDRESS]<br /><LegalLink href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</LegalLink></LegalP>
+            <LegalP>ESKA Technologies Inc.<br />Vaughan, Ontario<br /><LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
           </LegalDoc>
         </div>
 
@@ -3107,7 +3107,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
             <LegalP>By using ParkShare's payment features, you also agree to Stripe's <LegalLink href="https://stripe.com/connect-account/legal">Connected Account Agreement</LegalLink> and <LegalLink href="https://stripe.com/legal">Terms of Service</LegalLink>, as applicable.</LegalP>
 
             <LegalH2>2. How Charges Work (Renters)</LegalH2>
-            <LegalP>Your total charge is calculated as (hourly rate × hours booked) + service fee, and charged in full via Stripe Checkout at booking confirmation. You'll receive a receipt via email. All charges are in [CURRENCY] unless otherwise indicated.</LegalP>
+            <LegalP>Your total charge is calculated as (hourly rate × hours booked) + service fee, and charged in full via Stripe Checkout at booking confirmation. You'll receive a receipt via email. All charges are in CAD unless otherwise indicated.</LegalP>
 
             <LegalH2>3. Service Fees</LegalH2>
             <LegalP>ParkShare charges a service fee (currently displayed as a percentage at checkout, e.g., 12%) on each booking. The fee is disclosed before you confirm payment and is included in the total shown at checkout. Service fees are non-refundable except where a booking is cancelled or refunded per Section 5.</LegalP>
@@ -3122,7 +3122,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
             <LegalP>Hosts are solely responsible for determining and remitting any taxes owed on income earned through ParkShare, including but not limited to income tax, HST/GST, or other applicable sales taxes. ParkShare does not provide tax advice. Hosts should consult a tax professional regarding their obligations. Where required by law, ParkShare or Stripe may issue tax reporting documents (e.g., 1099-K in the U.S., or equivalent) to Hosts who meet applicable reporting thresholds.</LegalP>
 
             <LegalH2>7. Currency and Exchange Rates</LegalH2>
-            <LegalP>All prices on the Platform are listed in [CURRENCY]. If your payment method is denominated in a different currency, your card issuer may apply currency conversion fees; ParkShare is not responsible for such fees.</LegalP>
+            <LegalP>All prices on the Platform are listed in CAD. If your payment method is denominated in a different currency, your card issuer may apply currency conversion fees; ParkShare is not responsible for such fees.</LegalP>
 
             <LegalH2>8. Failed or Declined Payments</LegalH2>
             <LegalP>If a payment fails or is declined, your booking will not be confirmed until a successful payment is completed. ParkShare is not liable for any parking space becoming unavailable while you attempt to complete payment.</LegalP>
@@ -3137,7 +3137,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
             <LegalP>ParkShare's liability with respect to payment processing is limited as set out in the <LegalLink href="#terms">Terms of Service</LegalLink> and <LegalLink href="#liability">Liability Disclaimer</LegalLink>. ParkShare is not liable for errors, delays, or failures caused by Stripe, banking networks, or other third-party financial infrastructure outside our control.</LegalP>
 
             <LegalH2>12. Contact</LegalH2>
-            <LegalP>Payment-related questions can be directed to <LegalLink href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</LegalLink>.</LegalP>
+            <LegalP>Payment-related questions can be directed to <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>.</LegalP>
           </LegalDoc>
         </div>
 
@@ -3191,7 +3191,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut 
             <LegalP>By creating an account, listing a space, or booking a parking spot, you confirm that you have read, understood, and agree to this Disclaimer of Liability, and that all risk of damage, loss, towing, or injury connected to a booking is your responsibility as described above.</LegalP>
 
             <LegalH2>9. Contact</LegalH2>
-            <LegalP>Questions about this Disclaimer can be directed to <LegalLink href="mailto:[SUPPORT EMAIL]">[SUPPORT EMAIL]</LegalLink>.</LegalP>
+            <LegalP>Questions about this Disclaimer can be directed to <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>.</LegalP>
           </LegalDoc>
         </div>
       </div>
