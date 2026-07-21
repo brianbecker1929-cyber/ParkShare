@@ -352,22 +352,43 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, on
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-  const subtotal = Number((listing.price * hours).toFixed(2));
-  const serviceFee = Number((subtotal * 0.12).toFixed(2));
-  const total = Number((subtotal + serviceFee).toFixed(2));
+const subtotal = listing.price * hours;
+  const serviceFee = Math.round(subtotal * 0.15);
+  const total = subtotal + serviceFee;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
   const payWithStripe = async () => {
     setStripeError("");
+
     if (!user) {
       setStripeError("Please sign in before booking.");
       return;
     }
+
+    if (!isRealListing) {
+      setStripeError("This parking listing is not available for Stripe checkout.");
+      return;
+    }
+
     setRedirecting(true);
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Please sign in again before booking.");
+      // The Stripe API is protected. Send the current Supabase JWT so the
+      // server can verify which signed-in ParkShare user is making the booking.
+      let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      let session = sessionData?.session;
+
+      // Refresh an old session once before asking the user to sign in again.
+      if (sessionError || !session?.access_token) {
+        const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
+        session = refreshedData?.session;
+      }
+
+      if (!session?.access_token) {
+        throw new Error("Your session is invalid or expired. Please sign in again.");
+      }
 
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
@@ -378,18 +399,39 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, on
         body: JSON.stringify({
           listingId: numericId,
           hours,
+          total,
+          listingTitle: listing.title,
           spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
-          bookingDate: date ? date.toISOString() : undefined,
+          bookingDate: date instanceof Date ? date.toISOString() : undefined,
           startHour,
           endHour,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't start checkout");
-      window.location.href = data.url; // hand off to Stripe's hosted checkout page
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {
+        // Keep the fallback error below when the API returns no JSON body.
+      }
+
+      if (res.status === 401) {
+        throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || "Couldn't start Stripe checkout. Please try again.");
+      }
+
+      if (!data.url) {
+        throw new Error("Stripe checkout did not return a payment link.");
+      }
+
+      window.location.assign(data.url); // hand off to Stripe's hosted checkout page
     } catch (err) {
+      console.error("Stripe checkout error:", err);
       setRedirecting(false);
-      setStripeError(err.message);
+      setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
     }
   };
 
@@ -467,15 +509,15 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, on
               </div>
             )}
             {[
-              [listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal.toFixed(2)],
-              ["Service fee (12%)", "$"+serviceFee.toFixed(2)],
+              [listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal],
+              ["Service fee (15%)", "$"+serviceFee],
             ].map(([label, val]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 6 }}>
                 <span>{label}</span><span>{val}</span>
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: C.navy, borderTop: "1px solid "+C.concrete, paddingTop: 10, marginTop: 6 }}>
-              <span>Total</span><span style={{ color: C.amber }}>${total.toFixed(2)}</span>
+              <span>Total</span><span style={{ color: C.amber }}>${total}</span>
             </div>
           </div>
 
@@ -1344,82 +1386,56 @@ function EditListingModal({ listing, onClose, onSave }) {
   );
 }
 
-
-function StripeConnectCard({ user }) {
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState("");
-
-  const authFetch = async (url, options = {}) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("Please sign in again.");
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    });
-  };
-
-  const refreshStatus = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await authFetch("/api/connect-status");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't check payout status.");
-      setStatus(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { if (user) refreshStatus(); }, [user?.id]);
-
-  const startOnboarding = async () => {
-    setStarting(true);
-    setError("");
-    try {
-      const res = await authFetch("/api/connect-onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't open Stripe onboarding.");
-      window.location.href = data.url;
-    } catch (err) {
-      setError(err.message);
-      setStarting(false);
-    }
-  };
-
-  const ready = status?.chargesEnabled && status?.payoutsEnabled;
-  return (
-    <div style={{ gridColumn: "1 / -1", background: ready ? C.mossLight : C.amberLight, border: "1px solid "+(ready ? C.moss : C.amber), borderRadius: 10, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontWeight: 800, fontSize: 11, color: C.navy }}>
-          {loading ? "Checking Stripe payouts…" : ready ? "✓ Stripe payouts ready" : status?.connected ? "Finish Stripe payout setup" : "Set up Host payouts"}
-        </div>
-        <div style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {ready ? "You can accept paid ParkShare bookings." : "Stripe securely verifies your identity and bank account."}
-        </div>
-        {error && <div style={{ fontSize: 9, color: C.red, marginTop: 2 }}>{error}</div>}
-      </div>
-      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
-        {!ready && !loading && <button onClick={startOnboarding} disabled={starting} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "6px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}>{starting ? "Opening…" : status?.connected ? "Continue" : "Connect Stripe"}</button>}
-        {!loading && <button onClick={refreshStatus} title="Refresh Stripe status" style={{ background: C.white, color: C.navy, border: "1px solid "+C.concrete, borderRadius: 8, padding: "6px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>↻</button>}
-      </div>
-    </div>
-  );
-}
-
 function HostDashboard({ user }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
+
+  // ─── Stripe Connect payout status ────────────────────────────────────────
+  // Reads straight from `profiles` so it always reflects the latest state
+  // written by the account.updated webhook, including right after a host
+  // returns from Stripe's hosted onboarding flow.
+  const [stripeStatus, setStripeStatus] = useState({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
+  const [connectError, setConnectError] = useState("");
+  const [connecting, setConnecting] = useState(false);
+
+  const refreshStripeStatus = () => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled")
+      .eq("id", user.id)
+      .single()
+      .then(({ data, error }) => {
+        if (error || !data) { setStripeStatus(s => ({ ...s, loading: false })); return; }
+        setStripeStatus({
+          loading: false,
+          accountId: data.stripe_account_id || null,
+          chargesEnabled: !!data.stripe_charges_enabled,
+          payoutsEnabled: !!data.stripe_payouts_enabled,
+        });
+      });
+  };
+
+  useEffect(() => { refreshStripeStatus(); }, [user]);
+
+  const connectStripe = async () => {
+    if (!user) return;
+    setConnectError("");
+    setConnecting(true);
+    try {
+      const res = await fetch("/api/create-connect-account-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hostId: user.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't start Stripe onboarding");
+      window.location.href = data.url; // hand off to Stripe's hosted onboarding flow
+    } catch (err) {
+      setConnecting(false);
+      setConnectError(err.message);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -1519,9 +1535,7 @@ function HostDashboard({ user }) {
       </div>
 
       {/* Main grid — everything fits on screen */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto auto 1fr 1fr", gap: 8, padding: 10, overflow: "hidden" }}>
-
-        <StripeConnectCard user={user} />
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: 8, padding: 10, overflow: "hidden" }}>
 
         {/* Stats row — spans full width */}
         <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -1595,6 +1609,27 @@ function HostDashboard({ user }) {
         {/* Earnings */}
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>💰 Earnings</div>
+
+          {/* Stripe Connect payout status — gates whether this host can actually get paid out */}
+          {!stripeStatus.loading && (
+            stripeStatus.payoutsEnabled ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>
+                <span style={{ fontSize: 11 }}>✅</span>
+                <span style={{ fontSize: 9, color: C.moss, fontWeight: 700 }}>Payouts active</span>
+              </div>
+            ) : (
+              <div style={{ background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "6px 7px", marginBottom: 6 }}>
+                <div style={{ fontSize: 9, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
+                  {stripeStatus.accountId ? "⏳ Finish Stripe verification to get paid" : "⚠️ Set up payouts to get paid for bookings"}
+                </div>
+                <button onClick={connectStripe} disabled={connecting} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 9, fontWeight: 700, cursor: connecting ? "default" : "pointer", opacity: connecting ? 0.6 : 1 }}>
+                  {connecting ? "Redirecting…" : stripeStatus.accountId ? "Finish setup →" : "Connect with Stripe →"}
+                </button>
+                {connectError && <div style={{ fontSize: 8, color: C.red, marginTop: 4 }}>{connectError}</div>}
+              </div>
+            )
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 6 }}>
             {[{ label: "This month", value: "$280" }, { label: "Last month", value: "$230" }, { label: "All time", value: "$"+totalEarnings }, { label: "Next payout", value: "$140" }].map(s => (
               <div key={s.label} style={{ background: C.warmWhite, borderRadius: 6, padding: "5px 7px" }}>
@@ -3395,6 +3430,7 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
+  const [connectBanner, setConnectBanner] = useState(null); // "success" | "refresh" | null
   const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
   const [browseInitialLocation, setBrowseInitialLocation] = useState(null);
@@ -3409,12 +3445,19 @@ export default function App() {
       setTab("My Bookings");
     } else if (params.has("booking_cancelled")) {
       setCheckoutBanner("cancelled");
-    } else if (params.has("stripe_onboarding")) {
-      setCheckoutBanner(params.get("stripe_onboarding") === "return" ? "stripe_return" : "stripe_refresh");
+    } else if (params.get("stripe_connect") === "success") {
+      // Stripe's account_onboarding return_url — the account.updated webhook
+      // may take a few seconds to land, but HostDashboard re-reads the
+      // profile on mount so it'll pick up the latest status shortly after.
+      setConnectBanner("success");
       setTab("Host Dashboard");
-      setScreen("app");
+    } else if (params.get("stripe_connect") === "refresh") {
+      // Stripe's refresh_url — the onboarding link expired or was abandoned;
+      // send them back to the dashboard so they can restart it.
+      setConnectBanner("refresh");
+      setTab("Host Dashboard");
     }
-    if (params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding")) {
+    if (params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_connect")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -3544,20 +3587,22 @@ export default function App() {
               <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
-          {checkoutBanner === "stripe_return" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>
-              Stripe information received. Your Host dashboard will show when payments and payouts are enabled.
-            </div>
-          )}
-          {checkoutBanner === "stripe_refresh" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>
-              Your Stripe link expired. Tap Continue in the Host dashboard to resume setup.
-            </div>
-          )}
           {checkoutBanner === "cancelled" && (
             <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>Checkout was cancelled — no charge was made.</span>
               <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
+            </div>
+          )}
+          {connectBanner === "success" && (
+            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+              <span>🎉 Stripe account connected! It may take a moment to finish verifying.</span>
+              <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
+            </div>
+          )}
+          {connectBanner === "refresh" && (
+            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+              <span>That Stripe setup link expired — tap "Connect with Stripe" below to try again.</span>
+              <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
           {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
