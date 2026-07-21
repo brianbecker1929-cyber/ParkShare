@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ParkShare</title>
+    <script>
+      // If the app crashes before React can mount (e.g. a bad env var makes
+      // supabaseClient.js throw at import time), this shows the real error
+      // instead of a silent blank white page — makes remote debugging on a
+      // phone possible without needing DevTools.
+      function showBootError(message) {
+        var root = document.getElementById("root");
+        if (!root || root.childElementCount > 0) return; // React already mounted, don't clobber it
+        root.innerHTML =
+          '<div style="font-family: monospace; padding: 24px; color: #b00020; background: #fff3f3; min-height: 100vh; box-sizing: border-box;">' +
+          '<h2 style="margin-top:0;">ParkShare failed to load</h2>' +
+          '<p style="white-space: pre-wrap; word-break: break-word;">' + message + '</p>' +
+          '<p style="color:#555;">Screenshot this and send it — this is the real error.</p>' +
+          '</div>';
+      }
+      window.addEventListener("error", function (e) {
+        showBootError((e.message || "Unknown error") + "\n" + (e.filename ? e.filename + ":" + e.lineno : ""));
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        showBootError("Unhandled promise rejection: " + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
