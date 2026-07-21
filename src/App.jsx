@@ -352,9 +352,9 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, on
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-const subtotal = listing.price * hours;
-  const serviceFee = Math.round(subtotal * 0.12);
-  const total = subtotal + serviceFee;
+  const subtotal = Number((listing.price * hours).toFixed(2));
+  const serviceFee = Number((subtotal * 0.12).toFixed(2));
+  const total = Number((subtotal + serviceFee).toFixed(2));
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
@@ -366,16 +366,22 @@ const subtotal = listing.price * hours;
     }
     setRedirecting(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Please sign in again before booking.");
+
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           listingId: numericId,
-          renterId: user.id,
           hours,
-          total,
-          listingTitle: listing.title,
           spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
+          bookingDate: date ? date.toISOString() : undefined,
+          startHour,
+          endHour,
         }),
       });
       const data = await res.json();
@@ -461,15 +467,15 @@ const subtotal = listing.price * hours;
               </div>
             )}
             {[
-              [listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal],
-              ["Service fee (12%)", "$"+serviceFee],
+              [listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal.toFixed(2)],
+              ["Service fee (12%)", "$"+serviceFee.toFixed(2)],
             ].map(([label, val]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 6 }}>
                 <span>{label}</span><span>{val}</span>
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: C.navy, borderTop: "1px solid "+C.concrete, paddingTop: 10, marginTop: 6 }}>
-              <span>Total</span><span style={{ color: C.amber }}>${total}</span>
+              <span>Total</span><span style={{ color: C.amber }}>${total.toFixed(2)}</span>
             </div>
           </div>
 
@@ -1338,6 +1344,79 @@ function EditListingModal({ listing, onClose, onSave }) {
   );
 }
 
+
+function StripeConnectCard({ user }) {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState("");
+
+  const authFetch = async (url, options = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error("Please sign in again.");
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+  };
+
+  const refreshStatus = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/connect-status");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't check payout status.");
+      setStatus(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { if (user) refreshStatus(); }, [user?.id]);
+
+  const startOnboarding = async () => {
+    setStarting(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/connect-onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't open Stripe onboarding.");
+      window.location.href = data.url;
+    } catch (err) {
+      setError(err.message);
+      setStarting(false);
+    }
+  };
+
+  const ready = status?.chargesEnabled && status?.payoutsEnabled;
+  return (
+    <div style={{ gridColumn: "1 / -1", background: ready ? C.mossLight : C.amberLight, border: "1px solid "+(ready ? C.moss : C.amber), borderRadius: 10, padding: "8px 10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 11, color: C.navy }}>
+          {loading ? "Checking Stripe payouts…" : ready ? "✓ Stripe payouts ready" : status?.connected ? "Finish Stripe payout setup" : "Set up Host payouts"}
+        </div>
+        <div style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {ready ? "You can accept paid ParkShare bookings." : "Stripe securely verifies your identity and bank account."}
+        </div>
+        {error && <div style={{ fontSize: 9, color: C.red, marginTop: 2 }}>{error}</div>}
+      </div>
+      <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+        {!ready && !loading && <button onClick={startOnboarding} disabled={starting} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "6px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}>{starting ? "Opening…" : status?.connected ? "Continue" : "Connect Stripe"}</button>}
+        {!loading && <button onClick={refreshStatus} title="Refresh Stripe status" style={{ background: C.white, color: C.navy, border: "1px solid "+C.concrete, borderRadius: 8, padding: "6px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>↻</button>}
+      </div>
+    </div>
+  );
+}
+
 function HostDashboard({ user }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
@@ -1440,7 +1519,9 @@ function HostDashboard({ user }) {
       </div>
 
       {/* Main grid — everything fits on screen */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: 8, padding: 10, overflow: "hidden" }}>
+      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto auto 1fr 1fr", gap: 8, padding: 10, overflow: "hidden" }}>
+
+        <StripeConnectCard user={user} />
 
         {/* Stats row — spans full width */}
         <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
@@ -3328,8 +3409,12 @@ export default function App() {
       setTab("My Bookings");
     } else if (params.has("booking_cancelled")) {
       setCheckoutBanner("cancelled");
+    } else if (params.has("stripe_onboarding")) {
+      setCheckoutBanner(params.get("stripe_onboarding") === "return" ? "stripe_return" : "stripe_refresh");
+      setTab("Host Dashboard");
+      setScreen("app");
     }
-    if (params.has("booking_success") || params.has("booking_cancelled")) {
+    if (params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -3457,6 +3542,16 @@ export default function App() {
             <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>🎉 Payment received — your booking is confirmed! It'll show up below in a moment.</span>
               <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
+            </div>
+          )}
+          {checkoutBanner === "stripe_return" && (
+            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>
+              Stripe information received. Your Host dashboard will show when payments and payouts are enabled.
+            </div>
+          )}
+          {checkoutBanner === "stripe_refresh" && (
+            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>
+              Your Stripe link expired. Tap Continue in the Host dashboard to resume setup.
             </div>
           )}
           {checkoutBanner === "cancelled" && (
