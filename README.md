@@ -1,6 +1,6 @@
 ParkShare app
 Stripe Connect setup
-This build uses Stripe-hosted onboarding and direct charges on each Host's connected account. ParkShare collects a 12% application fee.
+This build uses Stripe-hosted onboarding and direct charges on each Host's connected account. ParkShare collects a 15% application fee.
 1. Run the database migration
 In Supabase SQL Editor, run:
 supabase-migration-002-stripe-connect.sql
