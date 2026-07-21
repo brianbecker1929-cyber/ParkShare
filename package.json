@@ -1,24 +1,25 @@
 {
   "name": "parkshare",
   "version": "1.0.0",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {
-    "": {
-      "name": "parkshare",
-      "version": "1.0.0",
-      "dependencies": {
-        "@react-google-maps/api": "^2.19.3",
-        "@supabase/supabase-js": "^2.45.4",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
-        "stripe": "^16.12.0"
-      },
-      "devDependencies": {
-        "@vitejs/plugin-react": "^4.3.1",
-        "vite": "^5.4.1"
-      }
-    },
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@react-google-maps/api": "^2.19.3",
+    "@supabase/supabase-js": "^2.45.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "stripe": "^16.12.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.1"
+  }
+}
     "node_modules/@babel/code-frame": {
       "version": "7.29.7",
       "resolved": "https://packages.applied-caas-gateway1.internal.api.openai.org/artifactory/api/npm/npm-public/@babel/code-frame/-/code-frame-7.29.7.tgz",
