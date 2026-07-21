@@ -4,7 +4,7 @@
 
 import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
 
-const SERVICE_FEE_RATE = 0.12;
+const SERVICE_FEE_RATE = 0.15;
 const MAX_HOURS = 24 * 31;
 
 export default async function handler(req, res) {
