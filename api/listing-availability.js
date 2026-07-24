@@ -1,21 +1,28 @@
-// GET /api/listing-availability?listingId=123&hours=1
-//
-// Public, no auth required — this powers the "X spots available now" badge
-// while browsing, so it needs to work for signed-out visitors too. Returns
-// live capacity for the window starting right now (real-time booking).
-//
-// This does NOT need a bookingDate/startHour variant yet, since nothing in
-// the app can create an advance booking today — add one here if/when that
-// UI exists, mirroring the same window logic used in
-// create-checkout-session.js.
 
-import { supabaseAdmin, checkAvailability, jsonMethod } from "./_lib.js";
+// GET /api/listing-availability?listingId=123&hours=1
+//   or  ?listingId=123&hours=2&bookingDate=2026-07-25&startHour=14
+//
+// Public, no auth required — this powers both:
+//   - the "X spots available now" badge while browsing (no bookingDate/startHour)
+//   - the live check tied to a specific future date/time when scheduling an
+//     advance booking (bookingDate + startHour provided)
+//
+// Reuses getSessionWindow — the exact same window logic used to enforce
+// availability at checkout (create-checkout-session.js) and to time
+// reminder emails (send-reminders.js) — so "what this badge shows you" and
+// "what actually gets enforced when you pay" can never drift apart.
+
+import { supabaseAdmin, checkAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
 
   const listingId = Number(req.query?.listingId);
   const hours = Number(req.query?.hours) || 1;
+  const bookingDate = req.query?.bookingDate ? String(req.query.bookingDate).slice(0, 40) : "";
+  const startHour = req.query?.startHour !== undefined && req.query.startHour !== ""
+    ? Number(req.query.startHour)
+    : null;
 
   if (!Number.isInteger(listingId)) {
     return res.status(400).json({ error: "Missing or invalid listingId." });
@@ -29,8 +36,15 @@ export default async function handler(req, res) {
       .single();
     if (error || !listing) return res.status(404).json({ error: "Listing not found." });
 
-    const start = new Date();
-    const end = new Date(start.getTime() + hours * 3600 * 1000);
+    // No bookingDate/startHour -> same as before: window starts right now.
+    // With them -> checks that specific future window instead, so scheduling
+    // a slot shows real availability for THAT time, not just "now."
+    const { start, end } = getSessionWindow({
+      paid_at: new Date().toISOString(),
+      booking_date: bookingDate,
+      start_hour: startHour,
+      hours,
+    });
 
     const result = await checkAvailability(listingId, listing.spaces || 1, start, end);
     return res.status(200).json(result);
