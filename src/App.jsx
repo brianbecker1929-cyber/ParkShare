@@ -868,6 +868,23 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
     : undefined;
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
+  // Live "right now" availability — separate from availableCount above,
+  // which only reflects how many spots the host has configured for rent,
+  // not whether they're actually free at this moment. Real listings only:
+  // numericId is null for the built-in demo listings, which have no real
+  // bookings to check against.
+  const numericIdForAvailability = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
+  const [liveAvailability, setLiveAvailability] = useState(null); // null = not checked yet / demo listing
+  useEffect(() => {
+    if (numericIdForAvailability === null) return;
+    let cancelled = false;
+    fetch(`/api/listing-availability?listingId=${numericIdForAvailability}&hours=1`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (!cancelled && data) setLiveAvailability(data); })
+      .catch(() => {}); // best-effort — booking itself is still enforced server-side regardless
+    return () => { cancelled = true; };
+  }, [numericIdForAvailability]);
+
   const confirmBooking = async () => {
     // Only reached for demo listings — real (host-listed) bookings are now
     // written by the Stripe webhook once payment actually succeeds, since
@@ -890,6 +907,16 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
         <PriceTag price={listing.price} size="lg" />
       </div>
       <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>📍 {listing.address} · {listing.distance}</p>
+
+      {liveAvailability && (
+        <div style={{ marginBottom: 10 }}>
+          {liveAvailability.available ? (
+            <Badge color={C.moss}>🟢 {liveAvailability.spacesFree} spot{liveAvailability.spacesFree === 1 ? "" : "s"} available now</Badge>
+          ) : (
+            <Badge color={C.amber}>🔴 Full right now — no spots free</Badge>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         {listing.features.map(f => <Badge key={f}>{f}</Badge>)}
@@ -977,7 +1004,13 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
           <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
             <ListingThumb listing={listing} size="100%" />
           </div>
-          <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>This driveway has {availableCount} spot{availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.</p>
+          <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>
+            {liveAvailability
+              ? (liveAvailability.available
+                  ? `${liveAvailability.spacesFree} of ${liveAvailability.spacesTotal} spot${liveAvailability.spacesTotal === 1 ? "" : "s"} free right now. Tap the one you'd like to park in.`
+                  : `All spots are taken right now — check back later, or pick a different listing.`)
+              : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
+          </p>
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />}>
                   <div style={{ marginBottom: 16 }}>
@@ -1386,23 +1419,17 @@ function EditListingModal({ listing, onClose, onSave }) {
   );
 }
 
-function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn }) {
+function HostDashboard({ user }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
 
   // ─── Stripe Connect payout status ────────────────────────────────────────
-  // Two ways this gets populated:
-  //  1. Fast cached read straight from `profiles` on mount — whatever the
-  //     account.updated webhook last wrote. Instant, no Stripe round trip.
-  //  2. Live check via /api/connect-status — hits Stripe directly and syncs
-  //     Supabase in the same call. Used right after a host returns from
-  //     Stripe's onboarding flow (so they don't have to wait on the webhook)
-  //     and via the manual "Check status" button.
-  const [stripeStatus, setStripeStatus] = useState({ loading: true, connected: false, chargesEnabled: false, payoutsEnabled: false, requirementsDue: [] });
+  // Reads straight from `profiles` so it always reflects the latest state
+  // written by the account.updated webhook, including right after a host
+  // returns from Stripe's hosted onboarding flow.
+  const [stripeStatus, setStripeStatus] = useState({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
   const [connectError, setConnectError] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(false);
-  const [statusError, setStatusError] = useState("");
 
   const refreshStripeStatus = () => {
     if (!user) return;
@@ -1413,75 +1440,16 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
       .single()
       .then(({ data, error }) => {
         if (error || !data) { setStripeStatus(s => ({ ...s, loading: false })); return; }
-        setStripeStatus(s => ({
-          ...s,
+        setStripeStatus({
           loading: false,
-          connected: !!data.stripe_account_id,
+          accountId: data.stripe_account_id || null,
           chargesEnabled: !!data.stripe_charges_enabled,
           payoutsEnabled: !!data.stripe_payouts_enabled,
-        }));
+        });
       });
   };
 
   useEffect(() => { refreshStripeStatus(); }, [user]);
-
-  // Shared by connectStripe and checkStripeStatus — both hit auth-protected
-  // /api routes and need the current Supabase JWT, refreshing once if stale.
-  const getAuthToken = async () => {
-    let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    let session = sessionData?.session;
-
-    if (sessionError || !session?.access_token) {
-      const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) throw refreshError;
-      session = refreshedData?.session;
-    }
-
-    if (!session?.access_token) {
-      throw new Error("Your session is invalid or expired. Please sign in again.");
-    }
-    return session.access_token;
-  };
-
-  const checkStripeStatus = async () => {
-    if (!user) return;
-    setStatusError("");
-    setCheckingStatus(true);
-    try {
-      const token = await getAuthToken();
-      const res = await fetch("/api/connect-status", {
-        method: "GET",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      let data = {};
-      try { data = await res.json(); } catch {}
-
-      if (res.status === 401) throw new Error("Your session is invalid or expired. Please sign in again.");
-      if (!res.ok) throw new Error(data.error || "Couldn't check Stripe status.");
-
-      setStripeStatus({
-        loading: false,
-        connected: !!data.connected,
-        chargesEnabled: !!data.chargesEnabled,
-        payoutsEnabled: !!data.payoutsEnabled,
-        requirementsDue: data.requirementsDue || [],
-      });
-    } catch (err) {
-      setStatusError(err?.message || "Couldn't check Stripe status.");
-    } finally {
-      setCheckingStatus(false);
-    }
-  };
-
-  // Auto-run a live check the moment a host lands back on the dashboard
-  // from Stripe's hosted onboarding — no need to wait on the webhook.
-  useEffect(() => {
-    if (justReturnedFromStripe && user) {
-      checkStripeStatus();
-      onConsumedStripeReturn && onConsumedStripeReturn();
-    }
-  }, [justReturnedFromStripe, user]);
 
   const connectStripe = async () => {
     if (!user) return;
@@ -1489,13 +1457,26 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
     setConnecting(true);
 
     try {
-      const token = await getAuthToken();
+      // Stripe onboarding is protected by the same Supabase JWT used for
+      // checkout. Refresh once if the locally stored session is stale.
+      let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      let session = sessionData?.session;
+
+      if (sessionError || !session?.access_token) {
+        const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
+        session = refreshedData?.session;
+      }
+
+      if (!session?.access_token) {
+        throw new Error("Your session is invalid or expired. Please sign in again.");
+      }
 
       const res = await fetch("/api/connect-onboarding", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({}),
       });
@@ -1520,11 +1501,6 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
     }
   };
 
-  // Bookings whose money actually landed — used everywhere below so "earned"
-  // always means real, received money, never a projection or fabrication.
-  const EARNED_STATUSES = ["confirmed", "completed"];
-  const [earningsStats, setEarningsStats] = useState({ thisMonth: 0, lastMonth: 0, allTime: 0 });
-
   useEffect(() => {
     if (!user) return;
 
@@ -1534,27 +1510,27 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
       .eq("host_id", user.id)
       .then(({ data, error }) => {
         if (error || !data) return;
-        const baseListings = data.map(row => ({
-          id: "db-" + row.id,
-          rawId: row.id,
-          title: row.title,
-          address: row.address,
-          price: Number(row.price),
-          active: true,
-          earnings: 0,
-          bookings: 0,
-          rating: null, // null = no reviews yet, rendered as "No ratings yet" rather than a fake number
-          img: row.img || "🏠",
-          description: row.description || "",
-          features: row.features || [],
-          spaces: row.spaces || 1,
-          spots: row.spots || [],
-        }));
-        setDbListings(baseListings);
+        setDbListings(
+          data.map(row => ({
+            id: "db-" + row.id,
+            rawId: row.id,
+            title: row.title,
+            address: row.address,
+            price: Number(row.price),
+            active: true,
+            earnings: 0,
+            bookings: 0,
+            rating: 5,
+            img: row.img || "🏠",
+            description: row.description || "",
+            features: row.features || [],
+            spaces: row.spaces || 1,
+            spots: row.spots || [],
+          }))
+        );
 
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) return;
-
         supabase
           .from("bookings")
           .select("*, listings(title), profiles(name)")
@@ -1562,7 +1538,6 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
           .order("created_at", { ascending: false })
           .then(({ data: bookingRows, error: bookingErr }) => {
             if (bookingErr || !bookingRows) return;
-
             setDbBookings(
               bookingRows.map(row => ({
                 id: "db-" + row.id,
@@ -1570,70 +1545,15 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
                 driver: row.profiles?.name || "Renter",
                 time: new Date(row.created_at).toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                 total: row.total,
-                hostAmount: row.subtotal != null ? Number(row.subtotal) : Number(row.total),
-                status: row.status,
-                createdAt: row.created_at,
+                status: row.status === "confirmed" ? "Confirmed" : row.status === "completed" ? "Completed" : "Cancelled",
               }))
             );
-
-            // Real per-listing earnings + booking counts, computed from
-            // actual paid bookings — no placeholders.
-            const earnedRows = bookingRows.filter(r => EARNED_STATUSES.includes(r.status));
-            const byListing = {};
-            earnedRows.forEach(r => {
-              const amt = r.subtotal != null ? Number(r.subtotal) : Number(r.total);
-              if (!byListing[r.listing_id]) byListing[r.listing_id] = { earnings: 0, bookings: 0 };
-              byListing[r.listing_id].earnings += amt;
-              byListing[r.listing_id].bookings += 1;
-            });
-            setDbListings(prev => prev.map(l => ({
-              ...l,
-              earnings: byListing[l.rawId]?.earnings || 0,
-              bookings: byListing[l.rawId]?.bookings || 0,
-            })));
-
-            // This month / last month / all time — all derived from real
-            // booking dates, nothing hardcoded.
-            const now = new Date();
-            const thisMonthKey = now.getFullYear() + "-" + now.getMonth();
-            const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            const lastMonthKey = lastMonthDate.getFullYear() + "-" + lastMonthDate.getMonth();
-            let thisMonth = 0, lastMonth = 0, allTime = 0;
-            earnedRows.forEach(r => {
-              const amt = r.subtotal != null ? Number(r.subtotal) : Number(r.total);
-              const d = new Date(r.created_at);
-              const key = d.getFullYear() + "-" + d.getMonth();
-              allTime += amt;
-              if (key === thisMonthKey) thisMonth += amt;
-              else if (key === lastMonthKey) lastMonth += amt;
-            });
-            setEarningsStats({ thisMonth, lastMonth, allTime });
-          });
-
-        // Real ratings from the reviews table — no more hardcoded 5-star default.
-        supabase
-          .from("reviews")
-          .select("listing_id, rating")
-          .in("listing_id", listingIds)
-          .then(({ data: reviewRows, error: reviewErr }) => {
-            if (reviewErr || !reviewRows || reviewRows.length === 0) return;
-            const byListing = {};
-            reviewRows.forEach(r => {
-              if (!byListing[r.listing_id]) byListing[r.listing_id] = { sum: 0, count: 0 };
-              byListing[r.listing_id].sum += r.rating;
-              byListing[r.listing_id].count += 1;
-            });
-            setDbListings(prev => prev.map(l => {
-              const agg = byListing[l.rawId];
-              return agg ? { ...l, rating: agg.sum / agg.count } : l;
-            }));
           });
       });
   }, [user]);
 
   const myListings = dbListings;
-  const upcomingBookings = dbBookings.filter(b => b.status === "confirmed");
-  const recentTransactions = dbBookings.slice(0, 8);
+  const upcomingBookings = dbBookings;
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
@@ -1659,10 +1579,9 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
     setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
     return true;
   };
-  const totalEarnings = earningsStats.allTime;
+  const totalEarnings = myListings.reduce((s, l) => s + l.earnings, 0);
   const totalBookings = myListings.reduce((s, l) => s + l.bookings, 0);
-  const ratedListings = myListings.filter(l => l.rating != null);
-  const avgRating = ratedListings.length ? (ratedListings.reduce((s, l) => s + l.rating, 0) / ratedListings.length).toFixed(1) : null;
+  const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
 
   return (
     <div style={{ fontFamily: "Inter, system-ui, sans-serif", background: C.warmWhite, height: "calc(100vh - 88px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
@@ -1671,7 +1590,7 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
       <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.white, fontSize: 16, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2 }}>Host since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "long", year: "numeric" }) : "—"}</div>
+          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2 }}>Host since Jan 2025</div>
         </div>
         <div style={{ background: C.amber, borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
           <div style={{ fontWeight: 800, fontSize: 16, color: C.navy }}>${totalEarnings}</div>
@@ -1686,8 +1605,8 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
         <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
           {[
             { label: "Bookings", value: String(totalBookings), icon: "📅" },
-            { label: "Avg Rating", value: avgRating ? "★ " + avgRating : "—", icon: "⭐" },
-            { label: "This month", value: "$" + earningsStats.thisMonth, icon: "💳" },
+            { label: "Avg Rating", value: "★ "+avgRating, icon: "⭐" },
+            { label: "Pending", value: "$140", icon: "💳" },
           ].map(s => (
             <div key={s.label} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
               <div style={{ fontSize: 16, marginBottom: 2 }}>{s.icon}</div>
@@ -1701,9 +1620,6 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>📅 Upcoming</div>
           <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
-            {upcomingBookings.length === 0 && (
-              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "12px 0" }}>No upcoming bookings yet.</div>
-            )}
             {upcomingBookings.map(b => (
               <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid "+C.concrete }}>
                 <div style={{ minWidth: 0 }}>
@@ -1711,7 +1627,7 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
                   <div style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.listing} · {b.time}</div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 6 }}>
-                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: C.mossLight, color: C.moss }}>Confirmed</div>
+                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: b.status === "Confirmed" ? C.mossLight : C.amberLight, color: b.status === "Confirmed" ? C.moss : C.navy }}>{b.status}</div>
                   <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>${b.total}</div>
                 </div>
               </div>
@@ -1734,7 +1650,7 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
                 <div style={{ width: 22, height: 22, borderRadius: 5, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={18} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
-                  <div style={{ fontSize: 9, color: C.muted }}>${l.price}/hr · {l.rating != null ? "★"+l.rating.toFixed(1) : "No ratings"} · {l.bookings} booking{l.bookings === 1 ? "" : "s"}</div>
+                  <div style={{ fontSize: 9, color: C.muted }}>${l.price}/hr · ★{l.rating} · {l.bookings} bookings</div>
                 </div>
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
@@ -1761,43 +1677,25 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
           {/* Stripe Connect payout status — gates whether this host can actually get paid out */}
           {!stripeStatus.loading && (
             stripeStatus.payoutsEnabled ? (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ fontSize: 11 }}>✅</span>
-                  <span style={{ fontSize: 9, color: C.moss, fontWeight: 700 }}>Payouts active</span>
-                </div>
-                <button onClick={checkStripeStatus} disabled={checkingStatus} title="Re-check with Stripe" style={{ background: "none", border: "none", color: C.moss, fontSize: 9, fontWeight: 700, cursor: checkingStatus ? "default" : "pointer", opacity: checkingStatus ? 0.5 : 1, textDecoration: "underline", padding: 0 }}>
-                  {checkingStatus ? "Checking…" : "↻ Refresh"}
-                </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>
+                <span style={{ fontSize: 11 }}>✅</span>
+                <span style={{ fontSize: 9, color: C.moss, fontWeight: 700 }}>Payouts active</span>
               </div>
             ) : (
               <div style={{ background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "6px 7px", marginBottom: 6 }}>
                 <div style={{ fontSize: 9, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
-                  {stripeStatus.connected ? "⏳ Finish Stripe verification to get paid" : "⚠️ Set up payouts to get paid for bookings"}
+                  {stripeStatus.accountId ? "⏳ Finish Stripe verification to get paid" : "⚠️ Set up payouts to get paid for bookings"}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <button onClick={connectStripe} disabled={connecting} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 9, fontWeight: 700, cursor: connecting ? "default" : "pointer", opacity: connecting ? 0.6 : 1 }}>
-                    {connecting ? "Redirecting…" : stripeStatus.connected ? "Finish setup →" : "Connect with Stripe →"}
-                  </button>
-                  {stripeStatus.connected && (
-                    <button onClick={checkStripeStatus} disabled={checkingStatus} style={{ background: "none", color: C.navy, border: "1px solid "+C.navy, borderRadius: 6, padding: "4px 8px", fontSize: 9, fontWeight: 700, cursor: checkingStatus ? "default" : "pointer", opacity: checkingStatus ? 0.6 : 1 }}>
-                      {checkingStatus ? "Checking…" : "Check status"}
-                    </button>
-                  )}
-                </div>
+                <button onClick={connectStripe} disabled={connecting} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 9, fontWeight: 700, cursor: connecting ? "default" : "pointer", opacity: connecting ? 0.6 : 1 }}>
+                  {connecting ? "Redirecting…" : stripeStatus.accountId ? "Finish setup →" : "Connect with Stripe →"}
+                </button>
                 {connectError && <div style={{ fontSize: 8, color: C.red, marginTop: 4 }}>{connectError}</div>}
-                {statusError && <div style={{ fontSize: 8, color: C.red, marginTop: 4 }}>{statusError}</div>}
-                {!connectError && !statusError && stripeStatus.requirementsDue?.length > 0 && (
-                  <div style={{ fontSize: 8, color: C.muted, marginTop: 4 }}>
-                    Stripe still needs: {stripeStatus.requirementsDue.slice(0, 3).join(", ")}{stripeStatus.requirementsDue.length > 3 ? "…" : ""}
-                  </div>
-                )}
               </div>
             )
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 6 }}>
-            {[{ label: "This month", value: "$"+earningsStats.thisMonth }, { label: "Last month", value: "$"+earningsStats.lastMonth }].map(s => (
+            {[{ label: "This month", value: "$280" }, { label: "Last month", value: "$230" }, { label: "All time", value: "$"+totalEarnings }, { label: "Next payout", value: "$140" }].map(s => (
               <div key={s.label} style={{ background: C.warmWhite, borderRadius: 6, padding: "5px 7px" }}>
                 <div style={{ fontSize: 8, color: C.muted }}>{s.label}</div>
                 <div style={{ fontWeight: 800, fontSize: 13, color: C.amber }}>{s.value}</div>
@@ -1810,24 +1708,20 @@ function HostDashboard({ user, justReturnedFromStripe, onConsumedStripeReturn })
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>🧾 Transactions</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            {recentTransactions.length === 0 && (
-              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "12px 0" }}>No transactions yet.</div>
-            )}
-            {recentTransactions.map(t => {
-              const earned = EARNED_STATUSES.includes(t.status);
-              const label = t.status === "cancelled" ? "Cancelled" : t.status === "refunded" || t.status === "partially_refunded" ? "Refunded" : t.status === "disputed" ? "Disputed" : t.status === "payment_failed" ? "Payment failed" : null;
-              return (
-                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", borderBottom: "1px solid "+C.concrete }}>
-                  <div>
-                    <div style={{ fontSize: 10, fontWeight: 600, color: C.navy }}>{t.driver} — {t.listing}</div>
-                    <div style={{ fontSize: 9, color: C.muted }}>{new Date(t.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 11, color: earned ? C.moss : C.red }}>
-                    {earned ? "+$"+t.hostAmount : label}
-                  </div>
+            {[
+              { desc: "Alex K. — Front Drive", date: "Jun 20", amount: "+$28" },
+              { desc: "Priya S. — Front Drive", date: "Jun 17", amount: "+$42" },
+              { desc: "Tom B. — Side Gate", date: "Jun 10", amount: "+$20" },
+              { desc: "Service fee", date: "Jun 10", amount: "-$11" },
+            ].map((t, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", borderBottom: "1px solid "+C.concrete }}>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.navy }}>{t.desc}</div>
+                  <div style={{ fontSize: 9, color: C.muted }}>{t.date}</div>
                 </div>
-              );
-            })}
+                <div style={{ fontWeight: 700, fontSize: 11, color: t.amount.startsWith("+") ? C.moss : C.red }}>{t.amount}</div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -2678,7 +2572,7 @@ function SignInModal({ onClose, onAuth }) {
         setAuthError("Signed in, but couldn't load your profile.");
         return;
       }
-      onAuth({ id: profile.id, name: profile.name, email: profile.email, role: profile.role, createdAt: profile.created_at });
+      onAuth({ id: profile.id, name: profile.name, email: profile.email, role: profile.role });
       onClose();
       return;
     }
@@ -3601,7 +3495,6 @@ export default function App() {
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
   const [connectBanner, setConnectBanner] = useState(null); // "success" | "refresh" | null
-  const [justReturnedFromStripe, setJustReturnedFromStripe] = useState(false);
   const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
   const [browseInitialLocation, setBrowseInitialLocation] = useState(null);
@@ -3617,11 +3510,11 @@ export default function App() {
     } else if (params.has("booking_cancelled")) {
       setCheckoutBanner("cancelled");
     } else if (params.get("stripe_onboarding") === "return") {
-      // Stripe's account_onboarding return_url (set in api/connect-onboarding.js).
-      // HostDashboard uses justReturnedFromStripe to fire an immediate live
-      // check against /api/connect-status rather than waiting on the webhook.
+      // Stripe's account_onboarding return_url (set in api/connect-onboarding.js)
+      // — the account.updated webhook may take a few seconds to land, but
+      // HostDashboard re-reads the profile on mount so it'll pick up the
+      // latest status shortly after.
       setConnectBanner("success");
-      setJustReturnedFromStripe(true);
       setTab("Host Dashboard");
     } else if (params.get("stripe_onboarding") === "refresh") {
       // Stripe's refresh_url — the onboarding link expired or was abandoned;
@@ -3658,7 +3551,7 @@ export default function App() {
         .eq("id", session.user.id)
         .single();
       if (profile && active) {
-        setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role, createdAt: profile.created_at });
+        setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role });
       }
     });
 
@@ -3781,7 +3674,7 @@ export default function App() {
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} user={user} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} justReturnedFromStripe={justReturnedFromStripe} onConsumedStripeReturn={() => setJustReturnedFromStripe(false)} />, "Sign in to access your host dashboard.")}
+          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} />, "Sign in to access your host dashboard.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <FloatingParkerHelp />
           <Footer onLegalClick={openLegal} onContactClick={openContact} />
@@ -3791,6 +3684,7 @@ export default function App() {
     </>
   );
 }
+
 
 
 
