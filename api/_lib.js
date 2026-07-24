@@ -83,3 +83,40 @@ export function jsonMethod(req, res, method = "POST") {
   res.status(405).json({ error: "Method not allowed" });
   return false;
 }
+
+// The single source of truth for "when does this booking's session actually
+// start and end." Used by both stripe-webhook.js (confirmation email copy)
+// and send-reminders.js (halfway / ending-soon timing) — they must never
+// compute this independently, or the two can drift out of sync.
+//
+// Rule: a session starts at its booked start time — full stop, no early
+// starts, no check-in concept.
+//   - Real-time ("park now") booking: no scheduled date/time was picked, so
+//     the booked start time IS the moment of payment (paid_at).
+//   - Advance booking: booking_date + start_hour were picked at booking
+//     time, so that's the booked start time, regardless of when payment
+//     happened (could be days earlier).
+// Either way, the session always runs for exactly `hours` — end is always
+// derived from start + hours, never from a separately-stored end_hour, so
+// there's one single source of truth for duration.
+//
+// KNOWN LIMITATION: booking_date/start_hour have no timezone attached
+// anywhere in the schema, so this treats them as UTC (Node's default when
+// parsing a date string with no offset on a server). Revisit this once the
+// advance-booking date/time picker UI actually exists and we know what
+// timezone it's collecting in.
+export function getSessionWindow(booking) {
+  let start;
+  if (booking.booking_date && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
+    const startHour = Number(booking.start_hour);
+    const hh = String(Math.floor(startHour)).padStart(2, "0");
+    const mm = String(Math.round((startHour % 1) * 60)).padStart(2, "0");
+    const candidate = new Date(`${booking.booking_date}T${hh}:${mm}:00Z`);
+    start = isNaN(candidate.getTime()) ? new Date(booking.paid_at) : candidate;
+  } else {
+    start = new Date(booking.paid_at);
+  }
+  const end = new Date(start.getTime() + Number(booking.hours) * 3600 * 1000);
+  const isAdvance = start.getTime() - new Date(booking.paid_at).getTime() > 5 * 60 * 1000; // scheduled >5 min after payment
+  return { start, end, isAdvance };
+}
