@@ -120,3 +120,42 @@ export function getSessionWindow(booking) {
   const isAdvance = start.getTime() - new Date(booking.paid_at).getTime() > 5 * 60 * 1000; // scheduled >5 min after payment
   return { start, end, isAdvance };
 }
+
+// Capacity-based availability check — this is the ONE place that decides
+// whether a listing has a free spot for a given time window. Used both to
+// show a live "X available now" count to renters browsing, and to enforce
+// it server-side right before a Stripe Checkout Session is created (so a
+// renter is never even offered a payment link for a spot that's already
+// full — see create-checkout-session.js).
+//
+// Model: `listings.spaces` is a total capacity count, not individually
+// identified spots — there's no per-spot booking record. So "available"
+// means "fewer confirmed bookings overlap this window than total spaces,"
+// not "this specific lettered spot is free." The spot-letter picker in the
+// UI is a renter preference, not something this system can authoritatively
+// track per-letter.
+export async function checkAvailability(listingId, spaces, start, end) {
+  // Bounded to bookings that could plausibly overlap `end` — mirrors the
+  // same 31-day reasoning used in send-reminders.js, keeps this a cheap
+  // query even as the table grows. Widen if MAX_HOURS in
+  // create-checkout-session.js ever grows past 31 days.
+  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
+
+  const { data: bookings, error } = await supabaseAdmin
+    .from("bookings")
+    .select("id, hours, paid_at, booking_date, start_hour")
+    .eq("listing_id", listingId)
+    .eq("status", "confirmed")
+    .not("paid_at", "is", null)
+    .gte("paid_at", since);
+  if (error) throw error;
+
+  const overlapping = (bookings || []).filter((b) => {
+    const w = getSessionWindow(b);
+    return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
+  });
+
+  const spacesTaken = overlapping.length;
+  const spacesFree = Math.max(0, Number(spaces) - spacesTaken);
+  return { available: spacesFree > 0, spacesTotal: Number(spaces), spacesTaken, spacesFree };
+}
