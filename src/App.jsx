@@ -844,13 +844,31 @@ const formatHour = (h) => {
   return h12 + ":00 " + period;
 };
 function ListingDetail({ listing, onBack, onMessage, user }) {
+  // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
+  // for Later (pick a date + time window). Two genuinely different booking
+  // flows sharing one panel, not one flow pretending to be both.
+  const [bookingMode, setBookingMode] = useState("now");
+
+  // Book Now duration — quick-pick chips, falls back to a custom hour input.
+  const NOW_DURATIONS = [0.5, 1, 2];
+  const [nowDuration, setNowDuration] = useState(1);
+  const [nowCustomHours, setNowCustomHours] = useState("3");
+  const isCustomDuration = !NOW_DURATIONS.includes(nowDuration);
+  const nowHours = isCustomDuration ? Math.max(0.25, Number(nowCustomHours) || 1) : nowDuration;
+
+  // Schedule for Later — the original date + start/end hour pickers.
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(11);
-  const hours = Math.max(1, endHour - startHour);
+  const advanceHours = Math.max(1, endHour - startHour);
   const handleStartChange = (e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(v + 1); };
-const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
+  const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [showCalendar, setShowCalendar] = useState(false);
+
+  // The single source of truth for "how long, and what gets sent to
+  // checkout" — depends entirely on which tab is active.
+  const hours = bookingMode === "now" ? nowHours : advanceHours;
+
   const [showPayment, setShowPayment] = useState(false);
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
@@ -868,12 +886,10 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
     : undefined;
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
-  // Live "right now" availability — separate from availableCount above,
-  // which only reflects how many spots the host has configured for rent,
-  // not whether they're actually free at this moment. Real listings only:
-  // numericId is null for the built-in demo listings, which have no real
-  // bookings to check against.
   const numericIdForAvailability = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
+
+  // Glanceable "right now" badge shown near the title — always reflects this
+  // instant, independent of whatever the renter has selected below.
   const [liveAvailability, setLiveAvailability] = useState(null); // null = not checked yet / demo listing
   useEffect(() => {
     if (numericIdForAvailability === null) return;
@@ -884,6 +900,29 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
       .catch(() => {}); // best-effort — booking itself is still enforced server-side regardless
     return () => { cancelled = true; };
   }, [numericIdForAvailability]);
+
+  // Live check tied to whatever the renter has actually selected — re-runs
+  // whenever the mode, duration, date, or time changes. This is what catches
+  // "someone else just took the last spot for that future slot" BEFORE
+  // checkout, not just at the final payment step. Uses the same
+  // getSessionWindow logic server-side as the actual booking enforcement, so
+  // this can never show "available" for something that then gets rejected.
+  const [selectedAvailability, setSelectedAvailability] = useState(null);
+  useEffect(() => {
+    if (numericIdForAvailability === null) return;
+    let cancelled = false;
+    setSelectedAvailability(null); // clear stale result immediately while the new one loads
+    const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
+    if (bookingMode === "advance") {
+      params.set("bookingDate", date.toISOString());
+      params.set("startHour", String(startHour));
+    }
+    fetch(`/api/listing-availability?${params.toString()}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (!cancelled && data) setSelectedAvailability(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [numericIdForAvailability, bookingMode, hours, bookingMode === "advance" ? date.getTime() : null, bookingMode === "advance" ? startHour : null]);
 
   const confirmBooking = async () => {
     // Only reached for demo listings — real (host-listed) bookings are now
@@ -953,29 +992,107 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, color: C.navy, marginBottom: 12 }}>Book this spot</div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 12, color: C.muted }}>Date</div>
-              <button onClick={() => setShowCalendar(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>Change</button>
-            </div>
-            <button onClick={() => setShowCalendar(true)} style={{ width: "100%", textAlign: "left", background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontFamily: "Inter, system-ui, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 16 }}>📅</span>
-              <span style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
-            </button>
+
+          {/* Mode toggle — two genuinely different flows, not one flow with
+              a confusing default. Switching modes clears the stale
+              availability result so nothing shown is ever for the wrong mode. */}
+          <div style={{ display: "flex", background: C.concrete, borderRadius: 10, padding: 2, marginBottom: 16 }}>
+            {[["now", "⚡ Book Now"], ["advance", "📅 Schedule for Later"]].map(([mode, label]) => (
+              <button key={mode} onClick={() => setBookingMode(mode)} style={{
+                flex: 1, padding: "9px 4px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontFamily: "Inter, system-ui, sans-serif", fontSize: 11, fontWeight: 700,
+                background: bookingMode === mode ? C.white : "transparent",
+                color: bookingMode === mode ? C.navy : C.muted,
+              }}>{label}</button>
+            ))}
           </div>
-<div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
-            <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
-                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
-              </select>
-              <span style={{ color: C.muted, fontSize: 13 }}>to</span>
-              <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
-                {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
-              </select>
-            </div>
-            <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
-          </div>
+
+          {bookingMode === "now" ? (
+            <>
+              <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
+                Starts the moment you pay · {new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>How long do you need?</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                {NOW_DURATIONS.map(d => (
+                  <button key={d} onClick={() => setNowDuration(d)} style={{
+                    padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, system-ui, sans-serif",
+                    fontSize: 12, fontWeight: 700,
+                    background: nowDuration === d ? C.amber : C.white,
+                    border: nowDuration === d ? "2px solid " + C.navy : "1px solid " + C.concrete,
+                    color: C.navy,
+                  }}>{d === 0.5 ? "30 min" : d + " hr"}</button>
+                ))}
+                <button onClick={() => setNowDuration("custom")} style={{
+                  padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, system-ui, sans-serif",
+                  fontSize: 12, fontWeight: 700,
+                  background: isCustomDuration ? C.amber : C.white,
+                  border: isCustomDuration ? "2px solid " + C.navy : "1px solid " + C.concrete,
+                  color: C.navy,
+                }}>Custom</button>
+              </div>
+              {isCustomDuration && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <input type="number" min="0.25" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                    style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif" }} />
+                  <span style={{ fontSize: 12, color: C.muted }}>hours</span>
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
+                Ends around {new Date(Date.now() + hours * 3600 * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, color: C.muted }}>Date</div>
+                  <button onClick={() => setShowCalendar(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>Change</button>
+                </div>
+                <button onClick={() => setShowCalendar(true)} style={{ width: "100%", textAlign: "left", background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontFamily: "Inter, system-ui, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 16 }}>📅</span>
+                  <span style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
+                </button>
+              </div>
+              <div style={{ marginBottom: 8, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+                    {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+                  </select>
+                  <span style={{ color: C.muted, fontSize: 13 }}>to</span>
+                  <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+                    {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+                  </select>
+                </div>
+                <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
+              </div>
+            </>
+          )}
+
+          {/* Live check tied to exactly what's selected above — re-runs on
+              every duration/date/time change, so this never lags behind
+              what's actually being booked. */}
+          {numericIdForAvailability !== null && (
+            selectedAvailability === null ? (
+              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>Checking availability…</div>
+            ) : selectedAvailability.available ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
+                <span style={{ fontSize: 10 }}>🟢</span>
+                <span style={{ fontSize: 10, color: C.moss, fontWeight: 700 }}>
+                  {selectedAvailability.spacesFree} of {selectedAvailability.spacesTotal} free for that {bookingMode === "now" ? "time" : "slot"} — confirmed again at checkout
+                </span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
+                <span style={{ fontSize: 10 }}>🔴</span>
+                <span style={{ fontSize: 10, color: C.navy, fontWeight: 700 }}>
+                  Full for that {bookingMode === "now" ? "time" : "slot"} — try a different {bookingMode === "now" ? "duration" : "time"}
+                </span>
+              </div>
+            )
+          )}
+
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
@@ -988,9 +1105,9 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>${Math.round(listing.price * hours * 1.12)}</div>
+              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>${Math.round(listing.price * hours * 1.15)}</div>
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || selectedAvailability?.available === false}>Reserve & pay →</Btn>
           </div>
         </div>
       )}
@@ -1005,10 +1122,10 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
             <ListingThumb listing={listing} size="100%" />
           </div>
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>
-            {liveAvailability
-              ? (liveAvailability.available
-                  ? `${liveAvailability.spacesFree} of ${liveAvailability.spacesTotal} spot${liveAvailability.spacesTotal === 1 ? "" : "s"} free right now. Tap the one you'd like to park in.`
-                  : `All spots are taken right now — check back later, or pick a different listing.`)
+            {selectedAvailability
+              ? (selectedAvailability.available
+                  ? `${selectedAvailability.spacesFree} of ${selectedAvailability.spacesTotal} spot${selectedAvailability.spacesTotal === 1 ? "" : "s"} free for ${bookingMode === "now" ? "right now" : "that time"}. Tap the one you'd like to park in.`
+                  : `All spots are taken for ${bookingMode === "now" ? "right now" : "that time"} — try a different ${bookingMode === "now" ? "duration" : "time"}, or pick a different listing.`)
               : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
           </p>
           {hasSatelliteSpots ? (
@@ -1031,9 +1148,9 @@ const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
           listing={listing}
           hours={hours}
           chosenSpot={chosenSpot}
-          date={date}
-          startHour={startHour}
-          endHour={endHour}
+          date={bookingMode === "advance" ? date : undefined}
+          startHour={bookingMode === "advance" ? startHour : undefined}
+          endHour={bookingMode === "advance" ? endHour : undefined}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
