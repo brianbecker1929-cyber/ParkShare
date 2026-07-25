@@ -987,7 +987,8 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
         <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 12, padding: 18, marginBottom: 20, textAlign: "center" }}>
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
-          <div style={{ fontSize: 13, color: C.moss }}>Check My Bookings for details.</div>
+          <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
+          <Btn small variant="amber" onClick={() => window.open(buildNavigationUrl(listing.address, listing.lat, listing.lng), "_blank", "noopener,noreferrer")}>🧭 Navigate there</Btn>
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -2507,6 +2508,24 @@ function ListDrivewayView({ user }) {
   );
 }
 
+// Opens the renter's own Maps app for real turn-by-turn navigation — true
+// in-app turn-by-turn (voice guidance, live rerouting) requires a native
+// mobile SDK that doesn't exist for web apps, so handing off to the
+// device's own Maps app is the standard, reliable approach every major app
+// in this space (Uber, Airbnb, DoorDash) actually uses. Apple Maps on iOS
+// (the OS default), Google Maps everywhere else (opens the native app on
+// Android, falls back to Google Maps in the browser on desktop). Prefers
+// exact coordinates when the listing has them, falls back to the street
+// address otherwise.
+function buildNavigationUrl(address, lat, lng) {
+  const hasCoords = typeof lat === "number" && typeof lng === "number";
+  const dest = hasCoords ? `${lat},${lng}` : encodeURIComponent(address || "");
+  const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  return isIOS
+    ? `https://maps.apple.com/?daddr=${dest}&dirflg=d`
+    : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
+}
+
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function MyBookingsView({ onMessage, user }) {
   const [dbBookings, setDbBookings] = useState([]);
@@ -2528,6 +2547,8 @@ function MyBookingsView({ onMessage, user }) {
               title: row.listings?.title || "Driveway",
               address: row.listings?.address || "",
               img: row.listings?.img || "🏠",
+              lat: row.listings?.lat,
+              lng: row.listings?.lng,
             },
             date: new Date(row.created_at).toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
@@ -2556,7 +2577,10 @@ function MyBookingsView({ onMessage, user }) {
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 5 }}>📍 {b.listing.address}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{b.date} · {b.time}</div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {b.status === "Upcoming" && (
+                  <Btn small variant="amber" onClick={() => window.open(buildNavigationUrl(b.listing.address, b.listing.lat, b.listing.lng), "_blank", "noopener,noreferrer")}>🧭 Navigate</Btn>
+                )}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
                 {b.canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
