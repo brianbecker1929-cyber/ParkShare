@@ -14,7 +14,7 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
 
-export async function sendEmail({ to, cc, subject, html }) {
+export async function sendEmail({ to, cc, subject, html, attachments }) {
   if (!RESEND_API_KEY) {
     console.error("[_email] RESEND_API_KEY is not set — skipping send:", subject);
     return { skipped: true };
@@ -32,6 +32,11 @@ export async function sendEmail({ to, cc, subject, html }) {
       cc: cc ? [cc] : undefined,
       subject,
       html,
+      // Resend supports inline images via a matching content_id + `cid:`
+      // reference in the HTML body's <img src>. Each attachment needs
+      // `content` as a base64 string (not a raw Buffer — JSON can't carry
+      // binary directly).
+      attachments: attachments && attachments.length ? attachments : undefined,
     }),
   });
 
@@ -79,7 +84,7 @@ const confirmationDetailRow = (icon, label, value, extra) => `
     </td>
   </tr>`;
 
-export function confirmationEmailHtml({ renterName, listingTitle, address, hours, total, spotLabel, dateStr, timeRangeStr, isAdvance }) {
+export function confirmationEmailHtml({ renterName, listingTitle, address, hours, total, spotLabel, dateStr, timeRangeStr, isAdvance, spotImageCid }) {
   const greeting = isAdvance
     ? `Your parking is booked for <strong>${dateStr}</strong>. We look forward to seeing you then!`
     : `Your parking spot is all set and your session has started. We look forward to seeing you!`;
@@ -115,9 +120,14 @@ export function confirmationEmailHtml({ renterName, listingTitle, address, hours
       <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #efe8db;border-top:none;border-radius:0 0 8px 8px;padding:0 16px;">
         ${confirmationDetailRow("📅", "Date &amp; Time", dateStr, timeRangeStr)}
         ${confirmationDetailRow("📍", "Parking Address", listingTitle, address)}
-        ${spotLabel ? confirmationDetailRow("🅿️", "Your Spot", spotLabel, "We've saved this spot just for you.") : ""}
+        ${spotLabel ? confirmationDetailRow("🅿️", "Your Spot", "Spot " + spotLabel, "We've saved this spot just for you.") : ""}
         ${confirmationDetailRow("💳", "Payment Summary", "$" + total, "Paid")}
       </table>
+      ${spotImageCid ? `
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;font-weight:800;color:#122233;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Your Parking Spot</div>
+        <img src="cid:${spotImageCid}" width="100%" alt="Your parking spot" style="display:block;border-radius:12px;border:2px solid #122233;max-width:100%;" />
+      </div>` : ""}
       <div style="background:#fff3d6;border:1px solid #ffe1a3;border-radius:8px;padding:12px 14px;margin:14px 0 24px;font-size:12.5px;color:#122233;">
         ✉️ We'll email you a reminder before your session ends. Manage this booking anytime in the app.
       </div>
@@ -181,7 +191,7 @@ function reminderEmailHtml({ kind, renterName, listingTitle, address, spotLabel,
       <table width="100%" cellpadding="0" cellspacing="0">
         ${confirmationDetailRow("⏰", "End Time", endTimeStr, endDateStr)}
         ${confirmationDetailRow("📍", "Parking Address", listingTitle, address)}
-        ${spotLabel ? confirmationDetailRow("🅿️", "Your Spot", spotLabel, "We hope you're enjoying your parking experience!") : ""}
+        ${spotLabel ? confirmationDetailRow("🅿️", "Your Spot", "Spot " + spotLabel, "We hope you're enjoying your parking experience!") : ""}
       </table>
     </td></tr>
 
