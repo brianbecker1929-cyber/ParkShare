@@ -11,6 +11,7 @@
 // on demand.
 
 import { sendEmail, confirmationEmailHtml, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
+import { renderParkingSpotImage } from "./_driveway-image.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
@@ -27,13 +28,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing ?to=you@example.com" });
   }
 
+  // NOTE: spot_label is stored as just the bare letter ("D"), never "Spot D"
+  // — that prefix only gets added for display. Sample data here matches the
+  // real shape so this actually exercises the same code path a real booking
+  // does, including the image-index parsing.
   const sampleConfirmation = {
     renterName: "Laura",
     listingTitle: "123 Maple Drive",
     address: "Toronto, ON  M4B 2T5",
     hours: 2,
     total: "14.00",
-    spotLabel: "Spot D",
+    spotLabel: "D",
     dateStr: "Thu, July 24, 2026",
     timeRangeStr: "2:46 PM – 4:46 PM (2 hrs)",
     isAdvance: false,
@@ -43,7 +48,7 @@ export default async function handler(req, res) {
     renterName: "Laura",
     listingTitle: "123 Maple Drive",
     address: "Toronto, ON  M4B 2T5",
-    spotLabel: "Spot D",
+    spotLabel: "D",
     minutesLeft: 15,
     endTimeStr: "4:46 PM",
     endDateStr: "Thursday, July 24, 2026",
@@ -52,12 +57,24 @@ export default async function handler(req, res) {
   const results = {};
 
   try {
+    // A(available), B(available), C(not for rent), D(chosen) — same shape
+    // as a real booking on a 2-space listing where spot D was picked.
+    const spotStates = [true, true, false, true];
+    const chosenIndex = 3; // D
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const spotImageCid = "test-parking-spot";
+
     await sendEmail({
       to,
       subject: "[TEST] Booking confirmed — 123 Maple Drive",
-      html: confirmationEmailHtml(sampleConfirmation),
+      html: confirmationEmailHtml({ ...sampleConfirmation, spotImageCid }),
+      attachments: [{
+        filename: "parking-spot.png",
+        content: imageBuffer.toString("base64"),
+        content_id: spotImageCid,
+      }],
     });
-    results.confirmation = "sent";
+    results.confirmation = "sent (with spot image)";
   } catch (err) {
     results.confirmation = "failed: " + err.message;
   }
@@ -75,4 +92,3 @@ export default async function handler(req, res) {
 
   return res.status(200).json(results);
 }
-
