@@ -10,6 +10,25 @@
 //                     domain is verified, Resend only lets you send to your
 //                     own account email using onboarding@resend.dev — fine
 //                     for testing, not for real users.
+//
+// CHANGE LOG (this revision):
+//   - confirmationEmailHtml() and endingReminderHtml() now render from the
+//     new templates in ./emails/templates/ instead of building HTML inline.
+//   - halfwayReminderHtml() is UNCHANGED — still uses the old inline design
+//     below, because there is currently no new template built for the
+//     halfway reminder (only an "ending soon" design exists). Renters will
+//     see two different visual styles depending on which reminder they get
+//     until a halfway template is built.
+//   - KNOWN GAP: the new confirmation template has no price/payment summary
+//     and no "booked in advance vs. already started" distinction — both of
+//     which the old design showed. That content was intentionally not
+//     smuggled back into your finished template; flagging it here so it's
+//     a deliberate decision, not a silent regression. See stripe-webhook.js
+//     comments at the confirmationEmailHtml() call site.
+
+import { fillTemplate } from "./emails/render.js";
+import confirmationTemplate from "./emails/templates/parking-confirmation.template.js";
+import endingReminderTemplate from "./emails/templates/reminder-ending.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
@@ -32,10 +51,6 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
       cc: cc ? [cc] : undefined,
       subject,
       html,
-      // Resend supports inline images via a matching content_id + `cid:`
-      // reference in the HTML body's <img src>. Each attachment needs
-      // `content` as a base64 string (not a raw Buffer — JSON can't carry
-      // binary directly).
       attachments: attachments && attachments.length ? attachments : undefined,
     }),
   });
@@ -47,8 +62,97 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
   return res.json();
 }
 
+// ---------------------------------------------------------------------
+// Booking confirmation — now rendered from the new template.
+// ---------------------------------------------------------------------
+//
+// spotImageCid: if provided, the spot-map image renders via the same
+// `cid:` attachment approach the old design used (the image is generated
+// fresh per booking, so it can't be a static hosted URL). If it's missing
+// (image generation failed upstream), we fall back to hiding the image
+// row entirely rather than leaving a broken image in the email.
+export function confirmationEmailHtml({
+  renterName,
+  hostName,
+  address,
+  locationId,
+  spotLabel,
+  confirmationNumber,
+  startDateLabel,
+  startTimeStr,
+  entryDateFull,
+  endTimeStr,
+  exitDateFull,
+  spotImageCid,
+  directionsUrl,
+  manageReservationUrl,
+  supportEmail,
+  supportPhone,
+}) {
+  return fillTemplate(confirmationTemplate, {
+    CUSTOMER_FIRST_NAME: renterName,
+    HOST_NAME: hostName,
+    GARAGE_ADDRESS: address,
+    LOCATION_ID: locationId,
+    SPOT_LABEL: spotLabel ? `Spot ${spotLabel}` : "—",
+    CONFIRMATION_NUMBER: confirmationNumber,
+    SESSION_START_DATE_LABEL: startDateLabel,
+    SESSION_START_TIME: startTimeStr,
+    ENTRY_DATE_FULL: entryDateFull,
+    SESSION_END_TIME: endTimeStr,
+    EXIT_DATE_FULL: exitDateFull,
+    SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
+    DIRECTIONS_URL: directionsUrl,
+    MANAGE_RESERVATION_URL: manageReservationUrl,
+    SUPPORT_EMAIL: supportEmail,
+    SUPPORT_PHONE: supportPhone,
+    CURRENT_YEAR: new Date().getFullYear(),
+  });
+}
+
+// ---------------------------------------------------------------------
+// Ending-soon reminder — now rendered from the new template.
+// ---------------------------------------------------------------------
+export function endingReminderHtml({
+  renterName,
+  hostName,
+  address,
+  locationId,
+  spotLabel,
+  timeRemaining,
+  endDateLabel,
+  endTimeStr,
+  exitDateFull,
+  spotImageCid,
+  directionsUrl,
+  manageReservationUrl,
+  supportEmail,
+  supportPhone,
+}) {
+  return fillTemplate(endingReminderTemplate, {
+    CUSTOMER_FIRST_NAME: renterName,
+    HOST_NAME: hostName,
+    GARAGE_ADDRESS: address,
+    LOCATION_ID: locationId,
+    SPOT_LABEL: spotLabel ? `Spot ${spotLabel}` : "—",
+    TIME_REMAINING: timeRemaining,
+    SESSION_END_DATE_LABEL: endDateLabel,
+    SESSION_END_TIME: endTimeStr,
+    EXIT_DATE_FULL: exitDateFull,
+    SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
+    DIRECTIONS_URL: directionsUrl,
+    MANAGE_RESERVATION_URL: manageReservationUrl,
+    SUPPORT_EMAIL: supportEmail,
+    SUPPORT_PHONE: supportPhone,
+    CURRENT_YEAR: new Date().getFullYear(),
+  });
+}
+
+// ---------------------------------------------------------------------
+// Halfway reminder — UNCHANGED. Old inline design, kept because no new
+// template exists yet for this variant. See change log at top of file.
+// ---------------------------------------------------------------------
 const LOGO_URL = "https://www.myparkshare.ca/email/parker-badge.png";
-const PARKER_CONFIRMATION_URL = "https://www.myparkshare.ca/email/parker-confirmation.png";
 const PARKER_REMINDER_URL = "https://www.myparkshare.ca/email/parker-reminder.png";
 
 const shell = (bodyHtml) => `
@@ -84,67 +188,7 @@ const confirmationDetailRow = (icon, label, value, extra) => `
     </td>
   </tr>`;
 
-export function confirmationEmailHtml({ renterName, listingTitle, address, hours, total, spotLabel, dateStr, timeRangeStr, isAdvance, spotImageCid }) {
-  const greeting = isAdvance
-    ? `Your parking is booked for <strong>${dateStr}</strong>. We look forward to seeing you then!`
-    : `Your parking spot is all set and your session has started. We look forward to seeing you!`;
-  return shell(`
-    ${brandHeader()}
-    <tr><td style="padding:28px 24px 8px;">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td style="vertical-align:top;">
-            <div style="font-size:26px;font-weight:800;color:#122233;line-height:1.15;">BOOKING</div>
-            <div style="font-size:26px;font-weight:800;color:#ffb100;line-height:1.15;margin-bottom:14px;">CONFIRMED!</div>
-          </td>
-          <td style="width:150px;vertical-align:top;text-align:right;">
-            <img src="${PARKER_CONFIRMATION_URL}" width="140" alt="Parker" style="display:block;margin-left:auto;" />
-          </td>
-        </tr>
-      </table>
-      <table cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-        <tr>
-          <td style="border-top:2px solid #efe8db;width:60px;"></td>
-          <td style="width:28px;height:28px;text-align:center;vertical-align:middle;background:#122233;border-radius:50%;color:#ffb100;font-size:14px;font-weight:800;">✓</td>
-          <td style="border-top:2px solid #efe8db;width:60px;"></td>
-        </tr>
-      </table>
-      <p style="font-size:14px;color:#122233;line-height:1.6;margin:0 0 20px;">
-        Hi ${renterName},<br/>
-        ${greeting}
-      </p>
-    </td></tr>
-
-    <tr><td style="padding:0 24px;">
-      <div style="background:#122233;color:#ffb100;font-size:12px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;padding:12px 16px;border-radius:8px 8px 0 0;">📅 Your Booking Details</div>
-      <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #efe8db;border-top:none;border-radius:0 0 8px 8px;padding:0 16px;">
-        ${confirmationDetailRow("📅", "Date &amp; Time", dateStr, timeRangeStr)}
-        ${confirmationDetailRow("📍", "Parking Address", listingTitle, address)}
-        ${spotLabel ? confirmationDetailRow("🅿️", "Your Spot", "Spot " + spotLabel, "We've saved this spot just for you.") : ""}
-        ${confirmationDetailRow("💳", "Payment Summary", "$" + total, "Paid")}
-      </table>
-      ${spotImageCid ? `
-      <div style="margin-top:16px;">
-        <div style="font-size:12px;font-weight:800;color:#122233;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Your Parking Spot</div>
-        <img src="cid:${spotImageCid}" width="100%" alt="Your parking spot" style="display:block;border-radius:12px;border:2px solid #122233;max-width:100%;" />
-      </div>` : ""}
-      <div style="background:#fff3d6;border:1px solid #ffe1a3;border-radius:8px;padding:12px 14px;margin:14px 0 24px;font-size:12.5px;color:#122233;">
-        ✉️ We'll email you a reminder before your session ends. Manage this booking anytime in the app.
-      </div>
-    </td></tr>
-
-    <tr><td style="background:#faf6ef;padding:18px 24px;text-align:center;border-top:1px solid #e5ded1;">
-      <p style="margin:0;font-size:11px;color:#78808a;">ParkShare · myparkshare.ca · This is an automated message about an active booking.</p>
-    </td></tr>
-  `);
-}
-
-function reminderEmailHtml({ kind, renterName, listingTitle, address, spotLabel, minutesLeft, endTimeStr, endDateStr }) {
-  const isEnding = kind === "ending";
-  const greeting = isEnding
-    ? "Just a friendly reminder that your parking session is ending soon."
-    : "Just a friendly reminder — you're about halfway through your parking session.";
-
+export function halfwayReminderHtml({ renterName, listingTitle, address, spotLabel, minutesLeft, endTimeStr, endDateStr }) {
   return shell(`
     ${brandHeader()}
     <tr><td style="padding:28px 24px 8px;">
@@ -168,7 +212,7 @@ function reminderEmailHtml({ kind, renterName, listingTitle, address, spotLabel,
       </table>
       <p style="font-size:14px;color:#122233;line-height:1.6;margin:0 0 20px;">
         Hi ${renterName},<br/>
-        ${greeting}
+        Just a friendly reminder — you're about halfway through your parking session.
       </p>
     </td></tr>
 
@@ -203,12 +247,4 @@ function reminderEmailHtml({ kind, renterName, listingTitle, address, spotLabel,
       <p style="margin:0;font-size:11px;color:#78808a;">ParkShare · myparkshare.ca · This is an automated message about an active booking.</p>
     </td></tr>
   `);
-}
-
-export function halfwayReminderHtml({ renterName, listingTitle, address, spotLabel, minutesLeft, endTimeStr, endDateStr }) {
-  return reminderEmailHtml({ kind: "halfway", renterName, listingTitle, address, spotLabel, minutesLeft, endTimeStr, endDateStr });
-}
-
-export function endingReminderHtml({ renterName, listingTitle, address, spotLabel, minutesLeft, endTimeStr, endDateStr }) {
-  return reminderEmailHtml({ kind: "ending", renterName, listingTitle, address, spotLabel, minutesLeft, endTimeStr, endDateStr });
 }
