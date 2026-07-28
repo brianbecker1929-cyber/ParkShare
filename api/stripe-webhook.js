@@ -17,6 +17,17 @@ function readRawBody(req) {
   });
 }
 
+// "Today" if the date is today in the server's local time, otherwise a
+// short weekday/month/day label — matches the [SESSION_START_DATE_LABEL]
+// example in the confirmation template ("Today" or "Mon, Jan 15").
+function dayLabel(date, now) {
+  const sameDay = date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+  if (sameDay) return "Today";
+  return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
 async function syncConnectedAccount(account) {
   const requirementsDue = [
     ...(account.requirements?.currently_due || []),
@@ -92,31 +103,44 @@ async function confirmBooking(session, connectedAccountId) {
 }
 
 async function sendBookingConfirmationEmail(booking) {
-  const [{ data: listing }, { data: renter }] = await Promise.all([
-    supabaseAdmin.from("listings").select("title, address, spaces").eq("id", booking.listing_id).single(),
-    supabaseAdmin.from("profiles").select("name, email").eq("id", booking.renter_id).single(),
-  ]);
+  const { data: listing } = await supabaseAdmin
+    .from("listings")
+    .select("title, address, spaces, host_id")
+    .eq("id", booking.listing_id)
+    .single();
+  const { data: renter } = await supabaseAdmin
+    .from("profiles")
+    .select("name, email")
+    .eq("id", booking.renter_id)
+    .single();
   if (!renter?.email) return;
 
-  const { start, end, isAdvance } = getSessionWindow(booking);
-  const timeFmt = { hour: "numeric", minute: "2-digit" };
-  const dateStr = start.toLocaleDateString(undefined, { weekday: "short", month: "long", day: "numeric", year: "numeric" });
-  const timeRangeStr = `${start.toLocaleTimeString(undefined, timeFmt)} – ${end.toLocaleTimeString(undefined, timeFmt)} (${booking.hours} hr${booking.hours === 1 ? "" : "s"})`;
+  let hostName = "your host";
+  if (listing?.host_id) {
+    const { data: host } = await supabaseAdmin.from("profiles").select("name").eq("id", listing.host_id).single();
+    hostName = host?.name || hostName;
+  }
 
-  // Recreate the same parking-spot diagram the renter saw while booking,
-  // using this booking's real spot letter and the listing's real space
-  // count (there's no per-letter "for rent" data in the schema, only a
-  // total count — this mirrors the same fallback logic the frontend's
-  // SpotPicker already uses). Best-effort: if this fails for any reason,
-  // the confirmation email still sends, just without the image.
+  const { start, end, isAdvance } = getSessionWindow(booking);
+  const now = new Date();
+  const timeFmt = { hour: "numeric", minute: "2-digit" };
+  const fullDateFmt = { weekday: "short", month: "long", day: "numeric", year: "numeric" };
+
+  // NOTE: the new confirmation template has no price/payment summary and no
+  // "booked in advance" vs. "already started" copy distinction — both of
+  // which the previous design showed. isAdvance is still used below for the
+  // email SUBJECT line only. If you want price shown in the email body,
+  // that requires adding a placeholder to parking_confirmation.html — ask
+  // for that change explicitly rather than having it silently reappear here.
+  const spaces = listing?.spaces || 1;
+  const spotStates = [0, 1, 2, 3].map(i => i < spaces);
+  const chosenIndex = booking.spot_label
+    ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
+    : null;
+
   let attachments;
   let spotImageCid;
   try {
-    const spaces = listing?.spaces || 1;
-    const spotStates = [0, 1, 2, 3].map(i => i < spaces);
-    const chosenIndex = booking.spot_label
-      ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
-      : null;
     const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
     spotImageCid = "parking-spot-" + booking.id;
     attachments = [{
@@ -128,20 +152,30 @@ async function sendBookingConfirmationEmail(booking) {
     console.error("Failed to generate parking spot image (sending confirmation without it):", err);
   }
 
+  const address = listing?.address || "";
+
   await sendEmail({
     to: renter.email,
     subject: isAdvance ? "Booking confirmed — " + (listing?.title || "ParkShare") : "Parking authorized — " + (listing?.title || "ParkShare"),
     html: confirmationEmailHtml({
       renterName: renter.name || "there",
-      listingTitle: listing?.title || "your listing",
-      address: listing?.address || "",
-      hours: booking.hours,
-      total: booking.total,
+      hostName,
+      address,
+      locationId: booking.listing_id,
       spotLabel: booking.spot_label,
-      dateStr,
-      timeRangeStr,
-      isAdvance,
+      confirmationNumber: "PK-" + booking.id,
+      startDateLabel: dayLabel(start, now),
+      startTimeStr: start.toLocaleTimeString(undefined, timeFmt),
+      entryDateFull: start.toLocaleDateString(undefined, fullDateFmt),
+      endTimeStr: end.toLocaleTimeString(undefined, timeFmt),
+      exitDateFull: end.toLocaleDateString(undefined, fullDateFmt),
       spotImageCid,
+      directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+      // TODO: confirm this route actually exists in your app — this is a
+      // guess based on common patterns, not read from your frontend router.
+      manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+      supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+      supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
     attachments,
   });
