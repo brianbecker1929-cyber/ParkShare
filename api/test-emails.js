@@ -29,27 +29,52 @@ export default async function handler(req, res) {
   }
 
   // NOTE: spot_label is stored as just the bare letter ("D"), never "Spot D"
-  // — that prefix only gets added for display. Sample data here matches the
-  // real shape so this actually exercises the same code path a real booking
-  // does, including the image-index parsing.
+  // — that prefix only gets added inside confirmationEmailHtml/
+  // endingReminderHtml. Sample data here matches the real shape so this
+  // actually exercises the same code path a real booking does, including
+  // the image-index parsing.
   const sampleConfirmation = {
     renterName: "Laura",
-    listingTitle: "123 Maple Drive",
-    address: "Toronto, ON  M4B 2T5",
-    hours: 2,
-    total: "14.00",
+    hostName: "Green P",
+    address: "123 Maple Drive, Toronto, ON M4B 2T5",
+    locationId: 195,
     spotLabel: "D",
-    dateStr: "Thu, July 24, 2026",
-    timeRangeStr: "2:46 PM – 4:46 PM (2 hrs)",
-    isAdvance: false,
+    confirmationNumber: "PK-482913",
+    startDateLabel: "Today",
+    startTimeStr: "2:46 PM",
+    entryDateFull: "Thu, July 24, 2026",
+    endTimeStr: "4:46 PM",
+    exitDateFull: "Thu, July 24, 2026",
+    directionsUrl: "https://www.google.com/maps/search/?api=1&query=123+Maple+Drive+Toronto+ON",
+    manageReservationUrl: "https://www.myparkshare.ca/bookings/test",
+    supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+    supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
   };
 
-  const sampleReminder = {
+  const sampleEndingReminder = {
+    renterName: "Laura",
+    hostName: "Green P",
+    address: "123 Maple Drive, Toronto, ON M4B 2T5",
+    locationId: 195,
+    spotLabel: "D",
+    timeRemaining: "15 minutes",
+    endDateLabel: "Today",
+    endTimeStr: "4:46 PM",
+    exitDateFull: "Thursday, July 24, 2026",
+    directionsUrl: "https://www.google.com/maps/search/?api=1&query=123+Maple+Drive+Toronto+ON",
+    manageReservationUrl: "https://www.myparkshare.ca/bookings/test",
+    supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+    supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
+  };
+
+  // Kept for the halfway reminder, which still uses the old inline design
+  // and its old (smaller) set of fields — see _email.js change log.
+  const sampleHalfwayReminder = {
     renterName: "Laura",
     listingTitle: "123 Maple Drive",
     address: "Toronto, ON  M4B 2T5",
     spotLabel: "D",
-    minutesLeft: 15,
+    minutesLeft: 60,
     endTimeStr: "4:46 PM",
     endDateStr: "Thursday, July 24, 2026",
   };
@@ -62,7 +87,7 @@ export default async function handler(req, res) {
     const spotStates = [true, true, false, true];
     const chosenIndex = 3; // D
     const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
-    const spotImageCid = "test-parking-spot";
+    const spotImageCid = "test-parking-spot-confirmation";
 
     await sendEmail({
       to,
@@ -80,14 +105,35 @@ export default async function handler(req, res) {
   }
 
   try {
+    const spotStates = [true, true, false, true];
+    const chosenIndex = 3;
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const spotImageCid = "test-parking-spot-ending";
+
     await sendEmail({
       to,
       subject: "[TEST] Your parking session ends soon",
-      html: endingReminderHtml(sampleReminder),
+      html: endingReminderHtml({ ...sampleEndingReminder, spotImageCid }),
+      attachments: [{
+        filename: "parking-spot.png",
+        content: imageBuffer.toString("base64"),
+        content_id: spotImageCid,
+      }],
     });
-    results.reminder = "sent";
+    results.endingReminder = "sent (with spot image)";
   } catch (err) {
-    results.reminder = "failed: " + err.message;
+    results.endingReminder = "failed: " + err.message;
+  }
+
+  try {
+    await sendEmail({
+      to,
+      subject: "[TEST] Halfway through your parking session",
+      html: halfwayReminderHtml(sampleHalfwayReminder),
+    });
+    results.halfwayReminder = "sent (old design)";
+  } catch (err) {
+    results.halfwayReminder = "failed: " + err.message;
   }
 
   return res.status(200).json(results);
