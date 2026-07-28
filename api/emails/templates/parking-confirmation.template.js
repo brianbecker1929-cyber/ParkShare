@@ -2,47 +2,7 @@
 // Images point to https://www.myparkshare.ca/email/*.png — see
 // email-images-for-upload/ for the files that need to exist there.
 
-export default `<!--
-  PARKER — PARKING SESSION CONFIRMATION EMAIL
-  =============================================
-  Sent to renters immediately after a parking session/reservation is booked.
-  Fill in every [VARIABLE] before sending.
-
-  DYNAMIC VARIABLES USED IN THIS TEMPLATE:
-  [CUSTOMER_FIRST_NAME]     - e.g. "Alex"
-  [CONFIRMATION_NUMBER]     - e.g. "PK-482913"
-  [SESSION_START_DATE_LABEL]- e.g. "Today" or "Mon, Jan 15"
-  [SESSION_START_TIME]      - e.g. "2:00 PM"
-  [ENTRY_DATE_FULL]         - e.g. "Mon, Jan 15, 2026"
-  [SESSION_END_TIME]        - e.g. "6:00 PM"
-  [EXIT_DATE_FULL]          - e.g. "Mon, Jan 15, 2026"
-  [GARAGE_ADDRESS]          - e.g. "123 Maple Drive, Toronto, ON M4B 2T5"
-
-  -- Location / host --
-  [LOCATION_ID]             - e.g. "195"
-  [HOST_NAME]                - e.g. "Green P"
-
-  -- Spot assignment --
-  [SPOT_LABEL]              - e.g. "Spot B"
-
-  -- Parking spot map --
-  [SPOT_MAP_IMAGE_URL]      - Publicly hosted URL to the SAME driveway/spot-map
-                               graphic shown in the app's Review & Pay screen,
-                               rendered server-side as a static PNG/JPEG for this
-                               specific booking (with the correct driveway photo
-                               and spot statuses already baked in).
-                               e.g. "https://cdn.parkerapp.com/spot-maps/booking-284910.png"
-  NOTE: this is NOT something the email template can generate — it must be
-  produced by whatever backend logic renders the graphic in the app, then
-  exported as an image and hosted at a stable URL per booking.
-
-  [DIRECTIONS_URL]          - e.g. "https://maps.google.com/?q=123+Main+St"
-  [MANAGE_RESERVATION_URL]  - e.g. "https://parkerapp.com/reservations/284910"
-  [SUPPORT_EMAIL]           - e.g. "support@parkerapp.com"
-  [SUPPORT_PHONE]           - e.g. "(555) 123-4567"
-  [CURRENT_YEAR]            - e.g. "2026"
--->
-<!DOCTYPE html>
+export default `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
