@@ -17,9 +17,15 @@
 // when CRON_SECRET is set as an env var — this handler requires that same
 // header, so it works identically whether triggered by Vercel Cron or any
 // other scheduler configured with the same secret.
+//
+// CHANGE LOG (this revision): the ENDING reminder now renders from the new
+// template (needs hostName + a couple of extra fields, so this now selects
+// "name, email" from the host's profile instead of just "email"). The
+// HALFWAY reminder is unchanged — see _email.js for why.
 
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
+import { renderParkingSpotImage } from "./_driveway-image.js";
 
 const ENDING_SOON_MINUTES = 15;
 
@@ -101,19 +107,39 @@ export default async function handler(req, res) {
   return res.status(200).json(results);
 }
 
+// "Today" if the date is today in the server's local time, otherwise a
+// full weekday/month/day label — matches [SESSION_END_DATE_LABEL]'s
+// "Today" example in the ending-reminder template.
+function dayLabel(date, now) {
+  const sameDay = date.getFullYear() === now.getFullYear()
+    && date.getMonth() === now.getMonth()
+    && date.getDate() === now.getDate();
+  if (sameDay) return "Today";
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+}
+
 async function sendReminder(booking, kind) {
-  const [{ data: listing }, { data: renter }] = await Promise.all([
-    supabaseAdmin.from("listings").select("title, address, host_id").eq("id", booking.listing_id).single(),
-    supabaseAdmin.from("profiles").select("name, email").eq("id", booking.renter_id).single(),
-  ]);
+  const { data: listing } = await supabaseAdmin
+    .from("listings")
+    .select("title, address, spaces, host_id")
+    .eq("id", booking.listing_id)
+    .single();
+  const { data: renter } = await supabaseAdmin
+    .from("profiles")
+    .select("name, email")
+    .eq("id", booking.renter_id)
+    .single();
   if (!renter?.email) return;
 
   let hostEmail = null;
+  let hostName = "your host";
   if (listing?.host_id) {
-    const { data: host } = await supabaseAdmin.from("profiles").select("email").eq("id", listing.host_id).single();
+    const { data: host } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
     hostEmail = host?.email || null;
+    hostName = host?.name || hostName;
   }
 
+  const nowDate = new Date();
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
   const endDate = new Date(booking.end);
   const endDateStr = endDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
@@ -122,25 +148,59 @@ async function sendReminder(booking, kind) {
   const address = listing?.address || "";
   const renterName = renter.name || "there";
 
-  const templateArgs = { renterName, listingTitle, address, spotLabel: booking.spot_label, minutesLeft, endTimeStr, endDateStr };
+  let subject, html, column, attachments;
 
-  const { subject, html, column } =
-    kind === "halfway"
-      ? {
-          subject: "Halfway through your parking session",
-          html: halfwayReminderHtml(templateArgs),
-          column: "reminder_halfway_sent_at",
-        }
-      : {
-          subject: "Your parking session ends soon",
-          html: endingReminderHtml(templateArgs),
-          column: "reminder_ending_sent_at",
-        };
+  if (kind === "halfway") {
+    // Unchanged — old inline design, see _email.js change log.
+    subject = "Halfway through your parking session";
+    html = halfwayReminderHtml({ renterName, listingTitle, address, spotLabel: booking.spot_label, minutesLeft, endTimeStr, endDateStr });
+    column = "reminder_halfway_sent_at";
+  } else {
+    // Same spot-map generation stripe-webhook.js uses for the confirmation
+    // email — regenerated here since a booking's spot assignment doesn't
+    // change, but there's no image saved anywhere to reuse. Best-effort:
+    // if this fails, the reminder still sends, just without the image.
+    let spotImageCid;
+    try {
+      const spaces = listing?.spaces || 1;
+      const spotStates = [0, 1, 2, 3].map(i => i < spaces);
+      const chosenIndex = booking.spot_label
+        ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
+        : null;
+      const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+      spotImageCid = "parking-spot-" + booking.id;
+      attachments = [{
+        filename: "parking-spot.png",
+        content: imageBuffer.toString("base64"),
+        content_id: spotImageCid,
+      }];
+    } catch (err) {
+      console.error("send-reminders: failed to generate parking spot image (sending without it):", err);
+    }
 
-  await sendEmail({ to: renter.email, cc: hostEmail || undefined, subject, html });
+    subject = "Your parking session ends soon";
+    html = endingReminderHtml({
+      renterName,
+      hostName,
+      address,
+      locationId: booking.listing_id,
+      spotLabel: booking.spot_label,
+      timeRemaining: `${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}`,
+      endDateLabel: dayLabel(endDate, nowDate),
+      endTimeStr,
+      exitDateFull: endDateStr,
+      spotImageCid,
+      directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+      manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+      supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+      supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
+    });
+    column = "reminder_ending_sent_at";
+  }
+
+  await sendEmail({ to: renter.email, cc: hostEmail || undefined, subject, html, attachments });
 
   // Mark as sent immediately after a successful send so a later run in the
   // same cron cycle (or an overlapping one) never sends it twice.
   await supabaseAdmin.from("bookings").update({ [column]: new Date().toISOString() }).eq("id", booking.id);
 }
-
