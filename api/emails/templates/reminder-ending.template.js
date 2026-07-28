@@ -2,46 +2,7 @@
 // placeholders. Used only for the ENDING reminder; there is currently
 // no matching design for the HALFWAY reminder (see _email.js).
 
-export default `<!--
-  PARKER — UPCOMING RESERVATION REMINDER EMAIL
-  =============================================
-  Fill in every [VARIABLE] before sending.
-
-  DYNAMIC VARIABLES USED IN THIS TEMPLATE:
-  [CUSTOMER_FIRST_NAME]     - e.g. "Alex"
-  [GARAGE_ADDRESS]          - e.g. "123 Maple Drive, Toronto, ON M4B 2T5"
-
-  -- Countdown banner --
-  [TIME_REMAINING]          - e.g. "47 minutes"
-  [SESSION_END_DATE_LABEL]  - e.g. "Today"
-  [SESSION_END_TIME]        - e.g. "9:00 a.m."
-  [EXIT_DATE_FULL]          - e.g. "Saturday, July 19, 2026"
-
-  -- Location / host --
-  [LOCATION_ID]             - e.g. "195"
-  [HOST_NAME]                - e.g. "Green P"
-
-  -- Spot assignment --
-  [SPOT_LABEL]              - e.g. "Spot B"
-
-  -- Parking spot map --
-  [SPOT_MAP_IMAGE_URL]      - Publicly hosted URL to the SAME driveway/spot-map
-                               graphic shown in the app's Review & Pay screen,
-                               rendered server-side as a static PNG/JPEG for this
-                               specific booking (with the correct driveway photo
-                               and spot statuses already baked in).
-                               e.g. "https://cdn.parkerapp.com/spot-maps/booking-284910.png"
-  NOTE: this is NOT something the email template can generate — it must be
-  produced by whatever backend logic renders the graphic in the app, then
-  exported as an image and hosted at a stable URL per booking.
-
-  [DIRECTIONS_URL]          - e.g. "https://maps.google.com/?q=123+Main+St"
-  [MANAGE_RESERVATION_URL]  - e.g. "https://parkerapp.com/reservations/284910"
-  [SUPPORT_EMAIL]           - e.g. "support@parkerapp.com"
-  [SUPPORT_PHONE]           - e.g. "(555) 123-4567"
-  [CURRENT_YEAR]            - e.g. "2026"
--->
-<!DOCTYPE html>
+export default `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
