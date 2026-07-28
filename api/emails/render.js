@@ -10,8 +10,8 @@ export function fillTemplate(template, variables) {
     html = html.split(`[${key}]`).join(String(value ?? ""));
   }
 
-  const leftover = html.match(/\[[A-Z_]+\]/g);
-  if (leftover) {
+  const leftover = (html.match(/\[[A-Z_]+\]/g) || []).filter((t) => t !== "[VARIABLE]");
+  if (leftover.length) {
     throw new Error(`Unfilled email template variables: ${[...new Set(leftover)].join(", ")}`);
   }
   return html;
