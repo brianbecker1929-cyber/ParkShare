@@ -51,13 +51,12 @@ export default async function handler(req, res) {
     supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
   };
 
-  const sampleEndingReminder = {
+  const sampleReminder = {
     renterName: "Laura",
     hostName: "Green P",
     address: "123 Maple Drive, Toronto, ON M4B 2T5",
     locationId: 195,
     spotLabel: "D",
-    timeRemaining: "15 minutes",
     endDateLabel: "Today",
     endTimeStr: "4:46 PM",
     exitDateFull: "Thursday, July 24, 2026",
@@ -66,18 +65,8 @@ export default async function handler(req, res) {
     supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
     supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
   };
-
-  // Kept for the halfway reminder, which still uses the old inline design
-  // and its old (smaller) set of fields — see _email.js change log.
-  const sampleHalfwayReminder = {
-    renterName: "Laura",
-    listingTitle: "123 Maple Drive",
-    address: "Toronto, ON  M4B 2T5",
-    spotLabel: "D",
-    minutesLeft: 60,
-    endTimeStr: "4:46 PM",
-    endDateStr: "Thursday, July 24, 2026",
-  };
+  const sampleEndingReminder = { ...sampleReminder, timeRemaining: "15 minutes" };
+  const sampleHalfwayReminder = { ...sampleReminder, timeRemaining: "60 minutes" };
 
   const results = {};
 
@@ -126,12 +115,22 @@ export default async function handler(req, res) {
   }
 
   try {
+    const spotStates = [true, true, false, true];
+    const chosenIndex = 3;
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const spotImageCid = "test-parking-spot-halfway";
+
     await sendEmail({
       to,
       subject: "[TEST] Halfway through your parking session",
-      html: halfwayReminderHtml(sampleHalfwayReminder),
+      html: halfwayReminderHtml({ ...sampleHalfwayReminder, spotImageCid }),
+      attachments: [{
+        filename: "parking-spot.png",
+        content: imageBuffer.toString("base64"),
+        content_id: spotImageCid,
+      }],
     });
-    results.halfwayReminder = "sent (old design)";
+    results.halfwayReminder = "sent (with spot image)";
   } catch (err) {
     results.halfwayReminder = "failed: " + err.message;
   }
