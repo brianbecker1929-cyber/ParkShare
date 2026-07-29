@@ -8,12 +8,14 @@ export default `<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Your Parker Reservation is Coming Up</title>
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light only">
 </head>
-<body style="margin:0; padding:0; background-color:#f2f4f7; font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f2f4f7; padding:22px 0;">
+<body style="margin:0; padding:0; background-color:#ffffff; font-family:'Helvetica Neue', Helvetica, Arial, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ffffff; padding:22px 0;">
   <tr>
     <td align="center">
-      <table role="presentation" width="540" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:7px; overflow:hidden; max-width:540px; width:100%;">
+      <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:7px; overflow:hidden; max-width:640px; width:100%;">
 
         <!-- ===== STATIC: HEADER / LOGO ===== -->
         <tr>
@@ -169,8 +171,19 @@ export default `<!DOCTYPE html>
 
         <!-- ===== STATIC: FOOTER ===== -->
         <tr>
-          <td style="background-color:#f7f9fc; padding:22px 29px; border-top:1px solid #edf0f5;" align="center">
-            <img src="https://www.myparkshare.ca/email/eska-badge.png" width="140" height="46" alt="Powered by ESKA Technologies" style="display:block; border:0;">
+          <td style="background-color:#1b2b3a; padding:22px 29px; border-top:3px solid #f5a623;" align="center">
+            <p style="margin:0 0 14px; font-size:12px; line-height:1.6; color:#c3cbd6;">
+              Have a question, comment, grievance or complaint? Send us an email to <a href="mailto:info@myparkshare.ca" style="color:#f5a623; text-decoration:none;">info@myparkshare.ca</a>.<br>
+              Visit our web site <a href="https://www.myparkshare.ca" style="color:#f5a623; text-decoration:none;">www.myparkshare.ca</a>
+            </p>
+            <p style="margin:0 0 14px; font-size:12px; line-height:1.8; color:#c3cbd6;">
+              Follow MyParkShare on<br>
+              <a href="https://facebook.com/myparkshare" style="color:#f5a623; text-decoration:none;">Facebook</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://twitter.com/myparkshare" style="color:#f5a623; text-decoration:none;">Twitter</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://youtube.com/@myparkshare" style="color:#f5a623; text-decoration:none;">YouTube</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a href="https://linkedin.com/company/myparkshare" style="color:#f5a623; text-decoration:none;">LinkedIn</a>
+            </p>
+            <p style="margin:0 0 18px; font-size:11px; line-height:1.5; color:#8a94a6;">
+              This is an auto-generated email. Using &quot;reply&quot; will send the email to an unmonitored email account.
+            </p>
+            <img src="https://www.myparkshare.ca/email/eska-badge-on-navy.png" width="140" height="48" alt="Powered by ESKA Technologies" style="display:block; border:0;">
           </td>
         </tr>
 
