@@ -86,7 +86,7 @@ export default `<!DOCTYPE html>
               <tr valign="top">
 
                 <!-- LEFT COLUMN: icon detail rows -->
-                <td width="55%" style="padding-right:14px;">
+                <td width="100%">
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 
                     <!-- Row: Start Time -->
@@ -149,14 +149,17 @@ export default `<!DOCTYPE html>
 
                   </table>
                 </td>
-
-                <!-- RIGHT COLUMN: parking spot map (server-rendered image) -->
-                <td width="45%">
-                  <p style="margin:0 0 7px 0; font-size:10px; font-weight:bold; text-transform:uppercase; letter-spacing:0.45px; color:#1c2b4a; text-align:center;">Your Parking Spot</p>
-                  <img src="[SPOT_MAP_IMAGE_URL]" alt="Your parking spot: [SPOT_LABEL]" style="display:block; height:230px; width:auto; max-width:100%; margin:0 auto; border-radius:7px; border:1px solid #e2e6ee;">
-                </td>
-
               </tr>
+              </table>
+
+              <!-- ===== Your Parking Spot — now full width, below the details ===== -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                <tr>
+                  <td align="center">
+                    <p style="margin:0 0 9px 0; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.45px; color:#1c2b4a; text-align:center;">Your Parking Spot</p>
+                    <img src="[SPOT_MAP_IMAGE_URL]" alt="Your parking spot: [SPOT_LABEL]" style="display:block; height:260px; width:auto; max-width:100%; margin:0 auto; border-radius:7px; border:1px solid #e2e6ee;">
+                  </td>
+                </tr>
             </table>
           </td>
         </tr>
