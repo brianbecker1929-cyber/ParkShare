@@ -18,10 +18,11 @@
 // header, so it works identically whether triggered by Vercel Cron or any
 // other scheduler configured with the same secret.
 //
-// CHANGE LOG (this revision): the ENDING reminder now renders from the new
-// template (needs hostName + a couple of extra fields, so this now selects
-// "name, email" from the host's profile instead of just "email"). The
-// HALFWAY reminder is unchanged — see _email.js for why.
+// CHANGE LOG (this revision): halfway and ending reminders now share almost
+// all the same field-building logic — both render from a template that
+// needs hostName, locationId, directionsUrl, manageReservationUrl, and a
+// spot-map image, where previously only the ending reminder did. See
+// _email.js for the halfwayReminderHtml() design change.
 
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
@@ -109,7 +110,7 @@ export default async function handler(req, res) {
 
 // "Today" if the date is today in the server's local time, otherwise a
 // full weekday/month/day label — matches [SESSION_END_DATE_LABEL]'s
-// "Today" example in the ending-reminder template.
+// "Today" example in both reminder templates.
 function dayLabel(date, now) {
   const sameDay = date.getFullYear() === now.getFullYear()
     && date.getMonth() === now.getMonth()
@@ -144,59 +145,55 @@ async function sendReminder(booking, kind) {
   const endDate = new Date(booking.end);
   const endDateStr = endDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   const endTimeStr = endDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const listingTitle = listing?.title || "your listing";
   const address = listing?.address || "";
   const renterName = renter.name || "there";
 
-  let subject, html, column, attachments;
-
-  if (kind === "halfway") {
-    // Unchanged — old inline design, see _email.js change log.
-    subject = "Halfway through your parking session";
-    html = halfwayReminderHtml({ renterName, listingTitle, address, spotLabel: booking.spot_label, minutesLeft, endTimeStr, endDateStr });
-    column = "reminder_halfway_sent_at";
-  } else {
-    // Same spot-map generation stripe-webhook.js uses for the confirmation
-    // email — regenerated here since a booking's spot assignment doesn't
-    // change, but there's no image saved anywhere to reuse. Best-effort:
-    // if this fails, the reminder still sends, just without the image.
-    let spotImageCid;
-    try {
-      const spaces = listing?.spaces || 1;
-      const spotStates = [0, 1, 2, 3].map(i => i < spaces);
-      const chosenIndex = booking.spot_label
-        ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
-        : null;
-      const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
-      spotImageCid = "parking-spot-" + booking.id;
-      attachments = [{
-        filename: "parking-spot.png",
-        content: imageBuffer.toString("base64"),
-        content_id: spotImageCid,
-      }];
-    } catch (err) {
-      console.error("send-reminders: failed to generate parking spot image (sending without it):", err);
-    }
-
-    subject = "Your parking session ends soon";
-    html = endingReminderHtml({
-      renterName,
-      hostName,
-      address,
-      locationId: booking.listing_id,
-      spotLabel: booking.spot_label,
-      timeRemaining: `${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}`,
-      endDateLabel: dayLabel(endDate, nowDate),
-      endTimeStr,
-      exitDateFull: endDateStr,
-      spotImageCid,
-      directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
-      manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
-      supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
-      supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
-    });
-    column = "reminder_ending_sent_at";
+  // Same spot-map generation stripe-webhook.js uses for the confirmation
+  // email — regenerated here since a booking's spot assignment doesn't
+  // change, but there's no image saved anywhere to reuse. Best-effort: if
+  // this fails, the reminder still sends, just without the image. Used by
+  // BOTH reminder kinds now, since both templates have an image slot.
+  let spotImageCid, attachments;
+  try {
+    const spaces = listing?.spaces || 1;
+    const spotStates = [0, 1, 2, 3].map(i => i < spaces);
+    const chosenIndex = booking.spot_label
+      ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
+      : null;
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    spotImageCid = "parking-spot-" + booking.id;
+    attachments = [{
+      filename: "parking-spot.png",
+      content: imageBuffer.toString("base64"),
+      content_id: spotImageCid,
+    }];
+  } catch (err) {
+    console.error("send-reminders: failed to generate parking spot image (sending without it):", err);
   }
+
+  const commonFields = {
+    renterName,
+    hostName,
+    address,
+    locationId: booking.listing_id,
+    spotLabel: booking.spot_label,
+    timeRemaining: `${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}`,
+    endDateLabel: dayLabel(endDate, nowDate),
+    endTimeStr,
+    exitDateFull: endDateStr,
+    spotImageCid,
+    directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+    manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+    supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+    supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
+  };
+
+  const isHalfway = kind === "halfway";
+  const subject = isHalfway
+    ? "Halfway through your parking session"
+    : "Your parking session ends soon";
+  const html = isHalfway ? halfwayReminderHtml(commonFields) : endingReminderHtml(commonFields);
+  const column = isHalfway ? "reminder_halfway_sent_at" : "reminder_ending_sent_at";
 
   await sendEmail({ to: renter.email, cc: hostEmail || undefined, subject, html, attachments });
 
