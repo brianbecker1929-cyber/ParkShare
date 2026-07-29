@@ -39,11 +39,11 @@ export default `<!DOCTYPE html>
                 <td valign="middle" style="padding-right:14px;">
                   <p style="margin:0; font-size:14px; color:#1c2b4a;">Hi [CUSTOMER_FIRST_NAME],</p>
                   <p style="margin:11px 0 0 0; font-size:14px; color:#4a5568; line-height:1.5;">
-                    You're all set! Your parking session is confirmed. Here are your reservation details.
+                    You're all set! Here's your reservation.
                   </p>
                 </td>
                 <td width="130" valign="bottom" align="right" style="overflow:visible;">
-                  <img src="https://www.myparkshare.ca/email/parker-confirmation.png" alt="Parker holding his phone with the ParkShare app" width="186" style="display:block; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
+                  <img src="https://www.myparkshare.ca/email/parker-confirmation.png" alt="Parker holding his phone with the ParkShare app" width="140" style="display:block; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
                 </td>
               </tr>
             </table>
