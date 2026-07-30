@@ -102,6 +102,79 @@ async function confirmBooking(session, connectedAccountId) {
   }
 }
 
+// Handles a completed Checkout Session for "Add Additional Time," as
+// distinct from confirmBooking() above (a brand-new booking). Routed here
+// by metadata.type === "extension" — see create-extend-session.js, which
+// is the only thing that ever sets that metadata field.
+async function confirmExtension(session, connectedAccountId) {
+  if (session.payment_status !== "paid") return;
+  const metadata = session.metadata || {};
+  const bookingId = Number(metadata.booking_id);
+  const addedHours = Number(metadata.added_hours);
+  const totalCents = Number(metadata.total_cents);
+  if (!Number.isInteger(bookingId) || !Number.isFinite(addedHours) || !Number.isFinite(totalCents)) {
+    throw new Error("Extension Checkout Session is missing required ParkShare metadata.");
+  }
+
+  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
+  let chargeId = null;
+  if (paymentIntentId && connectedAccountId) {
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, { stripeAccount: connectedAccountId });
+    chargeId = typeof paymentIntent.latest_charge === "string" ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id || null;
+  }
+
+  const row = {
+    booking_id: bookingId,
+    added_hours: addedHours,
+    added_amount: totalCents / 100,
+    stripe_checkout_session_id: session.id,
+    stripe_payment_intent_id: paymentIntentId,
+    stripe_charge_id: chargeId,
+    stripe_connected_account_id: connectedAccountId || null,
+    status: "confirmed",
+    paid_at: new Date().toISOString(),
+  };
+
+  // Same idempotency pattern as confirmBooking() — upsert keyed on the
+  // unique checkout session id, ignoreDuplicates so a Stripe retry of this
+  // same event can never apply the same extension twice.
+  const { data: inserted, error } = await supabaseAdmin
+    .from("booking_extensions")
+    .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
+    .select("id, booking_id, added_hours");
+  if (error) throw error;
+  if (!inserted || inserted.length === 0) return; // already processed this exact session before
+
+  // Bump the booking's hours so getSessionWindow() — and everything built
+  // on it (reminders, availability, the Phase 3 exclusion constraint) —
+  // picks up the new, longer end time with no further changes needed
+  // anywhere else. Read-then-write rather than an atomic SQL increment:
+  // acceptable here because the only realistic race is the SAME renter
+  // submitting two extensions on the SAME booking within milliseconds of
+  // each other — low-stakes and unlikely, unlike the cross-renter spot
+  // conflict Phase 3 protects against, which is why that one got a real
+  // database constraint instead of just application-level care.
+  const { data: booking, error: fetchError } = await supabaseAdmin
+    .from("bookings")
+    .select("hours")
+    .eq("id", bookingId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const { error: updateError } = await supabaseAdmin
+    .from("bookings")
+    .update({ hours: Number(booking.hours) + addedHours })
+    .eq("id", bookingId);
+  if (updateError) throw updateError;
+
+  // NOTE: no "extension confirmed" email sends here yet. None of the
+  // existing templates (confirmation / halfway / ending) are worded for
+  // "you just added time to an already-active session" — ask for this
+  // explicitly if you want a dedicated email built for it. For now the
+  // renter's only confirmation is Stripe's own receipt and whatever your
+  // app shows after redirecting back from success_url.
+}
+
 async function sendBookingConfirmationEmail(booking) {
   const { data: listing } = await supabaseAdmin
     .from("listings")
@@ -199,16 +272,32 @@ export default async function handler(req, res) {
   try {
     switch (event.type) {
       case "checkout.session.completed":
-      case "checkout.session.async_payment_succeeded":
-        await confirmBooking(event.data.object, event.account || null);
+      case "checkout.session.async_payment_succeeded": {
+        const session = event.data.object;
+        if (session.metadata?.type === "extension") {
+          await confirmExtension(session, event.account || null);
+        } else {
+          await confirmBooking(session, event.account || null);
+        }
         break;
+      }
 
       case "checkout.session.async_payment_failed": {
         const session = event.data.object;
-        await supabaseAdmin
-          .from("bookings")
-          .update({ status: "payment_failed" })
-          .eq("stripe_checkout_session_id", session.id);
+        if (session.metadata?.type === "extension") {
+          // Nothing to roll back — confirmExtension() never ran, so
+          // bookings.hours was never touched. Just mark the row so it
+          // doesn't sit as "pending" forever.
+          await supabaseAdmin
+            .from("booking_extensions")
+            .update({ status: "payment_failed" })
+            .eq("stripe_checkout_session_id", session.id);
+        } else {
+          await supabaseAdmin
+            .from("bookings")
+            .update({ status: "payment_failed" })
+            .eq("stripe_checkout_session_id", session.id);
+        }
         break;
       }
 
@@ -216,6 +305,15 @@ export default async function handler(req, res) {
         await syncConnectedAccount(event.data.object);
         break;
 
+      // KNOWN GAP: refunds/disputes below only check the `bookings` table.
+      // An extension's charge has its own separate payment_intent/charge id
+      // (see confirmExtension() above), so a refund issued against just the
+      // extension portion currently matches nothing here and silently
+      // no-ops. Deliberately left unhandled rather than guessing at the
+      // right behavior (e.g. should refunding an extension also decrement
+      // bookings.hours back down? what if it's been extended again since?)
+      // — worth its own explicit decision rather than bundling into this
+      // fix. Ask for it directly if refunding extensions needs to work.
       case "charge.refunded": {
         const charge = event.data.object;
         const paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
