@@ -62,6 +62,7 @@ export default async function handler(req, res) {
     exitDateFull: "Thursday, July 24, 2026",
     directionsUrl: "https://www.google.com/maps/search/?api=1&query=123+Maple+Drive+Toronto+ON",
     manageReservationUrl: "https://www.myparkshare.ca/bookings/test",
+    extendUrl: "https://www.myparkshare.ca/?extend_booking=test",
     supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
     supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
   };
