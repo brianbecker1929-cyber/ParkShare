@@ -12,7 +12,7 @@
 // reminder emails (send-reminders.js) — so "what this badge shows you" and
 // "what actually gets enforced when you pay" can never drift apart.
 
-import { supabaseAdmin, checkAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
+import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
@@ -47,7 +47,15 @@ export default async function handler(req, res) {
     });
 
     const result = await checkAvailability(listingId, listing.spaces || 1, start, end);
-    return res.status(200).json(result);
+
+    // Per-letter status for the picker UI — same window, same "confirmed
+    // bookings only" rule as the capacity check above, just broken out by
+    // spot_label instead of summed into one count. Hardcoded to A-D since
+    // that's the fixed 4-slot layout SpotPicker in App.jsx renders today;
+    // revisit both together if that ever supports more than 4 spots.
+    const spotStatus = await checkAllSpotAvailability(listingId, ["A", "B", "C", "D"], start, end);
+
+    return res.status(200).json({ ...result, spotStatus });
   } catch (err) {
     console.error("listing-availability error:", err);
     return res.status(500).json({ error: "Couldn't check availability." });
