@@ -199,3 +199,42 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
 
   return { available: !conflict, spotLabel: label, conflictingBookingId: conflict?.id ?? null };
 }
+
+// Batched version of checkSpotAvailability() for showing live status across
+// ALL of a listing's lettered spots at once (the picker UI needs "is A
+// free, is B free, is C free, is D free," not just one letter at a time).
+// Written as its own single query + in-memory filter rather than calling
+// checkSpotAvailability() four times in a loop, since this is expected to
+// run on every keystroke/selection change while a renter is browsing
+// times — four separate round trips per check would be needlessly slow
+// for a public, potentially high-frequency endpoint.
+//
+// Returns e.g. { A: true, B: false, C: true, D: true } — true means that
+// letter has no conflicting confirmed booking for this window.
+export async function checkAllSpotAvailability(listingId, labels, start, end) {
+  const wantedLabels = labels.map((l) => String(l).trim().toUpperCase());
+
+  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
+  const { data: bookings, error } = await supabaseAdmin
+    .from("bookings")
+    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .eq("listing_id", listingId)
+    .eq("status", "confirmed")
+    .not("paid_at", "is", null)
+    .gte("paid_at", since);
+  if (error) throw error;
+
+  const overlapping = (bookings || []).filter((b) => {
+    const w = getSessionWindow(b);
+    return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
+  });
+  const takenLabels = new Set(
+    overlapping.map((b) => String(b.spot_label || "").trim().toUpperCase()).filter(Boolean)
+  );
+
+  const status = {};
+  for (const label of wantedLabels) {
+    status[label] = !takenLabels.has(label);
+  }
+  return status;
+}
