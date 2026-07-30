@@ -1,6 +1,5 @@
 // "Halfway through your session" reminder email — raw HTML with
-// [VARIABLE] placeholders. Same visual design as the ending-soon
-// reminder and confirmation emails, just different copy/framing.
+// [VARIABLE] placeholders.
 
 export default `<!DOCTYPE html>
 <html lang="en">
@@ -153,7 +152,7 @@ export default `<!DOCTYPE html>
         <!-- ===== DYNAMIC: CTA BUTTONS ===== -->
         <tr>
           <td style="padding:14px 22px 0 22px;" align="center">
-            <a href="[MANAGE_RESERVATION_URL]" style="display:block; background-color:#f5a623; border:3px solid #001d3d; color:#001d3d; text-decoration:none; font-size:16px; font-weight:bold; padding:14px 25px; border-radius:10px; text-align:center;">
+            <a href="[EXTEND_URL]" style="display:block; background-color:#f5a623; border:3px solid #001d3d; color:#001d3d; text-decoration:none; font-size:16px; font-weight:bold; padding:14px 25px; border-radius:10px; text-align:center;">
               Add Additional Time
             </a>
             <p style="margin:6px 0 0 0; font-size:11px; color:#8a94a6; text-align:center;">Extend your session before it ends</p>
