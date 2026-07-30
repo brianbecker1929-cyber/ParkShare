@@ -184,6 +184,10 @@ async function sendReminder(booking, kind) {
     spotImageCid,
     directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
     manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+    // Read by App.jsx's top-level query-param handling — opens
+    // ExtendSessionModal directly for this booking, same pattern already
+    // used for booking_success/booking_cancelled/stripe_onboarding.
+    extendUrl: `https://www.myparkshare.ca/?extend_booking=${booking.id}`,
     supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
     supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
   };
