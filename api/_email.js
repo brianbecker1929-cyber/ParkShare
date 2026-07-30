@@ -131,6 +131,7 @@ function reminderFields({
   spotImageCid,
   directionsUrl,
   manageReservationUrl,
+  extendUrl,
   supportEmail,
   supportPhone,
 }) {
@@ -147,6 +148,7 @@ function reminderFields({
     SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
     DIRECTIONS_URL: directionsUrl,
     MANAGE_RESERVATION_URL: manageReservationUrl,
+    EXTEND_URL: extendUrl,
     SUPPORT_EMAIL: supportEmail,
     SUPPORT_PHONE: supportPhone,
     CURRENT_YEAR: new Date().getFullYear(),
