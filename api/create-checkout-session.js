@@ -2,7 +2,7 @@
 // Creates a direct charge on the Host's connected Stripe account. ParkShare's
 // service fee is collected as an application fee.
 
-import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, checkAvailability, getSessionWindow } from "./_lib.js";
+import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, checkAvailability, checkSpotAvailability, getSessionWindow } from "./_lib.js";
 
 const SERVICE_FEE_RATE = 0.15;
 const MAX_HOURS = 24 * 31;
@@ -49,6 +49,19 @@ export default async function handler(req, res) {
     const availability = await checkAvailability(listing.id, listing.spaces || 1, windowStart, windowEnd);
     if (!availability.available) {
       return res.status(409).json({ error: "This spot was just taken for that time — please pick a different time or listing." });
+    }
+
+    // Letter-specific check — checkAvailability() above only confirms there's
+    // room somewhere in the listing, it has no concept of which lettered
+    // spot was actually chosen. This is the first place in the app that
+    // enforces "is THIS specific letter free," so a renter can no longer
+    // pay for a spot that's already booked under someone else's confirmed
+    // reservation, even when the listing still has capacity overall.
+    if (spotLabel) {
+      const spotAvailability = await checkSpotAvailability(listing.id, spotLabel, windowStart, windowEnd);
+      if (!spotAvailability.available) {
+        return res.status(409).json({ error: `Spot ${spotAvailability.spotLabel} was just taken for that time — please pick a different spot.` });
+      }
     }
 
     const { data: hostProfile, error: hostError } = await supabaseAdmin
