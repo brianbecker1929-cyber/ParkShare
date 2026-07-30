@@ -159,3 +159,43 @@ export async function checkAvailability(listingId, spaces, start, end) {
   const spacesFree = Math.max(0, Number(spaces) - spacesTaken);
   return { available: spacesFree > 0, spacesTotal: Number(spaces), spacesTaken, spacesFree };
 }
+
+// Letter-specific availability check — the piece checkAvailability() above
+// explicitly does NOT do (see its comment: "available" there means capacity
+// count, not a specific lettered spot). This is what actually answers "is
+// Spot D free for this window," which nothing in the app currently checks
+// anywhere — not at original booking time, not for extensions.
+//
+// Same overlap-window approach as checkAvailability(), just filtered to
+// bookings matching this exact spot_label instead of counting all of them.
+// Comparison is trimmed/uppercased since spot_label is expected to be a
+// bare letter ("D"), matching how it's already treated elsewhere (see the
+// spot_label parsing note in test-emails.js and stripe-webhook.js).
+//
+// NOTE: this only checks for a CONFLICT on the specific letter — it does
+// NOT also enforce overall capacity. Callers that need both (e.g.
+// create-checkout-session.js) should call checkAvailability() as well,
+// same as today.
+export async function checkSpotAvailability(listingId, spotLabel, start, end) {
+  const label = String(spotLabel || "").trim().toUpperCase();
+  if (!label) return { available: true, spotLabel: label }; // no letter requested -> nothing to conflict with
+
+  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
+
+  const { data: bookings, error } = await supabaseAdmin
+    .from("bookings")
+    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .eq("listing_id", listingId)
+    .eq("status", "confirmed")
+    .not("paid_at", "is", null)
+    .gte("paid_at", since);
+  if (error) throw error;
+
+  const conflict = (bookings || []).find((b) => {
+    if (String(b.spot_label || "").trim().toUpperCase() !== label) return false;
+    const w = getSessionWindow(b);
+    return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
+  });
+
+  return { available: !conflict, spotLabel: label, conflictingBookingId: conflict?.id ?? null };
+}
