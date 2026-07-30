@@ -1130,13 +1130,13 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
               : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
           </p>
           {hasSatelliteSpots ? (
-                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />}>
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} />}>
                   <div style={{ marginBottom: 16 }}>
                     <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
                   </div>
                 </SpotMapBoundary>
               ) : (
-                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} />
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} />
               )}
           <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
         </Modal>
@@ -1945,13 +1945,20 @@ function DrivewayFrame({ children }) {
 }
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
-function SpotPicker({ availableCount, chosen, onChoose, spotStates }) {
+function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
-          const isAvailable = spotStates ? !!spotStates[i] : i < availableCount;
+          const hostEnabled = spotStates ? !!spotStates[i] : i < availableCount;
+          // spotStatus is live, time-window-specific data from
+          // /api/listing-availability — undefined while it's still loading
+          // (or for older callers that don't pass it), in which case we
+          // don't want to flash every spot as unavailable for a moment, so
+          // that case defaults to "no live data yet, don't block."
+          const liveFree = spotStatus ? spotStatus[l] !== false : true;
+          const isAvailable = hostEnabled && liveFree;
           const isChosen = chosen === i;
           return (
             <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
@@ -1968,7 +1975,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates }) {
               ) : (
                 <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
               )}
-              <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent"}</span>
+              <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
             </button>
           );
         })}
@@ -3825,6 +3832,7 @@ export default function App() {
     </>
   );
 }
+
 
 
 
