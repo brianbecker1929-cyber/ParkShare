@@ -249,7 +249,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
       newEndDateFull: end.toLocaleDateString(undefined, fullDateFmt),
       spotImageCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
-      manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+      manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,
       extendUrl: `https://www.myparkshare.ca/?extend_booking=${booking.id}`,
       supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
@@ -329,7 +329,7 @@ async function sendBookingConfirmationEmail(booking) {
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       // TODO: confirm this route actually exists in your app — this is a
       // guess based on common patterns, not read from your frontend router.
-      manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+      manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,
       supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
