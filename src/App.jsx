@@ -1537,7 +1537,166 @@ function EditListingModal({ listing, onClose, onSave }) {
   );
 }
 
-function HostDashboard({ user }) {
+// ─── Transactions (shared by HostDashboard's earnings card + the full
+// Transactions tab) ─────────────────────────────────────────────────────────
+// Single hook, single fetch pattern — same auth approach as
+// ExtendSessionModal's payWithStripe() call (current Supabase JWT, refresh
+// if needed). Each caller does its own fetch rather than sharing state
+// across components; fine at this scale, worth revisiting with a shared
+// cache/context if this page gets hit often enough to matter.
+function useTransactions(user) {
+  const [data, setData] = useState({ spent: [], earned: [], payouts: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        let session = sessionData?.session;
+        if (sessionError || !session?.access_token) {
+          const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError) throw refreshError;
+          session = refreshedData?.session;
+        }
+        if (!session?.access_token) throw new Error("Your session is invalid or expired. Please sign in again.");
+
+        const res = await fetch("/api/transactions", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json.error || "Couldn't load transactions.");
+        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [] });
+      } catch (err) {
+        if (!cancelled) setError(err.message || "Something went wrong.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [user]);
+
+  return { data, loading, error };
+}
+
+// Maps the real statuses your backend actually uses (bookings.status /
+// booking_extensions.status / Stripe payout status) to a label + color —
+// replaces the old MyBookingsView pattern of collapsing everything that
+// isn't "confirmed" or "completed" into a generic "Cancelled".
+function transactionStatusLabel(status) {
+  switch (status) {
+    case "confirmed": return { label: "Paid", color: C.moss };
+    case "completed": return { label: "Completed", color: C.moss };
+    case "payment_failed": return { label: "Failed", color: C.red };
+    case "refunded": return { label: "Refunded", color: C.muted };
+    case "partially_refunded": return { label: "Partially refunded", color: C.amber };
+    case "disputed": return { label: "Disputed", color: C.red };
+    case "paid": return { label: "Paid out", color: C.moss };
+    case "pending": return { label: "Pending", color: C.amber };
+    case "in_transit": return { label: "In transit", color: C.amber };
+    case "failed": return { label: "Failed", color: C.red };
+    case "canceled": return { label: "Canceled", color: C.muted };
+    default: return { label: status || "Unknown", color: C.muted };
+  }
+}
+
+function money(n) {
+  return "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ─── Transactions tab — full history for both what you've spent and, if
+// you host any listings, what you've earned and been paid out. ────────────
+function TransactionsView({ user }) {
+  const { data, loading, error } = useTransactions(user);
+  const [section, setSection] = useState("spent"); // "spent" | "earned" | "payouts"
+
+  const hasEarnings = data.earned.length > 0 || data.payouts.length > 0;
+  const sections = hasEarnings ? ["spent", "earned", "payouts"] : ["spent"];
+  const sectionLabels = { spent: "What you've paid", earned: "What you've earned", payouts: "Payouts" };
+
+  const rows = section === "spent" ? data.spent : section === "earned" ? data.earned : [];
+
+  return (
+    <div style={{ padding: "24px 20px", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 640, margin: "0 auto" }}>
+      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>Transactions</h2>
+
+      {sections.length > 1 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {sections.map(s => (
+            <button key={s} onClick={() => setSection(s)} style={{
+              flex: 1, padding: "9px 10px", borderRadius: 8, cursor: "pointer",
+              border: section === s ? "2px solid " + C.amber : "1.5px solid " + C.concrete,
+              background: section === s ? C.amberLight : C.white,
+              fontWeight: 700, fontSize: 12, color: C.navy,
+            }}>
+              {sectionLabels[s]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loading && <p style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
+      {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
+
+      {!loading && !error && section !== "payouts" && rows.length === 0 && (
+        <p style={{ fontSize: 13, color: C.muted }}>Nothing here yet.</p>
+      )}
+
+      {!loading && !error && section !== "payouts" && rows.map(t => {
+        const st = transactionStatusLabel(t.status);
+        const amount = section === "earned" ? t.net : t.amount;
+        return (
+          <div key={t.id} style={{ background: C.white, border: "1px solid " + C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{t.description}</div>
+                {t.address && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>📍 {t.address}</div>}
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <Badge color={st.color}>{st.label}</Badge>
+                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{money(amount)}</div>
+              </div>
+            </div>
+            {section === "earned" && (
+              <div style={{ fontSize: 10, color: C.muted, marginTop: 8, paddingTop: 8, borderTop: "1px solid " + C.concrete }}>
+                {money(t.gross)} charged − {money(t.platformFee)} platform fee = {money(t.net)} to you
+                {t.approximateFeeSplit ? " (fee estimated)" : ""}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {!loading && !error && section === "payouts" && data.payouts.length === 0 && (
+        <p style={{ fontSize: 13, color: C.muted }}>No payouts yet.</p>
+      )}
+      {!loading && !error && section === "payouts" && data.payouts.map(p => {
+        const st = transactionStatusLabel(p.status);
+        return (
+          <div key={p.id} style={{ background: C.white, border: "1px solid " + C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>Payout</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>Arrives {new Date(p.arrivalDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <Badge color={st.color}>{st.label}</Badge>
+              <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{money(p.amount)}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HostDashboard({ user, setTab }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
 
@@ -1698,6 +1857,19 @@ function HostDashboard({ user }) {
     return true;
   };
   const totalEarnings = myListings.reduce((s, l) => s + l.earnings, 0);
+  const { data: txData, loading: txLoading } = useTransactions(user);
+
+  const now = new Date();
+  const sameMonth = (d, monthsAgo) => {
+    const dt = new Date(d);
+    const target = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
+    return dt.getFullYear() === target.getFullYear() && dt.getMonth() === target.getMonth();
+  };
+  const paidEarned = txData.earned.filter(t => t.status === "confirmed" || t.status === "completed");
+  const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
+  const lastMonthEarned = paidEarned.filter(t => sameMonth(t.date, 1)).reduce((s, t) => s + t.net, 0);
+  const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
+  const nextPayout = txData.payouts.find(p => p.status === "pending" || p.status === "in_transit");
   const totalBookings = myListings.reduce((s, l) => s + l.bookings, 0);
   const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
 
@@ -1813,7 +1985,12 @@ function HostDashboard({ user }) {
           )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 6 }}>
-            {[{ label: "This month", value: "$280" }, { label: "Last month", value: "$230" }, { label: "All time", value: "$"+totalEarnings }, { label: "Next payout", value: "$140" }].map(s => (
+            {[
+              { label: "This month", value: txLoading ? "…" : money(thisMonthEarned) },
+              { label: "Last month", value: txLoading ? "…" : money(lastMonthEarned) },
+              { label: "All time", value: txLoading ? "…" : money(allTimeEarned) },
+              { label: "Next payout", value: txLoading ? "…" : nextPayout ? money(nextPayout.amount) : "—" },
+            ].map(s => (
               <div key={s.label} style={{ background: C.warmWhite, borderRadius: 6, padding: "5px 7px" }}>
                 <div style={{ fontSize: 8, color: C.muted }}>{s.label}</div>
                 <div style={{ fontWeight: 800, fontSize: 13, color: C.amber }}>{s.value}</div>
@@ -1824,20 +2001,20 @@ function HostDashboard({ user }) {
 
         {/* Recent Transactions */}
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>🧾 Transactions</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em" }}>🧾 Recent Transactions</div>
+            {setTab && <button onClick={() => setTab("Transactions")} style={{ background: "none", border: "none", color: C.amber, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>View all →</button>}
+          </div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            {[
-              { desc: "Alex K. — Front Drive", date: "Jun 20", amount: "+$28" },
-              { desc: "Priya S. — Front Drive", date: "Jun 17", amount: "+$42" },
-              { desc: "Tom B. — Side Gate", date: "Jun 10", amount: "+$20" },
-              { desc: "Service fee", date: "Jun 10", amount: "-$11" },
-            ].map((t, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", borderBottom: "1px solid "+C.concrete }}>
+            {txLoading && <div style={{ fontSize: 10, color: C.muted, padding: "6px 0" }}>Loading…</div>}
+            {!txLoading && txData.earned.length === 0 && <div style={{ fontSize: 10, color: C.muted, padding: "6px 0" }}>No transactions yet.</div>}
+            {!txLoading && txData.earned.slice(0, 5).map(t => (
+              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", borderBottom: "1px solid "+C.concrete }}>
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.navy }}>{t.desc}</div>
-                  <div style={{ fontSize: 9, color: C.muted }}>{t.date}</div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: C.navy }}>{t.description}</div>
+                  <div style={{ fontSize: 9, color: C.muted }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 11, color: t.amount.startsWith("+") ? C.moss : C.red }}>{t.amount}</div>
+                <div style={{ fontWeight: 700, fontSize: 11, color: C.moss }}>+{money(t.net)}</div>
               </div>
             ))}
           </div>
@@ -3021,8 +3198,8 @@ function Footer({ onLegalClick, onContactClick }) {
 
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) {
   const tabs = user?.role === "host"
-    ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings"]
-    : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard"];
+    ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
+    : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
 
   return (
     <header style={{ background: C.navy, fontFamily: "Inter, system-ui, sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
@@ -3927,7 +4104,8 @@ export default function App() {
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} user={user} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} />, "Sign in to access your host dashboard.")}
+          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
+          {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <FloatingParkerHelp />
           <Footer onLegalClick={openLegal} onContactClick={openContact} />
@@ -3947,6 +4125,7 @@ export default function App() {
     </>
   );
 }
+
 
 
 
