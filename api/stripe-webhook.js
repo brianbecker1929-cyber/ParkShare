@@ -3,7 +3,7 @@
 // events from connected accounts. Direct-charge events include event.account.
 
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
-import { sendEmail, confirmationEmailHtml } from "./_email.js";
+import { sendEmail, confirmationEmailHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 
 export const config = { api: { bodyParser: false } };
@@ -167,12 +167,95 @@ async function confirmExtension(session, connectedAccountId) {
     .eq("id", bookingId);
   if (updateError) throw updateError;
 
-  // NOTE: no "extension confirmed" email sends here yet. None of the
-  // existing templates (confirmation / halfway / ending) are worded for
-  // "you just added time to an already-active session" — ask for this
-  // explicitly if you want a dedicated email built for it. For now the
-  // renter's only confirmation is Stripe's own receipt and whatever your
-  // app shows after redirecting back from success_url.
+  await sendExtensionConfirmedEmail(bookingId, addedHours, totalCents).catch(err => {
+    // Same non-blocking pattern as the original booking confirmation email —
+    // the extension itself is already paid for and recorded above; a failed
+    // email should never turn into a Stripe retry of the whole webhook.
+    console.error("Failed to send extension confirmation email:", err);
+  });
+}
+
+async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from("bookings")
+    .select("id, listing_id, renter_id, hours, spot_label, paid_at, booking_date, start_hour")
+    .eq("id", bookingId)
+    .single();
+  if (bookingError || !booking) throw bookingError || new Error("Booking not found after extension.");
+
+  const { data: listing } = await supabaseAdmin
+    .from("listings")
+    .select("address, spaces, host_id")
+    .eq("id", booking.listing_id)
+    .single();
+  const { data: renter } = await supabaseAdmin
+    .from("profiles")
+    .select("name, email")
+    .eq("id", booking.renter_id)
+    .single();
+  if (!renter?.email) return;
+
+  let hostName = "your host";
+  if (listing?.host_id) {
+    const { data: host } = await supabaseAdmin.from("profiles").select("name").eq("id", listing.host_id).single();
+    hostName = host?.name || hostName;
+  }
+
+  // booking.hours already reflects this extension (confirmExtension() above
+  // updated it before calling this function), so getSessionWindow() here
+  // gives the NEW end time directly — no separate "add addedHours" math
+  // needed.
+  const { end } = getSessionWindow(booking);
+  const timeFmt = { hour: "numeric", minute: "2-digit" };
+  const fullDateFmt = { weekday: "short", month: "long", day: "numeric", year: "numeric" };
+
+  const addedTimeStr = addedHours === 0.5 ? "30 minutes" : `${addedHours} hour${addedHours === 1 ? "" : "s"}`;
+  const amountChargedStr = (totalCents / 100).toLocaleString(undefined, { style: "currency", currency: "CAD" });
+
+  const spaces = listing?.spaces || 1;
+  const spotStates = [0, 1, 2, 3].map(i => i < spaces);
+  const chosenIndex = booking.spot_label
+    ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
+    : null;
+
+  let attachments;
+  let spotImageCid;
+  try {
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    spotImageCid = "parking-spot-ext-" + booking.id;
+    attachments = [{
+      filename: "parking-spot.png",
+      content: imageBuffer.toString("base64"),
+      content_id: spotImageCid,
+    }];
+  } catch (err) {
+    console.error("Failed to generate parking spot image for extension email (sending without it):", err);
+  }
+
+  const address = listing?.address || "";
+
+  await sendEmail({
+    to: renter.email,
+    subject: `Extension confirmed — +${addedTimeStr} added`,
+    html: extensionConfirmedHtml({
+      renterName: renter.name || "there",
+      hostName,
+      address,
+      locationId: booking.listing_id,
+      spotLabel: booking.spot_label,
+      addedTime: addedTimeStr,
+      amountCharged: amountChargedStr,
+      newEndTime: end.toLocaleTimeString(undefined, timeFmt),
+      newEndDateFull: end.toLocaleDateString(undefined, fullDateFmt),
+      spotImageCid,
+      directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+      manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+      extendUrl: `https://www.myparkshare.ca/?extend_booking=${booking.id}`,
+      supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+      supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
+    }),
+    attachments,
+  });
 }
 
 async function sendBookingConfirmationEmail(booking) {
