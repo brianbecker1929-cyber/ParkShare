@@ -29,11 +29,11 @@
 //     a deliberate decision, not a silent regression. See stripe-webhook.js
 //     comments at the confirmationEmailHtml() call site.
 
-import { fillTemplate } from "./emails/render.js";
-import confirmationTemplate from "./emails/templates/parking-confirmation.template.js";
-import endingReminderTemplate from "./emails/templates/reminder-ending.template.js";
-import halfwayReminderTemplate from "./emails/templates/reminder-halfway.template.js";
-import extensionConfirmedTemplate from "./emails/templates/extension-confirmed.template.js";
+import { fillTemplate } from "./emails/_render.js";
+import confirmationTemplate from "./emails/templates/_parking-confirmation.template.js";
+import endingReminderTemplate from "./emails/templates/_reminder-ending.template.js";
+import halfwayReminderTemplate from "./emails/templates/_reminder-halfway.template.js";
+import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
