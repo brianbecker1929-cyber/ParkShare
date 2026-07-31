@@ -10,7 +10,7 @@
 // it's not part of the real booking flow, just a way to trigger a real send
 // on demand.
 
-import { sendEmail, confirmationEmailHtml, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
+import { sendEmail, confirmationEmailHtml, halfwayReminderHtml, endingReminderHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 
 export default async function handler(req, res) {
@@ -68,6 +68,22 @@ export default async function handler(req, res) {
   };
   const sampleEndingReminder = { ...sampleReminder, timeRemaining: "15 minutes" };
   const sampleHalfwayReminder = { ...sampleReminder, timeRemaining: "60 minutes" };
+  const sampleExtension = {
+    renterName: "Laura",
+    hostName: "Green P",
+    address: "123 Maple Drive, Toronto, ON M4B 2T5",
+    locationId: 195,
+    spotLabel: "D",
+    addedTime: "1 hour",
+    amountCharged: "$5.75",
+    newEndTime: "5:46 PM",
+    newEndDateFull: "Thu, July 24, 2026",
+    directionsUrl: "https://www.google.com/maps/search/?api=1&query=123+Maple+Drive+Toronto+ON",
+    manageReservationUrl: "https://www.myparkshare.ca/bookings/test",
+    extendUrl: "https://www.myparkshare.ca/?extend_booking=test",
+    supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+    supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
+  };
 
   const results = {};
 
@@ -134,6 +150,27 @@ export default async function handler(req, res) {
     results.halfwayReminder = "sent (with spot image)";
   } catch (err) {
     results.halfwayReminder = "failed: " + err.message;
+  }
+
+  try {
+    const spotStates = [true, true, false, true];
+    const chosenIndex = 3;
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const spotImageCid = "test-parking-spot-extension";
+
+    await sendEmail({
+      to,
+      subject: "[TEST] Extension confirmed — +1 hour added",
+      html: extensionConfirmedHtml({ ...sampleExtension, spotImageCid }),
+      attachments: [{
+        filename: "parking-spot.png",
+        content: imageBuffer.toString("base64"),
+        content_id: spotImageCid,
+      }],
+    });
+    results.extensionConfirmed = "sent (with spot image)";
+  } catch (err) {
+    results.extensionConfirmed = "failed: " + err.message;
   }
 
   return res.status(200).json(results);
