@@ -33,6 +33,7 @@ import { fillTemplate } from "./emails/render.js";
 import confirmationTemplate from "./emails/templates/parking-confirmation.template.js";
 import endingReminderTemplate from "./emails/templates/reminder-ending.template.js";
 import halfwayReminderTemplate from "./emails/templates/reminder-halfway.template.js";
+import extensionConfirmedTemplate from "./emails/templates/extension-confirmed.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
@@ -168,3 +169,45 @@ export function endingReminderHtml(args) {
 export function halfwayReminderHtml(args) {
   return fillTemplate(halfwayReminderTemplate, reminderFields(args));
 }
+
+// ---------------------------------------------------------------------
+// Extension confirmed — sent after a successful "Add Additional Time"
+// payment. See stripe-webhook.js's confirmExtension() for the call site.
+// ---------------------------------------------------------------------
+export function extensionConfirmedHtml({
+  renterName,
+  hostName,
+  address,
+  locationId,
+  spotLabel,
+  addedTime,
+  amountCharged,
+  newEndTime,
+  newEndDateFull,
+  spotImageCid,
+  directionsUrl,
+  manageReservationUrl,
+  extendUrl,
+  supportEmail,
+  supportPhone,
+}) {
+  return fillTemplate(extensionConfirmedTemplate, {
+    CUSTOMER_FIRST_NAME: renterName,
+    HOST_NAME: hostName,
+    GARAGE_ADDRESS: address,
+    LOCATION_ID: locationId,
+    SPOT_LABEL: spotLabel ? `Spot ${spotLabel}` : "—",
+    ADDED_TIME: addedTime,
+    AMOUNT_CHARGED: amountCharged,
+    NEW_END_TIME: newEndTime,
+    NEW_END_DATE_FULL: newEndDateFull,
+    SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
+    DIRECTIONS_URL: directionsUrl,
+    MANAGE_RESERVATION_URL: manageReservationUrl,
+    EXTEND_URL: extendUrl,
+    SUPPORT_EMAIL: supportEmail,
+    SUPPORT_PHONE: supportPhone,
+    CURRENT_YEAR: new Date().getFullYear(),
+  });
+}
+
