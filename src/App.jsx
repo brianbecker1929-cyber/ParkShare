@@ -2711,8 +2711,9 @@ function buildNavigationUrl(address, lat, lng) {
 }
 
 // ─── My Bookings ──────────────────────────────────────────────────────────────
-function MyBookingsView({ onMessage, user }) {
+function MyBookingsView({ onMessage, user, highlightBookingId }) {
   const [dbBookings, setDbBookings] = useState([]);
+  const highlightRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -2726,6 +2727,10 @@ function MyBookingsView({ onMessage, user }) {
         setDbBookings(
           data.map(row => ({
             id: "db-" + row.id,
+            rawId: row.id, // kept unprefixed so it can be matched against
+                            // ?view_booking={booking.id} links from emails,
+                            // which carry the raw bookings.id, not this
+                            // component's "db-"-prefixed local id.
             listing: {
               id: "db-" + row.listing_id,
               title: row.listings?.title || "Driveway",
@@ -2744,6 +2749,14 @@ function MyBookingsView({ onMessage, user }) {
       });
   }, [user]);
 
+  // Scroll to and briefly highlight the booking a "View My Reservation"
+  // email link pointed at, once it's actually loaded.
+  useEffect(() => {
+    if (highlightBookingId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightBookingId, dbBookings]);
+
   const bookings = dbBookings;
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewed, setReviewed] = useState({});
@@ -2751,8 +2764,19 @@ function MyBookingsView({ onMessage, user }) {
   return (
     <div style={{ padding: "24px 20px", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 560, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
-      {bookings.map(b => (
-        <div key={b.id} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 12, padding: "16px 18px", marginBottom: 12, position: "relative", overflow: "hidden" }}>
+      {bookings.map(b => {
+        const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
+        return (
+        <div
+          key={b.id}
+          ref={isHighlighted ? highlightRef : null}
+          style={{
+            background: C.white,
+            border: isHighlighted ? "2px solid " + C.amber : "1px solid " + C.concrete,
+            boxShadow: isHighlighted ? "0 0 0 4px " + C.amberLight : "none",
+            borderRadius: 12, padding: "16px 18px", marginBottom: 12, position: "relative", overflow: "hidden",
+          }}
+        >
           {b.status === "Completed" && (
             <img src={PARKER.success} alt="Parker celebrating a successful booking" style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }} />
           )}
@@ -2778,7 +2802,8 @@ function MyBookingsView({ onMessage, user }) {
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
 
       {reviewTarget && (
         <ReviewModal
@@ -3919,6 +3944,7 @@ export default function App() {
   const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
   const [connectBanner, setConnectBanner] = useState(null); // "success" | "refresh" | null
   const [extendBookingId, setExtendBookingId] = useState(null); // set when arriving via an "Add Additional Time" email link
+  const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
   const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
   const [browseInitialLocation, setBrowseInitialLocation] = useState(null);
@@ -3951,8 +3977,17 @@ export default function App() {
       // directly rather than routing through "My Bookings," since the
       // renter is coming from a specific email about a specific booking.
       setExtendBookingId(params.get("extend_booking"));
+    } else if (params.get("view_booking")) {
+      // Arrived via "View My Reservation" (MANAGE_RESERVATION_URL) in a
+      // confirmation/reminder email. Unlike extend_booking, there's no
+      // dedicated single-booking page — this app doesn't have per-booking
+      // routes — so it lands on "My Bookings" and scrolls to/highlights
+      // the specific booking instead of just dropping them on the
+      // unfiltered list to go find it themselves.
+      setTab("My Bookings");
+      setViewBookingId(params.get("view_booking"));
     }
-    if (params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking")) {
+    if (params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking") || params.has("view_booking")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -4103,7 +4138,7 @@ export default function App() {
           {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
-          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} user={user} />, "Sign in to view your bookings.")}
+          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
