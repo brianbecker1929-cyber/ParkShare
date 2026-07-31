@@ -183,7 +183,7 @@ async function sendReminder(booking, kind) {
     exitDateFull: endDateStr,
     spotImageCid,
     directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
-    manageReservationUrl: `https://www.myparkshare.ca/bookings/${booking.id}`,
+    manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,
     // Read by App.jsx's top-level query-param handling — opens
     // ExtendSessionModal directly for this booking, same pattern already
     // used for booking_success/booking_cancelled/stripe_onboarding.
