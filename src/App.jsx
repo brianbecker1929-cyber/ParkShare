@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, Component } from "react";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 
-// Palette: "curbside" — asphalt ink, chalk concrete, curb-paint yellow,
-// street-sign green, and a traffic-cone hazard orange as the one bold accent.
+// Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
+// the same pair used in the logo/app icon and Parker's uniform. Warm
+// neutrals and moss/hazard stay as supporting accents for status states.
 const C = {
-  navy: "#1C2B39", warmWhite: "#FAF7F0", concrete: "#E3DDC9",
-  amber: "#FFB100", moss: "#3F7A5E", mossLight: "#E9F2ED",
-  amberLight: "#FFF3D6", muted: "#71695A", white: "#fff",
+  navy: "#0E1B2E", warmWhite: "#FAF7F0", concrete: "#E3DDC9",
+  amber: "#FFC107", moss: "#3F7A5E", mossLight: "#E9F2ED",
+  amberLight: "#FFF8E1", muted: "#71695A", white: "#fff",
   red: "#C53030", redLight: "#FFF5F5", hazard: "#E2571C",
 };
 
@@ -93,7 +94,7 @@ function PriceTag({ price, size = "md" }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "baseline", gap: 2,
-      background: C.warmWhite, color: C.navy, fontFamily: "'Space Grotesk', sans-serif",
+      background: C.warmWhite, color: C.navy, fontFamily: "'Poppins', sans-serif",
       fontWeight: 800, fontSize: dims.font, padding: dims.pad, borderRadius: 6,
       border: "2px solid " + C.navy, transform: "rotate(-1.5deg)", flexShrink: 0,
     }}>
@@ -110,11 +111,26 @@ function Stars({ rating, size = 13 }) {
   );
 }
 
+// Parker as a guide, not just a mascot: a small speech-bubble callout that
+// can drop into any screen with a contextual tip, nudge, or explanation.
+// `pose` picks which Parker art to show (defaults to the thinking pose,
+// since a tip is Parker noticing something and saying so).
+function ParkerTip({ children, pose = "thinking", style }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, ...style }}>
+      <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ width: 40, height: 40, borderRadius: "50%", border: "2px solid " + C.navy, objectFit: "cover", flexShrink: 0, background: C.amber }} />
+      <div style={{ position: "relative", background: C.navy, color: C.white, borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px", fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // ─── Valet Mascot SVG ─────────────────────────────────────────────────────────
 function Btn({ children, onClick, variant = "primary", disabled, full, small }) {
   const base = {
     border: "none", borderRadius: 8, fontWeight: 700, cursor: disabled ? "default" : "pointer",
-    fontFamily: "Inter, system-ui, sans-serif", width: full ? "100%" : undefined,
+    fontFamily: "'Poppins', sans-serif", width: full ? "100%" : undefined,
     padding: small ? "8px 16px" : "12px 22px", fontSize: small ? 12 : 14,
     transition: "opacity 0.15s",
     opacity: disabled ? 0.45 : 1,
@@ -133,7 +149,7 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
 function Modal({ children, onClose, title }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-      <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "Inter, system-ui, sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+      <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
         <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>{title}</div>
           <button onClick={onClose} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
@@ -238,7 +254,7 @@ function ListingsMap({ listings, selected, onSelect, userLoc }) {
                 background: on ? C.hazard : C.warmWhite, color: on ? "#fff" : C.navy, fontWeight: 700, fontSize: 12,
                 padding: "4px 9px", borderRadius: 7, border: "2px solid " + (on ? C.hazard : C.navy),
                 boxShadow: "0 2px 8px rgba(0,0,0,0.22)", whiteSpace: "nowrap", cursor: "pointer",
-                fontFamily: "'Space Grotesk', Inter, system-ui, sans-serif", transition: "transform 0.15s",
+                fontFamily: "'Poppins', sans-serif", transition: "transform 0.15s",
               }}>${l.price}/hr</button>
             </OverlayView>
           );
@@ -310,7 +326,7 @@ function MessagingPanel({ listing, onClose, user }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000, fontFamily: "'Poppins', sans-serif" }}>
       <div style={{ background: C.white, width: "100%", maxWidth: 500, borderRadius: "16px 16px 0 0", display: "flex", flexDirection: "column", maxHeight: "80vh", minHeight: 380, boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid "+C.concrete, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{listing.hostImg}</div>
@@ -332,7 +348,7 @@ function MessagingPanel({ listing, onClose, user }) {
         </div>
         <div style={{ padding: "12px 16px", borderTop: "1px solid "+C.concrete, display: "flex", gap: 8 }}>
           <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={"Message "+listing.host+"…"}
-            style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 24, padding: "10px 16px", fontSize: 13, outline: "none", fontFamily: "Inter, system-ui, sans-serif", color: C.navy }} />
+            style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 24, padding: "10px 16px", fontSize: 13, outline: "none", fontFamily: "'Poppins', sans-serif", color: C.navy }} />
           <button onClick={send} disabled={!input.trim()} style={{ background: input.trim() ? C.navy : C.concrete, color: input.trim() ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: input.trim() ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>↑</button>
         </div>
       </div>
@@ -457,7 +473,7 @@ const subtotal = listing.price * hours;
   const inputS = (err) => ({
     width: "100%", border: "1.5px solid "+(err?C.red:C.concrete), borderRadius: 8,
     padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box",
-    fontFamily: "Inter, system-ui, sans-serif", background: err ? C.redLight : C.white,
+    fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white,
   });
   const labelS = { fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 };
 
@@ -465,7 +481,7 @@ const subtotal = listing.price * hours;
     <Modal title="Payment successful" onClose={() => { onClose(); onSuccess(); }}>
       <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
         <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 6 }} />
-        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 8 }}>You're booked!</h3>
+        <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 8 }}>You're booked!</h3>
         <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>
           <strong>{listing.title}</strong> · {hours} hr{hours > 1 ? "s" : ""}{chosenSpot !== null && chosenSpot !== undefined ? " · Spot " + spotLabel(chosenSpot) : ""}
         </p>
@@ -695,7 +711,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
             value={draft.text}
             onChange={e => setDraft(d => ({ ...d, text: e.target.value }))}
             placeholder="Share your experience…"
-            style={{ width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 13, resize: "vertical", minHeight: 80, fontFamily: "Inter, system-ui, sans-serif", color: C.navy, outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 13, resize: "vertical", minHeight: 80, fontFamily: "'Poppins', sans-serif", color: C.navy, outline: "none", boxSizing: "border-box" }}
           />
           {submitError && <div style={{ color: C.red, fontSize: 12, marginTop: 8 }}>{submitError}</div>}
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
@@ -829,7 +845,7 @@ function MiniCalendar({ selected, onSelect }) {
               aspectRatio: "1", borderRadius: 8, border: isChosen ? "2px solid " + C.hazard : isToday ? "1.5px solid " + C.moss : "1px solid " + C.concrete,
               background: isChosen ? C.hazard : isPast ? C.concrete : C.white, color: isChosen ? C.white : isPast ? C.muted : C.navy,
               fontSize: 12, fontWeight: isChosen || isToday ? 700 : 500, cursor: isPast ? "default" : "pointer", opacity: isPast ? 0.5 : 1,
-              display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, system-ui, sans-serif",
+              display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif",
             }}>{d}</button>
           );
         })}
@@ -934,7 +950,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
   };
 
   return (
-    <div style={{ padding: 24, fontFamily: "Inter, system-ui, sans-serif", maxWidth: 580, margin: "0 auto" }}>
+    <div style={{ padding: 24, fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
       <button onClick={onBack} style={{ background: C.amber, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, color: C.navy, fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 16, padding: "5px 13px", borderRadius: 8 }}>← Back to Listings</button>
 
       <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", borderRadius: 14, height: 170, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 80, marginBottom: 20, overflow: "hidden" }}>
@@ -942,7 +958,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 20, margin: 0, flex: 1 }}>{listing.title}</h2>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, margin: 0, flex: 1 }}>{listing.title}</h2>
         <PriceTag price={listing.price} size="lg" />
       </div>
       <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>📍 {listing.address} · {listing.distance}</p>
@@ -1001,7 +1017,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
             {[["now", "⚡ Book Now"], ["advance", "📅 Schedule for Later"]].map(([mode, label]) => (
               <button key={mode} onClick={() => setBookingMode(mode)} style={{
                 flex: 1, padding: "9px 4px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontFamily: "Inter, system-ui, sans-serif", fontSize: 11, fontWeight: 700,
+                fontFamily: "'Poppins', sans-serif", fontSize: 11, fontWeight: 700,
                 background: bookingMode === mode ? C.white : "transparent",
                 color: bookingMode === mode ? C.navy : C.muted,
               }}>{label}</button>
@@ -1017,7 +1033,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                 {NOW_DURATIONS.map(d => (
                   <button key={d} onClick={() => setNowDuration(d)} style={{
-                    padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, system-ui, sans-serif",
+                    padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "'Poppins', sans-serif",
                     fontSize: 12, fontWeight: 700,
                     background: nowDuration === d ? C.amber : C.white,
                     border: nowDuration === d ? "2px solid " + C.navy : "1px solid " + C.concrete,
@@ -1025,7 +1041,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
                   }}>{d === 0.5 ? "30 min" : d + " hr"}</button>
                 ))}
                 <button onClick={() => setNowDuration("custom")} style={{
-                  padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "Inter, system-ui, sans-serif",
+                  padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "'Poppins', sans-serif",
                   fontSize: 12, fontWeight: 700,
                   background: isCustomDuration ? C.amber : C.white,
                   border: isCustomDuration ? "2px solid " + C.navy : "1px solid " + C.concrete,
@@ -1035,7 +1051,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
               {isCustomDuration && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <input type="number" min="0.25" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
-                    style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif" }} />
+                    style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif" }} />
                   <span style={{ fontSize: 12, color: C.muted }}>hours</span>
                 </div>
               )}
@@ -1050,7 +1066,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
                   <div style={{ fontSize: 12, color: C.muted }}>Date</div>
                   <button onClick={() => setShowCalendar(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>Change</button>
                 </div>
-                <button onClick={() => setShowCalendar(true)} style={{ width: "100%", textAlign: "left", background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontFamily: "Inter, system-ui, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
+                <button onClick={() => setShowCalendar(true)} style={{ width: "100%", textAlign: "left", background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontFamily: "'Poppins', sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 16 }}>📅</span>
                   <span style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}</span>
                 </button>
@@ -1058,11 +1074,11 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
               <div style={{ marginBottom: 8, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+                  <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
                     {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                   <span style={{ color: C.muted, fontSize: 13 }}>to</span>
-                  <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", background: C.white }}>
+                  <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
                     {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                 </div>
@@ -1319,7 +1335,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   if (selected) return <ListingDetail listing={selected} onBack={() => setSelected(null)} onMessage={onMessage} user={user} />;
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
+    <div style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
 
       {/* Toolbar */}
       <div style={{ background: C.white, borderBottom: "1px solid "+C.concrete, padding: "8px 12px", flexShrink: 0 }}>
@@ -1488,13 +1504,13 @@ function EditListingModal({ listing, onClose, onSave }) {
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
           <input type="number" min="1" value={price} onChange={e => setPrice(e.target.value)}
-            style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "Inter,system-ui,sans-serif" }} />
+            style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif" }} />
         </div>
 
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Description</label>
           <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Anything useful for drivers to know…"
-            style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "Inter,system-ui,sans-serif", resize: "vertical", minHeight: 70 }} />
+            style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", resize: "vertical", minHeight: 70 }} />
         </div>
 
         <div>
@@ -1623,8 +1639,8 @@ function TransactionsView({ user }) {
   const rows = section === "spent" ? data.spent : section === "earned" ? data.earned : [];
 
   return (
-    <div style={{ padding: "24px 20px", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 640, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>Transactions</h2>
+    <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 640, margin: "0 auto" }}>
+      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>Transactions</h2>
 
       {sections.length > 1 && (
         <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
@@ -1874,12 +1890,12 @@ function HostDashboard({ user, setTab }) {
   const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
 
   return (
-    <div style={{ fontFamily: "Inter, system-ui, sans-serif", background: C.warmWhite, height: "calc(100vh - 88px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div style={{ fontFamily: "'Poppins', sans-serif", background: C.warmWhite, height: "calc(100vh - 88px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
 
       {/* Welcome banner */}
       <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
         <div>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.white, fontSize: 16, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
+          <div style={{ fontFamily: "'Poppins', sans-serif", color: C.white, fontSize: 16, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2 }}>Host since Jan 2025</div>
         </div>
         <div style={{ background: C.amber, borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
@@ -2068,8 +2084,8 @@ function MessagesView({ onOpenThread, user }) {
   const conversations = dbConvos;
 
   return (
-    <div style={{ padding: "24px 20px", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 560, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 4 }}>Messages</h2>
+    <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
+      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 4 }}>Messages</h2>
       <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Your conversations with hosts.</p>
       {conversations.length === 0 && (
         <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No conversations yet.</div>
@@ -2143,7 +2159,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }
               border: isChosen ? "4px solid " + C.hazard : "3px solid " + (isAvailable ? C.moss : "#B0AA9C"),
               background: isChosen ? C.mossLight : isAvailable ? "#F7F3E7" : "#EAE6DA", opacity: isAvailable ? 1 : 0.8,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
-              fontFamily: "'Space Grotesk', sans-serif", color: C.navy, transition: "all 0.15s",
+              fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
               <span style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
@@ -2176,7 +2192,7 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
               position: "relative", borderRadius: 10, cursor: "pointer", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
               background: on ? "#F7F3E7" : "#EAE6DA", border: "3px solid " + (on ? C.moss : "#B0AA9C"),
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
-              fontFamily: "'Space Grotesk', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+              fontFamily: "'Poppins', sans-serif", transition: "all 0.15s", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
             }}>
               <span style={{ fontWeight: 800, fontSize: 13, color: C.navy, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
               {on ? (
@@ -2200,7 +2216,7 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
 const SPOT_FILL_RENT = "rgba(63,122,94,0.35)";   // moss green — for rent
 const SPOT_FILL_PRIVATE = "rgba(28,43,57,0.35)"; // navy — private / not for rent
 const SPOT_STROKE_RENT = "#3F7A5E";
-const SPOT_STROKE_PRIVATE = "#1C2B39";
+const SPOT_STROKE_PRIVATE = "#0E1B2E";
 
 function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRemoveSpot, maxSpots = 8 }) {
   const { isLoaded, loadError } = useJsApiLoader({
@@ -2262,7 +2278,7 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
             return (
               <OverlayView key={"lbl-" + s.id} position={{ lat: cLat, lng: cLng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
                 <div style={{ transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, pointerEvents: "none" }}>
-                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
+                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
                     Spot {String.fromCharCode(65 + i)} {s.forRent ? "· FOR RENT" : "· PRIVATE"}
                   </span>
                   <button onClick={() => onRemoveSpot(s.id)} style={{ pointerEvents: "auto", width: 18, height: 18, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
@@ -2280,7 +2296,7 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
           style={{
             flexShrink: 0, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none",
             borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: spots.length >= maxSpots ? "not-allowed" : "pointer",
-            opacity: spots.length >= maxSpots ? 0.5 : 1, fontFamily: "'Space Grotesk', sans-serif",
+            opacity: spots.length >= maxSpots ? 0.5 : 1, fontFamily: "'Poppins', sans-serif",
           }}
         >
           {drawing ? "Cancel drawing" : spots.length === 0 ? "✏️ Draw your first spot" : "+ Draw another spot"}
@@ -2331,7 +2347,7 @@ function ListDrivewayView({ user }) {
   const [loadingSug, setLoadingSug] = useState(false);
   const debounceRef = useRef(null);
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "Inter, system-ui, sans-serif", boxSizing: "border-box", outline: "none" };
+  const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "'Poppins', sans-serif", boxSizing: "border-box", outline: "none" };
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
   const fullAddress = [form.street, form.city, [form.region, form.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
@@ -2440,11 +2456,11 @@ function ListDrivewayView({ user }) {
   if (submitted) {
     const rentable = form.selectedSpots.filter(Boolean).length;
     return (
-      <div style={{ padding: 28, textAlign: "center", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 500, margin: "0 auto" }}>
+      <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 16 }} />
         </div>
-        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
         <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>${form.price}/hr</strong>.</p>
         <Btn onClick={resetAll}>List another driveway</Btn>
       </div>
@@ -2455,8 +2471,8 @@ function ListDrivewayView({ user }) {
   const docTypes = [{ v: "tax", l: "Property tax bill" }, { v: "mortgage", l: "Mortgage statement" }, { v: "utility", l: "Utility bill" }, { v: "license", l: "Driver's license" }, { v: "bank", l: "Bank statement" }];
 
   return (
-    <div style={{ padding: "24px 28px", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 560, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 6 }}>List your driveway</h2>
+    <div style={{ padding: "24px 28px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
+      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 6 }}>List your driveway</h2>
       <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Earn extra income from your empty driveway. We verify ownership to keep the marketplace trustworthy.</p>
 
       {/* Progress */}
@@ -2672,11 +2688,9 @@ function ListDrivewayView({ user }) {
             <p style={{ fontSize:12, color:C.muted, marginTop:6 }}>Driveways in your area average $11–$18/hr.</p>
           </div>
           {form.price && (
-            <div style={{ background:C.mossLight, border:"1px solid "+C.moss, borderRadius:10, padding:"14px 16px" }}>
-              <div style={{ fontSize:12, color:C.moss, fontWeight:700, marginBottom:4 }}>Estimated earnings</div>
-              <div style={{ fontSize:22, color:C.moss, fontWeight:800 }}>${(form.price * 20 * form.selectedSpots.filter(Boolean).length).toLocaleString()}/mo</div>
-              <div style={{ fontSize:11, color:C.moss, marginTop:2 }}>Based on ~20 hrs booked per month, per rentable spot</div>
-            </div>
+            <ParkerTip pose="success">
+              This driveway could earn its owner over <strong>${(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12).toLocaleString()}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
+            </ParkerTip>
           )}
           {publishError && <div style={{ color: C.red, fontSize: 12.5, textAlign: "right" }}>{publishError}</div>}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
@@ -2762,8 +2776,8 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
   const [reviewed, setReviewed] = useState({});
 
   return (
-    <div style={{ padding: "24px 20px", fontFamily: "Inter, system-ui, sans-serif", maxWidth: 560, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+    <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
+      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
       {bookings.map(b => {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
         return (
@@ -2862,7 +2876,7 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
         <textarea
           value={text} onChange={e => setText(e.target.value)}
           placeholder="Share your experience with this driveway…"
-          style={{ width:"100%", border:"1px solid "+C.concrete, borderRadius:8, padding:"10px 14px", fontSize:13, resize:"vertical", minHeight:90, fontFamily:"Inter,system-ui,sans-serif", color:C.navy, outline:"none", boxSizing:"border-box" }}
+          style={{ width:"100%", border:"1px solid "+C.concrete, borderRadius:8, padding:"10px 14px", fontSize:13, resize:"vertical", minHeight:90, fontFamily:"'Poppins', sans-serif", color:C.navy, outline:"none", boxSizing:"border-box" }}
         />
       </div>
       {error && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
@@ -2884,7 +2898,7 @@ function SignInModal({ onClose, onAuth }) {
   const [agreed, setAgreed] = useState(false);
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "Inter,system-ui,sans-serif", background: err ? C.redLight : C.white });
+  const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
   const lS = { fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 };
 
   const validate = () => {
@@ -2965,12 +2979,12 @@ function SignInModal({ onClose, onAuth }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(26,42,107,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, fontFamily: "Inter,system-ui,sans-serif" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(26,42,107,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, fontFamily: "'Poppins', sans-serif" }}>
       <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", overflow: "hidden" }}>
 
         {/* Modal header */}
         <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "24px 24px 18px", textAlign: "center", position: "relative" }}>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: C.white, marginBottom: 4 }}>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 26, fontWeight: 700, color: C.white, marginBottom: 4 }}>
             <span style={{ color: C.amber }}>Park</span>Share
           </div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
@@ -3144,7 +3158,7 @@ function FloatingParkerHelp() {
   const panelOnLeft = corner.right > (typeof window !== "undefined" ? window.innerWidth - 340 : 340);
 
   return (
-    <div style={{ position: "fixed", right: corner.right, bottom: corner.bottom, zIndex: 1500, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ position: "fixed", right: corner.right, bottom: corner.bottom, zIndex: 1500, fontFamily: "'Poppins', sans-serif" }}>
       {open && (
         <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderRadius: "16px 16px 0 0" }}>
@@ -3206,7 +3220,7 @@ function FloatingParkerHelp() {
 function Footer({ onLegalClick, onContactClick }) {
   const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
   return (
-    <footer style={{ background: C.navy, fontFamily: "Inter, system-ui, sans-serif", padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 10 }}>
+    <footer style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 10 }}>
       <div style={{ display: "flex", justifyContent: "flex-start" }}>
         <button style={btnStyle} onClick={onContactClick}>Contact Us</button>
       </div>
@@ -3227,7 +3241,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
     : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
 
   return (
-    <header style={{ background: C.navy, fontFamily: "Inter, system-ui, sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+    <header style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
       {/* Top row: logo + user */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
@@ -3240,7 +3254,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
                 <img src={PARKER.icon} alt="Parker" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
               <div style={{ display: "inline-flex", flexDirection: "column", justifyContent: "center", background: C.amber, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 9, padding: "5px 14px 4px 22px", marginLeft: -18 }}>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 19, color: C.navy, lineHeight: 1 }}>Park<span style={{ color: C.white }}>Share</span></span>
+                <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 19, color: C.navy, lineHeight: 1 }}>Park<span style={{ color: C.white }}>Share</span></span>
                 <div style={{ height: 1.5, background: C.navy, opacity: 0.6, marginTop: 3 }} />
               </div>
             </div>
@@ -3352,7 +3366,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "'Poppins', sans-serif" }}>
       <style>{`
         .ps-hit { transition: background 0.1s ease; }
         .ps-hit:active { background: rgba(28,43,57,0.06); }
@@ -3361,10 +3375,76 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       {/* Shared header — same one used everywhere else in the app */}
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      {/* Top: brand / welcome image — purely visual, no overlay needed */}
-      <div style={{ maxWidth: 460, margin: "0 auto" }}>
-        <img src={LANDING_BRAND} alt="Welcome to ParkShare — Let Parker find you great parking anywhere!" style={{ width: "100%", height: "auto", display: "block" }} />
+      {/* Vision statement — sells the idea before the product. Builds two
+          quiet problem lines, then lands the solution and the three-word
+          tagline in amber for emphasis. */}
+      <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "40px 28px 34px", textAlign: "center" }}>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 17, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: "0 0 6px" }}>
+          Millions of driveways sit empty every day.
+        </p>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 17, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: "0 0 18px" }}>
+          Millions of drivers waste hours searching for parking.
+        </p>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: 0 }}>
+          Park<span style={{ color: C.amber }}>Share</span> connects them.
+        </p>
       </div>
+
+      {/* Top: brand / welcome hero — live text (not a baked image) so the
+          title and subtitle always render in the actual Poppins font and
+          exact brand colors, alongside Parker's mascot art. */}
+      <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "28px 24px 20px", textAlign: "center" }}>
+        <img src={PARKER.welcome} alt="Parker, ParkShare's mascot, waving hello" style={{ height: 128, width: "auto", display: "block", margin: "0 auto 10px" }} />
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: C.navy, margin: "0 0 2px" }}>Welcome to</h1>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 34, color: C.navy, lineHeight: 1.1, margin: "0 0 8px" }}>Park<span style={{ color: C.white }}>Share</span></div>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: C.navy, margin: 0 }}>
+          Let <span style={{ fontStyle: "italic", color: C.white }}>Parker</span> find you great parking anywhere!
+        </p>
+      </div>
+
+      {/* Potential Earnings — answers a homeowner's first question ("how much
+          can I make?") immediately, with clearly-labeled estimates rather
+          than a vague pitch. */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>💰 Potential Earnings</div>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: C.muted, marginTop: 2 }}>See what your driveway could make</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            { label: "2 hours/day", detail: "A couple hours after work or on weekends", low: 150, high: 300 },
+            { label: "During work hours", detail: "9am–5pm on weekdays, while you're out", low: 300, high: 600 },
+            { label: "Near a stadium or venue", detail: "Game days and events nearby", low: 400, high: 900 },
+            { label: "Rent monthly", detail: "One renter, full-time access", low: 600, high: 1400 },
+          ].map((row, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14.5, color: C.navy }}>{row.label}</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 11.5, color: C.muted, marginTop: 1 }}>{row.detail}</div>
+              </div>
+              <div style={{ flexShrink: 0, textAlign: "right" }}>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: C.navy, whiteSpace: "nowrap" }}>
+                  ${row.low}–${row.high}<span style={{ fontWeight: 600, fontSize: 10.5, color: C.muted }}>/mo</span>
+                </div>
+                <Badge color={C.moss}>est.</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>
+          *Estimates only. Actual earnings vary by location, demand, and availability.
+        </p>
+      </div>
+
+      {/* Parker as guide: a quick orientation nudge for people who aren't
+          signed in yet (a reasonable proxy for "first time here"). */}
+      {!user && (
+        <div style={{ maxWidth: 460, margin: "0 auto", padding: "18px 24px 0" }}>
+          <ParkerTip pose="signpose">
+            First time here? I'll show you how ParkShare works. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onShowAuth}>Get started →</span>
+          </ParkerTip>
+        </div>
+      )}
 
       {/* Real, live search bar — same autocomplete BrowseView uses, not a static image */}
       <div style={{ maxWidth: 460, margin: "0 auto", padding: "16px 24px 0" }}>
@@ -3450,7 +3530,7 @@ function LegalDoc({ eyebrow, title, accent, updated, children }) {
     <section style={{ marginBottom: 56, scrollMarginTop: 90 }}>
       <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>{eyebrow}</div>
       <div style={{ display: "inline-block", background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "8px 18px", marginBottom: 4 }}>
-        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.white }}>{accent}</span></h1>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.white }}>{accent}</span></h1>
       </div>
       <p style={{ color: C.muted, fontSize: 12.5, margin: "10px 0 20px" }}>Last updated: {updated}</p>
       {children}
@@ -3459,7 +3539,7 @@ function LegalDoc({ eyebrow, title, accent, updated, children }) {
 }
 
 function LegalH2({ children }) {
-  return <h2 style={{ color: C.navy, fontSize: 16, margin: "24px 0 8px", fontFamily: "'Space Grotesk', sans-serif" }}>{children}</h2>;
+  return <h2 style={{ color: C.navy, fontSize: 16, margin: "24px 0 8px", fontFamily: "'Poppins', sans-serif" }}>{children}</h2>;
 }
 function LegalP({ children }) {
   return <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 10px" }}>{children}</p>;
@@ -3488,10 +3568,10 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
   ];
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
         <div style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32 }}>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>On this page</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -3748,7 +3828,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 function ContactField({ label, name, value, onChange, type = "text", textarea, error }) {
   const fieldStyle = {
     width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14,
-    border: "2px solid " + (error ? C.hazard : C.concrete), fontFamily: "'Space Grotesk', sans-serif",
+    border: "2px solid " + (error ? C.hazard : C.concrete), fontFamily: "'Poppins', sans-serif",
     color: C.navy, background: C.white, outline: "none", boxSizing: "border-box",
   };
   return (
@@ -3790,14 +3870,14 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
     setSent(true);
   };
 
-  const pillBtnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" };
+  const pillBtnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Poppins', sans-serif" };
 
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Space Grotesk', sans-serif" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
 
         <div style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32 }}>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>Reach us</div>
@@ -3809,7 +3889,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         <section style={{ marginBottom: 40 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Get in touch</div>
           <div style={{ display: "inline-block", background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "8px 18px", marginBottom: 4 }}>
-            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Contact <span style={{ color: C.white }}>Us</span></h1>
+            <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Contact <span style={{ color: C.white }}>Us</span></h1>
           </div>
           <p style={{ color: C.muted, fontSize: 12.5, margin: "10px 0 20px" }}>Questions, feedback, or an issue with a booking — send it over and we'll get back to you.</p>
 
@@ -3917,7 +3997,7 @@ function ExtendSessionModal({ bookingId, onClose }) {
               cursor: loading ? "default" : "pointer",
               border: addedHours === opt.hours ? "2px solid " + C.amber : "1.5px solid " + C.concrete,
               background: addedHours === opt.hours ? C.amberLight : C.white,
-              fontWeight: 700, fontFamily: "Inter, system-ui, sans-serif", color: C.navy, fontSize: 13,
+              fontWeight: 700, fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 13,
               opacity: loading ? 0.6 : 1,
             }}
           >
@@ -4039,11 +4119,11 @@ export default function App() {
 
   const requireAuth = (content, msg) => {
     if (!user) return (
-      <div style={{ padding: "60px 24px", textAlign: "center", fontFamily: "Inter,system-ui,sans-serif" }}>
+      <div style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <img src={PARKER.welcome} alt="Parker waving hello" style={{ height: 100, width: "auto", marginBottom: 10 }} />
         </div>
-        <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", color: C.navy, fontSize: 20, marginBottom: 8 }}>Sign in required</h3>
+        <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, marginBottom: 8 }}>Sign in required</h3>
         <p style={{ color: C.muted, fontSize: 14, marginBottom: 24 }}>{msg || "You need an account to access this."}</p>
         <button onClick={() => setShowAuth(true)} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Sign in / Join free</button>
       </div>
@@ -4109,28 +4189,28 @@ export default function App() {
         />
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-          <style>{`@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');`}</style>
+          <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
           <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} />
           {checkoutBanner === "success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>🎉 Payment received — your booking is confirmed! It'll show up below in a moment.</span>
               <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
           {checkoutBanner === "cancelled" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>Checkout was cancelled — no charge was made.</span>
               <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
           {connectBanner === "success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>🎉 Stripe account connected! It may take a moment to finish verifying.</span>
               <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
           {connectBanner === "refresh" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "Inter,system-ui,sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>That Stripe setup link expired — tap "Connect with Stripe" below to try again.</span>
               <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
@@ -4160,6 +4240,7 @@ export default function App() {
     </>
   );
 }
+
 
 
 
