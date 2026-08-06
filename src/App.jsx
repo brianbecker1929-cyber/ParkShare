@@ -121,7 +121,7 @@ function Stars({ rating, size = 13 }) {
 function ParkerTip({ children, pose = "thinking", style }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, ...style }}>
-      <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 40, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+      <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 66, width: "auto", objectFit: "contain", flexShrink: 0 }} />
       <div style={{ position: "relative", background: C.navy, color: C.white, borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px", fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
         {children}
       </div>
