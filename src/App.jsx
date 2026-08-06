@@ -3490,18 +3490,15 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       {/* Shared header — same one used everywhere else in the app */}
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      {/* Vision statement — sells the idea before the product. Builds two
-          quiet problem lines, then lands the solution and the three-word
-          tagline in amber for emphasis. */}
+      {/* Vision statement — leads directly with the value proposition and
+          a one-line positioning statement, rather than building up through
+          the problem first. */}
       <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "40px 28px 34px", textAlign: "center" }}>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 17, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: "0 0 6px" }}>
-          Millions of driveways sit empty every day.
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: "0 0 10px" }}>
+          Turn Empty Driveways Into <span style={{ color: C.amber }}>Opportunity</span>
         </p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 17, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: "0 0 18px" }}>
-          Millions of drivers waste hours searching for parking.
-        </p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: 0 }}>
-          Park<span style={{ color: C.amber }}>Share</span> connects them.
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: 0 }}>
+          Park<span style={{ color: C.amber }}>Share</span> is Canada's Driveway Rental Marketplace
         </p>
       </div>
 
@@ -3509,7 +3506,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           title and subtitle always render in the actual Poppins font and
           exact brand colors, alongside Parker's mascot art. */}
       <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "28px 24px 20px", textAlign: "center" }}>
-        <img src={PARKER.homeWave} alt="Parker, ParkShare's mascot, holding a phone with the ParkShare app" style={{ height: 128, width: "auto", display: "block", margin: "0 auto 10px" }} />
+        <img src={PARKER.homeWave} alt="Parker, ParkShare's mascot, holding a phone with the ParkShare app" style={{ height: 173, width: "auto", display: "block", margin: "0 auto 10px" }} />
         <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: C.navy, margin: "0 0 2px" }}>Welcome to</h1>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 34, color: C.navy, lineHeight: 1.1, margin: "0 0 8px" }}>Park<span style={{ color: C.white }}>Share</span></div>
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: C.navy, margin: 0 }}>
