@@ -127,7 +127,7 @@ function ParkerTip({ children, pose = "thinking", circle = false, style }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, ...style }}>
       {circle ? (
-        <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ width: 40, height: 40, borderRadius: "50%", border: "2px solid " + C.navy, objectFit: "cover", objectPosition: "top", flexShrink: 0, background: C.amber }} />
+        <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ width: 60, height: 60, borderRadius: "50%", border: "2px solid " + C.navy, objectFit: "cover", objectPosition: "top", flexShrink: 0, background: C.amber }} />
       ) : (
         <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 66, width: "auto", objectFit: "contain", flexShrink: 0 }} />
       )}
@@ -3592,7 +3592,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           signed in yet (a reasonable proxy for "first time here"). */}
       {!user && (
         <div style={{ maxWidth: 460, margin: "0 auto", padding: "18px 24px 0" }}>
-          <ParkerTip pose="face" circle>
+          <ParkerTip pose="waving" circle>
             First time here? I'll show you how ParkShare works. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onShowAuth}>Get started →</span>
           </ParkerTip>
         </div>
