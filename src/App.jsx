@@ -26,11 +26,13 @@ const PARKER = {
   signfinal: "/parker/parker-signfinal.png",
   fullbody: "/parker/parker-fullbody.png",
   signpose: "/parker/parker-signpose.png",
+  helpful: "/parker/parker-helpful.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
   welcome: "/parker/parker-welcome.png",
   homeWave: "/parker/parker-home-wave.png",
   success: "/parker/parker-success.png",
+  savings: "/parker/parker-savings.png",
   icon: "/parker/parker-icon.png",
 };
 
@@ -4095,7 +4097,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
       {!user && <FoundingHostsCard onShowAuth={onShowAuth} />}
 
       <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-        <ParkerTip pose="success">
+        <ParkerTip pose="savings">
           Hosting is simple: verify your address, add a couple photos, set a price, and you're live. I'll walk you through it.
         </ParkerTip>
       </div>
@@ -4143,7 +4145,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
       </div>
 
       <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-        <ParkerTip pose="signpose">
+        <ParkerTip pose="helpful">
           Book ahead, get a verification code, and know exactly where you're parking before you leave home.
         </ParkerTip>
       </div>
