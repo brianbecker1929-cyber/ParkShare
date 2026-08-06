@@ -3357,7 +3357,62 @@ function EarningsCalculator() {
   );
 }
 
-function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick }) {
+// Reusable so both the homepage teaser and the dedicated Host page show
+// identical, non-duplicated earnings content.
+function PotentialEarningsSection() {
+  return (
+    <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
+      <div style={{ textAlign: "center", marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>💰 Potential Earnings</div>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: C.muted, marginTop: 2 }}>See what your driveway could make</div>
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <EarningsCalculator />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {[
+          { label: "2 hours/day", detail: "A couple hours after work or on weekends", low: 150, high: 300 },
+          { label: "During work hours", detail: "9am–5pm on weekdays, while you're out", low: 300, high: 600 },
+          { label: "Near a stadium or venue", detail: "Game days and events nearby", low: 400, high: 900 },
+          { label: "Rent monthly", detail: "One renter, full-time access", low: 600, high: 1400 },
+        ].map((row, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14.5, color: C.navy }}>{row.label}</div>
+              <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 11.5, color: C.muted, marginTop: 1 }}>{row.detail}</div>
+            </div>
+            <div style={{ flexShrink: 0, textAlign: "right" }}>
+              <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: C.navy, whiteSpace: "nowrap" }}>
+                ${row.low}–${row.high}<span style={{ fontWeight: 600, fontSize: 10.5, color: C.muted }}>/mo</span>
+              </div>
+              <Badge color={C.moss}>est.</Badge>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>
+        *Estimates only. Actual earnings vary by location, demand, and availability.
+      </p>
+    </div>
+  );
+}
+
+function FoundingHostsCard({ onShowAuth }) {
+  return (
+    <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+      <div style={{ background: C.navy, borderRadius: 16, padding: "20px 20px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Limited spots</div>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, color: C.white, lineHeight: 1.25, marginBottom: 6 }}>Join our Founding Hosts</div>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.55, margin: "0 0 16px" }}>
+          Be one of the first driveways on ParkShare and help shape the platform from day one.
+        </p>
+        <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>Become a Founding Host →</button>
+      </div>
+    </div>
+  );
+}
+
+function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick }) {
   const allListings = useAllListings();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -3452,7 +3507,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           title and subtitle always render in the actual Poppins font and
           exact brand colors, alongside Parker's mascot art. */}
       <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "28px 24px 20px", textAlign: "center" }}>
-        <img src={PARKER.homeWave} alt="Parker, ParkShare's mascot, waving hello" style={{ height: 128, width: "auto", display: "block", margin: "0 auto 10px" }} />
+        <img src={PARKER.homeWave} alt="Parker, ParkShare's mascot, holding a phone with the ParkShare app" style={{ height: 128, width: "auto", display: "block", margin: "0 auto 10px" }} />
         <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: C.navy, margin: "0 0 2px" }}>Welcome to</h1>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 34, color: C.navy, lineHeight: 1.1, margin: "0 0 8px" }}>Park<span style={{ color: C.white }}>Share</span></div>
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: C.navy, margin: 0 }}>
@@ -3460,57 +3515,43 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </p>
       </div>
 
+      {/* Audience split — routes visitors to a dedicated page for their
+          situation immediately, instead of making both hosts and drivers
+          read through the same generic homepage. */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+        <button
+          onClick={onHostClick}
+          style={{ display: "flex", alignItems: "center", gap: 14, textAlign: "left", width: "100%", background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "16px 18px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", cursor: "pointer" }}
+        >
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏠</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>For hosts</div>
+            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.navy, lineHeight: 1.45 }}>Your driveway sits empty while you're at work. What if it earned money instead?</div>
+          </div>
+          <span style={{ fontSize: 18, color: C.navy, flexShrink: 0 }}>›</span>
+        </button>
+
+        <button
+          onClick={onDriverClick}
+          style={{ display: "flex", alignItems: "center", gap: 14, textAlign: "left", width: "100%", background: C.navy, border: "2px solid " + C.navy, borderRadius: 16, padding: "16px 18px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", cursor: "pointer" }}
+        >
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🚗</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>For drivers</div>
+            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.white, lineHeight: 1.45 }}>Imagine arriving knowing your parking spot is waiting for you.</div>
+          </div>
+          <span style={{ fontSize: 18, color: C.amber, flexShrink: 0 }}>›</span>
+        </button>
+      </div>
+
       {/* Potential Earnings — answers a homeowner's first question ("how much
           can I make?") immediately, with clearly-labeled estimates rather
           than a vague pitch. */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
-        <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>💰 Potential Earnings</div>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: C.muted, marginTop: 2 }}>See what your driveway could make</div>
-        </div>
-        <div style={{ marginBottom: 14 }}>
-          <EarningsCalculator />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
-            { label: "2 hours/day", detail: "A couple hours after work or on weekends", low: 150, high: 300 },
-            { label: "During work hours", detail: "9am–5pm on weekdays, while you're out", low: 300, high: 600 },
-            { label: "Near a stadium or venue", detail: "Game days and events nearby", low: 400, high: 900 },
-            { label: "Rent monthly", detail: "One renter, full-time access", low: 600, high: 1400 },
-          ].map((row, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14.5, color: C.navy }}>{row.label}</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 11.5, color: C.muted, marginTop: 1 }}>{row.detail}</div>
-              </div>
-              <div style={{ flexShrink: 0, textAlign: "right" }}>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: C.navy, whiteSpace: "nowrap" }}>
-                  ${row.low}–${row.high}<span style={{ fontWeight: 600, fontSize: 10.5, color: C.muted }}>/mo</span>
-                </div>
-                <Badge color={C.moss}>est.</Badge>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>
-          *Estimates only. Actual earnings vary by location, demand, and availability.
-        </p>
-      </div>
+      <PotentialEarningsSection />
 
       {/* Urgency — invites early hosts in without a business promise (like
           a commission rate) that hasn't actually been confirmed/decided. */}
-      {!user && (
-        <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-          <div style={{ background: C.navy, borderRadius: 16, padding: "20px 20px", textAlign: "center" }}>
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Limited spots</div>
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, color: C.white, lineHeight: 1.25, marginBottom: 6 }}>Join our Founding Hosts</div>
-            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.55, margin: "0 0 16px" }}>
-              Be one of the first driveways on ParkShare and help shape the platform from day one.
-            </p>
-            <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>Become a Founding Host →</button>
-          </div>
-        </div>
-      )}
+      {!user && <FoundingHostsCard onShowAuth={onShowAuth} />}
 
       {/* Stories — makes the value concrete through two short, illustrative
           scenarios (one host, one driver) rather than another stat. Framed
@@ -4031,6 +4072,94 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
   );
 }
 
+// ─── Host page — dedicated landing spot for the "For hosts" homepage card.
+// Leads with the pain point, then the same earnings calculator/estimates
+// and Founding Hosts CTA used on the homepage, so the message and numbers
+// never drift out of sync between the two places they appear.
+// ─────────────────────────────────────────────────────────────────────────────
+function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted }) {
+  return (
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+
+      <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "32px 24px 26px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>For hosts</div>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.navy, lineHeight: 1.25, margin: "0 0 10px" }}>Turn your driveway into income</h1>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 15, color: C.navy, lineHeight: 1.55, margin: 0 }}>
+          "Your driveway sits empty while you're at work. What if it earned money instead?"
+        </p>
+      </div>
+
+      <PotentialEarningsSection />
+      {!user && <FoundingHostsCard onShowAuth={onShowAuth} />}
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+        <ParkerTip pose="success">
+          Hosting is simple: verify your address, add a couple photos, set a price, and you're live. I'll walk you through it.
+        </ParkerTip>
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0", textAlign: "center" }}>
+        <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 30px", fontFamily: "'Poppins', sans-serif", fontSize: 14.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>List your driveway →</button>
+        <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, marginTop: 12, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>How ParkShare keeps hosts safe →</button>
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Driver page — dedicated landing spot for the "For drivers" homepage
+// card. Leads with the pain point, then routes straight into the real
+// Browse map rather than duplicating search UI here.
+// ─────────────────────────────────────────────────────────────────────────────
+function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking }) {
+  return (
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+
+      <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>For drivers</div>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: "0 0 10px" }}>Never circle the block again</h1>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 15, color: "rgba(255,255,255,0.85)", lineHeight: 1.55, margin: 0 }}>
+          "Imagine arriving knowing your parking spot is waiting for you."
+        </p>
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 0" }}>
+        <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🚗</div>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
+            David searched 20 minutes for parking every morning. Now he books the same driveway in advance.
+          </p>
+        </div>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "10px 0 0" }}>
+          Illustrative example, not a verified customer review.
+        </p>
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+        <ParkerTip pose="signpose">
+          Book ahead, get a verification code, and know exactly where you're parking before you leave home.
+        </ParkerTip>
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0", textAlign: "center" }}>
+        <button onClick={onFindParking} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 30px", fontFamily: "'Poppins', sans-serif", fontSize: 14.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find parking near you →</button>
+        <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, marginTop: 12, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>How ParkShare keeps drivers safe →</button>
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} />
+      </div>
+    </div>
+  );
+}
+
 function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick }) {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [errors, setErrors] = useState({});
@@ -4301,6 +4430,8 @@ export default function App() {
   const openLegal = () => setScreen("legal");
   const openContact = () => setScreen("contact");
   const openTrust = () => setScreen("trust");
+  const openHost = () => setScreen("host");
+  const openDriver = () => setScreen("driver");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
   const changeTab = (t) => { setScreen("app"); setTab(t); };
@@ -4339,6 +4470,11 @@ export default function App() {
     enterApp("Browse");
   };
   const handleLandingLocation = () => { setBrowseAutoFocus(false); setBrowseAutoLocate(true); enterApp("Browse"); };
+  // Host page CTA: straight into the listing flow if already signed in,
+  // otherwise open sign-up first (role selection happens in that flow).
+  const handleHostGetStarted = () => { if (user) enterApp("List Your Driveway"); else setShowAuth(true); };
+  // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
+  const handleFindParking = () => { setBrowseAutoFocus(false); setBrowseAutoLocate(false); enterApp("Browse"); };
 
   return (
     <>
@@ -4355,6 +4491,8 @@ export default function App() {
           onLegalClick={openLegal}
           onContactClick={openContact}
           onTrustClick={openTrust}
+          onHostClick={openHost}
+          onDriverClick={openDriver}
         />
       ) : screen === "legal" ? (
         <LegalPage
@@ -4377,6 +4515,32 @@ export default function App() {
           onSignOut={handleSignOut}
           onLegalClick={openLegal}
           onContactClick={openContact}
+        />
+      ) : screen === "host" ? (
+        <HostPage
+          tab={tab}
+          onTabChange={changeTab}
+          onLogoClick={goHome}
+          user={user}
+          onShowAuth={() => setShowAuth(true)}
+          onSignOut={handleSignOut}
+          onLegalClick={openLegal}
+          onContactClick={openContact}
+          onTrustClick={openTrust}
+          onGetStarted={handleHostGetStarted}
+        />
+      ) : screen === "driver" ? (
+        <DriverPage
+          tab={tab}
+          onTabChange={changeTab}
+          onLogoClick={goHome}
+          user={user}
+          onShowAuth={() => setShowAuth(true)}
+          onSignOut={handleSignOut}
+          onLegalClick={openLegal}
+          onContactClick={openContact}
+          onTrustClick={openTrust}
+          onFindParking={handleFindParking}
         />
       ) : screen === "contact" ? (
         <ContactPage
