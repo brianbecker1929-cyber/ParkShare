@@ -3218,19 +3218,18 @@ function FloatingParkerHelp() {
 
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
-function Footer({ onLegalClick, onContactClick }) {
-  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
+function Footer({ onLegalClick, onContactClick, onTrustClick }) {
+  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, minWidth: 70, height: 38, padding: "0 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
   return (
-    <footer style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 10 }}>
-      <div style={{ display: "flex", justifyContent: "flex-start" }}>
+    <footer style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
         <button style={btnStyle} onClick={onContactClick}>Contact Us</button>
+        <button style={btnStyle} onClick={onTrustClick}>Trust &amp; Safety</button>
+        <button style={btnStyle} onClick={onLegalClick}>Legal &amp; T/C</button>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
         <span style={{ color: C.white, fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>Powered by</span>
         <img src={ESKA_LOGO} alt="Eska Technologies" style={{ height: 22, width: "auto" }} />
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <button style={btnStyle} onClick={onLegalClick}>Legal &amp; T/C</button>
       </div>
     </footer>
   );
@@ -3300,7 +3299,65 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
 const LANDING_BRAND = "/parker/parker-landing-brand.jpeg";
 const LANDING_ACTION = "/parker/parker-landing-action.jpeg";
 
-function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick }) {
+// A genuinely interactive "wow" moment: a live earnings calculator, rather
+// than a static number or (worse) fabricated demand data. Uses the same
+// $12/hr baseline and ~15-day/month fill assumption used elsewhere in the
+// app's own earnings estimates, so the numbers stay internally consistent.
+function EarningsCalculator() {
+  const [hours, setHours] = useState(3);
+  const [demand, setDemand] = useState(false);
+  const RATE = 12, FILL_DAYS = 15, DEMAND_MULTIPLIER = 1.35;
+  const monthly = Math.round(hours * RATE * FILL_DAYS * (demand ? DEMAND_MULTIPLIER : 1));
+  const annual = monthly * 12;
+
+  return (
+    <div style={{ background: C.navy, borderRadius: 18, padding: "22px 20px", textAlign: "center" }}>
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Try it yourself</div>
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, marginBottom: 18 }}>How much could your driveway earn?</div>
+
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 36, color: C.amber, lineHeight: 1 }}>${annual.toLocaleString()}</div>
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 3, marginBottom: 20 }}>estimated per year (${monthly.toLocaleString()}/mo)</div>
+
+      <div style={{ textAlign: "left", marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, color: "rgba(255,255,255,0.85)" }}>Hours available per day</span>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.amber }}>{hours} hr{hours !== 1 ? "s" : ""}</span>
+        </div>
+        <input
+          type="range" min={1} max={12} step={1} value={hours}
+          onChange={e => setHours(Number(e.target.value))}
+          style={{ width: "100%", accentColor: C.amber, cursor: "pointer" }}
+        />
+      </div>
+
+      <button
+        onClick={() => setDemand(d => !d)}
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%",
+          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.18)", borderRadius: 10,
+          padding: "10px 14px", cursor: "pointer", fontFamily: "'Poppins', sans-serif",
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 12.5, color: "rgba(255,255,255,0.85)", textAlign: "left" }}>Near a stadium, venue, or downtown core?</span>
+        <span style={{
+          width: 38, height: 22, borderRadius: 20, background: demand ? C.amber : "rgba(255,255,255,0.25)",
+          position: "relative", flexShrink: 0, marginLeft: 10, transition: "background 0.15s",
+        }}>
+          <span style={{
+            position: "absolute", top: 2, left: demand ? 18 : 2, width: 18, height: 18, borderRadius: "50%",
+            background: C.white, transition: "left 0.15s",
+          }} />
+        </span>
+      </button>
+
+      <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10, color: "rgba(255,255,255,0.55)", margin: "14px 0 0", lineHeight: 1.5 }}>
+        Estimate only, based on a $12/hr average rate and ~15 booked days/month. Actual earnings vary.
+      </p>
+    </div>
+  );
+}
+
+function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick }) {
   const allListings = useAllListings();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -3411,6 +3468,9 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>💰 Potential Earnings</div>
           <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: C.muted, marginTop: 2 }}>See what your driveway could make</div>
         </div>
+        <div style={{ marginBottom: 14 }}>
+          <EarningsCalculator />
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[
             { label: "2 hours/day", detail: "A couple hours after work or on weekends", low: 150, high: 300 },
@@ -3434,6 +3494,48 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>
           *Estimates only. Actual earnings vary by location, demand, and availability.
+        </p>
+      </div>
+
+      {/* Urgency — invites early hosts in without a business promise (like
+          a commission rate) that hasn't actually been confirmed/decided. */}
+      {!user && (
+        <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+          <div style={{ background: C.navy, borderRadius: 16, padding: "20px 20px", textAlign: "center" }}>
+            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Limited spots</div>
+            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, color: C.white, lineHeight: 1.25, marginBottom: 6 }}>Join our Founding Hosts</div>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.55, margin: "0 0 16px" }}>
+              Be one of the first driveways on ParkShare and help shape the platform from day one.
+            </p>
+            <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>Become a Founding Host →</button>
+          </div>
+        </div>
+      )}
+
+      {/* Stories — makes the value concrete through two short, illustrative
+          scenarios (one host, one driver) rather than another stat. Framed
+          as "how people use ParkShare" rather than named testimonials,
+          since these are illustrative examples, not verified reviews. */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>How people use ParkShare</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.amber, color: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🏠</div>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
+              Sarah works downtown. Her driveway sat empty every weekday. Today it earns enough to cover her internet bill.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🚗</div>
+            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
+              David searched 20 minutes for parking every morning. Now he books the same driveway in advance.
+            </p>
+          </div>
+        </div>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "10px 0 0" }}>
+          Illustrative examples, not verified customer reviews.
         </p>
       </div>
 
@@ -3514,8 +3616,23 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       <div style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
         <img src={LANDING_ACTION} alt="Safe & Secure, Trusted Community, 24/7 Access" style={{ width: "100%", height: "auto", display: "block" }} />
       </div>
-      <div style={{ marginTop: 24 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} />
+
+      {/* Closing vision — bookends the opening vision statement, leaving
+          visitors with an inspired last impression before the footer. */}
+      <div style={{ maxWidth: 460, margin: "24px auto 0", background: C.navy, padding: "40px 28px" }}>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 16, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, textAlign: "center", margin: "0 0 10px" }}>
+          Every empty driveway has value.
+        </p>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 16, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, textAlign: "center", margin: "0 0 18px" }}>
+          Every driver deserves an easier way to park.
+        </p>
+        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.white, lineHeight: 1.35, textAlign: "center", margin: 0 }}>
+          Together we're building <span style={{ color: C.amber }}>Canada's driveway marketplace.</span>
+        </p>
+      </div>
+
+      <div style={{ marginTop: 0 }}>
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} />
       </div>
     </div>
   );
@@ -3559,7 +3676,7 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick }) {
+function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick }) {
   const UPDATED = "July 18, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -3817,7 +3934,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
-      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} />
+      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} />
     </div>
   );
 }
@@ -3845,7 +3962,76 @@ function ContactField({ label, name, value, onChange, type = "text", textarea, e
   );
 }
 
-function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick }) {
+// ─── Trust & Safety — a dedicated page explaining why ParkShare is safer to
+// use, addressing the hesitation people feel before their first transaction.
+// Uses the same pill-button style as the multi-step "← Back" navigation
+// elsewhere in the app for its on-page section nav, per design direction.
+// ─────────────────────────────────────────────────────────────────────────────
+const TRUST_SECTIONS = [
+  { id: "verified", icon: "✅", title: "Verified users", body: "Every host and renter signs up with a verified email and phone number. Hosts complete an additional ID verification step before their first listing goes live, so you always know who you're dealing with." },
+  { id: "payments", icon: "🔒", title: "Secure payments", body: "All payments run through Stripe, a PCI-compliant payment processor — ParkShare never sees or stores your card details. Hosts get paid out directly to their own connected Stripe account." },
+  { id: "reviews", icon: "⭐", title: "Review system", body: "After every booking, hosts and renters can rate and review each other. Ratings show up publicly on listings and profiles, so reputations build over time and problems don't stay hidden." },
+  { id: "confirmations", icon: "📩", title: "Booking confirmations", body: "Every booking generates a confirmation with a unique verification code, sent by email. You'll always know exactly when and where you're parked — and hosts know exactly who to expect." },
+  { id: "privacy", icon: "🛡️", title: "Privacy protections", body: "We only share what's necessary to complete a booking — never your full contact details up front. See the Privacy Policy for exactly what's collected and how it's used." },
+  { id: "support", icon: "💬", title: "Customer support", body: "Parker's help widget is available throughout the app for quick answers, and our support team is reachable directly for anything that needs a real person." },
+  { id: "accountability", icon: "⚖️", title: "Host & driver accountability", body: "Everyone agrees to the same Terms of Service before their first booking or listing. Accounts that violate them — no-shows, property damage, unsafe listings — can be suspended, and disputes are handled by our support team." },
+];
+
+function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick }) {
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  return (
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Trust &amp; Safety</div>
+          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.navy, margin: "0 0 8px" }}>Why ParkShare is <span style={{ color: C.amber }}>safer</span></h1>
+          <p style={{ fontSize: 14, color: C.muted, maxWidth: 480, margin: "0 auto", lineHeight: 1.6 }}>
+            Renting out your driveway or parking in someone else's takes a bit of trust. Here's exactly what ParkShare does to earn it.
+          </p>
+        </div>
+
+        {/* On-page nav — same pill button style used for "← Back" throughout
+            the multi-step host flows elsewhere in the app. */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 36 }}>
+          {TRUST_SECTIONS.map(s => (
+            <button
+              key={s.id}
+              onClick={() => scrollTo(s.id)}
+              style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12, padding: "8px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+            >
+              <span>{s.icon}</span>{s.title}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          {TRUST_SECTIONS.map(s => (
+            <section key={s.id} id={s.id} style={{ scrollMarginTop: 90, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 22px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{s.icon}</div>
+                <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 17, color: C.navy, margin: 0 }}>{s.title}</h2>
+              </div>
+              <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: 0 }}>{s.body}</p>
+              {s.id === "privacy" && <button onClick={onLegalClick} style={{ background: "none", border: "none", padding: 0, marginTop: 8, color: C.moss, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Read the full Privacy Policy →</button>}
+              {s.id === "support" && <button onClick={onContactClick} style={{ background: "none", border: "none", padding: 0, marginTop: 8, color: C.moss, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Contact support →</button>}
+              {s.id === "accountability" && <button onClick={onLegalClick} style={{ background: "none", border: "none", padding: 0, marginTop: 8, color: C.moss, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Read the full Terms of Service →</button>}
+            </section>
+          ))}
+        </div>
+      </div>
+
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+    </div>
+  );
+}
+
+function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick }) {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
@@ -3911,7 +4097,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} />
     </div>
   );
 }
@@ -4114,6 +4300,7 @@ export default function App() {
   const goHome = () => { setScreen("landing"); setTab("Browse"); setBrowseKey(k => k + 1); };
   const openLegal = () => setScreen("legal");
   const openContact = () => setScreen("contact");
+  const openTrust = () => setScreen("trust");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
   const changeTab = (t) => { setScreen("app"); setTab(t); };
@@ -4167,6 +4354,7 @@ export default function App() {
           onSignOut={handleSignOut}
           onLegalClick={openLegal}
           onContactClick={openContact}
+          onTrustClick={openTrust}
         />
       ) : screen === "legal" ? (
         <LegalPage
@@ -4176,6 +4364,18 @@ export default function App() {
           user={user}
           onShowAuth={() => setShowAuth(true)}
           onSignOut={handleSignOut}
+          onContactClick={openContact}
+          onTrustClick={openTrust}
+        />
+      ) : screen === "trust" ? (
+        <TrustPage
+          tab={tab}
+          onTabChange={changeTab}
+          onLogoClick={goHome}
+          user={user}
+          onShowAuth={() => setShowAuth(true)}
+          onSignOut={handleSignOut}
+          onLegalClick={openLegal}
           onContactClick={openContact}
         />
       ) : screen === "contact" ? (
@@ -4187,6 +4387,7 @@ export default function App() {
           onShowAuth={() => setShowAuth(true)}
           onSignOut={handleSignOut}
           onLegalClick={openLegal}
+          onTrustClick={openTrust}
         />
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
@@ -4224,7 +4425,7 @@ export default function App() {
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <FloatingParkerHelp />
-          <Footer onLegalClick={openLegal} onContactClick={openContact} />
+          <Footer onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} />
         </div>
       )}
       {showAuth && <SignInModal onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
