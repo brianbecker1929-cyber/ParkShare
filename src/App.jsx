@@ -121,7 +121,7 @@ function Stars({ rating, size = 13 }) {
 function ParkerTip({ children, pose = "thinking", style }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, ...style }}>
-      <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ width: 40, height: 40, borderRadius: "50%", border: "2px solid " + C.navy, objectFit: "cover", flexShrink: 0, background: C.amber }} />
+      <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 40, width: "auto", objectFit: "contain", flexShrink: 0 }} />
       <div style={{ position: "relative", background: C.navy, color: C.white, borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px", fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
         {children}
       </div>
@@ -4094,7 +4094,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
       {!user && <FoundingHostsCard onShowAuth={onShowAuth} />}
 
       <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-        <ParkerTip pose="savings">
+        <ParkerTip pose="fullbody">
           Hosting is simple: verify your address, add a couple photos, set a price, and you're live. I'll walk you through it.
         </ParkerTip>
       </div>
@@ -4142,7 +4142,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
       </div>
 
       <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-        <ParkerTip pose="helpful">
+        <ParkerTip pose="fullbody">
           Book ahead, get a verification code, and know exactly where you're parking before you leave home.
         </ParkerTip>
       </div>
