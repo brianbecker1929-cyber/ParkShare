@@ -117,11 +117,18 @@ function Stars({ rating, size = 13 }) {
 // Parker as a guide, not just a mascot: a small speech-bubble callout that
 // can drop into any screen with a contextual tip, nudge, or explanation.
 // `pose` picks which Parker art to show (defaults to the thinking pose,
-// since a tip is Parker noticing something and saying so).
-function ParkerTip({ children, pose = "thinking", style }) {
+// since a tip is Parker noticing something and saying so). `circle` opts
+// into a small face-focused circular crop instead of the full uncropped
+// image — better for full-body art (like the sign-holding pose) shown at
+// small sizes, where the whole figure just reads as visual noise.
+function ParkerTip({ children, pose = "thinking", circle = false, style }) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 10, ...style }}>
-      <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 66, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+      {circle ? (
+        <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ width: 40, height: 40, borderRadius: "50%", border: "2px solid " + C.navy, objectFit: "cover", objectPosition: "top", flexShrink: 0, background: C.amber }} />
+      ) : (
+        <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 66, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+      )}
       <div style={{ position: "relative", background: C.navy, color: C.white, borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px", fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
         {children}
       </div>
@@ -3583,7 +3590,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           signed in yet (a reasonable proxy for "first time here"). */}
       {!user && (
         <div style={{ maxWidth: 460, margin: "0 auto", padding: "18px 24px 0" }}>
-          <ParkerTip pose="signpose">
+          <ParkerTip pose="signpose" circle>
             First time here? I'll show you how ParkShare works. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onShowAuth}>Get started →</span>
           </ParkerTip>
         </div>
