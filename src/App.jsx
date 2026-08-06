@@ -129,7 +129,7 @@ function ParkerTip({ children, pose = "thinking", circle = false, style }) {
       {circle ? (
         <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ width: 60, height: 60, borderRadius: "50%", border: "2px solid " + C.navy, objectFit: "cover", objectPosition: "top", flexShrink: 0, background: C.amber }} />
       ) : (
-        <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 66, width: "auto", objectFit: "contain", flexShrink: 0 }} />
+        <img src={PARKER[pose] || PARKER.thinking} alt="Parker" style={{ height: 99, width: "auto", objectFit: "contain", flexShrink: 0 }} />
       )}
       <div style={{ position: "relative", background: C.navy, color: C.white, borderRadius: 14, borderTopLeftRadius: 4, padding: "10px 14px", fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, lineHeight: 1.5, flex: 1 }}>
         {children}
