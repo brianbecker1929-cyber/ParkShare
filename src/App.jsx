@@ -26,6 +26,8 @@ const PARKER = {
   signfinal: "/parker/parker-signfinal.png",
   fullbody: "/parker/parker-fullbody.png",
   signpose: "/parker/parker-signpose.png",
+  waving: "/parker/parker-waving.png",
+  face: "/parker/parker-face.png",
   helpful: "/parker/parker-helpful.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
@@ -3590,7 +3592,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           signed in yet (a reasonable proxy for "first time here"). */}
       {!user && (
         <div style={{ maxWidth: 460, margin: "0 auto", padding: "18px 24px 0" }}>
-          <ParkerTip pose="signpose" circle>
+          <ParkerTip pose="face" circle>
             First time here? I'll show you how ParkShare works. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onShowAuth}>Get started →</span>
           </ParkerTip>
         </div>
