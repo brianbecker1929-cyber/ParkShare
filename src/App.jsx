@@ -3386,7 +3386,6 @@ function PotentialEarningsSection() {
           { label: "2 hours/day", detail: "A couple hours after work or on weekends", low: 150, high: 300 },
           { label: "During work hours", detail: "9am–5pm on weekdays, while you're out", low: 300, high: 600 },
           { label: "Near a stadium or venue", detail: "Game days and events nearby", low: 400, high: 900 },
-          { label: "Rent monthly", detail: "One renter, full-time access", low: 600, high: 1400 },
         ].map((row, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ minWidth: 0 }}>
