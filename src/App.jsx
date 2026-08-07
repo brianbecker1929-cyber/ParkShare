@@ -28,6 +28,7 @@ const PARKER = {
   signpose: "/parker/parker-signpose.png",
   waving: "/parker/parker-waving.png",
   face: "/parker/parker-face.png",
+  headset: "/parker/parker-headset.png",
   helpful: "/parker/parker-helpful.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
@@ -3229,12 +3230,13 @@ function FloatingParkerHelp() {
 
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
-function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick }) {
+function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
   const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, minWidth: 70, height: 38, padding: "0 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
   return (
     <footer style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
         <button style={btnStyle} onClick={onAboutClick}>About Us</button>
+        <button style={btnStyle} onClick={onHelpClick}>Help</button>
         <button style={btnStyle} onClick={onContactClick}>Contact Us</button>
         <button style={btnStyle} onClick={onTrustClick}>Trust &amp; Safety</button>
         <button style={btnStyle} onClick={onLegalClick}>Legal &amp; T/C</button>
@@ -3423,7 +3425,7 @@ function FoundingHostsCard({ onShowAuth }) {
   );
 }
 
-function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick }) {
+function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick, onHelpClick }) {
   const allListings = useAllListings();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -3702,7 +3704,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       </div>
 
       <div style={{ marginTop: 0 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
       </div>
     </div>
   );
@@ -3746,7 +3748,7 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick }) {
+function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
   const UPDATED = "July 18, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -4004,7 +4006,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
-      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
+      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -4050,7 +4052,7 @@ const TRUST_SECTIONS = [
   { id: "support", icon: "💬", title: "Support" },
 ];
 
-function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onAboutClick, onHostClick, onDriverClick }) {
+function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onAboutClick, onHostClick, onDriverClick, onHelpClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4229,7 +4231,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onAboutClick={onAboutClick} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -4248,7 +4250,7 @@ const ABOUT_SECTIONS = [
   { id: "canadian", icon: "🇨🇦", title: "Canadian" },
 ];
 
-function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick }) {
+function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onHelpClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4371,7 +4373,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -4457,7 +4459,7 @@ const HOST_FAQS = [
 // flexibility, location angle, benefits, host standards, FAQ, Parker tip,
 // closing) using the same pill-nav pattern as Trust & Safety and About.
 // ─────────────────────────────────────────────────────────────────────────────
-function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted, onAboutClick }) {
+function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted, onAboutClick, onHelpClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4704,7 +4706,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -4722,7 +4724,7 @@ const DRIVER_SECTIONS = [
 // flexibility, convenience, trust, Meet Parker, closing) using the same
 // pill-nav pattern as Trust & Safety, About, and the Host page.
 // ─────────────────────────────────────────────────────────────────────────────
-function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick, onHostClick }) {
+function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick, onHostClick, onHelpClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4908,12 +4910,266 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
     </div>
   );
 }
 
-function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick }) {
+// ─── Help Centre content, grouped by audience then sub-topic. Kept as data
+// (not JSX) so the accordion/search UI below can filter and render it
+// generically, and so adding a question later is a one-line edit.
+// ─────────────────────────────────────────────────────────────────────────────
+const HELP_DATA = [
+  {
+    id: "drivers", icon: "🚗", title: "Drivers",
+    groups: [
+      { sub: "Finding & Booking Parking", items: [
+        { q: "How do I find parking?", a: "Enter the location where you need parking and browse available ParkShare spaces nearby. Review the listing details, price, availability and parking instructions before making your reservation." },
+        { q: "What should I check before booking?", a: "Review the location, photographs, available times, price, vehicle restrictions and any instructions provided by the Host. Make sure the parking space is suitable for your vehicle before confirming your reservation." },
+        { q: "How do I know where to park?", a: "Your reservation and listing information should provide the details you need to identify the correct parking space. Always review the Host's parking instructions before arriving." },
+        { q: "Can I book parking in advance?", a: "Where availability allows, ParkShare lets you reserve parking ahead of your arrival so you can plan your trip knowing where you're going to park." },
+        { q: "What if there are no spaces near my destination?", a: "Try adjusting your search area, dates or times. ParkShare availability will continue to grow as more Hosts join the community." },
+      ]},
+      { sub: "Managing Your Reservation", items: [
+        { q: "Where can I find my reservation?", a: "Your ParkShare account provides access to your booking information and relevant reservation details." },
+        { q: "Can I change my reservation?", a: "Available modification options depend on the reservation and ParkShare's applicable booking policies. Check your reservation details for the options currently available." },
+        { q: "Can I extend my parking time?", a: "If additional time is available for the space, ParkShare may provide an option to extend your reservation. Always extend your booking before your existing reservation ends." },
+        { q: "What happens if I'm late?", a: "Your reservation only covers the confirmed booking period. If you expect to remain longer, check whether additional time is available and extend your reservation when possible." },
+        { q: "What if I can't find the parking space?", a: "Review the listing photographs, address and Host instructions first. If you still cannot identify the correct space, use the available ParkShare communication or support options rather than parking somewhere you're unsure about." },
+      ]},
+      { sub: "Cancellations", items: [
+        { q: "Can I cancel a reservation?", a: "Cancellation options are governed by the cancellation terms applicable to your booking. Review the cancellation information shown during booking and within your reservation." },
+        { q: "What if the parking space isn't available when I arrive?", a: "Do not park somewhere else on the property unless you're clearly authorized to do so. Document the issue where appropriate and use ParkShare's available support options so the situation can be reviewed." },
+      ]},
+    ],
+  },
+  {
+    id: "hosts", icon: "🏠", title: "Hosts",
+    groups: [
+      { sub: "Getting Started", items: [
+        { q: "Who can become a ParkShare Host?", a: "People who have the authority to offer an eligible parking space may be able to list it through ParkShare, subject to ParkShare's applicable terms and policies. Hosts are responsible for ensuring they're permitted to offer the space." },
+        { q: "What types of parking spaces can I list?", a: "Eligible spaces may include residential driveways and other suitable private parking spaces where the Host has the authority to offer parking. Listings should accurately describe the space and any relevant restrictions." },
+        { q: "How do I create a listing?", a: "Provide the requested information about your parking space, including its location, photographs, availability, pricing, vehicle restrictions and parking instructions. Clear information makes it easier for Drivers to book confidently." },
+        { q: "How much should I charge?", a: "Consider your location, nearby destinations, local parking options, availability and demand when choosing your price. As the ParkShare marketplace develops, additional pricing tools may become available to help Hosts make informed decisions." },
+      ]},
+      { sub: "Availability & Bookings", items: [
+        { q: "Do I have to make my space available every day?", a: "No. You decide when your parking space is available." },
+        { q: "Can I change my availability?", a: "Yes. Keep your availability current so Drivers can only reserve your space when it's genuinely available." },
+        { q: "What if I need my driveway for myself?", a: "Your property remains yours. Update your availability whenever you need the parking space for yourself, household members or guests. Existing confirmed reservations should be respected in accordance with ParkShare's applicable booking policies." },
+        { q: "What should I do before a Driver arrives?", a: "Make sure the reserved space is available and reasonably easy to identify. Check that your listing photographs and instructions accurately reflect what the Driver will encounter." },
+        { q: "What makes a great ParkShare Host?", a: "Accurate information, clear photographs, reliable availability, straightforward instructions and respectful communication can all contribute to a better Driver experience." },
+      ]},
+      { sub: "Host Earnings & Payouts", items: [
+        { q: "How do Hosts earn money?", a: "When Drivers book eligible parking spaces through ParkShare, Hosts can earn income from those reservations according to ParkShare's applicable pricing, fee and payout terms." },
+        { q: "When do I get paid?", a: "Payout timing depends on ParkShare's current payment and payout process. Your account and applicable ParkShare payment information should provide the most current details." },
+        { q: "Does ParkShare charge Hosts a fee?", a: "Any applicable ParkShare fees should be clearly disclosed before they apply. Review ParkShare's current pricing and Host terms for details." },
+        { q: "Are ParkShare earnings taxable?", a: "Income earned through sharing a parking space may have tax implications. Hosts are responsible for understanding and complying with their own tax obligations. Consider consulting a qualified tax professional if you're unsure how the rules apply to you." },
+      ]},
+    ],
+  },
+  {
+    id: "payments", icon: "💳", title: "Payments & Accounts",
+    groups: [
+      { sub: "Payments", items: [
+        { q: "How do Drivers pay?", a: "Available payment methods are presented through the ParkShare booking process. Payments should be completed through ParkShare rather than arranging separate cash payments with a Host." },
+        { q: "Is my payment information secure?", a: "ParkShare uses payment infrastructure designed to facilitate transactions without requiring Hosts and Drivers to exchange payment information directly. For more information, review ParkShare's Privacy Policy and applicable payment terms." },
+        { q: "Will I receive a booking confirmation?", a: "After a successful reservation, Drivers should receive confirmation containing relevant booking information. Always verify that your reservation has been successfully confirmed before relying on the parking space." },
+      ]},
+      { sub: "Your Account", items: [
+        { q: "Do I need a ParkShare account?", a: "Certain ParkShare features, including making reservations and managing listings, may require an account." },
+        { q: "What if I forget my password?", a: "Use the password recovery option on the sign-in screen and follow the instructions provided." },
+        { q: "How do I update my information?", a: "Account information can be managed through the options available within your ParkShare account." },
+      ]},
+    ],
+  },
+  {
+    id: "trust", icon: "🛡️", title: "Trust & Safety",
+    groups: [
+      { sub: "A Community Built on Trust", items: [
+        { q: "How does ParkShare promote safe, reliable experiences?", a: "ParkShare is building its marketplace around transparency, accurate listings, accountability and respect between Hosts and Drivers. Everyone using ParkShare is expected to follow applicable ParkShare policies and treat people and property respectfully." },
+        { q: "What information should Hosts provide?", a: "Hosts should provide accurate photographs, parking instructions, availability, restrictions and other information Drivers reasonably need to understand the space they're booking." },
+        { q: "What are Drivers responsible for?", a: "Drivers should park only in their reserved space, follow applicable instructions, respect the property and leave within their confirmed reservation period." },
+        { q: "What should I do if something goes wrong?", a: "Use ParkShare's available support options and provide the relevant reservation information along with a clear description of what happened. For emergencies or situations involving immediate personal safety, contact the appropriate local emergency or public safety service first." },
+      ]},
+    ],
+  },
+];
+
+function HelpAccordionItem({ q, a, isOpen, onToggle }) {
+  return (
+    <div style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 12, overflow: "hidden" }}>
+      <button
+        onClick={onToggle}
+        style={{ width: "100%", textAlign: "left", background: "none", border: "none", padding: "13px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer" }}
+      >
+        <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, color: C.navy }}>{q}</span>
+        <span style={{ fontSize: 15, color: C.amber, flexShrink: 0, transform: isOpen ? "rotate(45deg)" : "none", transition: "transform 0.15s" }}>+</span>
+      </button>
+      {isOpen && (
+        <div style={{ padding: "0 14px 14px" }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12.5, lineHeight: 1.65, color: "#333", margin: 0 }}>{a}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Help Centre — search up top, four category cards that jump to a
+// section, and every question rendered as a collapsed accordion so the
+// page doesn't feel enormous on mobile even though it holds ~40 answers.
+// Parker gets the "customer care" headset pose here, extending his role
+// as guide into support specifically.
+// ─────────────────────────────────────────────────────────────────────────────
+function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHostClick, onDriverClick }) {
+  const [query, setQuery] = useState("");
+  const [openKeys, setOpenKeys] = useState(() => new Set());
+
+  const toggle = (key) => {
+    setOpenKeys(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+
+  // Flattened search results across every category/group, tagged with
+  // which category they came from so results still make sense out of context.
+  const searchResults = searching
+    ? HELP_DATA.flatMap(cat =>
+        cat.groups.flatMap((grp, gi) =>
+          grp.items
+            .map((item, ii) => ({ ...item, key: cat.id + "-" + gi + "-" + ii, catTitle: cat.title, catIcon: cat.icon }))
+            .filter(item => item.q.toLowerCase().includes(q) || item.a.toLowerCase().includes(q))
+        )
+      )
+    : [];
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+
+      {/* Hero + search */}
+      <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "30px 24px 26px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>ParkShare Help Centre</div>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 23, color: C.white, margin: "0 0 16px" }}>How can we help?</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.white, borderRadius: 12, padding: "12px 14px" }}>
+          <span style={{ fontSize: 16 }}>🔍</span>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search ParkShare Help..."
+            style={{ flex: 1, border: "none", outline: "none", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, color: C.navy, background: "transparent" }}
+          />
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+
+        {searching ? (
+          /* Search mode — flat, filtered results only */
+          <div style={{ marginBottom: 28 }}>
+            <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
+              {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{query}"
+            </p>
+            {searchResults.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
+                <p style={{ fontSize: 13.5, color: C.muted, marginBottom: 12 }}>Parker couldn't find an answer for that.</p>
+                <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Contact Support</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {searchResults.map(item => (
+                  <div key={item.key}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4, marginLeft: 2 }}>{item.catIcon} {item.catTitle}</div>
+                    <HelpAccordionItem q={item.q} a={item.a} isOpen={openKeys.has(item.key)} onToggle={() => toggle(item.key)} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Category cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
+              {HELP_DATA.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => scrollTo(cat.id)}
+                  style={{ background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "18px 12px", textAlign: "center", cursor: "pointer" }}
+                >
+                  <div style={{ fontSize: 26, marginBottom: 8 }}>{cat.icon}</div>
+                  <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.navy, lineHeight: 1.3 }}>{cat.title}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* Parker, in his customer-care role */}
+            <div style={{ marginBottom: 28 }}>
+              <ParkerTip pose="headset">
+                Tap a topic above, search up top, or scroll down — I've grouped every answer by who's asking.
+              </ParkerTip>
+            </div>
+
+            {/* Full accordion content, grouped by category */}
+            {HELP_DATA.map(cat => (
+              <section key={cat.id} id={cat.id} style={{ scrollMarginTop: 20, marginBottom: 32 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                  <span style={{ fontSize: 18 }}>{cat.icon}</span>
+                  <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>{cat.title}</h2>
+                </div>
+                {cat.groups.map((grp, gi) => (
+                  <div key={gi} style={{ marginBottom: 16 }}>
+                    <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{grp.sub}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {grp.items.map((item, ii) => {
+                        const key = cat.id + "-" + gi + "-" + ii;
+                        return <HelpAccordionItem key={key} q={item.q} a={item.a} isOpen={openKeys.has(key)} onToggle={() => toggle(key)} />;
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {cat.id === "trust" && (
+                  <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Learn More About Trust &amp; Safety →</button>
+                )}
+              </section>
+            ))}
+          </>
+        )}
+
+        {/* Still Need Help? */}
+        <section style={{ marginBottom: 28, background: C.navy, borderRadius: 16, padding: "22px 20px", textAlign: "center" }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 4px" }}>Parker couldn't find the answer?</p>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12.5, color: "rgba(255,255,255,0.75)", margin: "0 0 16px", lineHeight: 1.6 }}>
+            Sometimes you just need to talk to someone. Tell us how we can help, and provide your account info and reservation number where applicable.
+          </p>
+          <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 24px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>Contact ParkShare Support</button>
+        </section>
+
+        {/* Closing */}
+        <section style={{ textAlign: "center", marginBottom: 28 }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 20px" }}>Parking should be simple.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
+            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+          </div>
+        </section>
+      </div>
+
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+    </div>
+  );
+}
+
+function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
@@ -4979,7 +5235,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
+      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -5186,6 +5442,7 @@ export default function App() {
   const openHost = () => setScreen("host");
   const openDriver = () => setScreen("driver");
   const openAbout = () => setScreen("about");
+  const openHelp = () => setScreen("help");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
   const changeTab = (t) => { setScreen("app"); setTab(t); };
@@ -5248,6 +5505,7 @@ export default function App() {
           onHostClick={openHost}
           onDriverClick={openDriver}
           onAboutClick={openAbout}
+          onHelpClick={openHelp}
         />
       ) : screen === "legal" ? (
         <LegalPage
@@ -5260,6 +5518,7 @@ export default function App() {
           onContactClick={openContact}
           onTrustClick={openTrust}
           onAboutClick={openAbout}
+          onHelpClick={openHelp}
         />
       ) : screen === "trust" ? (
         <TrustPage
@@ -5274,6 +5533,7 @@ export default function App() {
           onAboutClick={openAbout}
           onHostClick={openHost}
           onDriverClick={openDriver}
+          onHelpClick={openHelp}
         />
       ) : screen === "about" ? (
         <AboutPage
@@ -5286,6 +5546,22 @@ export default function App() {
           onLegalClick={openLegal}
           onContactClick={openContact}
           onTrustClick={openTrust}
+          onHostClick={openHost}
+          onDriverClick={openDriver}
+          onHelpClick={openHelp}
+        />
+      ) : screen === "help" ? (
+        <HelpPage
+          tab={tab}
+          onTabChange={changeTab}
+          onLogoClick={goHome}
+          user={user}
+          onShowAuth={() => setShowAuth(true)}
+          onSignOut={handleSignOut}
+          onLegalClick={openLegal}
+          onContactClick={openContact}
+          onTrustClick={openTrust}
+          onAboutClick={openAbout}
           onHostClick={openHost}
           onDriverClick={openDriver}
         />
@@ -5302,6 +5578,7 @@ export default function App() {
           onTrustClick={openTrust}
           onGetStarted={handleHostGetStarted}
           onAboutClick={openAbout}
+          onHelpClick={openHelp}
         />
       ) : screen === "driver" ? (
         <DriverPage
@@ -5317,6 +5594,7 @@ export default function App() {
           onFindParking={handleFindParking}
           onAboutClick={openAbout}
           onHostClick={openHost}
+          onHelpClick={openHelp}
         />
       ) : screen === "contact" ? (
         <ContactPage
@@ -5329,6 +5607,7 @@ export default function App() {
           onLegalClick={openLegal}
           onTrustClick={openTrust}
           onAboutClick={openAbout}
+          onHelpClick={openHelp}
         />
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
@@ -5366,7 +5645,7 @@ export default function App() {
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <FloatingParkerHelp />
-          <Footer onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} />
+          <Footer onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} />
         </div>
       )}
       {showAuth && <SignInModal onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
