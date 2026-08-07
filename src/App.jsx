@@ -3526,31 +3526,52 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
 
       {/* Audience split — routes visitors to a dedicated page for their
           situation immediately, instead of making both hosts and drivers
-          read through the same generic homepage. */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", display: "flex", flexDirection: "column", gap: 10 }}>
-        <button
-          onClick={onHostClick}
-          style={{ display: "flex", alignItems: "center", gap: 14, textAlign: "left", width: "100%", background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "16px 18px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", cursor: "pointer" }}
-        >
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏠</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>For hosts</div>
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.navy, lineHeight: 1.45 }}>Your driveway sits empty while you're at work. What if it earned money instead?</div>
-          </div>
-          <span style={{ fontSize: 18, color: C.navy, flexShrink: 0 }}>›</span>
-        </button>
+          read through the same generic homepage. The host card leads with
+          the value proposition ("turn income into...") since "find parking"
+          is self-explanatory but the host opportunity needs more selling —
+          and both cards end in an explicit, equally weighted action label
+          so neither path requires guessing what happens next. */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+        <div style={{ textAlign: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
+          Two ways to ParkShare
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <button
+            onClick={onHostClick}
+            style={{ textAlign: "left", width: "100%", background: C.amber, border: "3px solid " + C.navy, borderRadius: 18, padding: "20px 20px", boxShadow: "0 3px 12px rgba(14,27,46,0.15)", cursor: "pointer" }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+              <div style={{ width: 46, height: 46, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>🏠</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 10.5, color: C.navy, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, opacity: 0.7 }}>For hosts</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 19, color: C.navy, lineHeight: 1.2, marginBottom: 6 }}>Turn your empty driveway into income</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12.5, color: C.navy, lineHeight: 1.5, opacity: 0.85 }}>Your driveway sits empty while you're at work. What if it earned money instead?</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.navy, borderRadius: 10, padding: "11px 16px" }}>
+              <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.white }}>Become a Host</span>
+              <span style={{ fontSize: 15, color: C.amber }}>→</span>
+            </div>
+          </button>
 
-        <button
-          onClick={onDriverClick}
-          style={{ display: "flex", alignItems: "center", gap: 14, textAlign: "left", width: "100%", background: C.navy, border: "2px solid " + C.navy, borderRadius: 16, padding: "16px 18px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", cursor: "pointer" }}
-        >
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🚗</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 3 }}>For drivers</div>
-            <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 13.5, color: C.white, lineHeight: 1.45 }}>Imagine arriving knowing your parking spot is waiting for you.</div>
-          </div>
-          <span style={{ fontSize: 18, color: C.amber, flexShrink: 0 }}>›</span>
-        </button>
+          <button
+            onClick={onDriverClick}
+            style={{ textAlign: "left", width: "100%", background: C.navy, border: "3px solid " + C.navy, borderRadius: 18, padding: "20px 20px", boxShadow: "0 3px 12px rgba(14,27,46,0.15)", cursor: "pointer" }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+              <div style={{ width: 46, height: 46, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>🚗</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 10.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>For drivers</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 19, color: C.white, lineHeight: 1.2, marginBottom: 6 }}>Find parking, guaranteed</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12.5, color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>Imagine arriving knowing your parking spot is waiting for you.</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.amber, borderRadius: 10, padding: "11px 16px" }}>
+              <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.navy }}>Find Parking</span>
+              <span style={{ fontSize: 15, color: C.navy }}>→</span>
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Potential Earnings — answers a homeowner's first question ("how much
@@ -4236,7 +4257,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
       <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "32px 24px 26px", textAlign: "center" }}>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>For hosts</div>
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.navy, lineHeight: 1.25, margin: "0 0 10px" }}>Turn your driveway into income</h1>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.navy, lineHeight: 1.25, margin: "0 0 10px" }}>Turn your empty driveway into income</h1>
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 15, color: C.navy, lineHeight: 1.55, margin: 0 }}>
           "Your driveway sits empty while you're at work. What if it earned money instead?"
         </p>
