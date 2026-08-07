@@ -4033,68 +4033,201 @@ function ContactField({ label, name, value, onChange, type = "text", textarea, e
   );
 }
 
-// ─── Trust & Safety — a dedicated page explaining why ParkShare is safer to
-// use, addressing the hesitation people feel before their first transaction.
-// Uses the same pill-button style as the multi-step "← Back" navigation
-// elsewhere in the app for its on-page section nav, per design direction.
+// ─── Trust & Safety — full policy-style page covering the community
+// standards, listing accuracy, payments, reviews, respect, privacy, and
+// pre-trip checklists for both Hosts and Drivers. Same pill-nav + section
+// pattern as the About page, closing with the same Find Parking / Become a
+// Host CTA pair used elsewhere.
 // ─────────────────────────────────────────────────────────────────────────────
 const TRUST_SECTIONS = [
-  { id: "verified", icon: "✅", title: "Verified users", body: "Every host and renter signs up with a verified email and phone number. Hosts complete an additional ID verification step before their first listing goes live, so you always know who you're dealing with." },
-  { id: "payments", icon: "🔒", title: "Secure payments", body: "All payments run through Stripe, a PCI-compliant payment processor — ParkShare never sees or stores your card details. Hosts get paid out directly to their own connected Stripe account." },
-  { id: "reviews", icon: "⭐", title: "Review system", body: "After every booking, hosts and renters can rate and review each other. Ratings show up publicly on listings and profiles, so reputations build over time and problems don't stay hidden." },
-  { id: "confirmations", icon: "📩", title: "Booking confirmations", body: "Every booking generates a confirmation with a unique verification code, sent by email. You'll always know exactly when and where you're parked — and hosts know exactly who to expect." },
-  { id: "privacy", icon: "🛡️", title: "Privacy protections", body: "We only share what's necessary to complete a booking — never your full contact details up front. See the Privacy Policy for exactly what's collected and how it's used." },
-  { id: "support", icon: "💬", title: "Customer support", body: "Parker's help widget is available throughout the app for quick answers, and our support team is reachable directly for anything that needs a real person." },
-  { id: "accountability", icon: "⚖️", title: "Host & driver accountability", body: "Everyone agrees to the same Terms of Service before their first booking or listing. Accounts that violate them — no-shows, property damage, unsafe listings — can be suspended, and disputes are handled by our support team." },
+  { id: "community", icon: "🤝", title: "Community" },
+  { id: "listings", icon: "📋", title: "Listings" },
+  { id: "payments", icon: "🔒", title: "Payments" },
+  { id: "reviews", icon: "⭐", title: "Reviews" },
+  { id: "respect", icon: "🏡", title: "Respect" },
+  { id: "privacy", icon: "🛡️", title: "Privacy" },
+  { id: "before-park", icon: "🚗", title: "Before You Park" },
+  { id: "before-host", icon: "🏠", title: "Before You Host" },
+  { id: "support", icon: "💬", title: "Support" },
 ];
 
-function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onAboutClick }) {
+function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onAboutClick, onHostClick, onDriverClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+  const P = ({ children, style }) => (
+    <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px", ...style }}>{children}</p>
+  );
+  const UL = ({ items, style }) => (
+    <ul style={{ margin: "0 0 12px", paddingLeft: 20, ...style }}>
+      {items.map((item, i) => (
+        <li key={i} style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", marginBottom: 4 }}>{item}</li>
+      ))}
+    </ul>
+  );
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
-        <div style={{ textAlign: "center", marginBottom: 24 }}>
+      {/* On-page nav — same pill button style used throughout the app */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+        {TRUST_SECTIONS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => scrollTo(s.id)}
+            style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, padding: "7px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+          >
+            <span>{s.icon}</span>{s.title}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+
+        {/* Intro */}
+        <section style={{ marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Trust &amp; Safety</div>
-          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.navy, margin: "0 0 8px" }}>Why ParkShare is <span style={{ color: C.amber }}>safer</span></h1>
-          <p style={{ fontSize: 14, color: C.muted, maxWidth: 480, margin: "0 auto", lineHeight: 1.6 }}>
-            Renting out your driveway or parking in someone else's takes a bit of trust. Here's exactly what ParkShare does to earn it.
-          </p>
-        </div>
+          <h1 style={{ fontWeight: 800, fontSize: 24, color: C.navy, margin: "0 0 4px" }}>Park with confidence. <span style={{ color: C.amber }}>Share</span> with confidence.</h1>
+          <P style={{ marginTop: 14 }}>Park<b>Share</b> brings Hosts and Drivers together through a simple idea: making better use of parking spaces that already exist.</P>
+          <P>For that marketplace to work, both sides need to feel confident using it.</P>
+          <P>That's why we're building ParkShare around transparency, accountability, secure transactions and respect for people and property.</P>
+          <P style={{ margin: 0 }}>Whether you're reserving a space or sharing one, we want you to know what to expect before you arrive.</P>
+        </section>
 
-        {/* On-page nav — same pill button style used for "← Back" throughout
-            the multi-step host flows elsewhere in the app. */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 36 }}>
-          {TRUST_SECTIONS.map(s => (
-            <button
-              key={s.id}
-              onClick={() => scrollTo(s.id)}
-              style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12, padding: "8px 14px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
-            >
-              <span>{s.icon}</span>{s.title}
-            </button>
-          ))}
-        </div>
+        {/* Community */}
+        <section id="community" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>A Community Built on Trust</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Great parking starts with great people.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>ParkShare is a community of Hosts who share their available parking spaces and Drivers looking for convenient places to park.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Trust works both ways.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Hosts are expected to provide accurate information about their parking space, availability, access and any important parking instructions.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Drivers are expected to respect the property they're visiting, park only in their reserved space and follow the Host's reasonable parking instructions.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: 0 }}>When everyone does their part, ParkShare works better for everyone.</p>
+        </section>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {TRUST_SECTIONS.map(s => (
-            <section key={s.id} id={s.id} style={{ scrollMarginTop: 90, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 22px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-                <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{s.icon}</div>
-                <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 17, color: C.navy, margin: 0 }}>{s.title}</h2>
-              </div>
-              <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: 0 }}>{s.body}</p>
-              {s.id === "privacy" && <button onClick={onLegalClick} style={{ background: "none", border: "none", padding: 0, marginTop: 8, color: C.moss, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Read the full Privacy Policy →</button>}
-              {s.id === "support" && <button onClick={onContactClick} style={{ background: "none", border: "none", padding: 0, marginTop: 8, color: C.moss, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Contact support →</button>}
-              {s.id === "accountability" && <button onClick={onLegalClick} style={{ background: "none", border: "none", padding: 0, marginTop: 8, color: C.moss, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Read the full Terms of Service →</button>}
-            </section>
-          ))}
-        </div>
+        {/* Clear, Accurate Listings */}
+        <section id="listings" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Clear, Accurate Listings</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Know what to expect before you arrive.</p>
+          <P>A great parking experience starts with good information.</P>
+          <P>ParkShare encourages Hosts to provide clear and accurate details about their parking spaces, including:</P>
+          <UL items={["Location", "Availability", "Pricing", "Photos", "Space characteristics", "Vehicle restrictions", "Access instructions", "Other important information Drivers should know before booking"]} />
+          <P>Drivers should review the complete listing before making a reservation to ensure the space is suitable for their vehicle and needs.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>No surprises. Just better-informed parking decisions.</P>
+        </section>
+
+        {/* Secure Payments */}
+        <section id="payments" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🔒</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>Secure Payments</h2>
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Simple transactions. Secure payment processing.</p>
+          <P>ParkShare is designed to make paying for parking straightforward.</P>
+          <P>Payments are processed through ParkShare's secure payment infrastructure so Hosts and Drivers don't need to arrange cash payments or exchange payment information directly with one another.</P>
+          <P>Drivers can reserve and pay through the ParkShare platform, while Hosts can manage their earnings and eligible payouts through their account.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Simple for Drivers. Simple for Hosts.</P>
+        </section>
+
+        {/* Ratings & Reviews */}
+        <section id="reviews" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Ratings &amp; Reviews</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Better experiences start with accountability.</p>
+          <P>Community feedback helps marketplaces become stronger.</P>
+          <P>Ratings and reviews can help Drivers make informed decisions about where they park while helping great Hosts build their reputation within the ParkShare community.</P>
+          <P>They also encourage everyone to provide the kind of experience they'd want to receive themselves.</P>
+          <P style={{ margin: 0 }}>As the ParkShare community grows, authentic feedback will become an important part of helping Hosts and Drivers make confident decisions.</P>
+        </section>
+
+        {/* Respect for People & Property */}
+        <section id="respect" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>Respect for People &amp; Property</div>
+          <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Treat every space like it's your own.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 8px" }}>Every ParkShare parking space belongs to someone.</p>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.navy, margin: "0 0 4px" }}>Drivers should:</p>
+          <ul style={{ margin: "0 0 12px", paddingLeft: 20 }}>
+            {["Park only in the space they've reserved", "Follow the Host's parking and access instructions", "Arrive and leave within the reserved booking period", "Avoid blocking entrances, vehicles, sidewalks or neighbouring properties", "Leave the space as they found it", "Communicate respectfully"].map((t, i) => (
+              <li key={i} style={{ fontSize: 13.5, lineHeight: 1.7, color: C.navy, marginBottom: 4 }}>{t}</li>
+            ))}
+          </ul>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.navy, margin: "0 0 4px" }}>Hosts should:</p>
+          <ul style={{ margin: "0 0 12px", paddingLeft: 20 }}>
+            {["Make sure the listed space is actually available", "Provide accurate information and instructions", "Keep access to the reserved space reasonably clear", "Clearly disclose relevant restrictions", "Respect the Driver's reservation", "Communicate respectfully"].map((t, i) => (
+              <li key={i} style={{ fontSize: 13.5, lineHeight: 1.7, color: C.navy, marginBottom: 4 }}>{t}</li>
+            ))}
+          </ul>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.navy, margin: 0 }}>A little consideration goes a long way.</p>
+        </section>
+
+        {/* Your Information Matters */}
+        <section id="privacy" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Your Information Matters</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Privacy is part of trust.</p>
+          <P>Using a marketplace requires sharing certain information.</P>
+          <P>ParkShare is committed to handling personal information responsibly and using it to operate and improve the platform, facilitate reservations, support users and provide the services described in our policies.</P>
+          <P>We believe users should understand how their information is handled.</P>
+          <P style={{ margin: 0 }}>
+            For additional information, please review ParkShare's{" "}
+            <span onClick={onLegalClick} style={{ color: C.moss, textDecoration: "underline", fontWeight: 600, cursor: "pointer" }}>Privacy Policy and Terms of Service</span>.
+          </P>
+        </section>
+
+        {/* Before You Park */}
+        <section id="before-park" style={{ scrollMarginTop: 20, marginBottom: 16, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🚗</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>Before You Park</h2>
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>A few seconds of preparation can make every booking easier.</p>
+          <P>Before arriving, Drivers should review:</P>
+          <UL items={["The parking address", "Their reservation start and end times", "Listing photographs", "Access instructions", "Vehicle or space restrictions", "Any additional Host instructions"]} />
+          <P>If something doesn't look right, don't guess.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Use ParkShare's available support or communication tools to get clarification.</P>
+        </section>
+
+        {/* Before You Host */}
+        <section id="before-host" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🏠</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>Before You Host</h2>
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Set your Drivers up for a great experience.</p>
+          <P>Before making a space available, Hosts should make sure:</P>
+          <UL items={["The listing accurately represents the parking space", "The space will be available during listed times", "Photographs are current", "Instructions are clear", "Any restrictions are disclosed", "Drivers can reasonably identify the correct parking space when they arrive"]} />
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Clear listings create confident Drivers — and better parking experiences.</P>
+        </section>
+
+        {/* Something Went Wrong? */}
+        <section id="support" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Something Went Wrong?</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>We're here to help.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Even with good planning, questions or problems can occasionally happen.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>If you experience an issue with a reservation, parking space, payment or another ParkShare user, use the ParkShare support options available through the platform.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Providing the reservation details and a clear explanation of what happened will help us better understand the situation.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 14px" }}>For urgent situations involving personal safety, property damage or an emergency, contact the appropriate local emergency or public safety service first.</p>
+          <button onClick={onContactClick} style={{ background: "none", border: "none", padding: 0, color: C.amber, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Contact support →</button>
+        </section>
+
+        {/* Building a Better Parking Community + closing */}
+        <section style={{ marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Building a Better Parking Community</div>
+          <P>ParkShare isn't simply connecting cars with empty spaces.</P>
+          <P>We're creating a marketplace built around better use of the space communities already have.</P>
+          <P>That requires trust. It requires accountability.</P>
+          <P>And it requires Hosts and Drivers who treat one another — and the places they share — with respect.</P>
+          <P style={{ margin: 0 }}>We're committed to continuing to improve the ParkShare experience as our community grows.</P>
+        </section>
+
+        <section style={{ textAlign: "center", marginBottom: 28 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 6px" }}>Parking should feel simple. And it should feel secure.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 20px" }}>ParkShare is building a community where Hosts and Drivers can connect with confidence.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
+            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+          </div>
+        </section>
       </div>
 
       <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onAboutClick={onAboutClick} />
@@ -4691,6 +4824,8 @@ export default function App() {
           onLegalClick={openLegal}
           onContactClick={openContact}
           onAboutClick={openAbout}
+          onHostClick={openHost}
+          onDriverClick={openDriver}
         />
       ) : screen === "about" ? (
         <AboutPage
