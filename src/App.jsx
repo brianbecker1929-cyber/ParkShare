@@ -3229,11 +3229,12 @@ function FloatingParkerHelp() {
 
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
-function Footer({ onLegalClick, onContactClick, onTrustClick }) {
+function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick }) {
   const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, minWidth: 70, height: 38, padding: "0 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
   return (
     <footer style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
+        <button style={btnStyle} onClick={onAboutClick}>About Us</button>
         <button style={btnStyle} onClick={onContactClick}>Contact Us</button>
         <button style={btnStyle} onClick={onTrustClick}>Trust &amp; Safety</button>
         <button style={btnStyle} onClick={onLegalClick}>Legal &amp; T/C</button>
@@ -3423,7 +3424,7 @@ function FoundingHostsCard({ onShowAuth }) {
   );
 }
 
-function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick }) {
+function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick }) {
   const allListings = useAllListings();
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -3681,7 +3682,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       </div>
 
       <div style={{ marginTop: 0 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} />
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
       </div>
     </div>
   );
@@ -3725,7 +3726,7 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick }) {
+function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick }) {
   const UPDATED = "July 18, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -3983,7 +3984,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
-      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} />
+      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
     </div>
   );
 }
@@ -4026,7 +4027,7 @@ const TRUST_SECTIONS = [
   { id: "accountability", icon: "⚖️", title: "Host & driver accountability", body: "Everyone agrees to the same Terms of Service before their first booking or listing. Accounts that violate them — no-shows, property damage, unsafe listings — can be suspended, and disputes are handled by our support team." },
 ];
 
-function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick }) {
+function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onAboutClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4075,7 +4076,149 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onAboutClick={onAboutClick} />
+    </div>
+  );
+}
+
+// ─── About page — the company story, mission, vision, and Parker's role,
+// using the same pill-nav pattern as the Trust page for a long, section-
+// based read. Closing CTAs route straight into the Driver/Host pages.
+// ─────────────────────────────────────────────────────────────────────────────
+const ABOUT_SECTIONS = [
+  { id: "about", icon: "🅿️", title: "About" },
+  { id: "mission", icon: "🎯", title: "Mission" },
+  { id: "vision", icon: "🔭", title: "Vision" },
+  { id: "hosts", icon: "🏠", title: "Hosts" },
+  { id: "drivers", icon: "🚗", title: "Drivers" },
+  { id: "parker", icon: "👋", title: "Meet Parker" },
+  { id: "canadian", icon: "🇨🇦", title: "Canadian" },
+];
+
+function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick }) {
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const P = ({ children, style }) => (
+    <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px", ...style }}>{children}</p>
+  );
+  return (
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+
+      {/* On-page nav — same pill button style used throughout the app */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+        {ABOUT_SECTIONS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => scrollTo(s.id)}
+            style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, padding: "7px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+          >
+            <span>{s.icon}</span>{s.title}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+
+        {/* About ParkShare */}
+        <section id="about" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <h1 style={{ fontWeight: 800, fontSize: 24, color: C.navy, margin: "0 0 4px" }}>About Park<span style={{ color: C.amber }}>Share</span></h1>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>There's space all around us. Let's put it to better use.</p>
+          <P>Every day, millions of parking spaces sit empty while drivers circle neighbourhoods, commute to work, attend events, visit businesses and search for somewhere convenient to park.</P>
+          <P>We saw an opportunity to connect the two.</P>
+          <P>Park<b>Share</b> is Canada's driveway rental marketplace — connecting people who have parking space with people who need it.</P>
+          <P>Homeowners can turn an underused driveway or parking space into an opportunity to earn additional income, while drivers gain access to convenient parking in the places they actually want to be.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Simple for Hosts. Convenient for Drivers. Better use of the space we already have.</P>
+        </section>
+
+        {/* Our Mission */}
+        <section id="mission" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Our Mission</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Unlock the potential of every parking space.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Our mission is to make parking easier by connecting drivers with homeowners and property owners who have space to share.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>For Hosts, that means creating value from space that might otherwise sit empty.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>For Drivers, it means more choice, greater convenience and the ability to know where they're going to park before they arrive.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: 0 }}>ParkShare brings both sides together in one simple marketplace.</p>
+        </section>
+
+        {/* Our Vision */}
+        <section id="vision" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Our Vision</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A world where finding parking is effortless.</p>
+          <P>We envision communities where existing parking spaces are used more intelligently.</P>
+          <P>Where a driveway sitting empty during the day can serve someone working nearby.</P>
+          <P>Where a parking space near a stadium can help a fan get to the game.</P>
+          <P>Where a homeowner can earn additional income from something they already own.</P>
+          <P>And where drivers can spend less time searching for parking and more time getting where they need to go.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>We believe the future of parking isn't just about building more spaces. It's about making better use of the spaces we already have.</P>
+        </section>
+
+        {/* One Marketplace. Shared Value. */}
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 19, color: C.navy }}>One Marketplace. Shared Value.</div>
+        </div>
+
+        <section id="hosts" style={{ scrollMarginTop: 20, marginBottom: 16, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🏠</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>For Hosts</h2>
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Your empty space has potential.</p>
+          <P>Whether your driveway is available every weekday, only during certain hours, or occasionally during local events, ParkShare gives you a way to put that space to work.</P>
+          <P>You control when your space is available. You control your listing. And you decide when you want to share it.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Your driveway. Your schedule. Your opportunity.</P>
+        </section>
+
+        <section id="drivers" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🚗</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>For Drivers</h2>
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Know where you're going to park before you arrive.</p>
+          <P>ParkShare is designed to make finding parking simpler.</P>
+          <P>Discover available spaces, compare your options, reserve a spot and head to your destination knowing your parking is waiting for you.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Less searching. Less uncertainty. Better parking.</P>
+        </section>
+
+        {/* Meet Parker */}
+        <section id="parker" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Meet Parker</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Your friendly guide to better parking.</p>
+          <ParkerTip pose="fullbody" style={{ marginBottom: 12 }}>
+            Parker is more than our mascot — he's here to make hosting and parking feel simple.
+          </ParkerTip>
+          <P>Parker is more than our mascot. He represents what we want every interaction with ParkShare to feel like: friendly, helpful, approachable and easy.</P>
+          <P>Whether you're listing your first driveway or looking for a spot near your destination, Parker is here to help make the experience a little simpler — and a lot more fun.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Because parking doesn't have to be complicated.</P>
+        </section>
+
+        {/* Proudly Canadian */}
+        <section id="canadian" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>Proudly Canadian</div>
+          <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Built in Canada. Designed for communities everywhere.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>ParkShare was created in Canada around a simple idea: communities already have an enormous amount of parking infrastructure sitting unused.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>By connecting those spaces with the people who need them, we can create new opportunities for homeowners, more choices for drivers and better utilization of the communities we've already built.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, fontWeight: 700, margin: 0 }}>We're starting at home. But our vision goes much further.</p>
+        </section>
+
+        {/* We're Just Getting Started — closing */}
+        <section style={{ textAlign: "center", marginBottom: 28 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 10px" }}>We're Just Getting Started</p>
+          <P style={{ textAlign: "center" }}>ParkShare isn't simply about finding somewhere to leave your car. It's about unlocking something that has been hiding in plain sight.</P>
+          <p style={{ fontWeight: 800, fontSize: 16, color: C.navy, margin: "0 0 20px" }}>Millions of spaces. Millions of destinations. One marketplace connecting them. And we're only getting started.</p>
+
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.navy, marginBottom: 14 }}>Ready to ParkShare?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
+            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+          </div>
+        </section>
+      </div>
+
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
     </div>
   );
 }
@@ -4085,7 +4228,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // and Founding Hosts CTA used on the homepage, so the message and numbers
 // never drift out of sync between the two places they appear.
 // ─────────────────────────────────────────────────────────────────────────────
-function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted }) {
+function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted, onAboutClick }) {
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
@@ -4114,7 +4257,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
       </div>
 
       <div style={{ marginTop: 32 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} />
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
       </div>
     </div>
   );
@@ -4124,7 +4267,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 // card. Leads with the pain point, then routes straight into the real
 // Browse map rather than duplicating search UI here.
 // ─────────────────────────────────────────────────────────────────────────────
-function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking }) {
+function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick }) {
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
@@ -4162,13 +4305,13 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
       </div>
 
       <div style={{ marginTop: 32 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} />
+        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
       </div>
     </div>
   );
 }
 
-function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick }) {
+function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick }) {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
@@ -4234,7 +4377,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} />
+      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
     </div>
   );
 }
@@ -4440,6 +4583,7 @@ export default function App() {
   const openTrust = () => setScreen("trust");
   const openHost = () => setScreen("host");
   const openDriver = () => setScreen("driver");
+  const openAbout = () => setScreen("about");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
   const changeTab = (t) => { setScreen("app"); setTab(t); };
@@ -4501,6 +4645,7 @@ export default function App() {
           onTrustClick={openTrust}
           onHostClick={openHost}
           onDriverClick={openDriver}
+          onAboutClick={openAbout}
         />
       ) : screen === "legal" ? (
         <LegalPage
@@ -4512,6 +4657,7 @@ export default function App() {
           onSignOut={handleSignOut}
           onContactClick={openContact}
           onTrustClick={openTrust}
+          onAboutClick={openAbout}
         />
       ) : screen === "trust" ? (
         <TrustPage
@@ -4523,6 +4669,21 @@ export default function App() {
           onSignOut={handleSignOut}
           onLegalClick={openLegal}
           onContactClick={openContact}
+          onAboutClick={openAbout}
+        />
+      ) : screen === "about" ? (
+        <AboutPage
+          tab={tab}
+          onTabChange={changeTab}
+          onLogoClick={goHome}
+          user={user}
+          onShowAuth={() => setShowAuth(true)}
+          onSignOut={handleSignOut}
+          onLegalClick={openLegal}
+          onContactClick={openContact}
+          onTrustClick={openTrust}
+          onHostClick={openHost}
+          onDriverClick={openDriver}
         />
       ) : screen === "host" ? (
         <HostPage
@@ -4536,6 +4697,7 @@ export default function App() {
           onContactClick={openContact}
           onTrustClick={openTrust}
           onGetStarted={handleHostGetStarted}
+          onAboutClick={openAbout}
         />
       ) : screen === "driver" ? (
         <DriverPage
@@ -4549,6 +4711,7 @@ export default function App() {
           onContactClick={openContact}
           onTrustClick={openTrust}
           onFindParking={handleFindParking}
+          onAboutClick={openAbout}
         />
       ) : screen === "contact" ? (
         <ContactPage
@@ -4560,6 +4723,7 @@ export default function App() {
           onSignOut={handleSignOut}
           onLegalClick={openLegal}
           onTrustClick={openTrust}
+          onAboutClick={openAbout}
         />
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
@@ -4597,7 +4761,7 @@ export default function App() {
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <FloatingParkerHelp />
-          <Footer onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} />
+          <Footer onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} />
         </div>
       )}
       {showAuth && <SignInModal onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
