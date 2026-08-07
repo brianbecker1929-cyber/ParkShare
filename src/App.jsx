@@ -4710,50 +4710,206 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
   );
 }
 
+const DRIVER_SECTIONS = [
+  { id: "how", icon: "🔎", title: "How It Works" },
+  { id: "choice", icon: "🗺️", title: "More Choice" },
+  { id: "know", icon: "✅", title: "Know Before You Go" },
+  { id: "fits", icon: "🕐", title: "Fits Your Plans" },
+  { id: "confidence", icon: "🛡️", title: "Confidence" },
+];
+
 // ─── Driver page — dedicated landing spot for the "For drivers" homepage
-// card. Leads with the pain point, then routes straight into the real
-// Browse map rather than duplicating search UI here.
+// card. Full policy-style page (hero, how-it-works, choice, certainty,
+// flexibility, convenience, trust, Meet Parker, closing) using the same
+// pill-nav pattern as Trust & Safety, About, and the Host page.
 // ─────────────────────────────────────────────────────────────────────────────
-function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick }) {
+function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick, onHostClick }) {
+  const scrollTo = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const P = ({ children, style }) => (
+    <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px", ...style }}>{children}</p>
+  );
+  const UL = ({ items, style }) => (
+    <ul style={{ margin: "0 0 12px", paddingLeft: 20, ...style }}>
+      {items.map((item, i) => (
+        <li key={i} style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", marginBottom: 4 }}>{item}</li>
+      ))}
+    </ul>
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
+      {/* Hero */}
       <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>For drivers</div>
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: "0 0 10px" }}>Never circle the block again</h1>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 15, color: "rgba(255,255,255,0.85)", lineHeight: 1.55, margin: 0 }}>
-          "Imagine arriving knowing your parking spot is waiting for you."
-        </p>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Park with ParkShare</div>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.white, lineHeight: 1.3, margin: "0 0 16px" }}>Your parking spot is waiting for you.</h1>
+        <button onClick={onFindParking} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
       </div>
 
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 0" }}>
-        <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🚗</div>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
-            David searched 20 minutes for parking every morning. Now he books the same driveway in advance.
-          </p>
-        </div>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "10px 0 0" }}>
-          Illustrative example, not a verified customer review.
-        </p>
+      {/* On-page nav */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+        {DRIVER_SECTIONS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => scrollTo(s.id)}
+            style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, padding: "7px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+          >
+            <span>{s.icon}</span>{s.title}
+          </button>
+        ))}
       </div>
 
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-        <ParkerTip pose="fullbody">
-          Book ahead, get a verification code, and know exactly where you're parking before you leave home.
-        </ParkerTip>
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+
+        <section style={{ marginBottom: 28 }}>
+          <P>Finding parking shouldn't be the hardest part of getting somewhere.</P>
+          <P>ParkShare helps Drivers discover available parking spaces offered by local Hosts — giving you more options in the places you want to go.</P>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Search. Compare. Reserve. Park.</p>
+          <P style={{ margin: 0 }}>Spend less time looking for parking and more time getting where you're going.</P>
+        </section>
+
+        {/* Parking Made Simple */}
+        <section style={{ marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Parking Made Simple</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Know where you're going before you arrive.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>We've all been there.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>You're heading to work, meeting friends, attending an event or visiting somewhere new — and then comes the question: Where am I going to park?</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>ParkShare is designed to answer that question before you arrive.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Search for available parking near your destination, review your options and reserve the space that works for you.</p>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.amber, margin: 0 }}>Your destination shouldn't come with a parking headache.</p>
+        </section>
+
+        {/* How ParkShare Works */}
+        <section id="how" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>How ParkShare Works</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>From search to parked in four simple steps.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+            {[
+              { n: 1, t: "Search", d: "Enter where you're going and when you need parking. ParkShare helps you discover available spaces around your destination." },
+              { n: 2, t: "Compare", d: "Review available parking options and choose the space that best fits your needs. Consider location, price, photographs, parking instructions and other listing details before reserving." },
+              { n: 3, t: "Reserve", d: "Select your parking space and complete your reservation through ParkShare. Your booking details are kept together so you know where you're going and when your reservation begins." },
+              { n: 4, t: "Park", d: "Follow the Host's parking instructions, arrive during your reserved time and park in your designated space." },
+            ].map(step => (
+              <div key={step.n} style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{step.n}</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 3 }}>{step.t}</div>
+                  <div style={{ fontSize: 12.5, color: "#333", lineHeight: 1.6 }}>{step.d}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: 0 }}>That's it. You're parked.</p>
+        </section>
+
+        {/* More Choice. Less Searching. */}
+        <section id="choice" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>More Choice. Less Searching.</div>
+          <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Parking where people already have space.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 8px" }}>Traditional parking isn't available everywhere you need it.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 8px" }}>But driveways and private parking spaces are all around us.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 8px" }}>ParkShare helps unlock some of that existing parking capacity by connecting Drivers with Hosts who have space available.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 6px" }}>That can mean more parking choices near:</p>
+          <ul style={{ margin: "0 0 12px", paddingLeft: 20 }}>
+            {["Workplaces", "Transit stations", "Shopping areas", "Restaurants", "Entertainment districts", "Universities and colleges", "Sporting events", "Concerts and festivals", "Hospitals and appointments", "Airports and transportation hubs", "Popular neighbourhood destinations"].map((t, i) => (
+              <li key={i} style={{ fontSize: 13.5, lineHeight: 1.7, color: C.navy, marginBottom: 4 }}>{t}</li>
+            ))}
+          </ul>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.navy, margin: 0 }}>Sometimes the best parking space isn't in a parking garage. It's around the corner.</p>
+        </section>
+
+        {/* Know Before You Go */}
+        <section id="know" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Know Before You Go</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>More certainty before you leave home.</p>
+          <P>One of the most frustrating parts of parking is uncertainty.</P>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>Will there be a space?</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>How much will it cost?</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>How far will I have to walk?</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px" }}>Where exactly am I supposed to park?</p>
+          <P>ParkShare is designed to give Drivers useful information before making a reservation.</P>
+          <P>Review the listing, photographs, location, pricing, availability and Host instructions before you book.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Then head toward your destination knowing you've already taken care of parking.</P>
+        </section>
+
+        {/* Parking That Fits Your Plans */}
+        <section id="fits" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Parking That Fits Your Plans</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Different destinations. Different parking needs.</p>
+          <P>Not every parking trip is the same.</P>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>You might need a space for an hour while you have an appointment.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>A few hours while you attend a game.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>A workday near the office.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 4px" }}>An evening downtown.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px" }}>Or regular parking near a destination you visit frequently.</p>
+          <P style={{ margin: 0 }}>ParkShare gives Hosts the flexibility to make their spaces available at different times — creating more options for Drivers with different parking needs.</P>
+        </section>
+
+        {/* Built Around Convenience */}
+        <section style={{ marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Built Around Convenience</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Your time belongs at your destination — not circling the block.</p>
+          <P>Parking shouldn't mean driving around hoping something becomes available.</P>
+          <P>ParkShare is designed to make the experience more predictable:</P>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            {["Search before you leave.", "Compare your options.", "Reserve your space.", "Follow the directions.", "Park and get on with your day."].map((t, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ color: C.amber, fontSize: 14 }}>✓</span>
+                <span style={{ fontSize: 13.5, color: "#333" }}>{t}</span>
+              </div>
+            ))}
+          </div>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Simple parking is better parking.</P>
+        </section>
+
+        {/* Parking With Confidence */}
+        <section id="confidence" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Parking With Confidence</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Clear information. Secure transactions. A community built on trust.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>ParkShare is building a marketplace where Hosts and Drivers can connect confidently.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>Clear listings help you understand what you're reserving.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>Secure payment processing keeps the transaction within the ParkShare experience.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>Ratings and reviews can help our community make better-informed decisions as ParkShare grows.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 14px" }}>And community standards help establish expectations for both Hosts and Drivers.</p>
+          <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.amber, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Explore Trust &amp; Safety →</button>
+        </section>
+
+        {/* Meet Parker */}
+        <section style={{ marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Meet Parker</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Your parking sidekick.</p>
+          <ParkerTip pose="fullbody">
+            Parker has one job: help make parking easier. From finding a space to understanding your reservation, he's here to keep it friendly, helpful and uncomplicated.
+          </ParkerTip>
+          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "12px 0 0" }}>Because getting somewhere should be the memorable part of your day. Finding parking shouldn't be.</p>
+        </section>
+
+        {/* Great Parking Starts Before You Arrive */}
+        <section style={{ marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px", textAlign: "center" }}>
+          <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Great Parking Starts Before You Arrive</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 6px" }}>Imagine heading to a busy destination without wondering where you'll park.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 4px" }}>Your plans are made.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>Your destination is set. And your parking is already taken care of.</p>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.navy, margin: 0 }}>That's the experience we're building at ParkShare.</p>
+        </section>
+
+        {/* Closing */}
+        <section style={{ textAlign: "center", marginBottom: 28 }}>
+          <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: "0 0 8px" }}>Stop Searching. Start Parking.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 20px" }}>Find convenient parking from local Hosts and get where you're going with one less thing to worry about.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onFindParking} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
+            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+          </div>
+        </section>
       </div>
 
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0", textAlign: "center" }}>
-        <button onClick={onFindParking} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 30px", fontFamily: "'Poppins', sans-serif", fontSize: 14.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find parking near you →</button>
-        <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, marginTop: 12, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>How ParkShare keeps drivers safe →</button>
-      </div>
-
-      <div style={{ marginTop: 32 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
-      </div>
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} />
     </div>
   );
 }
@@ -5161,6 +5317,7 @@ export default function App() {
           onTrustClick={openTrust}
           onFindParking={handleFindParking}
           onAboutClick={openAbout}
+          onHostClick={openHost}
         />
       ) : screen === "contact" ? (
         <ContactPage
