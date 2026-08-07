@@ -5114,7 +5114,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
             {/* Parker, in his customer-care role */}
             <div style={{ marginBottom: 28 }}>
-              <ParkerTip pose="headset">
+              <ParkerTip pose="thinking">
                 Tap a topic above, search up top, or scroll down — I've grouped every answer by who's asking.
               </ParkerTip>
             </div>
