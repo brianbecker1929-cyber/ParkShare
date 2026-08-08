@@ -2,7 +2,179 @@
   box-sizing: border-box;
 }
 
+html {
+  background: #FAF7F0;
+}
+
 body {
   margin: 0;
+  min-width: 320px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #FAF7F0;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+/* --------------------------------------------------------------------------
+   ParkShare responsive foundation
+   Mobile remains the default. Desktop enhancements begin at 1024px so the
+   current phone experience is preserved rather than simply scaled up.
+   -------------------------------------------------------------------------- */
+
+.ps-header-row,
+.ps-footer,
+.ps-landing-hero-grid,
+.ps-two-ways-section,
+.ps-home-search {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .ps-header-row {
+    padding-left: 28px !important;
+    padding-right: 28px !important;
+  }
+
+  .ps-two-ways-section,
+  .ps-home-search {
+    max-width: 760px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ps-header-row {
+    max-width: 1280px;
+    margin: 0 auto;
+    min-height: 84px;
+    padding: 10px 32px !important;
+  }
+
+  .ps-landing-page {
+    overflow-x: hidden;
+  }
+
+  /* Homepage hero: two purposeful desktop panels instead of a stretched
+     mobile stack. Both collapse back to the existing mobile layout below. */
+  .ps-landing-hero-grid {
+    max-width: 1280px;
+    margin: 32px auto 0;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+    min-height: 430px;
+    border-radius: 28px;
+    overflow: hidden;
+    filter: drop-shadow(0 18px 38px rgba(14, 27, 46, 0.14));
+  }
+
+  .ps-landing-vision,
+  .ps-landing-welcome {
+    max-width: none !important;
+    width: 100%;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .ps-landing-vision {
+    text-align: left !important;
+    padding: 68px 64px !important;
+  }
+
+  .ps-landing-vision > p:first-child {
+    font-size: clamp(42px, 4vw, 62px) !important;
+    line-height: 1.06 !important;
+    max-width: 680px;
+    letter-spacing: -0.025em;
+  }
+
+  .ps-landing-vision > p:nth-child(2) {
+    font-size: 19px !important;
+    max-width: 590px;
+  }
+
+  .ps-landing-welcome {
+    padding: 42px 44px 34px !important;
+  }
+
+  .ps-landing-welcome img {
+    height: 250px !important;
+    max-width: 100%;
+  }
+
+  .ps-landing-welcome h1 {
+    font-size: 18px !important;
+  }
+
+  .ps-landing-welcome > div {
+    font-size: 46px !important;
+  }
+
+  .ps-landing-welcome > p {
+    font-size: 16px !important;
+  }
+
+  /* Host and Driver become a true two-column marketplace choice. */
+  .ps-two-ways-section {
+    max-width: 1180px !important;
+    padding: 56px 32px 0 !important;
+  }
+
+  .ps-two-ways-section > div:first-child {
+    font-size: 13px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .ps-two-ways-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px !important;
+    align-items: stretch;
+  }
+
+  .ps-audience-card {
+    min-height: 260px;
+    padding: 30px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 180ms ease, box-shadow 180ms ease;
+  }
+
+  .ps-audience-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 34px rgba(14, 27, 46, 0.18) !important;
+  }
+
+  .ps-home-search {
+    max-width: 900px !important;
+    padding: 28px 32px 4px !important;
+  }
+
+  .ps-footer {
+    padding: 28px 32px !important;
+  }
+}
+
+@media (min-width: 1440px) {
+  .ps-header-row,
+  .ps-landing-hero-grid {
+    max-width: 1360px;
+  }
+
+  .ps-two-ways-section {
+    max-width: 1240px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ps-founding-hosts {
+    max-width: 900px !important;
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
 }

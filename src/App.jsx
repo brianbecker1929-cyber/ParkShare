@@ -3233,7 +3233,7 @@ function FloatingParkerHelp() {
 function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
   const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, minWidth: 70, height: 38, padding: "0 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
   return (
-    <footer style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+    <footer className="ps-footer" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
         <button style={btnStyle} onClick={onAboutClick}>About Us</button>
         <button style={btnStyle} onClick={onHelpClick}>Help</button>
@@ -3255,9 +3255,9 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
     : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
 
   return (
-    <header style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+    <header className="ps-header" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
       {/* Top row: logo + user */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
+      <div className="ps-header-row" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
           {!user && <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Sign in</button>}
         </div>
@@ -3412,7 +3412,7 @@ function PotentialEarningsSection() {
 
 function FoundingHostsCard({ onShowAuth }) {
   return (
-    <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+    <div className="ps-founding-hosts" style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
       <div style={{ background: C.navy, borderRadius: 16, padding: "20px 20px", textAlign: "center" }}>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>Limited spots</div>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 20, color: C.white, lineHeight: 1.25, marginBottom: 6 }}>Join our Founding Hosts</div>
@@ -3492,7 +3492,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "'Poppins', sans-serif" }}>
+    <div className="ps-landing-page" style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "'Poppins', sans-serif" }}>
       <style>{`
         .ps-hit { transition: background 0.1s ease; }
         .ps-hit:active { background: rgba(28,43,57,0.06); }
@@ -3501,10 +3501,11 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       {/* Shared header — same one used everywhere else in the app */}
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
+      <div className="ps-landing-hero-grid">
       {/* Vision statement — leads directly with the value proposition and
           a one-line positioning statement, rather than building up through
           the problem first. */}
-      <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "40px 28px 34px", textAlign: "center" }}>
+      <div className="ps-landing-vision" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "40px 28px 34px", textAlign: "center" }}>
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: "0 0 10px" }}>
           Turn Empty Driveways Into <span style={{ color: C.amber }}>Opportunity</span>
         </p>
@@ -3516,13 +3517,14 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       {/* Top: brand / welcome hero — live text (not a baked image) so the
           title and subtitle always render in the actual Poppins font and
           exact brand colors, alongside Parker's mascot art. */}
-      <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "28px 24px 20px", textAlign: "center" }}>
+      <div className="ps-landing-welcome" style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "28px 24px 20px", textAlign: "center" }}>
         <img src={PARKER.homeWave} alt="Parker, ParkShare's mascot, holding a phone with the ParkShare app" style={{ height: 173, width: "auto", display: "block", margin: "0 auto 10px" }} />
         <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: C.navy, margin: "0 0 2px" }}>Welcome to</h1>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 34, color: C.navy, lineHeight: 1.1, margin: "0 0 8px" }}>Park<span style={{ color: C.white }}>Share</span></div>
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: C.navy, margin: 0 }}>
           Let <span style={{ fontStyle: "italic", color: C.white }}>Parker</span> find you great parking anywhere!
         </p>
+      </div>
       </div>
 
       {/* Audience split — routes visitors to a dedicated page for their
@@ -3532,13 +3534,14 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           is self-explanatory but the host opportunity needs more selling —
           and both cards end in an explicit, equally weighted action label
           so neither path requires guessing what happens next. */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
+      <div className="ps-two-ways-section" style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
         <div style={{ textAlign: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
           Two ways to ParkShare
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="ps-two-ways-grid" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <button
             onClick={onHostClick}
+            className="ps-audience-card"
             style={{ textAlign: "left", width: "100%", background: C.amber, border: "3px solid " + C.navy, borderRadius: 18, padding: "20px 20px", boxShadow: "0 3px 12px rgba(14,27,46,0.15)", cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
@@ -3557,6 +3560,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
 
           <button
             onClick={onDriverClick}
+            className="ps-audience-card"
             style={{ textAlign: "left", width: "100%", background: C.navy, border: "3px solid " + C.navy, borderRadius: 18, padding: "20px 20px", boxShadow: "0 3px 12px rgba(14,27,46,0.15)", cursor: "pointer" }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
@@ -3622,7 +3626,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       )}
 
       {/* Real, live search bar — same autocomplete BrowseView uses, not a static image */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "16px 24px 0" }}>
+      <div className="ps-home-search" style={{ maxWidth: 460, margin: "0 auto", padding: "16px 24px 0" }}>
         <div style={{ position: "relative" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "12px 14px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)" }}>
             <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🔍</div>
