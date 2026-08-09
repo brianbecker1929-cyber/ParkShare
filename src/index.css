@@ -780,3 +780,138 @@ button, input, select, textarea { font: inherit; }
   .ps-driver-content { max-width: 1240px !important; }
   .ps-driver-location-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   ParkShare Driver V2.2 — NAVIGATION BAR CONSISTENCY FIX
+   The Driver desktop layout begins at 820px, but the shared guest header
+   previously did not switch to the full desktop navigation until 900px.
+   That created an 820–899px range where the Driver page looked desktop while
+   the header still showed the mobile Sign in | Logo | Join free layout.
+
+   This override makes the header switch at the same 820px desktop breakpoint.
+   900px+ continues to use the existing desktop header rules above.
+   ────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 820px) and (max-width: 899px) {
+  .ps-header:has(.ps-desktop-guest-header) .ps-mobile-header-row {
+    display: none !important;
+  }
+
+  .ps-desktop-guest-header {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    max-width: 1320px;
+    min-height: 82px;
+    margin: 0 auto;
+    padding: 10px 24px;
+  }
+
+  .ps-desktop-logo {
+    display: inline-flex;
+    align-items: center;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    color: #0E1B2E;
+  }
+
+  .ps-desktop-logo-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #FFC107;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 2px #0E1B2E;
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+  }
+
+  .ps-desktop-logo-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .ps-desktop-logo-wordmark {
+    margin-left: -14px;
+    padding: 8px 14px 7px 22px;
+    border-radius: 10px;
+    background: #FFC107;
+    border: 2px solid #0E1B2E;
+    box-shadow: 0 0 0 2px #fff;
+    color: #0E1B2E;
+    font-family: 'Poppins', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .ps-desktop-logo-wordmark span {
+    color: #fff;
+  }
+
+  .ps-desktop-guest-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(10px, 1.35vw, 18px);
+    min-width: 0;
+  }
+
+  .ps-desktop-guest-nav button {
+    border: 0;
+    background: transparent;
+    color: rgba(255,255,255,0.9);
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    white-space: nowrap;
+  }
+
+  .ps-desktop-guest-nav button:hover,
+  .ps-desktop-guest-nav button:focus-visible {
+    color: #FFC107;
+  }
+
+  .ps-desktop-auth-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ps-desktop-auth-actions button {
+    border-radius: 10px;
+    min-height: 40px;
+    padding: 0 14px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .ps-desktop-signin {
+    background: transparent;
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,.55);
+  }
+
+  .ps-desktop-join {
+    background: #FFC107;
+    color: #0E1B2E;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #0E1B2E;
+  }
+}
+
+/* Driver V2 navbar final note:
+   The shared desktop guest header is now enabled by DriverPage passing the
+   same navigation callbacks as HostPage. The 820-899px override above keeps
+   the header breakpoint aligned with the Driver/Host desktop page breakpoint. */
