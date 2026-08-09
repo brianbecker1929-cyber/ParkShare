@@ -4476,14 +4476,10 @@ function HostEarningsCalculator() {
 }
 
 const HOST_SECTIONS = [
-  { id: "value", icon: "💡", title: "Space You Have" },
-  { id: "earn", icon: "💰", title: "What You Could Earn" },
-  { id: "control", icon: "🎛️", title: "You're in Control" },
+  { id: "earn", icon: "💰", title: "Earnings" },
+  { id: "control", icon: "🎛️", title: "Control" },
   { id: "steps", icon: "📝", title: "How It Works" },
-  { id: "flexible", icon: "🕐", title: "Fits Your Life" },
-  { id: "location", icon: "📍", title: "Location" },
   { id: "why", icon: "⭐", title: "Why Host" },
-  { id: "great", icon: "🏆", title: "Great Hosts" },
   { id: "faq", icon: "❓", title: "FAQ" },
 ];
 
@@ -4566,7 +4562,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
         {/* Space You Already Have */}
         <section id="value" className="ps-host-value" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Space You Already Have. Income You Didn't.</div>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Put the Space You Already Have to Work.</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Put your empty parking space to work.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>You don't need to build anything.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>You don't need another property.</p>
@@ -4580,8 +4576,18 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <section id="earn" className="ps-host-earn" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>What Could Your Driveway Earn?</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A little unused space can add up.</p>
-          <P>Your earning potential can depend on several factors, including:</P>
-          <UL items={["Location", "Local parking demand", "Nearby destinations", "Availability", "Time of day", "Events", "Your pricing"]} />
+          <P className="ps-host-earn-intro">Your earning potential can depend on several factors. The strongest opportunities usually combine the right location, useful availability and local demand.</P>
+          <div className="ps-host-earn-factors">
+            {[
+              ["📍", "Location", "Where your space is matters."],
+              ["🚗", "Demand", "Nearby parking needs can change by day and time."],
+              ["🕐", "Availability", "More useful hours can create more booking opportunities."],
+              ["🎟️", "Events", "Venues and events can create concentrated demand."],
+              ["💵", "Pricing", "Your rate helps shape the value of each booking."],
+            ].map(([icon, title, desc]) => (
+              <div key={title}><span>{icon}</span><strong>{title}</strong><small>{desc}</small></div>
+            ))}
+          </div>
           <P>A driveway near a commuter station might be valuable during weekdays.</P>
           <P>A space near a stadium or entertainment district might see greater demand during events.</P>
           <P>A driveway near a hospital, university or busy commercial area could serve Drivers throughout the week.</P>
