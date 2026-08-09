@@ -578,7 +578,7 @@ button, input, select, textarea { font: inherit; }
     box-shadow: 0 18px 42px rgba(14,27,46,.14);
   }
   .ps-driver-hero-copy {
-    padding: 46px 48px;
+    padding: 54px 52px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -612,7 +612,7 @@ button, input, select, textarea { font: inherit; }
     gap: 18px;
     background: #FFC107;
     color: #0E1B2E;
-    padding: 32px 36px;
+    padding: 40px;
     text-align: center;
   }
   .ps-driver-hero-visual img {
@@ -917,419 +917,108 @@ button, input, select, textarea { font: inherit; }
    the header breakpoint aligned with the Driver/Host desktop page breakpoint. */
 
 
-/* ──────────────────────────────────────────────────────────────────────────
-   ParkShare About V2
-   Matches the Host / Driver page system and shared responsive navigation.
-   ────────────────────────────────────────────────────────────────────────── */
-.ps-about-page { overflow-x: hidden; }
+/* ── ParkShare About V2 + new Parker poses ───────────────────────────── */
+.ps-about-page { overflow-x: hidden; font-family: 'Poppins', sans-serif; }
+.ps-about-eyebrow { color:#FFC107; font-weight:800; font-size:11px; text-transform:uppercase; letter-spacing:.07em; margin-bottom:7px; }
 
-.ps-about-hero {
-  margin: 18px 14px 0;
-  border-radius: 22px;
-  overflow: hidden;
-  background: #0E1B2E;
-  box-shadow: 0 10px 26px rgba(14,27,46,.10);
-}
-.ps-about-hero-copy {
-  padding: 34px 26px 30px;
-  text-align: left;
-}
-.ps-about-hero-copy h1 {
-  font-size: 31px;
-  line-height: 1.08;
-  letter-spacing: -0.035em;
-}
-.ps-about-hero-subcopy {
-  font-family: 'Poppins', sans-serif;
-  font-size: 14px;
-  line-height: 1.7;
-  color: rgba(255,255,255,.78);
-  margin: 0 0 22px;
-}
-.ps-about-hero-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.ps-about-hero-actions button,
-.ps-about-closing-actions button {
-  min-height: 47px;
-  border-radius: 11px;
-  font-family: 'Poppins', sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  cursor: pointer;
-}
-.ps-about-hero-primary {
-  background: #FFC107;
-  color: #0E1B2E;
-  border: 2px solid #FFC107;
-}
-.ps-about-hero-secondary {
-  background: transparent;
-  color: #fff;
-  border: 1.5px solid rgba(255,255,255,.7);
-}
-.ps-about-hero-visual {
-  background: #FFC107;
-  padding: 28px 24px 30px;
-  text-align: center;
-  color: #0E1B2E;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-.ps-about-hero-visual img {
-  width: min(230px, 72%);
-  height: auto;
-  object-fit: contain;
-}
-.ps-about-hero-visual div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-family: 'Poppins', sans-serif;
-}
-.ps-about-hero-visual strong { font-size: 22px; line-height: 1.15; }
-.ps-about-hero-visual span { font-size: 13px; opacity: .78; }
+.ps-about-hero { margin:18px 14px 0; border-radius:22px; overflow:hidden; background:#0E1B2E; box-shadow:0 10px 26px rgba(14,27,46,.10); }
+.ps-about-hero-copy { padding:34px 26px 30px; }
+.ps-about-hero-copy h1 { color:#fff; font-size:31px; line-height:1.08; letter-spacing:-.035em; margin:10px 0 18px; }
+.ps-about-hero-copy h1 span { color:#FFC107; }
+.ps-about-hero-copy > p { color:rgba(255,255,255,.78); line-height:1.7; font-size:14px; }
+.ps-about-hero-actions { display:flex; flex-direction:column; gap:10px; margin-top:22px; }
+.ps-about-hero-actions button,.ps-about-closing-actions button { min-height:47px; border-radius:11px; font-weight:800; cursor:pointer; }
+.ps-about-hero-primary { background:#FFC107; color:#0E1B2E; border:2px solid #FFC107; }
+.ps-about-hero-secondary { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.7); }
+.ps-about-hero-visual { background:#FFC107; padding:24px; text-align:center; color:#0E1B2E; display:flex; flex-direction:column; align-items:center; }
+.ps-about-hero-visual img { width:min(255px,70%); max-height:300px; object-fit:contain; }
+.ps-about-hero-visual strong { font-size:21px; margin-top:4px; }
+.ps-about-hero-visual span { font-size:13px; opacity:.78; }
 
-.ps-about-section-nav {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 22px 20px 5px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 9px;
-}
+.ps-about-section-nav { max-width:680px; margin:0 auto; padding:22px 20px 5px; display:flex; flex-wrap:wrap; justify-content:center; gap:9px; }
+.ps-about-section-nav button { background:#FFC107; border:2px solid #fff; box-shadow:0 0 0 2px #0E1B2E; color:#0E1B2E; border-radius:20px; font-weight:700; font-size:11.5px; padding:7px 12px; cursor:pointer; }
 
-.ps-about-content {
-  max-width: 680px;
-  margin: 0 auto;
-  padding: 24px 20px 0;
-}
-.ps-about-content > section { scroll-margin-top: 92px; margin-bottom: 30px; }
+.ps-about-content { max-width:680px; margin:0 auto; padding:24px 20px 0; }
+.ps-about-content > section { scroll-margin-top:92px; margin-bottom:30px; }
+.ps-about-intro { text-align:center; }
+.ps-about-mission { background:#0E1B2E; border-radius:18px; padding:25px 22px; box-shadow:0 10px 24px rgba(14,27,46,.10); }
+.ps-about-mission h2 { color:#fff; margin:7px 0 14px; }
+.ps-about-mission p { color:rgba(255,255,255,.78); }
 
-.ps-about-intro { text-align: left; }
-.ps-about-mission {
-  background: #0E1B2E;
-  border-radius: 18px;
-  padding: 25px 22px;
-  box-shadow: 0 10px 24px rgba(14,27,46,.10);
-}
-.ps-about-mission p {
-  font-size: 13.5px;
-  line-height: 1.75;
-  color: rgba(255,255,255,.78);
-  margin: 0 0 10px;
-}
+.ps-about-vision h2,.ps-about-marketplace h2,.ps-about-parker h2,.ps-about-canadian h2,.ps-about-closing h2 { color:#0E1B2E; }
+.ps-about-vision-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:18px; }
+.ps-about-card { background:#fff; border:1.5px solid #E3DDC9; border-radius:15px; padding:18px; display:flex; flex-direction:column; align-items:flex-start; }
+.ps-about-card > span { font-size:24px; margin-bottom:8px; }
+.ps-about-card strong { color:#0E1B2E; font-size:14px; margin-bottom:5px; }
+.ps-about-card small { color:#71695A; font-size:12px; line-height:1.55; }
 
-.ps-about-heading h2,
-.ps-about-parker-copy h2 {
-  color: #0E1B2E;
-  font-family: 'Poppins', sans-serif;
-  font-size: 21px;
-  line-height: 1.25;
-  margin: 7px 0 14px;
-}
+.ps-about-marketplace-title { text-align:center; margin-bottom:18px; }
+.ps-about-marketplace-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+.ps-about-audience-card { position:relative; overflow:hidden; border-radius:19px; padding:23px 22px; display:flex; flex-direction:column; justify-content:space-between; min-height:320px; }
+.ps-about-host-card { background:#FFC107; color:#0E1B2E; }
+.ps-about-driver-card { background:#0E1B2E; color:#fff; }
+.ps-about-audience-label { font-weight:800; font-size:11px; letter-spacing:.06em; margin-bottom:8px; }
+.ps-about-driver-card .ps-about-audience-label { color:#FFC107; }
+.ps-about-audience-card h3 { font-size:22px; line-height:1.22; margin:0 0 10px; position:relative; z-index:1; }
+.ps-about-driver-card h3 { color:#fff; }
+.ps-about-driver-card p { color:rgba(255,255,255,.78); font-size:13.5px; line-height:1.75; }
+.ps-about-audience-card > button { min-height:46px; border-radius:11px; border:none; margin-top:20px; padding:0 18px; font-weight:800; cursor:pointer; position:relative; z-index:2; }
+.ps-about-host-card > button { background:#0E1B2E; color:#fff; }
+.ps-about-driver-card > button { background:#FFC107; color:#0E1B2E; }
+.ps-about-card-parker { width:115px; position:absolute; right:-5px; top:5px; opacity:.98; pointer-events:none; }
 
-.ps-about-vision-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-.ps-about-card {
-  background: #fff;
-  border: 1.5px solid #E3DDC9;
-  border-radius: 15px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-.ps-about-card-icon { font-size: 24px; margin-bottom: 8px; }
-.ps-about-card strong { color: #0E1B2E; font-size: 14px; margin-bottom: 5px; }
-.ps-about-card small { color: #71695A; font-size: 12px; line-height: 1.55; }
+.ps-about-parker { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:25px 22px; }
+.ps-about-parker-art { display:flex; justify-content:center; margin-bottom:17px; }
+.ps-about-parker-art img { width:min(210px,58%); height:auto; object-fit:contain; }
 
-.ps-about-marketplace-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-.ps-about-audience-card {
-  border-radius: 19px;
-  padding: 23px 22px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 310px;
-}
-.ps-about-host-card {
-  background: #FFC107;
-  color: #0E1B2E;
-}
-.ps-about-driver-card {
-  background: #0E1B2E;
-  color: #fff;
-}
-.ps-about-audience-icon {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.72);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  margin-bottom: 12px;
-}
-.ps-about-audience-card h3 {
-  font-size: 19px;
-  line-height: 1.25;
-  margin: 0 0 10px;
-}
-.ps-about-driver-card h3 { color: #fff; }
-.ps-about-driver-card p {
-  font-size: 13.5px;
-  line-height: 1.75;
-  color: rgba(255,255,255,.78);
-  margin: 0 0 12px;
-}
-.ps-about-audience-card > button {
-  min-height: 46px;
-  border-radius: 11px;
-  border: none;
-  margin-top: 20px;
-  padding: 0 18px;
-  font-family: 'Poppins', sans-serif;
-  font-weight: 800;
-  cursor: pointer;
-}
-.ps-about-host-card > button {
-  background: #0E1B2E;
-  color: #fff;
-}
-.ps-about-driver-card > button {
-  background: #FFC107;
-  color: #0E1B2E;
-}
+.ps-about-canadian { background:#FFC107; border-radius:20px; padding:25px 22px; position:relative; overflow:hidden; }
+.ps-about-canadian img { display:none; }
 
-.ps-about-parker {
-  background: #fff;
-  border: 1.5px solid #E3DDC9;
-  border-radius: 20px;
-  padding: 25px 22px;
-}
-.ps-about-parker-art {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 17px;
-}
-.ps-about-parker-art img {
-  width: min(180px, 48%);
-  height: auto;
-  object-fit: contain;
-}
+.ps-about-closing { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:28px 22px; text-align:center; }
+.ps-about-closing-actions { display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+.ps-about-closing-primary { background:#FFC107; color:#0E1B2E; border:2px solid #FFC107; }
+.ps-about-closing-secondary { background:#0E1B2E; color:#fff; border:2px solid #0E1B2E; }
+.ps-about-trust-link { margin-top:17px; background:none; border:none; padding:0; color:#3F7A5E; text-decoration:underline; font-weight:700; cursor:pointer; }
 
-.ps-about-canadian {
-  background: #FFC107;
-  border-radius: 20px;
-  padding: 25px 22px;
-}
-.ps-about-canadian .ps-about-heading h2 { margin-top: 7px; }
+@media (min-width:820px) {
+  .ps-about-hero { max-width:1280px; margin:26px auto 0; display:grid; grid-template-columns:1.05fr .95fr; border-radius:26px; min-height:390px; }
+  .ps-about-hero-copy { padding:54px 52px; display:flex; flex-direction:column; justify-content:center; }
+  .ps-about-hero-copy h1 { font-size:clamp(36px,4vw,56px); max-width:690px; }
+  .ps-about-hero-copy > p { font-size:16px; max-width:650px; }
+  .ps-about-hero-actions { flex-direction:row; flex-wrap:wrap; }
+  .ps-about-hero-actions button { width:auto; padding:0 24px; }
+  .ps-about-hero-visual { justify-content:center; padding:34px 40px; }
+  .ps-about-hero-visual img { width:min(310px,75%); max-height:330px; }
 
-.ps-about-closing {
-  background: #fff;
-  border: 1.5px solid #E3DDC9;
-  border-radius: 20px;
-  padding: 28px 22px;
-}
-.ps-about-closing-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.ps-about-closing-primary {
-  background: #FFC107;
-  color: #0E1B2E;
-  border: 2px solid #FFC107;
-}
-.ps-about-closing-secondary {
-  background: #0E1B2E;
-  color: #fff;
-  border: 2px solid #0E1B2E;
-}
-.ps-about-trust-link {
-  margin-top: 17px;
-  background: none;
-  border: none;
-  padding: 0;
-  color: #3F7A5E;
-  text-decoration: underline;
-  font-family: 'Poppins', sans-serif;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
+  .ps-about-section-nav { max-width:1160px; padding:25px 34px 8px; gap:10px; }
+  .ps-about-section-nav button { min-width:138px; }
 
-@media (min-width: 820px) {
-  .ps-about-hero {
-    max-width: 1280px;
-    margin: 26px auto 0;
-    display: grid;
-    grid-template-columns: 1.05fr .95fr;
-    border-radius: 26px;
-    min-height: 390px;
-  }
-  .ps-about-hero-copy {
-    padding: 54px 52px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-  }
-  .ps-about-hero-copy h1 {
-    font-size: clamp(36px, 4vw, 56px);
-    max-width: 690px;
-  }
-  .ps-about-hero-subcopy {
-    font-size: 16px;
-    max-width: 650px;
-  }
-  .ps-about-hero-actions {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .ps-about-hero-actions button {
-    width: auto;
-    padding: 0 24px;
-  }
-  .ps-about-hero-visual {
-    justify-content: center;
-    padding: 40px;
-  }
-  .ps-about-hero-visual img {
-    width: min(235px, 64%);
-  }
-  .ps-about-hero-visual strong { font-size: 25px; }
-  .ps-about-hero-visual span { font-size: 15px; }
+  .ps-about-content { max-width:1180px; padding:32px 34px 0; }
+  .ps-about-content > section { scroll-margin-top:110px; margin-bottom:38px; }
+  .ps-about-intro { max-width:900px; margin-left:auto; margin-right:auto; }
+  .ps-about-intro p { font-size:15px !important; line-height:1.65 !important; }
 
-  .ps-about-section-nav {
-    max-width: 1160px;
-    padding: 25px 34px 8px;
-    gap: 10px;
-  }
-  .ps-about-section-nav button {
-    min-width: 138px;
-  }
+  .ps-about-mission { padding:34px 38px; border-radius:22px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-mission h2 { font-size:30px; }
 
-  .ps-about-content {
-    max-width: 1180px;
-    padding: 32px 34px 0;
-  }
-  .ps-about-content > section {
-    scroll-margin-top: 110px;
-    margin-bottom: 34px;
-  }
-  .ps-about-intro {
-    max-width: 850px;
-    margin-left: auto;
-    margin-right: auto;
-    text-align: center;
-  }
-  .ps-about-intro p { font-size: 15px !important; line-height: 1.65 !important; }
+  .ps-about-vision-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+  .ps-about-card { min-height:190px; padding:20px 19px; }
 
-  .ps-about-mission {
-    padding: 34px 38px;
-    border-radius: 22px;
-    max-width: 1080px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .ps-about-mission h2 { font-size: 26px !important; }
-  .ps-about-mission p { font-size: 14.5px; }
+  .ps-about-marketplace-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:stretch; }
+  .ps-about-audience-card { min-height:390px; padding:30px; }
+  .ps-about-audience-card h3 { font-size:27px; max-width:440px; }
+  .ps-about-card-parker { width:175px; right:5px; top:2px; }
+  .ps-about-host-card > div { max-width:68%; }
+  .ps-about-audience-card > button { align-self:flex-start; min-width:220px; }
 
-  .ps-about-heading { max-width: 900px; margin-left: auto; margin-right: auto; }
-  .ps-about-heading h2,
-  .ps-about-parker-copy h2 { font-size: 25px; }
+  .ps-about-parker { display:grid; grid-template-columns:minmax(260px,.75fr) minmax(0,1.25fr); gap:38px; align-items:center; padding:34px 38px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-parker-art { margin:0; }
+  .ps-about-parker-art img { width:min(310px,90%); }
 
-  .ps-about-vision-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-    margin-top: 20px;
-  }
-  .ps-about-card {
-    min-height: 170px;
-    padding: 20px 19px;
-  }
+  .ps-about-canadian { display:grid; grid-template-columns:minmax(0,1fr) 220px; align-items:center; gap:20px; padding:34px 38px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-canadian img { display:block; width:200px; max-height:250px; object-fit:contain; align-self:end; }
 
-  .ps-about-marketplace-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-    align-items: stretch;
-  }
-  .ps-about-audience-card {
-    min-height: 380px;
-    padding: 30px;
-  }
-  .ps-about-audience-card h3 { font-size: 23px; }
-  .ps-about-audience-card > button {
-    align-self: flex-start;
-    min-width: 220px;
-  }
-
-  .ps-about-parker {
-    display: grid;
-    grid-template-columns: minmax(220px, .7fr) minmax(0, 1.3fr);
-    gap: 38px;
-    align-items: center;
-    padding: 34px 38px;
-    border-radius: 22px;
-    max-width: 1080px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  .ps-about-parker-art { margin: 0; }
-  .ps-about-parker-art img { width: min(250px, 82%); }
-
-  .ps-about-canadian {
-    padding: 34px 38px;
-    border-radius: 22px;
-    max-width: 1080px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .ps-about-closing {
-    max-width: 980px;
-    margin-left: auto;
-    margin-right: auto;
-    padding: 34px 38px;
-    border-radius: 22px;
-  }
-  .ps-about-closing-actions {
-    flex-direction: row;
-    justify-content: center;
-  }
-  .ps-about-closing-actions button {
-    min-width: 230px;
-    padding: 0 22px;
-  }
-}
-
-@media (min-width: 1200px) {
-  .ps-about-hero { max-width: 1340px; }
-  .ps-about-content { max-width: 1220px; }
-  .ps-about-hero-copy { padding: 52px 56px; }
-  .ps-about-hero-visual { padding: 36px 44px; }
-  .ps-about-hero-visual img { width: min(255px, 66%); }
-}
-
-/* About V2.1 polish: tighter section rhythm and a more viewport-friendly hero. */
-.ps-about-vision { margin-bottom: 28px !important; }
-.ps-about-marketplace { margin-bottom: 32px !important; }
-
-@media (min-width: 820px) {
-  .ps-about-vision { margin-bottom: 32px !important; }
-  .ps-about-marketplace { margin-bottom: 34px !important; }
+  .ps-about-closing { max-width:980px; margin-left:auto; margin-right:auto; padding:34px 38px; }
+  .ps-about-closing-actions { flex-direction:row; justify-content:center; }
+  .ps-about-closing-actions button { min-width:230px; padding:0 22px; }
 }
