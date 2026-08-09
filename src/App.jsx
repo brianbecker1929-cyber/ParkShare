@@ -4817,7 +4817,18 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+      <Header
+        tab={tab}
+        onTabChange={onTabChange}
+        onLogoClick={onLogoClick}
+        user={user}
+        onShowAuth={onShowAuth}
+        onSignOut={onSignOut}
+        onHostClick={onHostClick}
+        onAboutClick={onAboutClick}
+        onTrustClick={onTrustClick}
+        onHelpClick={onHelpClick}
+      />
 
       <div className="ps-driver-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
         <div className="ps-driver-hero-copy">

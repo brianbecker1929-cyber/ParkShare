@@ -910,3 +910,8 @@ button, input, select, textarea { font: inherit; }
     box-shadow: 0 0 0 2px #0E1B2E;
   }
 }
+
+/* Driver V2 navbar final note:
+   The shared desktop guest header is now enabled by DriverPage passing the
+   same navigation callbacks as HostPage. The 820-899px override above keeps
+   the header breakpoint aligned with the Driver/Host desktop page breakpoint. */
