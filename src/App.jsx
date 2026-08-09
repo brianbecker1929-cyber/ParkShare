@@ -4438,7 +4438,7 @@ function HostEarningsCalculator() {
   const valueText = { fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.amber };
 
   return (
-    <div style={{ background: C.navy, borderRadius: 18, padding: "22px 20px", textAlign: "center" }}>
+    <div className="ps-host-calculator" style={{ background: C.navy, borderRadius: 18, padding: "22px 20px", textAlign: "center" }}>
       <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Estimate Your Potential</div>
       <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, marginBottom: 18 }}>What could your driveway earn?</div>
 
@@ -4476,14 +4476,10 @@ function HostEarningsCalculator() {
 }
 
 const HOST_SECTIONS = [
-  { id: "value", icon: "💡", title: "Space You Have" },
-  { id: "earn", icon: "💰", title: "What You Could Earn" },
-  { id: "control", icon: "🎛️", title: "You're in Control" },
+  { id: "earn", icon: "💰", title: "Earnings" },
+  { id: "control", icon: "🎛️", title: "Control" },
   { id: "steps", icon: "📝", title: "How It Works" },
-  { id: "flexible", icon: "🕐", title: "Fits Your Life" },
-  { id: "location", icon: "📍", title: "Location" },
   { id: "why", icon: "⭐", title: "Why Host" },
-  { id: "great", icon: "🏆", title: "Great Hosts" },
   { id: "faq", icon: "❓", title: "FAQ" },
 ];
 
@@ -4522,17 +4518,24 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
 
       {/* Hero */}
-      <div style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "32px 24px 26px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.navy, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
-        <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
+      <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "32px 24px 26px", textAlign: "center" }}>
+        <div className="ps-host-hero-copy">
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
+          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.navy, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
+          <p className="ps-host-hero-subcopy">Turn unused parking space into additional income while staying in control of your schedule, pricing and listing.</p>
+          <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
+        </div>
+        <div className="ps-host-hero-visual" aria-hidden="true">
+          <img src={PARKER.savings} alt="" />
+          <div><strong>Your space.</strong><span>Your schedule. Your opportunity.</span></div>
+        </div>
       </div>
 
       {/* On-page nav */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+      <div className="ps-host-section-nav" style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
         {HOST_SECTIONS.map(s => (
           <button
             key={s.id}
@@ -4544,9 +4547,9 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         ))}
       </div>
 
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+      <div className="ps-host-content" style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
 
-        <section style={{ marginBottom: 20 }}>
+        <section className="ps-host-intro" style={{ marginBottom: 20 }}>
           <P>Every day, driveways and private parking spaces sit empty for hours at a time.</P>
           <P style={{ margin: "0 0 4px" }}>While you're at work.</P>
           <P style={{ margin: "0 0 4px" }}>While you're away.</P>
@@ -4558,8 +4561,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Space You Already Have */}
-        <section id="value" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Space You Already Have. Income You Didn't.</div>
+        <section id="value" className="ps-host-value" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Put the Space You Already Have to Work.</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Put your empty parking space to work.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>You don't need to build anything.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>You don't need another property.</p>
@@ -4570,11 +4573,21 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* What Could Your Driveway Earn */}
-        <section id="earn" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+        <section id="earn" className="ps-host-earn" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>What Could Your Driveway Earn?</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A little unused space can add up.</p>
-          <P>Your earning potential can depend on several factors, including:</P>
-          <UL items={["Location", "Local parking demand", "Nearby destinations", "Availability", "Time of day", "Events", "Your pricing"]} />
+          <P className="ps-host-earn-intro">Your earning potential can depend on several factors. The strongest opportunities usually combine the right location, useful availability and local demand.</P>
+          <div className="ps-host-earn-factors">
+            {[
+              ["📍", "Location", "Where your space is matters."],
+              ["🚗", "Demand", "Nearby parking needs can change by day and time."],
+              ["🕐", "Availability", "More useful hours can create more booking opportunities."],
+              ["🎟️", "Events", "Venues and events can create concentrated demand."],
+              ["💵", "Pricing", "Your rate helps shape the value of each booking."],
+            ].map(([icon, title, desc]) => (
+              <div key={title}><span>{icon}</span><strong>{title}</strong><small>{desc}</small></div>
+            ))}
+          </div>
           <P>A driveway near a commuter station might be valuable during weekdays.</P>
           <P>A space near a stadium or entertainment district might see greater demand during events.</P>
           <P>A driveway near a hospital, university or busy commercial area could serve Drivers throughout the week.</P>
@@ -4587,12 +4600,12 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* You're Always in Control */}
-        <section id="control" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+        <section id="control" className="ps-host-control" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>You're Always in Control</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Share your driveway on your terms.</p>
           <P>It's your property. You decide how you want to use it.</P>
           <P>With ParkShare, Hosts can manage important aspects of their listing, including:</P>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+          <div className="ps-host-control-grid" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
             {[
               { t: "Availability", d: "Choose when your parking space is available." },
               { t: "Pricing", d: "Set the price for your space using the pricing options available through ParkShare." },
@@ -4610,10 +4623,10 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Hosting Made Simple */}
-        <section id="steps" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+        <section id="steps" className="ps-host-steps" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Hosting Made Simple</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>From empty driveway to active listing.</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+          <div className="ps-host-steps-grid" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
             {[
               { n: 1, t: "Create Your Listing", d: "Tell Drivers about your parking space. Add your location, photographs, availability, parking details and instructions." },
               { n: 2, t: "Set Your Availability", d: "Choose when Drivers can reserve your space. Weekdays. Weekends. Events. Certain hours. You decide." },
@@ -4635,11 +4648,11 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Hosting That Fits Your Life */}
-        <section id="flexible" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
+        <section id="flexible" className="ps-host-flexible" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
           <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>Hosting That Fits Your Life</div>
           <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>You don't have to become a full-time Host.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 12px" }}>One of the advantages of ParkShare is flexibility. Your driveway might only be available:</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+          <div className="ps-host-flexible-grid" style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
             {[
               { t: "While you're at work", d: "Turn daytime vacancy into an opportunity." },
               { t: "When you're travelling", d: "Going away? Your parking space doesn't have to sit empty." },
@@ -4658,7 +4671,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Location Creates Opportunity */}
-        <section id="location" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+        <section id="location" className="ps-host-location" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Location Creates Opportunity</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Think about what's around you.</p>
           <P>Parking demand isn't limited to downtown. Drivers need parking near:</P>
@@ -4667,12 +4680,12 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Why Host With ParkShare */}
-        <section id="why" style={{ scrollMarginTop: 20, marginBottom: 16 }}>
+        <section id="why" className="ps-host-why" style={{ scrollMarginTop: 20, marginBottom: 16 }}>
           <div style={{ textAlign: "center", marginBottom: 4 }}>
             <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Why Host With ParkShare?</div>
             <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: "0 0 16px" }}>More than an empty driveway.</p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+          <div className="ps-host-why-grid" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
             {[
               { icon: "💵", t: "Create Additional Income", d: "Put unused parking space to productive use." },
               { icon: "🎛️", t: "Stay in Control", d: "Choose your availability, listing details and applicable pricing options." },
@@ -4695,7 +4708,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <div style={{ marginBottom: 28 }} />
 
         {/* Great Hosts Create Great Experiences */}
-        <section id="great" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+        <section id="great" className="ps-host-great" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Great Hosts Create Great Experiences</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>A few simple things make a big difference.</p>
           <p style={{ fontSize: 13.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", margin: "0 0 6px" }}>Great ParkShare Hosts:</p>
@@ -4710,12 +4723,12 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* FAQ */}
-        <section id="faq" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+        <section id="faq" className="ps-host-faq" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
             <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Questions About Hosting?</div>
             <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>We've got answers.</p>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="ps-host-faq-grid" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {HOST_FAQS.map((f, i) => (
               <div key={i} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
                 <div style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, marginBottom: 5 }}>{f.q}</div>
@@ -4726,7 +4739,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Parker's Host Tip */}
-        <section style={{ marginBottom: 28 }}>
+        <section className="ps-host-parker-tip" style={{ marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Meet Parker's Host Tip</div>
           <ParkerTip pose="fullbody">
             Your driveway doesn't need to be available all the time to have value. Start with the hours you know you don't normally use it — you can adjust your availability as you learn what works best for you.
@@ -4735,7 +4748,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
 
         {/* Closing */}
-        <section style={{ textAlign: "center", marginBottom: 28 }}>
+        <section className="ps-host-closing" style={{ textAlign: "center", marginBottom: 28 }}>
           <p style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: "0 0 4px" }}>Your Driveway Is Already There.</p>
           <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 14px" }}>Maybe it's time it did a little more.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 4px" }}>Every parking space has a location.</p>
