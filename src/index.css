@@ -370,7 +370,7 @@ button, input, select, textarea { font: inherit; }
     text-align: center;
   }
   .ps-host-hero-visual img {
-    width: min(280px, 80%);
+    width: min(250px, 72%);
     height: auto;
     border-radius: 28px;
     background: #fff;
@@ -616,7 +616,7 @@ button, input, select, textarea { font: inherit; }
     text-align: center;
   }
   .ps-driver-hero-visual img {
-    width: min(280px, 76%);
+    width: min(250px, 68%);
     height: auto;
     border-radius: 30px;
     background: #fff;
@@ -776,7 +776,7 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 1200px) {
   .ps-driver-hero-copy { padding: 58px 62px !important; }
   .ps-driver-hero-visual { padding: 42px 48px !important; }
-  .ps-driver-hero-visual img { width: min(300px, 78%) !important; }
+  .ps-driver-hero-visual img { width: min(270px, 70%) !important; }
   .ps-driver-content { max-width: 1240px !important; }
   .ps-driver-location-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
@@ -915,3 +915,110 @@ button, input, select, textarea { font: inherit; }
    The shared desktop guest header is now enabled by DriverPage passing the
    same navigation callbacks as HostPage. The 820-899px override above keeps
    the header breakpoint aligned with the Driver/Host desktop page breakpoint. */
+
+
+/* ── ParkShare About V2 + new Parker poses ───────────────────────────── */
+.ps-about-page { overflow-x: hidden; font-family: 'Poppins', sans-serif; }
+.ps-about-eyebrow { color:#FFC107; font-weight:800; font-size:11px; text-transform:uppercase; letter-spacing:.07em; margin-bottom:7px; }
+
+.ps-about-hero { margin:18px 14px 0; border-radius:22px; overflow:hidden; background:#0E1B2E; box-shadow:0 10px 26px rgba(14,27,46,.10); }
+.ps-about-hero-copy { padding:34px 26px 30px; }
+.ps-about-hero-copy h1 { color:#fff; font-size:31px; line-height:1.08; letter-spacing:-.035em; margin:10px 0 18px; }
+.ps-about-hero-copy h1 span { color:#FFC107; }
+.ps-about-hero-copy > p { color:rgba(255,255,255,.78); line-height:1.7; font-size:14px; }
+.ps-about-hero-actions { display:flex; flex-direction:column; gap:10px; margin-top:22px; }
+.ps-about-hero-actions button,.ps-about-closing-actions button { min-height:47px; border-radius:11px; font-weight:800; cursor:pointer; }
+.ps-about-hero-primary { background:#FFC107; color:#0E1B2E; border:2px solid #FFC107; }
+.ps-about-hero-secondary { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.7); }
+.ps-about-hero-visual { background:#FFC107; padding:24px; text-align:center; color:#0E1B2E; display:flex; flex-direction:column; align-items:center; }
+.ps-about-hero-visual img { width:min(255px,70%); max-height:300px; object-fit:contain; border-radius:30px; background:#fff; box-shadow:0 0 0 5px #0E1B2E, 0 0 0 8px #fff; padding:8px; }
+.ps-about-hero-visual strong { font-size:21px; margin-top:4px; }
+.ps-about-hero-visual span { font-size:13px; opacity:.78; }
+
+.ps-about-section-nav { max-width:680px; margin:0 auto; padding:22px 20px 5px; display:flex; flex-wrap:wrap; justify-content:center; gap:9px; }
+.ps-about-section-nav button { background:#FFC107; border:2px solid #fff; box-shadow:0 0 0 2px #0E1B2E; color:#0E1B2E; border-radius:20px; font-weight:700; font-size:11.5px; padding:7px 12px; cursor:pointer; }
+
+.ps-about-content { max-width:680px; margin:0 auto; padding:24px 20px 0; }
+.ps-about-content > section { scroll-margin-top:92px; margin-bottom:30px; }
+.ps-about-intro { text-align:center; }
+.ps-about-mission { background:#0E1B2E; border-radius:18px; padding:25px 22px; box-shadow:0 10px 24px rgba(14,27,46,.10); }
+.ps-about-mission h2 { color:#fff; margin:7px 0 14px; }
+.ps-about-mission p { color:rgba(255,255,255,.78); }
+
+.ps-about-vision h2,.ps-about-marketplace h2,.ps-about-parker h2,.ps-about-canadian h2,.ps-about-closing h2 { color:#0E1B2E; }
+.ps-about-vision-grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:18px; }
+.ps-about-card { background:#fff; border:1.5px solid #E3DDC9; border-radius:15px; padding:18px; display:flex; flex-direction:column; align-items:flex-start; }
+.ps-about-card > span { font-size:24px; margin-bottom:8px; }
+.ps-about-card strong { color:#0E1B2E; font-size:14px; margin-bottom:5px; }
+.ps-about-card small { color:#71695A; font-size:12px; line-height:1.55; }
+
+.ps-about-marketplace-title { text-align:center; margin-bottom:18px; }
+.ps-about-marketplace-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+.ps-about-audience-card { position:relative; overflow:hidden; border-radius:19px; padding:23px 22px; display:flex; flex-direction:column; justify-content:space-between; min-height:320px; }
+.ps-about-host-card { background:#FFC107; color:#0E1B2E; }
+.ps-about-driver-card { background:#0E1B2E; color:#fff; }
+.ps-about-audience-label { font-weight:800; font-size:11px; letter-spacing:.06em; margin-bottom:8px; }
+.ps-about-driver-card .ps-about-audience-label { color:#FFC107; }
+.ps-about-audience-card h3 { font-size:22px; line-height:1.22; margin:0 0 10px; position:relative; z-index:1; }
+.ps-about-driver-card h3 { color:#fff; }
+.ps-about-driver-card p { color:rgba(255,255,255,.78); font-size:13.5px; line-height:1.75; }
+.ps-about-audience-card > button { min-height:46px; border-radius:11px; border:none; margin-top:20px; padding:0 18px; font-weight:800; cursor:pointer; position:relative; z-index:2; }
+.ps-about-host-card > button { background:#0E1B2E; color:#fff; }
+.ps-about-driver-card > button { background:#FFC107; color:#0E1B2E; }
+.ps-about-card-parker { width:115px; position:absolute; right:-5px; top:18px; opacity:.98; pointer-events:none; }
+
+.ps-about-parker { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:25px 22px; }
+.ps-about-parker-art { display:flex; justify-content:center; margin-bottom:17px; }
+.ps-about-parker-art img { width:min(210px,58%); height:auto; object-fit:contain; }
+
+.ps-about-canadian { background:#FFC107; border-radius:20px; padding:25px 22px; position:relative; overflow:hidden; }
+.ps-about-canadian img { display:none; }
+
+.ps-about-closing { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:28px 22px; text-align:center; }
+.ps-about-closing-actions { display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+.ps-about-closing-primary { background:#FFC107; color:#0E1B2E; border:2px solid #FFC107; }
+.ps-about-closing-secondary { background:#0E1B2E; color:#fff; border:2px solid #0E1B2E; }
+.ps-about-trust-link { margin-top:17px; background:none; border:none; padding:0; color:#3F7A5E; text-decoration:underline; font-weight:700; cursor:pointer; }
+
+@media (min-width:820px) {
+  .ps-about-hero { max-width:1280px; margin:26px auto 0; display:grid; grid-template-columns:1.05fr .95fr; border-radius:26px; min-height:390px; }
+  .ps-about-hero-copy { padding:54px 52px; display:flex; flex-direction:column; justify-content:center; }
+  .ps-about-hero-copy h1 { font-size:clamp(36px,4vw,56px); max-width:690px; }
+  .ps-about-hero-copy > p { font-size:16px; max-width:650px; }
+  .ps-about-hero-actions { flex-direction:row; flex-wrap:wrap; }
+  .ps-about-hero-actions button { width:auto; padding:0 24px; }
+  .ps-about-hero-visual { justify-content:center; padding:34px 40px; }
+  .ps-about-hero-visual img { width:min(310px,75%); max-height:330px; }
+
+  .ps-about-section-nav { max-width:1160px; padding:25px 34px 8px; gap:10px; }
+  .ps-about-section-nav button { min-width:138px; }
+
+  .ps-about-content { max-width:1180px; padding:32px 34px 0; }
+  .ps-about-content > section { scroll-margin-top:110px; margin-bottom:38px; }
+  .ps-about-intro { max-width:900px; margin-left:auto; margin-right:auto; }
+  .ps-about-intro p { font-size:15px !important; line-height:1.65 !important; }
+
+  .ps-about-mission { padding:34px 38px; border-radius:22px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-mission h2 { font-size:30px; }
+
+  .ps-about-vision-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; }
+  .ps-about-card { min-height:190px; padding:20px 19px; }
+
+  .ps-about-marketplace-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:stretch; }
+  .ps-about-audience-card { min-height:390px; padding:30px; }
+  .ps-about-audience-card h3 { font-size:27px; max-width:440px; }
+  .ps-about-card-parker { width:175px; right:5px; top:24px; }
+  .ps-about-host-card > div { max-width:68%; }
+  .ps-about-audience-card > button { align-self:flex-start; min-width:220px; }
+
+  .ps-about-parker { display:grid; grid-template-columns:minmax(260px,.75fr) minmax(0,1.25fr); gap:38px; align-items:center; padding:34px 38px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-parker-art { margin:0; }
+  .ps-about-parker-art img { width:min(310px,90%); }
+
+  .ps-about-canadian { display:grid; grid-template-columns:minmax(0,1fr) 245px; align-items:center; gap:20px; padding:34px 38px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-canadian img { display:block; width:225px; max-height:280px; object-fit:contain; align-self:end; }
+
+  .ps-about-closing { max-width:980px; margin-left:auto; margin-right:auto; padding:34px 38px; }
+  .ps-about-closing-actions { flex-direction:row; justify-content:center; }
+  .ps-about-closing-actions button { min-width:230px; padding:0 22px; }
+}
