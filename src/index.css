@@ -702,3 +702,81 @@ button, input, select, textarea { font: inherit; }
   .ps-driver-life-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ps-driver-know-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── ParkShare Driver desktop v2 polish ─────────────────────────── */
+@media (min-width: 820px) {
+  .ps-driver-section-nav {
+    padding-top: 24px !important;
+    padding-bottom: 8px !important;
+  }
+  .ps-driver-section-nav button {
+    min-width: 138px;
+    justify-content: center;
+  }
+
+  .ps-driver-intro {
+    max-width: 820px !important;
+    margin-bottom: 36px !important;
+  }
+  .ps-driver-intro p { line-height: 1.65 !important; }
+
+  .ps-driver-content > section { margin-bottom: 40px !important; }
+
+  .ps-driver-search {
+    max-width: 1080px;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .ps-driver-know-grid > div,
+  .ps-driver-how-grid > div,
+  .ps-driver-life-grid > div,
+  .ps-driver-confidence-grid > div,
+  .ps-driver-faq-grid > div {
+    box-sizing: border-box;
+    height: 100%;
+  }
+
+  .ps-driver-know-grid,
+  .ps-driver-how-grid,
+  .ps-driver-life-grid,
+  .ps-driver-confidence-grid,
+  .ps-driver-faq-grid { align-items: stretch; }
+
+  .ps-driver-life { margin-bottom: 40px !important; }
+  .ps-driver-location { margin-bottom: 40px !important; }
+  .ps-driver-confidence { margin-bottom: 40px !important; }
+  .ps-driver-great { margin-bottom: 40px !important; }
+  .ps-driver-parker { margin-bottom: 40px !important; }
+
+  .ps-driver-location-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px !important;
+  }
+  .ps-driver-location-grid span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 42px;
+    text-align: center;
+    border-radius: 12px !important;
+  }
+
+  .ps-driver-parker { max-width: 980px !important; }
+  .ps-driver-closing { margin-bottom: 42px !important; }
+}
+
+@media (min-width: 1060px) {
+  .ps-driver-know-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .ps-driver-life-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .ps-driver-how-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+}
+
+@media (min-width: 1200px) {
+  .ps-driver-hero-copy { padding: 58px 62px !important; }
+  .ps-driver-hero-visual { padding: 42px 48px !important; }
+  .ps-driver-hero-visual img { width: min(270px, 70%) !important; }
+  .ps-driver-content { max-width: 1240px !important; }
+  .ps-driver-location-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
