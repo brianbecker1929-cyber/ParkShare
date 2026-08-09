@@ -370,7 +370,7 @@ button, input, select, textarea { font: inherit; }
     text-align: center;
   }
   .ps-host-hero-visual img {
-    width: min(250px, 72%);
+    width: min(280px, 80%);
     height: auto;
     border-radius: 28px;
     background: #fff;
@@ -616,7 +616,7 @@ button, input, select, textarea { font: inherit; }
     text-align: center;
   }
   .ps-driver-hero-visual img {
-    width: min(250px, 68%);
+    width: min(280px, 76%);
     height: auto;
     border-radius: 30px;
     background: #fff;
@@ -776,7 +776,7 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 1200px) {
   .ps-driver-hero-copy { padding: 58px 62px !important; }
   .ps-driver-hero-visual { padding: 42px 48px !important; }
-  .ps-driver-hero-visual img { width: min(270px, 70%) !important; }
+  .ps-driver-hero-visual img { width: min(300px, 78%) !important; }
   .ps-driver-content { max-width: 1240px !important; }
   .ps-driver-location-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
