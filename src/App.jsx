@@ -3533,6 +3533,10 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: 0 }}>
           Park<span style={{ color: C.amber }}>Share</span> is Canada's Driveway Rental Marketplace
         </p>
+        <div className="ps-hero-ctas">
+          <button onClick={onDriverClick} className="ps-hero-cta ps-hero-cta-primary">Find Parking →</button>
+          <button onClick={onHostClick} className="ps-hero-cta ps-hero-cta-secondary">Become a Host →</button>
+        </div>
       </div>
 
       {/* Top: brand / welcome hero — live text (not a baked image) so the
@@ -3613,11 +3617,11 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           scenarios (one host, one driver) rather than another stat. Framed
           as "how people use ParkShare" rather than named testimonials,
           since these are illustrative examples, not verified reviews. */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
+      <div className="ps-stories-section" style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
         <div style={{ textAlign: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>How people use ParkShare</div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="ps-stories-grid" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
             <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.amber, color: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🏠</div>
             <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
@@ -3694,7 +3698,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       </div>
 
       {/* Use my current location — real button, same layout/size as the search bar above */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
+      <div className="ps-current-location" style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
         <button
           onClick={onUseLocation}
           className="ps-hit"
@@ -3709,9 +3713,24 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </button>
       </div>
 
-      {/* Trust bar image */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
-        <img src={LANDING_ACTION} alt="Safe & Secure, Trusted Community, 24/7 Access" style={{ width: "100%", height: "auto", display: "block" }} />
+      {/* Keep the existing mobile trust artwork unchanged. Desktop uses
+          launch-safe live text so we don't overclaim verification/reviews. */}
+      <div className="ps-trust-mobile-image" style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
+        <img src={LANDING_ACTION} alt="ParkShare trust and access benefits" style={{ width: "100%", height: "auto", display: "block" }} />
+      </div>
+      <div className="ps-trust-signals" style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
+        <div className="ps-trust-signal">
+          <div className="ps-trust-icon">🔒</div>
+          <div><strong>Secure Payments</strong><span>Protected checkout</span></div>
+        </div>
+        <div className="ps-trust-signal">
+          <div className="ps-trust-icon">⭐</div>
+          <div><strong>Community Feedback</strong><span>Ratings & reviews</span></div>
+        </div>
+        <div className="ps-trust-signal">
+          <div className="ps-trust-icon">🕒</div>
+          <div><strong>Flexible Parking</strong><span>Park on your time</span></div>
+        </div>
       </div>
 
       {/* Closing vision — bookends the opening vision statement, leaving
