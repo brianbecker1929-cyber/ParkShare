@@ -965,7 +965,7 @@ button, input, select, textarea { font: inherit; }
 .ps-about-audience-card > button { min-height:46px; border-radius:11px; border:none; margin-top:20px; padding:0 18px; font-weight:800; cursor:pointer; position:relative; z-index:2; }
 .ps-about-host-card > button { background:#0E1B2E; color:#fff; }
 .ps-about-driver-card > button { background:#FFC107; color:#0E1B2E; }
-.ps-about-card-parker { width:115px; position:absolute; right:-5px; top:5px; opacity:.98; pointer-events:none; }
+.ps-about-card-parker { width:115px; position:absolute; right:-5px; top:18px; opacity:.98; pointer-events:none; }
 
 .ps-about-parker { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:25px 22px; }
 .ps-about-parker-art { display:flex; justify-content:center; margin-bottom:17px; }
@@ -1007,7 +1007,7 @@ button, input, select, textarea { font: inherit; }
   .ps-about-marketplace-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:stretch; }
   .ps-about-audience-card { min-height:390px; padding:30px; }
   .ps-about-audience-card h3 { font-size:27px; max-width:440px; }
-  .ps-about-card-parker { width:175px; right:5px; top:2px; }
+  .ps-about-card-parker { width:175px; right:5px; top:24px; }
   .ps-about-host-card > div { max-width:68%; }
   .ps-about-audience-card > button { align-self:flex-start; min-width:220px; }
 
