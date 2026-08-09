@@ -578,7 +578,7 @@ button, input, select, textarea { font: inherit; }
     box-shadow: 0 18px 42px rgba(14,27,46,.14);
   }
   .ps-driver-hero-copy {
-    padding: 54px 52px;
+    padding: 46px 48px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -612,7 +612,7 @@ button, input, select, textarea { font: inherit; }
     gap: 18px;
     background: #FFC107;
     color: #0E1B2E;
-    padding: 40px;
+    padding: 32px 36px;
     text-align: center;
   }
   .ps-driver-hero-visual img {
@@ -1009,7 +1009,7 @@ button, input, select, textarea { font: inherit; }
   margin: 0 auto;
   padding: 24px 20px 0;
 }
-.ps-about-content > section { scroll-margin-top: 92px; margin-bottom: 34px; }
+.ps-about-content > section { scroll-margin-top: 92px; margin-bottom: 30px; }
 
 .ps-about-intro { text-align: left; }
 .ps-about-mission {
@@ -1180,7 +1180,7 @@ button, input, select, textarea { font: inherit; }
     display: grid;
     grid-template-columns: 1.05fr .95fr;
     border-radius: 26px;
-    min-height: 430px;
+    min-height: 390px;
   }
   .ps-about-hero-copy {
     padding: 54px 52px;
@@ -1209,7 +1209,7 @@ button, input, select, textarea { font: inherit; }
     padding: 40px;
   }
   .ps-about-hero-visual img {
-    width: min(255px, 68%);
+    width: min(235px, 64%);
   }
   .ps-about-hero-visual strong { font-size: 25px; }
   .ps-about-hero-visual span { font-size: 15px; }
@@ -1229,7 +1229,7 @@ button, input, select, textarea { font: inherit; }
   }
   .ps-about-content > section {
     scroll-margin-top: 110px;
-    margin-bottom: 42px;
+    margin-bottom: 34px;
   }
   .ps-about-intro {
     max-width: 850px;
@@ -1320,7 +1320,16 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 1200px) {
   .ps-about-hero { max-width: 1340px; }
   .ps-about-content { max-width: 1220px; }
-  .ps-about-hero-copy { padding: 58px 62px; }
-  .ps-about-hero-visual { padding: 42px 48px; }
-  .ps-about-hero-visual img { width: min(275px, 70%); }
+  .ps-about-hero-copy { padding: 52px 56px; }
+  .ps-about-hero-visual { padding: 36px 44px; }
+  .ps-about-hero-visual img { width: min(255px, 66%); }
+}
+
+/* About V2.1 polish: tighter section rhythm and a more viewport-friendly hero. */
+.ps-about-vision { margin-bottom: 28px !important; }
+.ps-about-marketplace { margin-bottom: 32px !important; }
+
+@media (min-width: 820px) {
+  .ps-about-vision { margin-bottom: 32px !important; }
+  .ps-about-marketplace { margin-bottom: 34px !important; }
 }

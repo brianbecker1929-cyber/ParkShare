@@ -4412,7 +4412,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             {[
               ["🏠", "Use existing space", "A driveway sitting empty during the day can serve someone who needs parking nearby."],
               ["🚗", "Make arrival easier", "Drivers can spend less time circling and more time getting where they actually need to be."],
-              ["💰", "Create local value", "Property owners can earn additional income from space they already have."],
+              ["💰", "Create value from existing space", "Property owners can earn additional income from space they already have."],
               ["🌎", "Build smarter communities", "Thousands of underused spaces can become part of a more flexible parking network."],
             ].map(([icon, title, copy]) => (
               <div key={title} className="ps-about-card">
@@ -4471,7 +4471,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
               MEET PARKER
             </div>
             <h2>ParkShare&apos;s friendly valet parker.</h2>
-            <P>Parker isn&apos;t just our mascot — he&apos;s our valet parker and the face of the ParkShare experience.</P>
+            <P>Parker isn&apos;t just our mascot — he&apos;s ParkShare&apos;s valet parker and the friendly face of the ParkShare experience.</P>
             <P>A great valet helps take the uncertainty out of parking. Parker represents that same idea: making the experience feel welcoming, clear and easy from the moment you start looking for a space or listing one of your own.</P>
             <P>For Drivers, Parker is the friendly guide helping you get from search to parked. For Hosts, he&apos;s the helpful partner showing how an unused driveway can become an opportunity.</P>
             <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>
