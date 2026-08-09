@@ -17,18 +17,18 @@ button, input, select, textarea {
   font: inherit;
 }
 
-/* --------------------------------------------------------------------------
-   ParkShare responsive foundation
-   Mobile remains the default. Desktop enhancements begin at 1024px so the
-   current phone experience is preserved rather than simply scaled up.
-   -------------------------------------------------------------------------- */
-
+/* ParkShare responsive foundation — mobile remains the default. */
 .ps-header-row,
 .ps-footer,
 .ps-landing-hero-grid,
 .ps-two-ways-section,
-.ps-home-search {
+.ps-home-search,
+.ps-earnings-section {
   width: 100%;
+}
+
+.ps-desktop-guest-nav {
+  display: none;
 }
 
 @media (min-width: 768px) {
@@ -38,35 +38,64 @@ button, input, select, textarea {
   }
 
   .ps-two-ways-section,
-  .ps-home-search {
+  .ps-home-search,
+  .ps-earnings-section {
     max-width: 760px !important;
   }
 }
 
 @media (min-width: 1024px) {
   .ps-header-row {
-    max-width: 1280px;
+    max-width: 1320px;
     margin: 0 auto;
-    min-height: 84px;
-    padding: 10px 32px !important;
+    min-height: 76px;
+    padding: 8px 32px !important;
+  }
+
+  .ps-header-row > div:first-child,
+  .ps-header-row > div:last-child {
+    min-width: 112px;
+  }
+
+  .ps-desktop-guest-nav {
+    max-width: 1320px;
+    margin: -2px auto 0;
+    padding: 0 32px 12px;
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+  }
+
+  .ps-desktop-guest-nav button {
+    border: 0;
+    background: transparent;
+    color: rgba(255,255,255,0.88);
+    font-family: 'Poppins', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 2px;
+  }
+
+  .ps-desktop-guest-nav button:hover {
+    color: #FFC107;
   }
 
   .ps-landing-page {
     overflow-x: hidden;
   }
 
-  /* Homepage hero: two purposeful desktop panels instead of a stretched
-     mobile stack. Both collapse back to the existing mobile layout below. */
+  /* True two-column desktop hero. */
   .ps-landing-hero-grid {
-    max-width: 1280px;
-    margin: 32px auto 0;
+    max-width: 1320px;
+    margin: 36px auto 0;
     padding: 0 32px;
     display: grid;
-    grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
-    min-height: 430px;
-    border-radius: 28px;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    min-height: 480px;
+    border-radius: 30px;
     overflow: hidden;
-    filter: drop-shadow(0 18px 38px rgba(14, 27, 46, 0.14));
+    filter: drop-shadow(0 18px 38px rgba(14, 27, 46, 0.15));
   }
 
   .ps-landing-vision,
@@ -82,27 +111,28 @@ button, input, select, textarea {
 
   .ps-landing-vision {
     text-align: left !important;
-    padding: 68px 64px !important;
+    padding: 72px 68px !important;
   }
 
   .ps-landing-vision > p:first-child {
-    font-size: clamp(42px, 4vw, 62px) !important;
-    line-height: 1.06 !important;
-    max-width: 680px;
-    letter-spacing: -0.025em;
+    font-size: clamp(44px, 4.2vw, 64px) !important;
+    line-height: 1.03 !important;
+    max-width: 650px;
+    letter-spacing: -0.03em;
   }
 
   .ps-landing-vision > p:nth-child(2) {
     font-size: 19px !important;
     max-width: 590px;
+    margin-top: 8px !important;
   }
 
   .ps-landing-welcome {
-    padding: 42px 44px 34px !important;
+    padding: 44px 44px 38px !important;
   }
 
   .ps-landing-welcome img {
-    height: 250px !important;
+    height: 270px !important;
     max-width: 100%;
   }
 
@@ -111,17 +141,17 @@ button, input, select, textarea {
   }
 
   .ps-landing-welcome > div {
-    font-size: 46px !important;
+    font-size: 48px !important;
   }
 
   .ps-landing-welcome > p {
     font-size: 16px !important;
   }
 
-  /* Host and Driver become a true two-column marketplace choice. */
+  /* Marketplace choice — host and driver are peers on desktop. */
   .ps-two-ways-section {
-    max-width: 1180px !important;
-    padding: 56px 32px 0 !important;
+    max-width: 1240px !important;
+    padding: 62px 32px 0 !important;
   }
 
   .ps-two-ways-section > div:first-child {
@@ -132,13 +162,13 @@ button, input, select, textarea {
   .ps-two-ways-grid {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 22px !important;
+    gap: 24px !important;
     align-items: stretch;
   }
 
   .ps-audience-card {
-    min-height: 260px;
-    padding: 30px !important;
+    min-height: 270px;
+    padding: 32px !important;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -150,31 +180,74 @@ button, input, select, textarea {
     box-shadow: 0 14px 34px rgba(14, 27, 46, 0.18) !important;
   }
 
+  /* Earnings — interactive calculator left, scenarios right. */
+  .ps-earnings-section {
+    max-width: 1120px !important;
+    padding: 58px 32px 12px !important;
+  }
+
+  .ps-earnings-heading {
+    margin-bottom: 24px !important;
+  }
+
+  .ps-earnings-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 20px;
+    align-items: stretch;
+  }
+
+  .ps-earnings-calculator {
+    margin-bottom: 0 !important;
+  }
+
+  .ps-earnings-calculator > div {
+    height: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 30px 28px !important;
+  }
+
+  .ps-earnings-scenarios {
+    justify-content: stretch;
+  }
+
+  .ps-earnings-scenarios > div {
+    flex: 1;
+    min-height: 0;
+    padding: 18px 20px !important;
+  }
+
   .ps-home-search {
+    max-width: 1040px !important;
+    padding: 34px 32px 4px !important;
+  }
+
+  .ps-founding-hosts {
     max-width: 900px !important;
-    padding: 28px 32px 4px !important;
+    padding-left: 32px !important;
+    padding-right: 32px !important;
   }
 
   .ps-footer {
-    padding: 28px 32px !important;
+    padding: 30px 32px !important;
   }
 }
 
 @media (min-width: 1440px) {
   .ps-header-row,
+  .ps-desktop-guest-nav,
   .ps-landing-hero-grid {
-    max-width: 1360px;
+    max-width: 1380px;
   }
 
   .ps-two-ways-section {
-    max-width: 1240px !important;
+    max-width: 1280px !important;
   }
-}
 
-@media (min-width: 1024px) {
-  .ps-founding-hosts {
-    max-width: 900px !important;
-    padding-left: 32px !important;
-    padding-right: 32px !important;
+  .ps-earnings-section {
+    max-width: 1180px !important;
   }
 }

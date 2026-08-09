@@ -3249,7 +3249,7 @@ function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHe
   );
 }
 
-function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) {
+function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick }) {
   const tabs = user?.role === "host"
     ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
     : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
@@ -3288,6 +3288,15 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut }) 
           </div>
         )}
       </div>
+      {!user && (onHostClick || onAboutClick || onTrustClick || onHelpClick) && (
+        <nav className="ps-desktop-guest-nav" aria-label="Primary navigation">
+          <button onClick={() => onTabChange("Browse")}>Find Parking</button>
+          {onHostClick && <button onClick={onHostClick}>Become a Host</button>}
+          {onAboutClick && <button onClick={onAboutClick}>About</button>}
+          {onTrustClick && <button onClick={onTrustClick}>Trust &amp; Safety</button>}
+          {onHelpClick && <button onClick={onHelpClick}>Help</button>}
+        </nav>
+      )}
       {/* Nav tabs — only shown once signed in; guests reach Browse via the landing page actions instead */}
       {user && (
         <div style={{ display: "flex", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
@@ -3375,15 +3384,16 @@ function EarningsCalculator() {
 // identical, non-duplicated earnings content.
 function PotentialEarningsSection() {
   return (
-    <div style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
-      <div style={{ textAlign: "center", marginBottom: 16 }}>
+    <div className="ps-earnings-section" style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
+      <div className="ps-earnings-heading" style={{ textAlign: "center", marginBottom: 16 }}>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>💰 Potential Earnings</div>
         <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13, color: C.muted, marginTop: 2 }}>See what your driveway could make</div>
       </div>
-      <div style={{ marginBottom: 14 }}>
-        <EarningsCalculator />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div className="ps-earnings-layout">
+        <div className="ps-earnings-calculator" style={{ marginBottom: 14 }}>
+          <EarningsCalculator />
+        </div>
+        <div className="ps-earnings-scenarios" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {[
           { label: "2 hours/day", detail: "A couple hours after work or on weekends", low: 150, high: 300 },
           { label: "During work hours", detail: "9am–5pm on weekdays, while you're out", low: 300, high: 600 },
@@ -3402,6 +3412,7 @@ function PotentialEarningsSection() {
             </div>
           </div>
         ))}
+        </div>
       </div>
       <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>
         *Estimates only. Actual earnings vary by location, demand, and availability.
@@ -3499,7 +3510,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       `}</style>
 
       {/* Shared header — same one used everywhere else in the app */}
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={onHostClick} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
 
       <div className="ps-landing-hero-grid">
       {/* Vision statement — leads directly with the value proposition and
