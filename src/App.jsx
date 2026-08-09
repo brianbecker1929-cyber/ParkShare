@@ -3257,7 +3257,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
   return (
     <header className="ps-header" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
       {/* Top row: logo + user */}
-      <div className="ps-header-row" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
+      <div className="ps-header-row ps-mobile-header-row" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
           {!user && <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Sign in</button>}
         </div>
@@ -3289,13 +3289,23 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
         )}
       </div>
       {!user && (onHostClick || onAboutClick || onTrustClick || onHelpClick) && (
-        <nav className="ps-desktop-guest-nav" aria-label="Primary navigation">
-          <button onClick={() => onTabChange("Browse")}>Find Parking</button>
-          {onHostClick && <button onClick={onHostClick}>Become a Host</button>}
-          {onAboutClick && <button onClick={onAboutClick}>About</button>}
-          {onTrustClick && <button onClick={onTrustClick}>Trust &amp; Safety</button>}
-          {onHelpClick && <button onClick={onHelpClick}>Help</button>}
-        </nav>
+        <div className="ps-desktop-guest-header">
+          <button className="ps-desktop-logo" onClick={onLogoClick} aria-label="ParkShare home">
+            <div className="ps-desktop-logo-icon"><img src={PARKER.icon} alt="" /></div>
+            <div className="ps-desktop-logo-wordmark">Park<span>Share</span></div>
+          </button>
+          <nav className="ps-desktop-guest-nav" aria-label="Primary navigation">
+            <button onClick={() => onTabChange("Browse")}>Find Parking</button>
+            {onHostClick && <button onClick={onHostClick}>Become a Host</button>}
+            {onAboutClick && <button onClick={onAboutClick}>About</button>}
+            {onTrustClick && <button onClick={onTrustClick}>Trust &amp; Safety</button>}
+            {onHelpClick && <button onClick={onHelpClick}>Help</button>}
+          </nav>
+          <div className="ps-desktop-auth-actions">
+            <button className="ps-desktop-signin" onClick={onShowAuth}>Sign in</button>
+            <button className="ps-desktop-join" onClick={onShowAuth}>Join free</button>
+          </div>
+        </div>
       )}
       {/* Nav tabs — only shown once signed in; guests reach Browse via the landing page actions instead */}
       {user && (
@@ -3578,7 +3588,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
               <div style={{ width: 46, height: 46, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>🚗</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 10.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>For drivers</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 19, color: C.white, lineHeight: 1.2, marginBottom: 6 }}>Find parking, guaranteed</div>
+                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 19, color: C.white, lineHeight: 1.2, marginBottom: 6 }}>Find parking with confidence</div>
                 <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12.5, color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>Imagine arriving knowing your parking spot is waiting for you.</div>
               </div>
             </div>
