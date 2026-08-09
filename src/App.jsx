@@ -4470,7 +4470,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <div style={{ color: C.amber, fontWeight: 800, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 7 }}>
               MEET PARKER
             </div>
-            <h2>ParkShare&apos;s friendly valet parker.</h2>
+            <h2>Meet Parker, ParkShare&apos;s Valet Parker.</h2>
             <P>Parker isn&apos;t just our mascot — he&apos;s ParkShare&apos;s valet parker and the friendly face of the ParkShare experience.</P>
             <P>A great valet helps take the uncertainty out of parking. Parker represents that same idea: making the experience feel welcoming, clear and easy from the moment you start looking for a space or listing one of your own.</P>
             <P>For Drivers, Parker is the friendly guide helping you get from search to parked. For Hosts, he&apos;s the helpful partner showing how an unused driveway can become an opportunity.</P>
