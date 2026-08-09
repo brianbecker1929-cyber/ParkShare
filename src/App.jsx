@@ -4204,7 +4204,29 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <P>For emergencies or situations involving immediate personal safety, contact the appropriate local emergency or public safety service first.</P>
             <button onClick={onContactClick}>Contact ParkShare →</button>
           </div>
-          <div className="ps-trust-v2-support-side"><div>💬</div><strong>Need help?</strong><span>Give us the reservation details and tell us what happened.</span></div>
+          <div
+            className="ps-trust-v2-support-side"
+            style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
+          >
+            <img
+              src="/parker/parker-helpful.png"
+              alt="Parker ready to help"
+              loading="eager"
+              decoding="async"
+              style={{
+                width: "230px",
+                maxWidth: "68%",
+                height: "auto",
+                maxHeight: "245px",
+                objectFit: "contain",
+                objectPosition: "center bottom",
+                display: "block",
+                margin: "0 auto 14px"
+              }}
+            />
+            <strong>Need help?</strong>
+            <span>Give us the reservation details and tell us what happened.</span>
+          </div>
         </section>
 
         <section className="ps-trust-v2-closing">
