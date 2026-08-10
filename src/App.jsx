@@ -4209,7 +4209,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/parker/parker-helpful.png"
+              src="/parker/Parker-Helpful.png"
               alt="Parker ready to help"
               loading="eager"
               decoding="async"
