@@ -4214,10 +4214,10 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
               loading="eager"
               decoding="async"
               style={{
-                width: "230px",
-                maxWidth: "68%",
+                width: "253px",
+                maxWidth: "74.8%",
                 height: "auto",
-                maxHeight: "245px",
+                maxHeight: "270px",
                 objectFit: "contain",
                 objectPosition: "center bottom",
                 display: "block",
