@@ -931,7 +931,7 @@ button, input, select, textarea { font: inherit; }
 .ps-about-hero-primary { background:#FFC107; color:#0E1B2E; border:2px solid #FFC107; }
 .ps-about-hero-secondary { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.7); }
 .ps-about-hero-visual { background:#FFC107; padding:24px; text-align:center; color:#0E1B2E; display:flex; flex-direction:column; align-items:center; }
-.ps-about-hero-visual img { width:min(255px,70%); max-height:300px; object-fit:contain; border-radius:30px; background:#fff; box-shadow:0 0 0 5px #0E1B2E, 0 0 0 8px #fff; padding:8px; }
+.ps-about-hero-visual img { width:min(255px,70%); max-height:300px; object-fit:contain; }
 .ps-about-hero-visual strong { font-size:21px; margin-top:4px; }
 .ps-about-hero-visual span { font-size:13px; opacity:.78; }
 
@@ -965,7 +965,7 @@ button, input, select, textarea { font: inherit; }
 .ps-about-audience-card > button { min-height:46px; border-radius:11px; border:none; margin-top:20px; padding:0 18px; font-weight:800; cursor:pointer; position:relative; z-index:2; }
 .ps-about-host-card > button { background:#0E1B2E; color:#fff; }
 .ps-about-driver-card > button { background:#FFC107; color:#0E1B2E; }
-.ps-about-card-parker { width:115px; position:absolute; right:-5px; top:18px; opacity:.98; pointer-events:none; }
+.ps-about-card-parker { width:115px; position:absolute; right:-5px; top:5px; opacity:.98; pointer-events:none; }
 
 .ps-about-parker { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:25px 22px; }
 .ps-about-parker-art { display:flex; justify-content:center; margin-bottom:17px; }
@@ -1007,7 +1007,7 @@ button, input, select, textarea { font: inherit; }
   .ps-about-marketplace-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; align-items:stretch; }
   .ps-about-audience-card { min-height:390px; padding:30px; }
   .ps-about-audience-card h3 { font-size:27px; max-width:440px; }
-  .ps-about-card-parker { width:175px; right:5px; top:24px; }
+  .ps-about-card-parker { width:175px; right:5px; top:2px; }
   .ps-about-host-card > div { max-width:68%; }
   .ps-about-audience-card > button { align-self:flex-start; min-width:220px; }
 
@@ -1015,10 +1015,64 @@ button, input, select, textarea { font: inherit; }
   .ps-about-parker-art { margin:0; }
   .ps-about-parker-art img { width:min(310px,90%); }
 
-  .ps-about-canadian { display:grid; grid-template-columns:minmax(0,1fr) 245px; align-items:center; gap:20px; padding:34px 38px; max-width:1080px; margin-left:auto; margin-right:auto; }
-  .ps-about-canadian img { display:block; width:225px; max-height:280px; object-fit:contain; align-self:end; }
+  .ps-about-canadian { display:grid; grid-template-columns:minmax(0,1fr) 220px; align-items:center; gap:20px; padding:34px 38px; max-width:1080px; margin-left:auto; margin-right:auto; }
+  .ps-about-canadian img { display:block; width:200px; max-height:250px; object-fit:contain; align-self:end; }
 
   .ps-about-closing { max-width:980px; margin-left:auto; margin-right:auto; padding:34px 38px; }
   .ps-about-closing-actions { flex-direction:row; justify-content:center; }
   .ps-about-closing-actions button { min-width:230px; padding:0 22px; }
+}
+
+/* ParkShare Trust & Safety V2 — append to END of src/index.css */
+.ps-trust-page{overflow-x:hidden;font-family:'Poppins',sans-serif}.ps-trust-v2-eyebrow{color:#FFC107;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px}.ps-trust-v2-hero{margin:18px 14px 0;overflow:hidden;border-radius:22px;background:#0E1B2E;box-shadow:0 12px 30px rgba(14,27,46,.12)}.ps-trust-v2-hero-copy{padding:34px 26px 30px}.ps-trust-v2-hero-copy h1{margin:0 0 18px;color:#fff;font-size:31px;line-height:1.08;letter-spacing:-.035em}.ps-trust-v2-hero-copy h1 span{color:#FFC107}.ps-trust-v2-hero-copy p{margin:0 0 12px;color:rgba(255,255,255,.78);font-size:14px;line-height:1.7}.ps-trust-v2-hero-actions{display:flex;flex-direction:column;gap:10px;margin-top:22px}.ps-trust-v2-hero-actions button,.ps-trust-v2-closing-actions button{min-height:47px;border-radius:11px;padding:0 22px;font-family:'Poppins',sans-serif;font-size:13px;font-weight:800;cursor:pointer}.ps-trust-v2-primary{background:#FFC107;color:#0E1B2E;border:2px solid #FFC107}.ps-trust-v2-secondary{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.72)}.ps-trust-v2-hero-visual{background:#FFC107;padding:30px 24px 31px;color:#0E1B2E;text-align:center;display:flex;flex-direction:column;align-items:center;gap:13px}.ps-trust-v2-parker-frame{width:min(310px,78%);aspect-ratio:4/5;padding:10px;border-radius:27px;background:#fff;border:4px solid #0E1B2E;box-shadow:0 0 0 5px #fff;overflow:hidden;display:flex;align-items:center;justify-content:center}.ps-trust-v2-parker-frame img{width:100%;height:100%;object-fit:contain}.ps-trust-v2-hero-visual strong{font-size:21px;line-height:1.15}.ps-trust-v2-hero-visual span{font-size:12.5px;opacity:.78}.ps-trust-v2-section-nav{max-width:720px;margin:0 auto;padding:22px 18px 5px;display:flex;flex-wrap:wrap;justify-content:center;gap:9px}.ps-trust-v2-section-nav button{min-height:38px;padding:0 14px;background:#FFC107;color:#0E1B2E;border:2px solid #0E1B2E;box-shadow:0 0 0 2px #fff;border-radius:20px;font-family:'Poppins',sans-serif;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}.ps-trust-v2-content{max-width:700px;margin:0 auto;padding:28px 20px 0}.ps-trust-v2-content>section{scroll-margin-top:92px;margin-bottom:34px}.ps-trust-v2-intro h2,.ps-trust-v2-two-sides h2,.ps-trust-v2-standards h2,.ps-trust-v2-support h2,.ps-trust-v2-closing h2{margin:6px 0 13px;color:#0E1B2E;font-size:22px;line-height:1.25}.ps-trust-v2-intro>p,.ps-trust-v2-support-copy>p{color:#444;font-size:13.5px;line-height:1.75;margin:0 0 12px}.ps-trust-v2-principles,.ps-trust-v2-standard-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:20px}.ps-trust-v2-card{min-height:150px;padding:18px;background:#fff;border:1.5px solid #E3DDC9;border-radius:15px;display:flex;flex-direction:column;align-items:flex-start}.ps-trust-v2-card-icon{font-size:24px;margin-bottom:9px}.ps-trust-v2-card strong{color:#0E1B2E;font-size:14px;margin-bottom:6px}.ps-trust-v2-card small{color:#71695A;font-size:12px;line-height:1.55}.ps-trust-v2-two-grid{display:grid;grid-template-columns:1fr;gap:15px;margin-top:20px}.ps-trust-v2-audience{border-radius:20px;padding:24px 22px;display:flex;flex-direction:column}.ps-trust-v2-driver{background:#0E1B2E;color:#fff}.ps-trust-v2-host{background:#FFC107;color:#0E1B2E}.ps-trust-v2-audience-icon{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.82);display:flex;align-items:center;justify-content:center;font-size:21px;margin-bottom:11px}.ps-trust-v2-audience-label{color:#FFC107;font-size:11px;font-weight:800;letter-spacing:.07em;margin-bottom:7px}.ps-trust-v2-host .ps-trust-v2-audience-label{color:#0E1B2E;opacity:.75}.ps-trust-v2-audience h3{margin:0 0 11px;font-size:20px;line-height:1.25}.ps-trust-v2-driver h3{color:#fff}.ps-trust-v2-audience>div>p{margin:0 0 14px;font-size:13px;line-height:1.65}.ps-trust-v2-driver>div>p{color:rgba(255,255,255,.76)}.ps-trust-v2-host>div>p{color:rgba(14,27,46,.78)}.ps-trust-v2-checklist{display:flex;flex-direction:column;gap:9px;margin-top:6px;flex:1}.ps-trust-v2-checklist>div{display:grid;grid-template-columns:24px 1fr;gap:9px;align-items:flex-start;padding:10px 0;border-top:1px solid rgba(255,255,255,.14)}.ps-trust-v2-host .ps-trust-v2-checklist>div{border-top-color:rgba(14,27,46,.14)}.ps-trust-v2-checklist>div>span{font-weight:900;color:#FFC107}.ps-trust-v2-host .ps-trust-v2-checklist>div>span{color:#0E1B2E}.ps-trust-v2-checklist strong{display:block;font-size:12.5px;line-height:1.4;margin-bottom:3px}.ps-trust-v2-checklist small{display:block;font-size:11px;line-height:1.5;opacity:.78}.ps-trust-v2-audience>button{align-self:stretch;min-height:46px;margin-top:20px;border-radius:11px;border:none;font-family:'Poppins',sans-serif;font-weight:800;cursor:pointer}.ps-trust-v2-driver>button{background:#FFC107;color:#0E1B2E}.ps-trust-v2-host>button{background:#0E1B2E;color:#fff}.ps-trust-v2-dark-section{background:#0E1B2E;border-radius:20px;padding:26px 22px;box-shadow:0 12px 28px rgba(14,27,46,.10)}.ps-trust-v2-dark-section h2{color:#fff;font-size:22px;line-height:1.25;margin:6px 0 17px}.ps-trust-v2-dark-grid{display:grid;grid-template-columns:1fr;gap:11px}.ps-trust-v2-dark-grid>div{padding:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);border-radius:14px}.ps-trust-v2-dark-grid span{display:block;font-size:22px;margin-bottom:7px}.ps-trust-v2-dark-grid strong{display:block;color:#FFC107;font-size:13.5px;margin-bottom:5px}.ps-trust-v2-dark-grid small{display:block;color:rgba(255,255,255,.75);font-size:11.5px;line-height:1.55}.ps-trust-v2-support{overflow:hidden;background:#fff;border:1.5px solid #E3DDC9;border-radius:20px}.ps-trust-v2-support-copy{padding:26px 22px}.ps-trust-v2-support-copy>button{min-height:44px;padding:0 18px;background:#0E1B2E;color:#fff;border:none;border-radius:10px;font-family:'Poppins',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer}.ps-trust-v2-support-side{background:#FFC107;color:#0E1B2E;padding:27px 22px;text-align:center;display:flex;flex-direction:column;align-items:center}.ps-trust-v2-support-side div{font-size:40px;margin-bottom:7px}.ps-trust-v2-support-side strong{font-size:19px;margin-bottom:5px}.ps-trust-v2-support-side span{font-size:12px;line-height:1.55;opacity:.78}.ps-trust-v2-closing{text-align:center;background:#fff;border:1.5px solid #E3DDC9;border-radius:20px;padding:29px 22px}.ps-trust-v2-closing p{color:#71695A;font-size:13.5px;line-height:1.6}.ps-trust-v2-closing-actions{display:flex;flex-direction:column;gap:10px;margin-top:18px}.ps-trust-v2-closing-dark{background:#0E1B2E;color:#fff;border:2px solid #0E1B2E}.ps-trust-v2-legal-link{margin-top:17px;background:none;border:none;padding:0;color:#3F7A5E;text-decoration:underline;font-family:'Poppins',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer}
+@media(min-width:820px){.ps-trust-v2-hero{max-width:1280px;min-height:410px;margin:26px auto 0;display:grid;grid-template-columns:1.05fr .95fr;border-radius:26px}.ps-trust-v2-hero-copy{padding:54px 52px;display:flex;flex-direction:column;justify-content:center}.ps-trust-v2-hero-copy h1{font-size:clamp(36px,4vw,56px);max-width:690px}.ps-trust-v2-hero-copy p{max-width:650px;font-size:15.5px}.ps-trust-v2-hero-actions{flex-direction:row;flex-wrap:wrap}.ps-trust-v2-hero-actions button{min-width:190px}.ps-trust-v2-hero-visual{justify-content:center;padding:38px 42px}.ps-trust-v2-parker-frame{width:min(300px,70%);max-height:320px}.ps-trust-v2-hero-visual strong{font-size:24px}.ps-trust-v2-hero-visual span{font-size:14px}.ps-trust-v2-section-nav{max-width:1160px;padding:25px 34px 8px;gap:10px}.ps-trust-v2-section-nav button{min-width:145px}.ps-trust-v2-content{max-width:1180px;padding:34px 34px 0}.ps-trust-v2-content>section{scroll-margin-top:110px;margin-bottom:42px}.ps-trust-v2-intro{text-align:center}.ps-trust-v2-intro>p{max-width:880px;margin-left:auto;margin-right:auto;font-size:14.5px}.ps-trust-v2-intro h2,.ps-trust-v2-two-sides h2,.ps-trust-v2-standards h2,.ps-trust-v2-support h2,.ps-trust-v2-closing h2{font-size:26px}.ps-trust-v2-principles{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.ps-trust-v2-card{min-height:180px;padding:20px 19px}.ps-trust-v2-two-sides{text-align:center}.ps-trust-v2-two-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;text-align:left}.ps-trust-v2-audience{min-height:620px;padding:30px}.ps-trust-v2-audience h3{font-size:24px}.ps-trust-v2-audience>button{align-self:flex-start;min-width:230px;padding:0 20px}.ps-trust-v2-dark-section{padding:34px 38px;border-radius:22px}.ps-trust-v2-dark-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.ps-trust-v2-dark-grid>div{min-height:145px;padding:19px}.ps-trust-v2-standard-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.ps-trust-v2-support{display:grid;grid-template-columns:1.25fr .75fr;min-height:315px}.ps-trust-v2-support-copy{padding:36px 38px;display:flex;flex-direction:column;justify-content:center}.ps-trust-v2-support-side{justify-content:center;padding:34px}.ps-trust-v2-closing{max-width:980px;margin-left:auto;margin-right:auto;padding:34px 38px;border-radius:22px}.ps-trust-v2-closing-actions{flex-direction:row;justify-content:center}.ps-trust-v2-closing-actions button{min-width:230px}}
+@media(min-width:1200px){.ps-trust-v2-hero{max-width:1340px}.ps-trust-v2-content{max-width:1220px}.ps-trust-v2-hero-copy{padding:58px 62px}.ps-trust-v2-hero-visual{padding:42px 48px}}
+
+/* Trust & Safety V2 final refinements -------------------------------------- */
+/* Slightly lower Parker in the hero frame for better vertical balance. */
+.ps-trust-v2-parker-frame img {
+  object-position: center bottom;
+  transform: translateY(12px);
+}
+
+/* Replace generic support emoji with a small Parker helper pose. */
+.ps-trust-v2-support-parker {
+  width: min(170px, 62%);
+  max-height: 180px;
+  object-fit: contain;
+  object-position: center bottom;
+  display: block;
+  margin: 0 auto 10px;
+}
+
+/* Keep the six section pills visually balanced. */
+@media (min-width: 820px) {
+  .ps-trust-v2-section-nav {
+    max-width: 930px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 14px;
+  }
+  .ps-trust-v2-section-nav button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (min-width: 1180px) {
+  .ps-trust-v2-section-nav {
+    max-width: 1180px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+@media (max-width: 819px) {
+  .ps-trust-v2-parker-frame img {
+    transform: translateY(8px);
+  }
+  .ps-trust-v2-support-parker {
+    width: min(145px, 56%);
+    max-height: 155px;
+  }
 }
