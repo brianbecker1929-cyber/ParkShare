@@ -30,5 +30,5 @@ Open Host Dashboard and select Connect Stripe.
 Complete Stripe test onboarding.
 Confirm the dashboard says Stripe payouts ready.
 Sign in as a different Driver and book the Host's real database listing.
-Confirm the booking appears only after the signed webhook is received.
+Confirm the booking appears only after the signed webhook is received..
 Verify the payment is on the connected account and the 15% application fee is on the ParkShare platform.
