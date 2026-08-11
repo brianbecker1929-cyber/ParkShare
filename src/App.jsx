@@ -4414,7 +4414,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/parker/Parker-Helpful.png"
+              src="/parker/Helpful Left.png"
               alt="Parker ready to help"
               loading="eager"
               decoding="async"
@@ -5434,7 +5434,18 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           /* Crop only the lower body; keep Parker's single presenting hand visible. */
           clip-path: inset(0 0 56% 0);
         }
-        @media (max-width: 820px) {
+        
+        .ps-help-support-visual img {
+          width: 78%;
+          max-width: 330px;
+          height: auto;
+          object-fit: contain;
+          object-position: center top;
+          display: block;
+          margin: 0 auto;
+        }
+
+@media (max-width: 820px) {
           .ps-help-small-parker-frame {
             width: 245px;
             height: 156px;
