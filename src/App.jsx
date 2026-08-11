@@ -5402,73 +5402,53 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           margin: 0;
         }
         .ps-help-small-parker-frame {
-          width: 290px;
-          height: 188px;
-          flex: 0 0 290px;
-          position: relative;
-          overflow: visible;
-        }
-        .ps-help-small-parker-card {
-          position: absolute;
-          left: 0;
-          top: 0;
           width: 225px;
           height: 176px;
+          flex: 0 0 225px;
+          position: relative;
           background: ${C.white};
           border: 3px solid ${C.navy};
           border-radius: 26px;
           overflow: hidden;
           box-shadow: 0 4px 12px rgba(14,27,46,.08);
         }
+        .ps-help-small-parker-card {
+          display: none;
+        }
         .ps-help-small-parker-frame img {
           position: absolute;
-          left: 8px;
+          left: 50%;
           top: -18px;
+          transform: translateX(-50%);
           width: 300px;
           height: auto;
           max-width: none;
           margin: 0;
-          z-index: 2;
+          object-fit: contain;
           pointer-events: none;
-
-          /* Keep Parker large and waist-up while letting his right hand
-             extend beyond the white rounded rectangle. */
-          clip-path: inset(0 0 27% 0);
         }
         @media (max-width: 820px) {
           .ps-help-small-parker-frame {
-            width: 250px;
-            height: 168px;
-            flex-basis: 250px;
-          }
-          .ps-help-small-parker-card {
             width: 195px;
             height: 156px;
+            flex-basis: 195px;
             border-radius: 24px;
           }
           .ps-help-small-parker-frame img {
             width: 260px;
-            left: 6px;
             top: -14px;
-            clip-path: inset(0 0 26% 0);
           }
         }
         @media (max-width: 620px) {
           .ps-help-small-parker-frame {
-            width: 205px;
-            height: 146px;
-            flex-basis: 205px;
-          }
-          .ps-help-small-parker-card {
             width: 160px;
             height: 136px;
+            flex-basis: 160px;
             border-radius: 22px;
           }
           .ps-help-small-parker-frame img {
-            width: 222px;
-            left: 2px;
+            width: 220px;
             top: -10px;
-            clip-path: inset(0 0 25% 0);
           }
         }
 
@@ -5540,38 +5520,6 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           object-fit: contain;
         }
 
-        /* Parker-specific override for the Need a hand? composition.
-           This must come after the generic guide image rule so Parker
-           stays large, waist-up, and can extend his hand toward the copy. */
-        .ps-help-guide .ps-help-small-parker-frame img {
-          position: absolute;
-          left: 8px;
-          top: -18px;
-          width: 300px;
-          height: auto;
-          max-width: none;
-          margin: 0;
-          z-index: 2;
-          pointer-events: none;
-          object-fit: contain;
-          clip-path: inset(0 0 27% 0);
-        }
-        @media (max-width: 820px) {
-          .ps-help-guide .ps-help-small-parker-frame img {
-            width: 260px;
-            left: 6px;
-            top: -14px;
-            clip-path: inset(0 0 26% 0);
-          }
-        }
-        @media (max-width: 620px) {
-          .ps-help-guide .ps-help-small-parker-frame img {
-            width: 222px;
-            left: 2px;
-            top: -10px;
-            clip-path: inset(0 0 25% 0);
-          }
-        }
         .ps-help-guide strong {
           display: block;
           font-size: 15px;
