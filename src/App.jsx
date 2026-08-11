@@ -3391,17 +3391,59 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
               flexShrink: 0,
             }}
           >
-            <img
-              src="/parker/parker-icon.png"
-              alt="ParkShare"
+            <div
+              className="ps-desktop-logo-icon"
               style={{
-                width: "100%",
-                height: "100%",
-                display: "block",
-                objectFit: "contain",
-                objectPosition: "left center",
+                width: 36,
+                height: 36,
+                minWidth: 36,
+                minHeight: 36,
+                borderRadius: "50%",
+                overflow: "hidden",
+                background: C.amber,
+                border: "2px solid " + C.white,
+                boxShadow: "0 0 0 1.5px " + C.navy,
+                position: "relative",
+                zIndex: 2,
+                boxSizing: "border-box",
               }}
-            />
+            >
+              <img
+                src={PARKER.icon}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "block",
+                  objectFit: "cover",
+                }}
+              />
+            </div>
+            <div
+              className="ps-desktop-logo-wordmark"
+              style={{
+                height: 28,
+                width: 116,
+                marginLeft: -7,
+                padding: "0 10px 0 13px",
+                boxSizing: "border-box",
+                borderRadius: 7,
+                background: C.amber,
+                border: "2px solid " + C.white,
+                boxShadow: "0 0 0 1.5px " + C.navy,
+                color: C.navy,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight: 800,
+                fontSize: 15,
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Park<span style={{ color: C.navy }}>Share</span>
+            </div>
           </button>
           <nav
             className="ps-desktop-guest-nav"
