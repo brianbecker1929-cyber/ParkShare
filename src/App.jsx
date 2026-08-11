@@ -5116,8 +5116,6 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
 
-  // Flattened search results across every category/group, tagged with
-  // which category they came from so results still make sense out of context.
   const searchResults = searching
     ? HELP_DATA.flatMap(cat =>
         cat.groups.flatMap((grp, gi) =>
@@ -5129,35 +5127,430 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
     : [];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+    <div className="ps-help-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+
+        .ps-help-page,
+        .ps-help-page * { box-sizing: border-box; }
+
+        .ps-help-hero {
+          max-width: 1180px;
+          margin: 26px auto 0;
+          display: grid;
+          grid-template-columns: 1.08fr .92fr;
+          border-radius: 22px;
+          overflow: hidden;
+          box-shadow: 0 12px 30px rgba(14,27,46,.10);
+        }
+        .ps-help-hero-copy {
+          background: ${C.navy};
+          padding: 50px 48px 46px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .ps-help-eyebrow {
+          font-family: 'Poppins', sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          color: ${C.amber};
+          text-transform: uppercase;
+          letter-spacing: .07em;
+          margin-bottom: 10px;
+        }
+        .ps-help-hero h1 {
+          font-family: 'Poppins', sans-serif;
+          font-size: clamp(34px, 4vw, 52px);
+          line-height: 1.05;
+          font-weight: 800;
+          color: ${C.white};
+          margin: 0 0 14px;
+          letter-spacing: -.025em;
+        }
+        .ps-help-hero-copy p {
+          font-family: 'Poppins', sans-serif;
+          color: rgba(255,255,255,.78);
+          font-size: 15px;
+          line-height: 1.75;
+          margin: 0 0 24px;
+          max-width: 610px;
+        }
+        .ps-help-search {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          background: ${C.white};
+          border-radius: 13px;
+          padding: 14px 16px;
+          max-width: 650px;
+          box-shadow: 0 6px 18px rgba(0,0,0,.12);
+        }
+        .ps-help-search input {
+          flex: 1;
+          min-width: 0;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          font-family: 'Poppins', sans-serif;
+          font-size: 14px;
+          color: ${C.navy};
+        }
+        .ps-help-hero-art {
+          background: ${C.amber};
+          min-height: 380px;
+          padding: 34px 38px 30px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .ps-help-support-visual {
+          width: 100%;
+          max-width: 390px;
+          text-align: center;
+          font-family: 'Poppins', sans-serif;
+          color: ${C.navy};
+        }
+        .ps-help-support-visual img {
+          display: block;
+          height: 235px;
+          max-width: 100%;
+          object-fit: contain;
+          margin: 0 auto 10px;
+        }
+        .ps-help-support-visual h2 {
+          font-size: 24px;
+          line-height: 1.15;
+          font-weight: 800;
+          margin: 0 0 7px;
+        }
+        .ps-help-support-visual p {
+          font-size: 13px;
+          line-height: 1.55;
+          margin: 0 auto;
+          max-width: 330px;
+          opacity: .76;
+        }
+
+        .ps-help-shell {
+          max-width: 1180px;
+          margin: 0 auto;
+          padding: 20px 24px 0;
+          font-family: 'Poppins', sans-serif;
+        }
+        .ps-help-topic-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0,1fr));
+          gap: 14px;
+          scroll-margin-top: 24px;
+          margin-bottom: 22px;
+        }
+        .ps-help-topic-card {
+          background: ${C.white};
+          border: 1.5px solid ${C.concrete};
+          border-radius: 17px;
+          padding: 20px 16px;
+          min-height: 126px;
+          text-align: center;
+          cursor: pointer;
+          box-shadow: 0 5px 16px rgba(14,27,46,.05);
+          transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+        }
+        .ps-help-topic-card:hover {
+          transform: translateY(-2px);
+          border-color: ${C.navy};
+          box-shadow: 0 9px 22px rgba(14,27,46,.09);
+        }
+        .ps-help-topic-icon { font-size: 29px; margin-bottom: 9px; }
+        .ps-help-topic-title {
+          color: ${C.navy};
+          font-size: 13.5px;
+          line-height: 1.3;
+          font-weight: 800;
+        }
+
+        .ps-help-guide {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          align-items: center;
+          gap: 18px;
+          background: ${C.navy};
+          border-radius: 18px;
+          padding: 18px 24px;
+          margin: 0 0 30px;
+          color: ${C.white};
+        }
+        .ps-help-guide img {
+          width: 86px;
+          height: 86px;
+          object-fit: contain;
+        }
+        .ps-help-guide strong {
+          display: block;
+          font-size: 15px;
+          margin-bottom: 4px;
+        }
+        .ps-help-guide span {
+          display: block;
+          font-size: 13px;
+          line-height: 1.6;
+          color: rgba(255,255,255,.80);
+        }
+
+        .ps-help-category {
+          background: rgba(255,255,255,.45);
+          border: 1px solid rgba(227,221,201,.9);
+          border-radius: 20px;
+          padding: 24px;
+          margin-bottom: 18px;
+          scroll-margin-top: 28px;
+        }
+        .ps-help-category-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 18px;
+        }
+        .ps-help-category-head .icon { font-size: 22px; }
+        .ps-help-category-head h2 {
+          font-family: 'Poppins', sans-serif;
+          font-weight: 800;
+          font-size: 23px;
+          color: ${C.navy};
+          margin: 0;
+        }
+        .ps-help-group-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0,1fr));
+          gap: 18px;
+        }
+        .ps-help-group {
+          min-width: 0;
+        }
+        .ps-help-group-title {
+          font-family: 'Poppins', sans-serif;
+          font-weight: 800;
+          font-size: 11px;
+          color: ${C.amber};
+          text-transform: uppercase;
+          letter-spacing: .055em;
+          margin-bottom: 8px;
+        }
+        .ps-help-accordion-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .ps-help-category-links {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          flex-wrap: wrap;
+          margin-top: 14px;
+        }
+        .ps-help-text-link {
+          background: none;
+          border: none;
+          padding: 0;
+          color: ${C.moss};
+          text-decoration: underline;
+          font-family: 'Poppins', sans-serif;
+          font-size: 12.5px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+
+        .ps-help-search-results {
+          max-width: 900px;
+          margin: 4px auto 32px;
+        }
+
+        .ps-help-bottom-grid {
+          display: grid;
+          grid-template-columns: 1.15fr .85fr;
+          gap: 18px;
+          margin: 28px 0 34px;
+          align-items: stretch;
+        }
+        .ps-help-contact-card {
+          background: ${C.navy};
+          border-radius: 20px;
+          padding: 30px;
+          color: ${C.white};
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .ps-help-contact-card h3 {
+          font-family: 'Poppins', sans-serif;
+          font-size: 22px;
+          line-height: 1.2;
+          font-weight: 800;
+          margin: 0 0 8px;
+        }
+        .ps-help-contact-card p {
+          font-family: 'Poppins', sans-serif;
+          font-size: 13px;
+          line-height: 1.65;
+          color: rgba(255,255,255,.76);
+          margin: 0 0 18px;
+          max-width: 650px;
+        }
+        .ps-help-contact-card button {
+          align-self: flex-start;
+          background: ${C.amber};
+          color: ${C.navy};
+          border: 0;
+          border-radius: 11px;
+          padding: 12px 22px;
+          font-family: 'Poppins', sans-serif;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .ps-help-cta-card {
+          background: ${C.white};
+          border: 1.5px solid ${C.concrete};
+          border-radius: 20px;
+          padding: 26px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+        .ps-help-cta-card h3 {
+          font-family: 'Poppins', sans-serif;
+          font-size: 18px;
+          font-weight: 800;
+          color: ${C.navy};
+          margin: 0 0 16px;
+          text-align: center;
+        }
+        .ps-help-cta-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .ps-help-cta-actions button {
+          border: 0;
+          border-radius: 11px;
+          padding: 13px 16px;
+          font-family: 'Poppins', sans-serif;
+          font-size: 13px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .ps-help-cta-actions .driver { background: ${C.amber}; color: ${C.navy}; }
+        .ps-help-cta-actions .host { background: ${C.navy}; color: ${C.white}; }
+
+        @media (max-width: 899px) {
+          .ps-help-hero {
+            display: block;
+            margin: 0 auto;
+            max-width: 460px;
+            border-radius: 0;
+            box-shadow: none;
+          }
+          .ps-help-hero-copy {
+            padding: 30px 24px 26px;
+            text-align: center;
+          }
+          .ps-help-hero h1 { font-size: 23px; margin-bottom: 16px; }
+          .ps-help-hero-copy p { display: none; }
+          .ps-help-search { padding: 12px 14px; }
+          .ps-help-hero-art { display: none; }
+          .ps-help-shell { max-width: 460px; padding: 16px 24px 0; }
+          .ps-help-topic-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 18px;
+          }
+          .ps-help-topic-card {
+            min-height: 0;
+            padding: 16px 10px;
+            border: 2px solid ${C.navy};
+            box-shadow: none;
+          }
+          .ps-help-topic-icon { font-size: 25px; margin-bottom: 7px; }
+          .ps-help-topic-title { font-size: 12px; }
+          .ps-help-guide {
+            grid-template-columns: 62px 1fr;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            margin-bottom: 20px;
+          }
+          .ps-help-guide img { width: 62px; height: 72px; }
+          .ps-help-guide strong { font-size: 12.5px; }
+          .ps-help-guide span { font-size: 11.5px; line-height: 1.45; }
+          .ps-help-category {
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+            padding: 0;
+            margin-bottom: 24px;
+          }
+          .ps-help-category-head { margin-bottom: 10px; gap: 8px; }
+          .ps-help-category-head .icon { font-size: 18px; }
+          .ps-help-category-head h2 { font-size: 18px; }
+          .ps-help-group-grid { grid-template-columns: 1fr; gap: 12px; }
+          .ps-help-category-links { margin-top: 6px; gap: 12px; }
+          .ps-help-bottom-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+            margin: 24px 0 28px;
+          }
+          .ps-help-contact-card { padding: 22px 20px; text-align: center; border-radius: 16px; }
+          .ps-help-contact-card h3 { font-size: 15px; }
+          .ps-help-contact-card p { font-size: 12.5px; }
+          .ps-help-contact-card button { align-self: stretch; width: 100%; }
+          .ps-help-cta-card { padding: 6px 0 0; border: 0; background: transparent; }
+          .ps-help-cta-card h3 { font-size: 15px; margin-bottom: 18px; }
+          .ps-help-cta-actions { grid-template-columns: 1fr; }
+        }
+      `}</style>
+
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      {/* Hero + search */}
-      <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "30px 24px 26px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>ParkShare Help Centre</div>
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 23, color: C.white, margin: "0 0 16px" }}>How can we help?</h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.white, borderRadius: 12, padding: "12px 14px" }}>
-          <span style={{ fontSize: 16 }}>🔍</span>
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search ParkShare Help..."
-            style={{ flex: 1, border: "none", outline: "none", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, color: C.navy, background: "transparent" }}
-          />
+      <section className="ps-help-hero">
+        <div className="ps-help-hero-copy">
+          <div className="ps-help-eyebrow">ParkShare Help Centre</div>
+          <h1>How can we help?</h1>
+          <p>Find quick answers for Drivers and Hosts, understand payments and accounts, or get guidance on Trust &amp; Safety.</p>
+          <div className="ps-help-search">
+            <span aria-hidden="true">🔍</span>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search ParkShare Help..."
+              aria-label="Search ParkShare Help"
+            />
+          </div>
         </div>
-      </div>
 
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+        <div className="ps-help-hero-art">
+          <div className="ps-help-support-visual">
+            <img
+              src={PARKER.helpful}
+              alt="Parker, ParkShare support guide"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = PARKER.thinking;
+              }}
+            />
+            <h2>Support when you need it.</h2>
+            <p>Clear answers, helpful guidance and a direct path to ParkShare Support when you need a person.</p>
+          </div>
+        </div>
+      </section>
 
+      <main className="ps-help-shell">
         {searching ? (
-          /* Search mode — flat, filtered results only */
-          <div style={{ marginBottom: 28 }}>
+          <div className="ps-help-search-results">
             <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
               {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{query}"
             </p>
             {searchResults.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <div style={{ textAlign: "center", padding: "30px 0" }}>
                 <p style={{ fontSize: 13.5, color: C.muted, marginBottom: 12 }}>Parker couldn't find an answer for that.</p>
                 <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Contact Support</button>
               </div>
@@ -5174,81 +5567,80 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
         ) : (
           <>
-            {/* Category cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
+            <div id="help-topics" className="ps-help-topic-grid">
               {HELP_DATA.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => scrollTo(cat.id)}
-                  style={{ background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "18px 12px", textAlign: "center", cursor: "pointer" }}
-                >
-                  <div style={{ fontSize: 26, marginBottom: 8 }}>{cat.icon}</div>
-                  <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.navy, lineHeight: 1.3 }}>{cat.title}</div>
+                <button key={cat.id} className="ps-help-topic-card" onClick={() => scrollTo(cat.id)}>
+                  <div className="ps-help-topic-icon">{cat.icon}</div>
+                  <div className="ps-help-topic-title">{cat.title}</div>
                 </button>
               ))}
             </div>
 
-            {/* Parker, in his dedicated Help/Support role */}
-            <div style={{ marginBottom: 20 }}>
-              <ParkerTip pose="headset">
-                <strong>Need a hand?</strong> Choose a Help topic above, search for a question, or browse the answers below. I’ll help point you in the right direction.
-              </ParkerTip>
+            <div className="ps-help-guide">
+              <img
+                src={PARKER.helpful}
+                alt="Parker"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = PARKER.thinking;
+                }}
+              />
+              <div>
+                <strong>Need a hand?</strong>
+                <span>Choose a Help topic, search for a question, or browse the answers below. I’ll help point you in the right direction.</span>
+              </div>
             </div>
 
-            {/* Full accordion content, grouped by category */}
             {HELP_DATA.map(cat => (
-              <section key={cat.id} id={cat.id} style={{ scrollMarginTop: 20, marginBottom: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <span style={{ fontSize: 18 }}>{cat.icon}</span>
-                  <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>{cat.title}</h2>
+              <section key={cat.id} id={cat.id} className="ps-help-category">
+                <div className="ps-help-category-head">
+                  <span className="icon">{cat.icon}</span>
+                  <h2>{cat.title}</h2>
                 </div>
-                {cat.groups.map((grp, gi) => (
-                  <div key={gi} style={{ marginBottom: 12 }}>
-                    <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{grp.sub}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                      {grp.items.map((item, ii) => {
-                        const key = cat.id + "-" + gi + "-" + ii;
-                        return <HelpAccordionItem key={key} q={item.q} a={item.a} isOpen={openKeys.has(key)} onToggle={() => toggle(key)} />;
-                      })}
+
+                <div className="ps-help-group-grid">
+                  {cat.groups.map((grp, gi) => (
+                    <div key={gi} className="ps-help-group">
+                      <div className="ps-help-group-title">{grp.sub}</div>
+                      <div className="ps-help-accordion-stack">
+                        {grp.items.map((item, ii) => {
+                          const key = cat.id + "-" + gi + "-" + ii;
+                          return <HelpAccordionItem key={key} q={item.q} a={item.a} isOpen={openKeys.has(key)} onToggle={() => toggle(key)} />;
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
-                {cat.id === "trust" && (
-                  <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Learn More About Trust &amp; Safety →</button>
-                )}
-                <div style={{ marginTop: cat.id === "trust" ? 12 : 4 }}>
-                  <button
-                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                    style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Back to Help topics ↑
-                  </button>
+                  ))}
+                </div>
+
+                <div className="ps-help-category-links">
+                  {cat.id === "trust" && (
+                    <button onClick={onTrustClick} className="ps-help-text-link">Learn More About Trust &amp; Safety →</button>
+                  )}
+                  <button onClick={() => scrollTo("help-topics")} className="ps-help-text-link">Back to Help topics ↑</button>
                 </div>
               </section>
             ))}
           </>
         )}
 
-        {/* Still Need Help? */}
-        <section style={{ marginBottom: 28, background: C.navy, borderRadius: 16, padding: "22px 20px", textAlign: "center" }}>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 4px" }}>Parker couldn't find the answer?</p>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12.5, color: "rgba(255,255,255,0.75)", margin: "0 0 16px", lineHeight: 1.6 }}>
-            Sometimes you just need to talk to someone. Tell us how we can help, and provide your account info and reservation number where applicable.
-          </p>
-          <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 24px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>Contact ParkShare Support</button>
-        </section>
+        <div className="ps-help-bottom-grid">
+          <section className="ps-help-contact-card">
+            <h3>Still need help?</h3>
+            <p>Tell us what happened and include your account information or reservation number where applicable. ParkShare Support can help you work through the next step.</p>
+            <button onClick={onContactClick}>Contact ParkShare Support</button>
+          </section>
 
-        {/* Closing */}
-        <section style={{ textAlign: "center", marginBottom: 28 }}>
-          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 20px" }}>Parking should be simple.</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
-            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
-          </div>
-        </section>
-      </div>
+          <section className="ps-help-cta-card">
+            <h3>Parking should be simple.</h3>
+            <div className="ps-help-cta-actions">
+              <button className="driver" onClick={onDriverClick}>Find Parking</button>
+              <button className="host" onClick={onHostClick}>Become a Host</button>
+            </div>
+          </section>
+        </div>
+      </main>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} />
     </div>
   );
 }
