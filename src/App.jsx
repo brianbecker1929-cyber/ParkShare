@@ -3292,12 +3292,104 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
         )}
       </div>
       {!user && (onHostClick || onAboutClick || onTrustClick || onHelpClick) && (
-        <div className="ps-desktop-guest-header">
-          <button className="ps-desktop-logo" onClick={onLogoClick} aria-label="ParkShare home">
-            <div className="ps-desktop-logo-icon"><img src={PARKER.icon} alt="" /></div>
-            <div className="ps-desktop-logo-wordmark">Park<span>Share</span></div>
+        <div
+          className="ps-desktop-guest-header"
+          style={{
+            width: "100%",
+            maxWidth: 1180,
+            margin: "0 auto",
+            padding: "9px 18px",
+            boxSizing: "border-box",
+            display: "grid",
+            gridTemplateColumns: "148px minmax(0, 1fr) 128px",
+            alignItems: "center",
+            columnGap: 14,
+          }}
+        >
+          <button
+            className="ps-desktop-logo"
+            onClick={onLogoClick}
+            aria-label="ParkShare home"
+            style={{
+              width: 148,
+              height: 36,
+              padding: 0,
+              margin: 0,
+              border: "none",
+              background: "transparent",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-start",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <div
+              className="ps-desktop-logo-icon"
+              style={{
+                width: 36,
+                height: 36,
+                minWidth: 36,
+                minHeight: 36,
+                borderRadius: "50%",
+                overflow: "hidden",
+                background: C.amber,
+                border: "2px solid " + C.white,
+                boxShadow: "0 0 0 1.5px " + C.navy,
+                position: "relative",
+                zIndex: 2,
+                boxSizing: "border-box",
+              }}
+            >
+              <img
+                src={PARKER.icon}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "block",
+                  objectFit: "cover",
+                }}
+              />
+            </div>
+            <div
+              className="ps-desktop-logo-wordmark"
+              style={{
+                height: 28,
+                width: 116,
+                marginLeft: -7,
+                padding: "0 10px 0 13px",
+                boxSizing: "border-box",
+                borderRadius: 7,
+                background: C.amber,
+                border: "2px solid " + C.white,
+                boxShadow: "0 0 0 1.5px " + C.navy,
+                color: C.navy,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight: 800,
+                fontSize: 15,
+                lineHeight: 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Park<span style={{ color: C.navy }}>Share</span>
+            </div>
           </button>
-          <nav className="ps-desktop-guest-nav" aria-label="Primary navigation">
+          <nav
+            className="ps-desktop-guest-nav"
+            aria-label="Primary navigation"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              minWidth: 0,
+              flexWrap: "nowrap",
+            }}
+          >
             {[
               { label: "Find Parking", onClick: () => onTabChange("Browse"), show: true },
               { label: "Become a Host", onClick: onHostClick, show: !!onHostClick },
@@ -3314,20 +3406,32 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
                   border: "2px solid " + C.white,
                   boxShadow: "0 0 0 2px " + C.navy,
                   borderRadius: 999,
-                  padding: "7px 15px",
+                  minHeight: 25,
+                  padding: "5px 11px",
                   fontFamily: "'Poppins', sans-serif",
-                  fontSize: 11,
+                  fontSize: 9.5,
                   fontWeight: 700,
                   lineHeight: 1,
                   cursor: "pointer",
                   whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 {item.label}
               </button>
             ))}
           </nav>
-          <div className="ps-desktop-auth-actions">
+          <div
+            className="ps-desktop-auth-actions"
+            style={{
+              width: 128,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 8,
+              flexShrink: 0,
+            }}
+          >
             <button className="ps-desktop-signin" onClick={onShowAuth}>Sign in</button>
             <button className="ps-desktop-join" onClick={onShowAuth}>Join free</button>
           </div>
