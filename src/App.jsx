@@ -5405,21 +5405,23 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           width: 82px;
           height: 82px;
           flex: 0 0 82px;
-          padding: 5px;
+          padding: 0;
           background: ${C.white};
           border: 3px solid ${C.navy};
           border-radius: 18px;
           display: flex;
-          align-items: flex-end;
+          align-items: flex-start;
           justify-content: center;
           overflow: hidden;
         }
         .ps-help-small-parker-frame img {
           display: block;
-          width: 100%;
-          height: 100%;
+          width: 138%;
+          height: auto;
+          max-width: none;
+          transform: translateY(-3%);
           object-fit: contain;
-          object-position: center bottom;
+          object-position: center top;
           margin: 0;
         }
         .ps-help-support-visual h2 {
