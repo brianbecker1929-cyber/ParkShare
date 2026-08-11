@@ -3259,6 +3259,73 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
 
   return (
     <header className="ps-header" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+      <style>{`
+        /* One header system for every public ParkShare page. */
+        .ps-mobile-header-row { display: none !important; }
+        .ps-desktop-guest-header { display: grid !important; }
+        .ps-desktop-guest-nav { overflow: visible; }
+
+        /* All five public navigation pills are intentionally identical. */
+        .ps-shared-nav-pill {
+          width: 92px !important;
+          min-width: 92px !important;
+          max-width: 92px !important;
+          height: 28px !important;
+          min-height: 28px !important;
+          padding: 0 8px !important;
+          box-sizing: border-box !important;
+          flex: 0 0 92px !important;
+        }
+
+        @media (max-width: 760px) {
+          /* Mobile gets one clean top row — never the desktop logo/auth duplicates. */
+          .ps-mobile-header-row {
+            display: grid !important;
+            min-height: 78px;
+            padding: 8px 12px !important;
+          }
+
+          .ps-desktop-guest-header {
+            display: flex !important;
+            width: 100% !important;
+            max-width: none !important;
+            padding: 8px 10px 10px !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+          }
+
+          /* Hide duplicate desktop logo + auth buttons on mobile. */
+          .ps-desktop-guest-header > .ps-desktop-logo,
+          .ps-desktop-guest-header > .ps-desktop-auth-actions {
+            display: none !important;
+          }
+
+          /* Keep all five pills same size and let the row scroll instead of colliding. */
+          .ps-desktop-guest-nav {
+            width: 100% !important;
+            display: flex !important;
+            justify-content: flex-start !important;
+            gap: 8px !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            padding: 3px 3px 5px !important;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+          }
+
+          .ps-desktop-guest-nav::-webkit-scrollbar { display: none; }
+
+          .ps-shared-nav-pill {
+            width: 104px !important;
+            min-width: 104px !important;
+            max-width: 104px !important;
+            height: 32px !important;
+            min-height: 32px !important;
+            flex: 0 0 104px !important;
+            font-size: 10px !important;
+          }
+        }
+      `}</style>
       {/* Top row: logo + user */}
       <div className="ps-header-row ps-mobile-header-row" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
@@ -3399,22 +3466,28 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             ].filter(item => item.show).map(item => (
               <button
                 key={item.label}
+                className="ps-shared-nav-pill"
                 onClick={item.onClick}
                 style={{
+                  width: 92,
+                  minWidth: 92,
+                  maxWidth: 92,
+                  height: 28,
+                  minHeight: 28,
+                  padding: "0 8px",
+                  boxSizing: "border-box",
                   background: C.amber,
                   color: C.navy,
                   border: "2px solid " + C.white,
                   boxShadow: "0 0 0 2px " + C.navy,
                   borderRadius: 999,
-                  minHeight: 25,
-                  padding: "5px 11px",
                   fontFamily: "'Poppins', sans-serif",
-                  fontSize: 9.5,
+                  fontSize: 9,
                   fontWeight: 700,
                   lineHeight: 1,
                   cursor: "pointer",
                   whiteSpace: "nowrap",
-                  flexShrink: 0,
+                  flex: "0 0 92px",
                 }}
               >
                 {item.label}
