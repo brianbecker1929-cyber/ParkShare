@@ -5402,13 +5402,13 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           margin: 0;
         }
         .ps-help-small-parker-frame {
-          width: 82px;
-          height: 82px;
-          flex: 0 0 82px;
+          width: 168px;
+          height: 152px;
+          flex: 0 0 168px;
           padding: 0;
           background: ${C.white};
           border: 3px solid ${C.navy};
-          border-radius: 18px;
+          border-radius: 24px;
           display: flex;
           align-items: flex-start;
           justify-content: center;
@@ -5416,13 +5416,35 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         }
         .ps-help-small-parker-frame img {
           display: block;
-          width: 138%;
+          width: 128%;
           height: auto;
           max-width: none;
-          transform: translateY(-3%);
+          transform: translateY(-2%);
           object-fit: contain;
           object-position: center top;
           margin: 0;
+        }
+        @media (max-width: 820px) {
+          .ps-help-small-parker-frame {
+            width: 142px;
+            height: 132px;
+            flex-basis: 142px;
+            border-radius: 22px;
+          }
+          .ps-help-small-parker-frame img {
+            width: 132%;
+          }
+        }
+        @media (max-width: 620px) {
+          .ps-help-small-parker-frame {
+            width: 118px;
+            height: 112px;
+            flex-basis: 118px;
+            border-radius: 20px;
+          }
+          .ps-help-small-parker-frame img {
+            width: 136%;
+          }
         }
         .ps-help-support-visual h2 {
           font-size: 24px;
