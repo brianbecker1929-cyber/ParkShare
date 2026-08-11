@@ -1,4 +1,4 @@
-ParkShare app
+ParkShare app.
 Stripe Connect setup
 This build uses Stripe-hosted onboarding and direct charges on each Host's connected account. ParkShare collects a 15% application fee.
 1. Run the database migration
