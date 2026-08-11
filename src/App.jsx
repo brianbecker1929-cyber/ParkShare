@@ -29,7 +29,7 @@ const PARKER = {
   waving: "/parker/parker-waving.png",
   face: "/parker/parker-face.png",
   headset: "/parker/parker-headset.png",
-  helpful: "/parker/parker-helpful.png",
+  helpful: "/parker/Parker-Helpful.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
   welcome: "/parker/parker-welcome.png",
@@ -5378,12 +5378,28 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           font-family: 'Poppins', sans-serif;
           color: ${C.navy};
         }
-        .ps-help-support-visual img {
+        .ps-help-parker-frame {
+          width: min(100%, 290px);
+          height: 265px;
+          margin: 0 auto 14px;
+          padding: 14px 18px 0;
+          background: ${C.white};
+          border: 4px solid ${C.navy};
+          border-radius: 28px;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(14,27,46,.10);
+        }
+        .ps-help-parker-frame img {
           display: block;
-          height: 235px;
+          width: 100%;
+          height: 100%;
           max-width: 100%;
           object-fit: contain;
-          margin: 0 auto 10px;
+          object-position: center bottom;
+          margin: 0;
         }
         .ps-help-support-visual h2 {
           font-size: 24px;
@@ -5707,14 +5723,16 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
         <div className="ps-help-hero-art">
           <div className="ps-help-support-visual">
-            <img
-              src={PARKER.helpful}
-              alt="Parker, ParkShare support guide"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = PARKER.thinking;
-              }}
-            />
+            <div className="ps-help-parker-frame">
+              <img
+                src={PARKER.helpful}
+                alt="Parker, ParkShare support guide"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = PARKER.thinking;
+                }}
+              />
+            </div>
             <h2>Support when you need it.</h2>
             <p>Clear answers, helpful guidance and a direct path to ParkShare Support when you need a person.</p>
           </div>
