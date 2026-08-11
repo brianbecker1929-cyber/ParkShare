@@ -5401,6 +5401,27 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           object-position: center bottom;
           margin: 0;
         }
+        .ps-help-small-parker-frame {
+          width: 82px;
+          height: 82px;
+          flex: 0 0 82px;
+          padding: 5px;
+          background: ${C.white};
+          border: 3px solid ${C.navy};
+          border-radius: 18px;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .ps-help-small-parker-frame img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          object-position: center bottom;
+          margin: 0;
+        }
         .ps-help-support-visual h2 {
           font-size: 24px;
           line-height: 1.15;
@@ -5773,6 +5794,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             </div>
 
             <div className="ps-help-guide">
+              <div className="ps-help-small-parker-frame">
               <img
                 src={PARKER.helpful}
                 alt="Parker"
@@ -5781,6 +5803,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
                   e.currentTarget.src = PARKER.thinking;
                 }}
               />
+            </div>
               <div>
                 <strong>Need a hand?</strong>
                 <span>Choose a Help topic, search for a question, or browse the answers below. I’ll help point you in the right direction.</span>
