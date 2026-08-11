@@ -5402,50 +5402,76 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           margin: 0;
         }
         .ps-help-small-parker-frame {
-          width: 168px;
-          height: 152px;
-          flex: 0 0 168px;
-          padding: 0;
+          width: 290px;
+          height: 188px;
+          flex: 0 0 290px;
+          position: relative;
+          overflow: visible;
+        }
+        .ps-help-small-parker-card {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 225px;
+          height: 176px;
           background: ${C.white};
           border: 3px solid ${C.navy};
-          border-radius: 24px;
-          display: flex;
-          align-items: flex-start;
-          justify-content: center;
+          border-radius: 26px;
           overflow: hidden;
+          box-shadow: 0 4px 12px rgba(14,27,46,.08);
         }
         .ps-help-small-parker-frame img {
-          display: block;
-          width: 128%;
+          position: absolute;
+          left: 8px;
+          top: -18px;
+          width: 300px;
           height: auto;
           max-width: none;
-          transform: translateY(-2%);
-          object-fit: contain;
-          object-position: center top;
           margin: 0;
+          z-index: 2;
+          pointer-events: none;
+
+          /* Keep Parker large and waist-up while letting his right hand
+             extend beyond the white rounded rectangle. */
+          clip-path: inset(0 0 27% 0);
         }
         @media (max-width: 820px) {
           .ps-help-small-parker-frame {
-            width: 142px;
-            height: 132px;
-            flex-basis: 142px;
-            border-radius: 22px;
+            width: 250px;
+            height: 168px;
+            flex-basis: 250px;
+          }
+          .ps-help-small-parker-card {
+            width: 195px;
+            height: 156px;
+            border-radius: 24px;
           }
           .ps-help-small-parker-frame img {
-            width: 132%;
+            width: 260px;
+            left: 6px;
+            top: -14px;
+            clip-path: inset(0 0 26% 0);
           }
         }
         @media (max-width: 620px) {
           .ps-help-small-parker-frame {
-            width: 118px;
-            height: 112px;
-            flex-basis: 118px;
-            border-radius: 20px;
+            width: 205px;
+            height: 146px;
+            flex-basis: 205px;
+          }
+          .ps-help-small-parker-card {
+            width: 160px;
+            height: 136px;
+            border-radius: 22px;
           }
           .ps-help-small-parker-frame img {
-            width: 136%;
+            width: 222px;
+            left: 2px;
+            top: -10px;
+            clip-path: inset(0 0 25% 0);
           }
         }
+
         .ps-help-support-visual h2 {
           font-size: 24px;
           line-height: 1.15;
@@ -5819,7 +5845,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
             <div className="ps-help-guide">
               <div className="ps-help-small-parker-frame">
-              <img
+                <div className="ps-help-small-parker-card" aria-hidden="true" />
+                <img
                 src={PARKER.helpful}
                 alt="Parker"
                 onError={(e) => {
@@ -5827,7 +5854,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
                   e.currentTarget.src = PARKER.thinking;
                 }}
               />
-            </div>
+              </div>
               <div>
                 <strong>Need a hand?</strong>
                 <span>Choose a Help topic, search for a question, or browse the answers below. I’ll help point you in the right direction.</span>
