@@ -5434,13 +5434,14 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           /* Crop only the lower body; keep Parker's single presenting hand visible. */
           clip-path: inset(0 0 56% 0);
         }
-        
+
         .ps-help-support-visual img {
-          width: 78%;
-          max-width: 330px;
-          height: auto;
+          width: 72%;
+          max-width: 315px;
+          height: 100%;
+          max-height: 300px;
           object-fit: contain;
-          object-position: center top;
+          object-position: center bottom;
           display: block;
           margin: 0 auto;
         }
