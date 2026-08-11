@@ -5476,7 +5476,18 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         }
       `}</style>
 
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+      <Header
+        tab={tab}
+        onTabChange={onTabChange}
+        onLogoClick={onLogoClick}
+        user={user}
+        onShowAuth={onShowAuth}
+        onSignOut={onSignOut}
+        onHostClick={onHostClick}
+        onAboutClick={onAboutClick}
+        onTrustClick={onTrustClick}
+        onHelpClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+      />
 
       <section className="ps-help-hero">
         <div className="ps-help-hero-copy">
