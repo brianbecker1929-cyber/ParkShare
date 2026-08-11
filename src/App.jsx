@@ -5796,7 +5796,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div className="ps-help-support-visual">
             <div className="ps-help-parker-frame">
               <img
-                src={PARKER.helpful}
+                src="/parker/Parker-Customer-Care-Fullbody.png"
                 alt="Parker, ParkShare support guide"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
