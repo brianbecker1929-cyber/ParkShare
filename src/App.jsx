@@ -3298,11 +3298,34 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             <div className="ps-desktop-logo-wordmark">Park<span>Share</span></div>
           </button>
           <nav className="ps-desktop-guest-nav" aria-label="Primary navigation">
-            <button onClick={() => onTabChange("Browse")}>Find Parking</button>
-            {onHostClick && <button onClick={onHostClick}>Become a Host</button>}
-            {onAboutClick && <button onClick={onAboutClick}>About</button>}
-            {onTrustClick && <button onClick={onTrustClick}>Trust &amp; Safety</button>}
-            {onHelpClick && <button onClick={onHelpClick}>Help</button>}
+            {[
+              { label: "Find Parking", onClick: () => onTabChange("Browse"), show: true },
+              { label: "Become a Host", onClick: onHostClick, show: !!onHostClick },
+              { label: "About", onClick: onAboutClick, show: !!onAboutClick },
+              { label: "Trust & Safety", onClick: onTrustClick, show: !!onTrustClick },
+              { label: "Help", onClick: onHelpClick, show: !!onHelpClick },
+            ].filter(item => item.show).map(item => (
+              <button
+                key={item.label}
+                onClick={item.onClick}
+                style={{
+                  background: C.amber,
+                  color: C.navy,
+                  border: "2px solid " + C.white,
+                  boxShadow: "0 0 0 2px " + C.navy,
+                  borderRadius: 999,
+                  padding: "7px 15px",
+                  fontFamily: "'Poppins', sans-serif",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
           </nav>
           <div className="ps-desktop-auth-actions">
             <button className="ps-desktop-signin" onClick={onShowAuth}>Sign in</button>
