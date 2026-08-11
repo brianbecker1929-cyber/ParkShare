@@ -5534,10 +5534,43 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           margin: 0 0 30px;
           color: ${C.white};
         }
-        .ps-help-guide img {
+        .ps-help-guide > img {
           width: 86px;
           height: 86px;
           object-fit: contain;
+        }
+
+        /* Parker-specific override for the Need a hand? composition.
+           This must come after the generic guide image rule so Parker
+           stays large, waist-up, and can extend his hand toward the copy. */
+        .ps-help-guide .ps-help-small-parker-frame img {
+          position: absolute;
+          left: 8px;
+          top: -18px;
+          width: 300px;
+          height: auto;
+          max-width: none;
+          margin: 0;
+          z-index: 2;
+          pointer-events: none;
+          object-fit: contain;
+          clip-path: inset(0 0 27% 0);
+        }
+        @media (max-width: 820px) {
+          .ps-help-guide .ps-help-small-parker-frame img {
+            width: 260px;
+            left: 6px;
+            top: -14px;
+            clip-path: inset(0 0 26% 0);
+          }
+        }
+        @media (max-width: 620px) {
+          .ps-help-guide .ps-help-small-parker-frame img {
+            width: 222px;
+            left: 2px;
+            top: -10px;
+            clip-path: inset(0 0 25% 0);
+          }
         }
         .ps-help-guide strong {
           display: block;
