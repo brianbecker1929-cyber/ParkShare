@@ -29,7 +29,7 @@ const PARKER = {
   waving: "/parker/parker-waving.png",
   face: "/parker/parker-face.png",
   headset: "/parker/parker-headset.png",
-  helpful: "/parker/Parker-Helpful.png",
+  helpful: "/parker/Helpful Left.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
   welcome: "/parker/parker-welcome.png",
@@ -4414,7 +4414,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/parker/Helpful Left.png"
+              src="/parker/Parker-Helpful.png"
               alt="Parker ready to help"
               loading="eager"
               decoding="async"
