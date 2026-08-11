@@ -5423,8 +5423,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         .ps-help-small-parker-card img {
           position: absolute;
           left: -10px;
-          top: -20px;
-          width: 300px;
+          top: -24px;
+          width: 305px;
           height: auto;
           max-width: none;
           margin: 0;
@@ -5432,7 +5432,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           pointer-events: none;
           z-index: 2;
           /* Crop only the lower body; keep Parker's single presenting hand visible. */
-          clip-path: inset(0 0 28% 0);
+          clip-path: inset(0 0 56% 0);
         }
         @media (max-width: 820px) {
           .ps-help-small-parker-frame {
@@ -5449,7 +5449,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             width: 260px;
             left: -9px;
             top: -16px;
-            clip-path: inset(0 0 27% 0);
+            clip-path: inset(0 0 55% 0);
           }
         }
         @media (max-width: 620px) {
@@ -5467,7 +5467,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             width: 220px;
             left: -8px;
             top: -12px;
-            clip-path: inset(0 0 26% 0);
+            clip-path: inset(0 0 54% 0);
           }
         }
 
