@@ -29,7 +29,7 @@ const PARKER = {
   waving: "/parker/parker-waving.png",
   face: "/parker/parker-face.png",
   headset: "/parker/parker-headset.png",
-  helpful: "/parker/Helpful Left.png",
+  helpful: "/parker/Parker-Helpful.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
   welcome: "/parker/parker-welcome.png",
@@ -5434,19 +5434,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           /* Crop only the lower body; keep Parker's single presenting hand visible. */
           clip-path: inset(0 0 56% 0);
         }
-
-        .ps-help-support-visual img {
-          width: 72%;
-          max-width: 315px;
-          height: 100%;
-          max-height: 300px;
-          object-fit: contain;
-          object-position: center bottom;
-          display: block;
-          margin: 0 auto;
-        }
-
-@media (max-width: 820px) {
+        @media (max-width: 820px) {
           .ps-help-small-parker-frame {
             width: 245px;
             height: 156px;
@@ -5808,7 +5796,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div className="ps-help-support-visual">
             <div className="ps-help-parker-frame">
               <img
-                src={PARKER.helpful}
+                src="/parker/Parker-Pocket.png"
                 alt="Parker, ParkShare support guide"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
