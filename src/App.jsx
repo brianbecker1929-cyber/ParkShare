@@ -4270,122 +4270,149 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
   const P = ({ children, style }) => (
     <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px", ...style }}>{children}</p>
   );
-  return (
-    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+  const sections = [
+    { id: "about", icon: "🅿️", title: "About" },
+    { id: "mission", icon: "🎯", title: "Mission" },
+    { id: "vision", icon: "🔭", title: "Vision" },
+    { id: "marketplace", icon: "🤝", title: "Marketplace" },
+    { id: "parker", icon: "🧢", title: "Meet Parker" },
+    { id: "canadian", icon: "🇨🇦", title: "Canadian" },
+  ];
 
-      {/* On-page nav — same pill button style used throughout the app */}
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-        {ABOUT_SECTIONS.map(s => (
-          <button
-            key={s.id}
-            onClick={() => scrollTo(s.id)}
-            style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, padding: "7px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
-          >
+  return (
+    <div className="ps-about-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut}
+        onHostClick={onHostClick} onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+
+      <section id="about" className="ps-about-hero">
+        <div className="ps-about-hero-copy">
+          <div className="ps-about-eyebrow">ABOUT PARKSHARE</div>
+          <h1>There&apos;s space all around us. <span>Let&apos;s put it to better use.</span></h1>
+          <p>ParkShare is Canada&apos;s driveway rental marketplace — connecting Drivers looking for convenient parking with Hosts who have space to share.</p>
+          <div className="ps-about-hero-actions">
+            <button className="ps-about-hero-primary" onClick={onDriverClick}>Find Parking →</button>
+            <button className="ps-about-hero-secondary" onClick={onHostClick}>Become a Host →</button>
+          </div>
+        </div>
+        <div className="ps-about-hero-visual">
+          <img src={PARKER.aboutWaving} alt="Parker waving" />
+          <strong>For Hosts. For Drivers.</strong>
+          <span>For communities.</span>
+        </div>
+      </section>
+
+      <nav className="ps-about-section-nav">
+        {sections.map(s => (
+          <button key={s.id} onClick={() => scrollTo(s.id)}>
             <span>{s.icon}</span>{s.title}
           </button>
         ))}
-      </div>
+      </nav>
 
-      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
-
-        {/* About ParkShare */}
-        <section id="about" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <h1 style={{ fontWeight: 800, fontSize: 24, color: C.navy, margin: "0 0 4px" }}>About Park<span style={{ color: C.amber }}>Share</span></h1>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>There's space all around us. Let's put it to better use.</p>
-          <P>Every day, millions of parking spaces sit empty while drivers circle neighbourhoods, commute to work, attend events, visit businesses and search for somewhere convenient to park.</P>
-          <P>We saw an opportunity to connect the two.</P>
-          <P>Park<b>Share</b> is Canada's driveway rental marketplace — connecting people who have parking space with people who need it.</P>
-          <P>Homeowners can turn an underused driveway or parking space into an opportunity to earn additional income, while drivers gain access to convenient parking in the places they actually want to be.</P>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Simple for Hosts. Convenient for Drivers. Better use of the space we already have.</P>
+      <main className="ps-about-content">
+        <section className="ps-about-intro">
+          <P>Every day, parking spaces sit empty while Drivers search for somewhere convenient to park — near work, transit, events, hospitals, restaurants, campuses and neighbourhood destinations.</P>
+          <P>At the same time, homeowners and property owners already have parking space that may be unused for hours at a time.</P>
+          <P>ParkShare connects the two.</P>
+          <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>Simple for Hosts. Convenient for Drivers. Better use of the space we already have.</P>
         </section>
 
-        {/* Our Mission */}
-        <section id="mission" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Our Mission</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Unlock the potential of every parking space.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Our mission is to make parking easier by connecting drivers with homeowners and property owners who have space to share.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>For Hosts, that means creating value from space that might otherwise sit empty.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>For Drivers, it means more choice, greater convenience and the ability to know where they're going to park before they arrive.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: 0 }}>ParkShare brings both sides together in one simple marketplace.</p>
+        <section id="mission" className="ps-about-mission">
+          <div className="ps-about-eyebrow">OUR MISSION</div>
+          <h2>Unlock the potential of every parking space.</h2>
+          <p>Our mission is to make parking easier by connecting Drivers with homeowners and property owners who have space to share.</p>
+          <p>For Hosts, that means creating value from space that might otherwise sit empty.</p>
+          <p>For Drivers, it means more choice, greater convenience and the ability to know where they&apos;re going to park before they arrive.</p>
+          <p style={{ fontWeight: 800, color: "#fff", marginBottom: 0 }}>ParkShare brings both sides together in one simple marketplace.</p>
         </section>
 
-        {/* Our Vision */}
-        <section id="vision" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Our Vision</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A world where finding parking is effortless.</p>
-          <P>We envision communities where existing parking spaces are used more intelligently.</P>
-          <P>Where a driveway sitting empty during the day can serve someone working nearby.</P>
-          <P>Where a parking space near a stadium can help a fan get to the game.</P>
-          <P>Where a homeowner can earn additional income from something they already own.</P>
-          <P>And where drivers can spend less time searching for parking and more time getting where they need to go.</P>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>We believe the future of parking isn't just about building more spaces. It's about making better use of the spaces we already have.</P>
-        </section>
-
-        {/* One Marketplace. Shared Value. */}
-        <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <div style={{ fontWeight: 800, fontSize: 19, color: C.navy }}>One Marketplace. Shared Value.</div>
-        </div>
-
-        <section id="hosts" style={{ scrollMarginTop: 20, marginBottom: 16, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🏠</div>
-            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>For Hosts</h2>
+        <section id="vision" className="ps-about-vision">
+          <div className="ps-about-eyebrow">OUR VISION</div>
+          <h2>A world where finding parking is easier — because the space already exists.</h2>
+          <div className="ps-about-vision-grid">
+            {[
+              ["🏠","Use existing space","A driveway sitting empty during the day can serve someone who needs parking nearby."],
+              ["🚗","Make arrival easier","Drivers can spend less time circling and more time getting where they actually need to be."],
+              ["💰","Create value from existing space","Property owners can earn additional income from space they already have."],
+              ["🌎","Build smarter communities","Thousands of underused spaces can become part of a more flexible parking network."],
+            ].map(([icon,title,copy]) => (
+              <div className="ps-about-card" key={title}>
+                <span>{icon}</span><strong>{title}</strong><small>{copy}</small>
+              </div>
+            ))}
           </div>
-          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Your empty space has potential.</p>
-          <P>Whether your driveway is available every weekday, only during certain hours, or occasionally during local events, ParkShare gives you a way to put that space to work.</P>
-          <P>You control when your space is available. You control your listing. And you decide when you want to share it.</P>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Your driveway. Your schedule. Your opportunity.</P>
+          <P style={{ fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 0 }}>We believe the future of parking isn&apos;t only about building more spaces. It&apos;s about making better use of the spaces we already have.</P>
         </section>
 
-        <section id="drivers" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🚗</div>
-            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>For Drivers</h2>
+        <section id="marketplace" className="ps-about-marketplace">
+          <div className="ps-about-marketplace-title">
+            <div className="ps-about-eyebrow">ONE MARKETPLACE. SHARED VALUE.</div>
+            <h2>ParkShare works when both sides win.</h2>
           </div>
-          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Know where you're going to park before you arrive.</p>
-          <P>ParkShare is designed to make finding parking simpler.</P>
-          <P>Discover available spaces, compare your options, reserve a spot and head to your destination knowing your parking is waiting for you.</P>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Less searching. Less uncertainty. Better parking.</P>
-        </section>
+          <div className="ps-about-marketplace-grid">
+            <article className="ps-about-audience-card ps-about-host-card">
+              <img className="ps-about-card-parker" src={PARKER.aboutPointing} alt="Parker pointing toward hosting" />
+              <div>
+                <div className="ps-about-audience-label">FOR HOSTS</div>
+                <h3>Your empty space has potential.</h3>
+                <P>Make your driveway available when it works for you. Set your listing details, availability and applicable pricing options.</P>
+                <P style={{ fontWeight: 800, color: C.navy }}>Your space. Your schedule. Your opportunity.</P>
+              </div>
+              <button onClick={onHostClick}>Explore Hosting →</button>
+            </article>
 
-        {/* Meet Parker */}
-        <section id="parker" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Meet Parker</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Your friendly guide to better parking.</p>
-          <ParkerTip pose="fullbody" style={{ marginBottom: 12 }}>
-            Parker is more than our mascot — he's here to make hosting and parking feel simple.
-          </ParkerTip>
-          <P>Parker is more than our mascot. He represents what we want every interaction with ParkShare to feel like: friendly, helpful, approachable and easy.</P>
-          <P>Whether you're listing your first driveway or looking for a spot near your destination, Parker is here to help make the experience a little simpler — and a lot more fun.</P>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Because parking doesn't have to be complicated.</P>
-        </section>
-
-        {/* Proudly Canadian */}
-        <section id="canadian" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
-          <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>Proudly Canadian</div>
-          <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Built in Canada. Designed for communities everywhere.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>ParkShare was created in Canada around a simple idea: communities already have an enormous amount of parking infrastructure sitting unused.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>By connecting those spaces with the people who need them, we can create new opportunities for homeowners, more choices for drivers and better utilization of the communities we've already built.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, fontWeight: 700, margin: 0 }}>We're starting at home. But our vision goes much further.</p>
-        </section>
-
-        {/* We're Just Getting Started — closing */}
-        <section style={{ textAlign: "center", marginBottom: 28 }}>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 10px" }}>We're Just Getting Started</p>
-          <P style={{ textAlign: "center" }}>ParkShare isn't simply about finding somewhere to leave your car. It's about unlocking something that has been hiding in plain sight.</P>
-          <p style={{ fontWeight: 800, fontSize: 16, color: C.navy, margin: "0 0 20px" }}>Millions of spaces. Millions of destinations. One marketplace connecting them. And we're only getting started.</p>
-
-          <div style={{ fontWeight: 800, fontSize: 18, color: C.navy, marginBottom: 14 }}>Ready to ParkShare?</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
-            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+            <article className="ps-about-audience-card ps-about-driver-card">
+              <div>
+                <div className="ps-about-audience-label">FOR DRIVERS</div>
+                <h3>Know where you&apos;re going to park.</h3>
+                <p>Search available private parking near your destination, review the listing information and reserve the space that works for your plans.</p>
+                <p style={{ fontWeight: 800 }}>Less searching. Less uncertainty. Better parking.</p>
+              </div>
+              <button onClick={onDriverClick}>Find Parking →</button>
+            </article>
           </div>
         </section>
-      </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onHelpClick={onHelpClick} />
+        <section id="parker" className="ps-about-parker">
+          <div className="ps-about-parker-art">
+            <img src={PARKER.aboutWaving} alt="Parker, ParkShare's valet parker mascot, waving" />
+          </div>
+          <div className="ps-about-parker-copy">
+            <div className="ps-about-eyebrow">MEET PARKER</div>
+            <h2>ParkShare&apos;s friendly valet parker.</h2>
+            <P>Parker isn&apos;t just our mascot — he&apos;s ParkShare&apos;s valet parker and the friendly face of the ParkShare experience.</P>
+            <P>A great valet helps take the uncertainty out of parking. Parker represents that same idea: making the experience feel welcoming, clear and easy from the moment you start looking for a space or listing one of your own.</P>
+            <P>For Drivers, Parker is the friendly guide helping you get from search to parked. For Hosts, he&apos;s the helpful partner showing how an unused driveway can become an opportunity.</P>
+            <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>Friendly. Helpful. Approachable. Always ready to help you park.</P>
+          </div>
+        </section>
+
+        <section id="canadian" className="ps-about-canadian">
+          <div className="ps-about-canadian-copy">
+            <div className="ps-about-eyebrow">PROUDLY CANADIAN 🇨🇦</div>
+            <h2>Built in Canada. Designed around a simple idea.</h2>
+            <P style={{ color: C.navy }}>Communities already have an enormous amount of parking infrastructure. Much of it simply isn&apos;t being used all the time.</P>
+            <P style={{ color: C.navy }}>ParkShare was created to help make that existing space easier to share — creating more parking choices for Drivers and new opportunities for Hosts.</P>
+            <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
+          </div>
+          <img src={PARKER.aboutThumbsUp} alt="Parker giving a thumbs up" />
+        </section>
+
+        <section className="ps-about-closing">
+          <div className="ps-about-eyebrow">THE IDEA IS SIMPLE</div>
+          <h2>The space is already there.</h2>
+          <p>ParkShare helps put it to better use.</p>
+          <div className="ps-about-closing-actions">
+            <button className="ps-about-closing-primary" onClick={onDriverClick}>Find Parking</button>
+            <button className="ps-about-closing-secondary" onClick={onHostClick}>Become a Host</button>
+          </div>
+          <button className="ps-about-trust-link" onClick={onTrustClick}>Learn About Trust &amp; Safety →</button>
+        </section>
+      </main>
+
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
+        onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -4393,6 +4420,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // A richer, host-specific calculator matching the "Estimate Your Potential"
 // fields in the new Host page copy (price, days/week, average bookings)
 // rather than the simpler hours-per-day slider used on the homepage.
+
 function HostEarningsCalculator() {
   const [price, setPrice] = useState(12);
   const [days, setDays] = useState(5);
