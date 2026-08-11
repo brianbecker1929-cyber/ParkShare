@@ -5188,22 +5188,22 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
               ))}
             </div>
 
-            {/* Parker, in his customer-care role */}
-            <div style={{ marginBottom: 28 }}>
-              <ParkerTip pose="thinking">
-                Tap a topic above, search up top, or scroll down — I've grouped every answer by who's asking.
+            {/* Parker, in his dedicated Help/Support role */}
+            <div style={{ marginBottom: 20 }}>
+              <ParkerTip pose="headset">
+                <strong>Need a hand?</strong> Choose a Help topic above, search for a question, or browse the answers below. I’ll help point you in the right direction.
               </ParkerTip>
             </div>
 
             {/* Full accordion content, grouped by category */}
             {HELP_DATA.map(cat => (
-              <section key={cat.id} id={cat.id} style={{ scrollMarginTop: 20, marginBottom: 32 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+              <section key={cat.id} id={cat.id} style={{ scrollMarginTop: 20, marginBottom: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                   <span style={{ fontSize: 18 }}>{cat.icon}</span>
                   <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>{cat.title}</h2>
                 </div>
                 {cat.groups.map((grp, gi) => (
-                  <div key={gi} style={{ marginBottom: 16 }}>
+                  <div key={gi} style={{ marginBottom: 12 }}>
                     <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{grp.sub}</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {grp.items.map((item, ii) => {
@@ -5216,6 +5216,14 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
                 {cat.id === "trust" && (
                   <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Learn More About Trust &amp; Safety →</button>
                 )}
+                <div style={{ marginTop: cat.id === "trust" ? 12 : 4 }}>
+                  <button
+                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                    style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Back to Help topics ↑
+                  </button>
+                </div>
               </section>
             ))}
           </>
@@ -5738,7 +5746,6 @@ export default function App() {
     </>
   );
 }
-
 
 
 
