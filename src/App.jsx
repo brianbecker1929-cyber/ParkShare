@@ -29,7 +29,7 @@ const PARKER = {
   waving: "/parker/parker-waving.png",
   face: "/parker/parker-face.png",
   headset: "/parker/parker-headset.png",
-  helpful: "/parker/parker-helpful.png",
+  helpful: "/parker/Parker-Helpful.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
   welcome: "/parker/parker-welcome.png",
@@ -5378,13 +5378,99 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           font-family: 'Poppins', sans-serif;
           color: ${C.navy};
         }
-        .ps-help-support-visual img {
+        .ps-help-parker-frame {
+          width: min(100%, 290px);
+          height: 265px;
+          margin: 0 auto 14px;
+          padding: 14px 18px 0;
+          background: ${C.white};
+          border: 4px solid ${C.navy};
+          border-radius: 28px;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(14,27,46,.10);
+        }
+        .ps-help-parker-frame img {
           display: block;
-          height: 235px;
+          width: 100%;
+          height: 100%;
           max-width: 100%;
           object-fit: contain;
-          margin: 0 auto 10px;
+          object-position: center bottom;
+          margin: 0;
         }
+        .ps-help-small-parker-frame {
+          width: 285px;
+          height: 176px;
+          flex: 0 0 285px;
+          position: relative;
+          overflow: visible;
+        }
+        .ps-help-small-parker-card {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 225px;
+          height: 176px;
+          background: ${C.white};
+          border: 3px solid ${C.navy};
+          border-radius: 26px;
+          overflow: visible;
+          box-shadow: 0 4px 12px rgba(14,27,46,.08);
+        }
+        .ps-help-small-parker-card img {
+          position: absolute;
+          left: -10px;
+          top: -24px;
+          width: 305px;
+          height: auto;
+          max-width: none;
+          margin: 0;
+          object-fit: contain;
+          pointer-events: none;
+          z-index: 2;
+          /* Crop only the lower body; keep Parker's single presenting hand visible. */
+          clip-path: inset(0 0 56% 0);
+        }
+        @media (max-width: 820px) {
+          .ps-help-small-parker-frame {
+            width: 245px;
+            height: 156px;
+            flex-basis: 245px;
+          }
+          .ps-help-small-parker-card {
+            width: 195px;
+            height: 156px;
+            border-radius: 24px;
+          }
+          .ps-help-small-parker-card img {
+            width: 260px;
+            left: -9px;
+            top: -16px;
+            clip-path: inset(0 0 55% 0);
+          }
+        }
+        @media (max-width: 620px) {
+          .ps-help-small-parker-frame {
+            width: 205px;
+            height: 136px;
+            flex-basis: 205px;
+          }
+          .ps-help-small-parker-card {
+            width: 160px;
+            height: 136px;
+            border-radius: 22px;
+          }
+          .ps-help-small-parker-card img {
+            width: 220px;
+            left: -8px;
+            top: -12px;
+            clip-path: inset(0 0 54% 0);
+          }
+        }
+
         .ps-help-support-visual h2 {
           font-size: 24px;
           line-height: 1.15;
@@ -5447,11 +5533,12 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           margin: 0 0 30px;
           color: ${C.white};
         }
-        .ps-help-guide img {
+        .ps-help-guide > img {
           width: 86px;
           height: 86px;
           object-fit: contain;
         }
+
         .ps-help-guide strong {
           display: block;
           font-size: 15px;
@@ -5707,14 +5794,16 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
         <div className="ps-help-hero-art">
           <div className="ps-help-support-visual">
-            <img
-              src={PARKER.helpful}
-              alt="Parker, ParkShare support guide"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = PARKER.thinking;
-              }}
-            />
+            <div className="ps-help-parker-frame">
+              <img
+                src={PARKER.helpful}
+                alt="Parker, ParkShare support guide"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = PARKER.thinking;
+                }}
+              />
+            </div>
             <h2>Support when you need it.</h2>
             <p>Clear answers, helpful guidance and a direct path to ParkShare Support when you need a person.</p>
           </div>
@@ -5755,7 +5844,9 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             </div>
 
             <div className="ps-help-guide">
-              <img
+              <div className="ps-help-small-parker-frame">
+                <div className="ps-help-small-parker-card">
+                  <img
                 src={PARKER.helpful}
                 alt="Parker"
                 onError={(e) => {
@@ -5763,6 +5854,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
                   e.currentTarget.src = PARKER.thinking;
                 }}
               />
+                </div>
+              </div>
               <div>
                 <strong>Need a hand?</strong>
                 <span>Choose a Help topic, search for a question, or browse the answers below. I’ll help point you in the right direction.</span>
