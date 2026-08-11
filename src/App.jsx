@@ -5402,9 +5402,9 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           margin: 0;
         }
         .ps-help-small-parker-frame {
-          width: 270px;
+          width: 285px;
           height: 176px;
-          flex: 0 0 270px;
+          flex: 0 0 285px;
           position: relative;
           overflow: visible;
         }
@@ -5417,94 +5417,57 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           background: ${C.white};
           border: 3px solid ${C.navy};
           border-radius: 26px;
-          overflow: hidden;
+          overflow: visible;
           box-shadow: 0 4px 12px rgba(14,27,46,.08);
-          z-index: 1;
         }
         .ps-help-small-parker-card img {
           position: absolute;
-          left: 50%;
-          top: -18px;
-          transform: translateX(-50%);
+          left: -10px;
+          top: -20px;
           width: 300px;
           height: auto;
           max-width: none;
           margin: 0;
           object-fit: contain;
           pointer-events: none;
+          z-index: 2;
+          /* Crop only the lower body; keep Parker's single presenting hand visible. */
+          clip-path: inset(0 0 28% 0);
         }
-
-        /* Second image layer: show only Parker's presenting hand/forearm
-           outside the right side of the white rounded box. */
-        .ps-help-small-parker-hand {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 270px;
-          height: 176px;
-          overflow: visible;
-          z-index: 3;
-          pointer-events: none;
-        }
-        .ps-help-small-parker-hand img {
-          position: absolute;
-          left: 50%;
-          top: -18px;
-          transform: translateX(-50%);
-          width: 300px;
-          height: auto;
-          max-width: none;
-          margin: 0;
-          object-fit: contain;
-          clip-path: polygon(
-            72% 28%,
-            100% 25%,
-            100% 78%,
-            72% 78%
-          );
-        }
-
         @media (max-width: 820px) {
           .ps-help-small-parker-frame {
-            width: 235px;
+            width: 245px;
             height: 156px;
-            flex-basis: 235px;
+            flex-basis: 245px;
           }
           .ps-help-small-parker-card {
             width: 195px;
             height: 156px;
             border-radius: 24px;
           }
-          .ps-help-small-parker-card img,
-          .ps-help-small-parker-hand img {
+          .ps-help-small-parker-card img {
             width: 260px;
-            top: -14px;
-          }
-          .ps-help-small-parker-hand {
-            width: 235px;
-            height: 156px;
+            left: -9px;
+            top: -16px;
+            clip-path: inset(0 0 27% 0);
           }
         }
-
         @media (max-width: 620px) {
           .ps-help-small-parker-frame {
-            width: 195px;
+            width: 205px;
             height: 136px;
-            flex-basis: 195px;
+            flex-basis: 205px;
           }
           .ps-help-small-parker-card {
             width: 160px;
             height: 136px;
             border-radius: 22px;
           }
-          .ps-help-small-parker-card img,
-          .ps-help-small-parker-hand img {
+          .ps-help-small-parker-card img {
             width: 220px;
-            top: -10px;
-          }
-          .ps-help-small-parker-hand {
-            width: 195px;
-            height: 136px;
+            left: -8px;
+            top: -12px;
+            clip-path: inset(0 0 26% 0);
           }
         }
 
@@ -5883,16 +5846,6 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             <div className="ps-help-guide">
               <div className="ps-help-small-parker-frame">
                 <div className="ps-help-small-parker-card">
-                  <img
-                src={PARKER.helpful}
-                alt="Parker"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = PARKER.thinking;
-                }}
-              />
-                </div>
-                <div className="ps-help-small-parker-hand" aria-hidden="true">
                   <img
                 src={PARKER.helpful}
                 alt="Parker"
