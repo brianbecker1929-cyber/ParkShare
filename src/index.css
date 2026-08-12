@@ -1076,3 +1076,75 @@ button, input, select, textarea { font: inherit; }
     max-height: 155px;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ParkShare official global navbar logo
+   Uses /website-logo.png without changing Parker artwork anywhere else.
+   This safely overrides the old assembled Parker-icon + text wordmark.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Shared behavior: preserve the official logo's natural aspect ratio. */
+.ps-header .ps-desktop-logo,
+.ps-header .ps-mobile-header-row > button:nth-child(2) {
+  background-image: url("/website-logo.png") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Hide the legacy logo pieces inside the existing clickable home buttons. */
+.ps-header .ps-desktop-logo > *,
+.ps-header .ps-mobile-header-row > button:nth-child(2) > * {
+  visibility: hidden !important;
+}
+
+/* Desktop/public navigation logo. */
+.ps-header .ps-desktop-logo {
+  width: 190px !important;
+  min-width: 190px !important;
+  height: 54px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+/* Give the shared desktop header enough room for the official full logo. */
+@media (min-width: 761px) {
+  .ps-header .ps-desktop-guest-header {
+    grid-template-columns: 190px minmax(0, 1fr) auto !important;
+  }
+}
+
+/* Mobile logo: same official asset, scaled down without cropping or distortion. */
+@media (max-width: 760px) {
+  .ps-header .ps-mobile-header-row > button:nth-child(2) {
+    width: 170px !important;
+    max-width: 42vw !important;
+    height: 58px !important;
+    justify-self: center !important;
+  }
+}
+
+/*
+  Signed-in desktop pages do not render the guest desktop header. Keep the
+  existing shared top row visible there so the official ParkShare logo remains
+  present on every authenticated route as well.
+*/
+@media (min-width: 761px) {
+  .ps-header:not(:has(.ps-desktop-guest-header)) .ps-mobile-header-row {
+    display: grid !important;
+    min-height: 76px !important;
+    padding: 9px 22px !important;
+  }
+
+  .ps-header:not(:has(.ps-desktop-guest-header))
+    .ps-mobile-header-row > button:nth-child(2) {
+    width: 190px !important;
+    height: 54px !important;
+    justify-self: center !important;
+  }
+}
+
