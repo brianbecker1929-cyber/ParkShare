@@ -4144,7 +4144,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
         <div className="ps-trust-v2-hero-visual">
-          <div className="ps-trust-v2-parker-frame"><img src="/parker/parker-trust-safety.png" alt="Parker holding the ParkShare Trust and Safety shield" /></div>
+          <div className="ps-trust-v2-parker-frame"><img src="/parker/parker-trust-safety.png" alt="Parker holding the ParkShare Trust and Safety shield" style={{ width: "116%", maxWidth: "none", height: "116%", objectFit: "contain", transform: "translateY(1%)" }} /></div>
           <strong>Trust makes sharing space possible.</strong>
           <span>Clear expectations. Responsible parking. Better experiences.</span>
         </div>
