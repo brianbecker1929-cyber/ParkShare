@@ -1255,12 +1255,12 @@ button, input, select, textarea { font: inherit; }
   }
 
   .ps-help-small-parker-card img {
-    width: 205px !important;
+    width: 152px !important;
     max-width: none !important;
     height: auto !important;
     left: 50% !important;
     top: auto !important;
-    bottom: -55px !important;
+    bottom: -42px !important;
     transform: translateX(-50%) !important;
     clip-path: none !important;
     object-fit: contain !important;
