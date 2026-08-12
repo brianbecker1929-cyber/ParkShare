@@ -23,23 +23,22 @@ class SpotMapBoundary extends Component {
 }
 
 const PARKER = {
-  signfinal: "/parker/parker-signfinal.png",
-  fullbody: "/parker/parker-fullbody.png",
-  signpose: "/parker/parker-signpose.png",
-  waving: "/parker/parker-waving.png",
-  face: "/parker/parker-face.png",
-  headset: "/parker/parker-headset.png",
-  helpful: "/parker/Parker-Helpful.png",
-  thankyou: "/parker/parker-thankyou.png",
-  thinking: "/parker/parker-thinking.png",
-  welcome: "/parker/parker-welcome.png",
-  homeWave: "/parker/parker-home-wave.png",
+  // Parker Master V1 — approved unified mascot library
+  signfinal: "/parker/parker-sign-marketing.png",
+  fullbody: "/parker/parker-driver-keys.png",
+  signpose: "/parker/parker-sign-marketing.png",
+  waving: "/parker/parker-master-waving.png",
+  face: "/parker/parker-face-icon.png",
+  headset: "/parker/parker-customer-care.png",
+  helpful: "/parker/parker-helpful-phone.png",
+  thankyou: "/parker/parker-thank-you.png",
+  thinking: "/parker/parker-thinking-help.png",
+  welcome: "/parker/parker-master-waving.png",
+  homeWave: "/parker/parker-master-waving.png",
   success: "/parker/parker-success.png",
-  savings: "/parker/parker-savings.png",
-  icon: "/parker/parker-icon.png",
-  aboutPointing: "/parker/parker-about-pointing.png",
-  aboutWaving: "/parker/parker-about-waving.png",
-  aboutThumbsUp: "/parker/parker-about-thumbs-up.png",
+  savings: "/parker/parker-host-savings.png",
+  icon: "/parker/parker-face-icon.png",
+  trustSafety: "/parker/parker-trust-safety.png",
 };
 
 const ESKA_LOGO = "/parker/parker-eska-logo.png";
@@ -3259,73 +3258,6 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
 
   return (
     <header className="ps-header" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
-      <style>{`
-        /* One header system for every public ParkShare page. */
-        .ps-mobile-header-row { display: none !important; }
-        .ps-desktop-guest-header { display: grid !important; }
-        .ps-desktop-guest-nav { overflow: visible; }
-
-        /* All five public navigation pills are intentionally identical. */
-        .ps-shared-nav-pill {
-          width: 92px !important;
-          min-width: 92px !important;
-          max-width: 92px !important;
-          height: 28px !important;
-          min-height: 28px !important;
-          padding: 0 8px !important;
-          box-sizing: border-box !important;
-          flex: 0 0 92px !important;
-        }
-
-        @media (max-width: 760px) {
-          /* Mobile gets one clean top row — never the desktop logo/auth duplicates. */
-          .ps-mobile-header-row {
-            display: grid !important;
-            min-height: 78px;
-            padding: 8px 12px !important;
-          }
-
-          .ps-desktop-guest-header {
-            display: flex !important;
-            width: 100% !important;
-            max-width: none !important;
-            padding: 8px 10px 10px !important;
-            margin: 0 !important;
-            box-sizing: border-box !important;
-          }
-
-          /* Hide duplicate desktop logo + auth buttons on mobile. */
-          .ps-desktop-guest-header > .ps-desktop-logo,
-          .ps-desktop-guest-header > .ps-desktop-auth-actions {
-            display: none !important;
-          }
-
-          /* Keep all five pills same size and let the row scroll instead of colliding. */
-          .ps-desktop-guest-nav {
-            width: 100% !important;
-            display: flex !important;
-            justify-content: flex-start !important;
-            gap: 8px !important;
-            overflow-x: auto !important;
-            overflow-y: hidden !important;
-            padding: 3px 3px 5px !important;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
-          }
-
-          .ps-desktop-guest-nav::-webkit-scrollbar { display: none; }
-
-          .ps-shared-nav-pill {
-            width: 104px !important;
-            min-width: 104px !important;
-            max-width: 104px !important;
-            height: 32px !important;
-            min-height: 32px !important;
-            flex: 0 0 104px !important;
-            font-size: 10px !important;
-          }
-        }
-      `}</style>
       {/* Top row: logo + user */}
       <div className="ps-header-row ps-mobile-header-row" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
@@ -3359,152 +3291,19 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
         )}
       </div>
       {!user && (onHostClick || onAboutClick || onTrustClick || onHelpClick) && (
-        <div
-          className="ps-desktop-guest-header"
-          style={{
-            width: "100%",
-            maxWidth: 1180,
-            margin: "0 auto",
-            padding: "9px 18px",
-            boxSizing: "border-box",
-            display: "grid",
-            gridTemplateColumns: "148px minmax(0, 1fr) 128px",
-            alignItems: "center",
-            columnGap: 14,
-          }}
-        >
-          <button
-            className="ps-desktop-logo"
-            onClick={onLogoClick}
-            aria-label="ParkShare home"
-            style={{
-              width: 148,
-              height: 36,
-              padding: 0,
-              margin: 0,
-              border: "none",
-              background: "transparent",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-start",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-          >
-            <div
-              className="ps-desktop-logo-icon"
-              style={{
-                width: 36,
-                height: 36,
-                minWidth: 36,
-                minHeight: 36,
-                borderRadius: "50%",
-                overflow: "hidden",
-                background: C.amber,
-                border: "2px solid " + C.white,
-                boxShadow: "0 0 0 1.5px " + C.navy,
-                position: "relative",
-                zIndex: 2,
-                boxSizing: "border-box",
-              }}
-            >
-              <img
-                src={PARKER.icon}
-                alt=""
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  display: "block",
-                  objectFit: "cover",
-                }}
-              />
-            </div>
-            <div
-              className="ps-desktop-logo-wordmark"
-              style={{
-                height: 28,
-                width: 116,
-                marginLeft: -7,
-                padding: "0 10px 0 13px",
-                boxSizing: "border-box",
-                borderRadius: 7,
-                background: C.amber,
-                border: "2px solid " + C.white,
-                boxShadow: "0 0 0 1.5px " + C.navy,
-                color: C.navy,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: "'Poppins', sans-serif",
-                fontWeight: 800,
-                fontSize: 15,
-                lineHeight: 1,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Park<span style={{ color: C.navy }}>Share</span>
-            </div>
+        <div className="ps-desktop-guest-header">
+          <button className="ps-desktop-logo" onClick={onLogoClick} aria-label="ParkShare home">
+            <div className="ps-desktop-logo-icon"><img src={PARKER.icon} alt="" /></div>
+            <div className="ps-desktop-logo-wordmark">Park<span>Share</span></div>
           </button>
-          <nav
-            className="ps-desktop-guest-nav"
-            aria-label="Primary navigation"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              minWidth: 0,
-              flexWrap: "nowrap",
-            }}
-          >
-            {[
-              { label: "Find Parking", onClick: () => onTabChange("Browse"), show: true },
-              { label: "Become a Host", onClick: onHostClick, show: !!onHostClick },
-              { label: "About", onClick: onAboutClick, show: !!onAboutClick },
-              { label: "Trust & Safety", onClick: onTrustClick, show: !!onTrustClick },
-              { label: "Help", onClick: onHelpClick, show: !!onHelpClick },
-            ].filter(item => item.show).map(item => (
-              <button
-                key={item.label}
-                className="ps-shared-nav-pill"
-                onClick={item.onClick}
-                style={{
-                  width: 92,
-                  minWidth: 92,
-                  maxWidth: 92,
-                  height: 28,
-                  minHeight: 28,
-                  padding: "0 8px",
-                  boxSizing: "border-box",
-                  background: C.amber,
-                  color: C.navy,
-                  border: "2px solid " + C.white,
-                  boxShadow: "0 0 0 2px " + C.navy,
-                  borderRadius: 999,
-                  fontFamily: "'Poppins', sans-serif",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  flex: "0 0 92px",
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
+          <nav className="ps-desktop-guest-nav" aria-label="Primary navigation">
+            <button onClick={() => onTabChange("Browse")}>Find Parking</button>
+            {onHostClick && <button onClick={onHostClick}>Become a Host</button>}
+            {onAboutClick && <button onClick={onAboutClick}>About</button>}
+            {onTrustClick && <button onClick={onTrustClick}>Trust &amp; Safety</button>}
+            {onHelpClick && <button onClick={onHelpClick}>Help</button>}
           </nav>
-          <div
-            className="ps-desktop-auth-actions"
-            style={{
-              width: 128,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              gap: 8,
-              flexShrink: 0,
-            }}
-          >
+          <div className="ps-desktop-auth-actions">
             <button className="ps-desktop-signin" onClick={onShowAuth}>Sign in</button>
             <button className="ps-desktop-join" onClick={onShowAuth}>Join free</button>
           </div>
@@ -4288,14 +4087,11 @@ function ContactField({ label, name, value, onChange, type = "text", textarea, e
 // Host CTA pair used elsewhere.
 // ─────────────────────────────────────────────────────────────────────────────
 const TRUST_SECTIONS = [
-  { id: "community", icon: "🤝", title: "Community" },
-  { id: "listings", icon: "📋", title: "Listings" },
+  { id: "trust", icon: "🛡️", title: "Trust & Safety" },
+  { id: "drivers", icon: "🚗", title: "For Drivers" },
+  { id: "hosts", icon: "🏠", title: "For Hosts" },
   { id: "payments", icon: "🔒", title: "Payments" },
-  { id: "reviews", icon: "⭐", title: "Reviews" },
-  { id: "respect", icon: "🏡", title: "Respect" },
-  { id: "privacy", icon: "🛡️", title: "Privacy" },
-  { id: "before-park", icon: "🚗", title: "Before You Park" },
-  { id: "before-host", icon: "🏠", title: "Before You Host" },
+  { id: "standards", icon: "🤝", title: "Standards" },
   { id: "support", icon: "💬", title: "Support" },
 ];
 
@@ -4414,7 +4210,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/parker/Parker-Helpful.png"
+              src="/parker/parker-helpful-phone.png"
               alt="Parker ready to help"
               loading="eager"
               decoding="async"
@@ -4470,149 +4266,122 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
   const P = ({ children, style }) => (
     <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px", ...style }}>{children}</p>
   );
-  const sections = [
-    { id: "about", icon: "🅿️", title: "About" },
-    { id: "mission", icon: "🎯", title: "Mission" },
-    { id: "vision", icon: "🔭", title: "Vision" },
-    { id: "marketplace", icon: "🤝", title: "Marketplace" },
-    { id: "parker", icon: "🧢", title: "Meet Parker" },
-    { id: "canadian", icon: "🇨🇦", title: "Canadian" },
-  ];
-
   return (
-    <div className="ps-about-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut}
-        onHostClick={onHostClick} onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-      <section id="about" className="ps-about-hero">
-        <div className="ps-about-hero-copy">
-          <div className="ps-about-eyebrow">ABOUT PARKSHARE</div>
-          <h1>There&apos;s space all around us. <span>Let&apos;s put it to better use.</span></h1>
-          <p>ParkShare is Canada&apos;s driveway rental marketplace — connecting Drivers looking for convenient parking with Hosts who have space to share.</p>
-          <div className="ps-about-hero-actions">
-            <button className="ps-about-hero-primary" onClick={onDriverClick}>Find Parking →</button>
-            <button className="ps-about-hero-secondary" onClick={onHostClick}>Become a Host →</button>
-          </div>
-        </div>
-        <div className="ps-about-hero-visual">
-          <img src={PARKER.aboutWaving} alt="Parker waving" />
-          <strong>For Hosts. For Drivers.</strong>
-          <span>For communities.</span>
-        </div>
-      </section>
-
-      <nav className="ps-about-section-nav">
-        {sections.map(s => (
-          <button key={s.id} onClick={() => scrollTo(s.id)}>
+      {/* On-page nav — same pill button style used throughout the app */}
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+        {ABOUT_SECTIONS.map(s => (
+          <button
+            key={s.id}
+            onClick={() => scrollTo(s.id)}
+            style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, padding: "7px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}
+          >
             <span>{s.icon}</span>{s.title}
           </button>
         ))}
-      </nav>
+      </div>
 
-      <main className="ps-about-content">
-        <section className="ps-about-intro">
-          <P>Every day, parking spaces sit empty while Drivers search for somewhere convenient to park — near work, transit, events, hospitals, restaurants, campuses and neighbourhood destinations.</P>
-          <P>At the same time, homeowners and property owners already have parking space that may be unused for hours at a time.</P>
-          <P>ParkShare connects the two.</P>
-          <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>Simple for Hosts. Convenient for Drivers. Better use of the space we already have.</P>
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
+
+        {/* About ParkShare */}
+        <section id="about" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <h1 style={{ fontWeight: 800, fontSize: 24, color: C.navy, margin: "0 0 4px" }}>About Park<span style={{ color: C.amber }}>Share</span></h1>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>There's space all around us. Let's put it to better use.</p>
+          <P>Every day, millions of parking spaces sit empty while drivers circle neighbourhoods, commute to work, attend events, visit businesses and search for somewhere convenient to park.</P>
+          <P>We saw an opportunity to connect the two.</P>
+          <P>Park<b>Share</b> is Canada's driveway rental marketplace — connecting people who have parking space with people who need it.</P>
+          <P>Homeowners can turn an underused driveway or parking space into an opportunity to earn additional income, while drivers gain access to convenient parking in the places they actually want to be.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Simple for Hosts. Convenient for Drivers. Better use of the space we already have.</P>
         </section>
 
-        <section id="mission" className="ps-about-mission">
-          <div className="ps-about-eyebrow">OUR MISSION</div>
-          <h2>Unlock the potential of every parking space.</h2>
-          <p>Our mission is to make parking easier by connecting Drivers with homeowners and property owners who have space to share.</p>
-          <p>For Hosts, that means creating value from space that might otherwise sit empty.</p>
-          <p>For Drivers, it means more choice, greater convenience and the ability to know where they&apos;re going to park before they arrive.</p>
-          <p style={{ fontWeight: 800, color: "#fff", marginBottom: 0 }}>ParkShare brings both sides together in one simple marketplace.</p>
+        {/* Our Mission */}
+        <section id="mission" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Our Mission</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Unlock the potential of every parking space.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Our mission is to make parking easier by connecting drivers with homeowners and property owners who have space to share.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>For Hosts, that means creating value from space that might otherwise sit empty.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>For Drivers, it means more choice, greater convenience and the ability to know where they're going to park before they arrive.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: 0 }}>ParkShare brings both sides together in one simple marketplace.</p>
         </section>
 
-        <section id="vision" className="ps-about-vision">
-          <div className="ps-about-eyebrow">OUR VISION</div>
-          <h2>A world where finding parking is easier — because the space already exists.</h2>
-          <div className="ps-about-vision-grid">
-            {[
-              ["🏠","Use existing space","A driveway sitting empty during the day can serve someone who needs parking nearby."],
-              ["🚗","Make arrival easier","Drivers can spend less time circling and more time getting where they actually need to be."],
-              ["💰","Create value from existing space","Property owners can earn additional income from space they already have."],
-              ["🌎","Build smarter communities","Thousands of underused spaces can become part of a more flexible parking network."],
-            ].map(([icon,title,copy]) => (
-              <div className="ps-about-card" key={title}>
-                <span>{icon}</span><strong>{title}</strong><small>{copy}</small>
-              </div>
-            ))}
-          </div>
-          <P style={{ fontWeight: 800, color: C.navy, marginTop: 18, marginBottom: 0 }}>We believe the future of parking isn&apos;t only about building more spaces. It&apos;s about making better use of the spaces we already have.</P>
+        {/* Our Vision */}
+        <section id="vision" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Our Vision</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A world where finding parking is effortless.</p>
+          <P>We envision communities where existing parking spaces are used more intelligently.</P>
+          <P>Where a driveway sitting empty during the day can serve someone working nearby.</P>
+          <P>Where a parking space near a stadium can help a fan get to the game.</P>
+          <P>Where a homeowner can earn additional income from something they already own.</P>
+          <P>And where drivers can spend less time searching for parking and more time getting where they need to go.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>We believe the future of parking isn't just about building more spaces. It's about making better use of the spaces we already have.</P>
         </section>
 
-        <section id="marketplace" className="ps-about-marketplace">
-          <div className="ps-about-marketplace-title">
-            <div className="ps-about-eyebrow">ONE MARKETPLACE. SHARED VALUE.</div>
-            <h2>ParkShare works when both sides win.</h2>
-          </div>
-          <div className="ps-about-marketplace-grid">
-            <article className="ps-about-audience-card ps-about-host-card">
-              <img className="ps-about-card-parker" src={PARKER.aboutPointing} alt="Parker pointing toward hosting" />
-              <div>
-                <div className="ps-about-audience-label">FOR HOSTS</div>
-                <h3>Your empty space has potential.</h3>
-                <P>Make your driveway available when it works for you. Set your listing details, availability and applicable pricing options.</P>
-                <P style={{ fontWeight: 800, color: C.navy }}>Your space. Your schedule. Your opportunity.</P>
-              </div>
-              <button onClick={onHostClick}>Explore Hosting →</button>
-            </article>
+        {/* One Marketplace. Shared Value. */}
+        <div style={{ textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 19, color: C.navy }}>One Marketplace. Shared Value.</div>
+        </div>
 
-            <article className="ps-about-audience-card ps-about-driver-card">
-              <div>
-                <div className="ps-about-audience-label">FOR DRIVERS</div>
-                <h3>Know where you&apos;re going to park.</h3>
-                <p>Search available private parking near your destination, review the listing information and reserve the space that works for your plans.</p>
-                <p style={{ fontWeight: 800 }}>Less searching. Less uncertainty. Better parking.</p>
-              </div>
-              <button onClick={onDriverClick}>Find Parking →</button>
-            </article>
+        <section id="hosts" style={{ scrollMarginTop: 20, marginBottom: 16, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🏠</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>For Hosts</h2>
           </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Your empty space has potential.</p>
+          <P>Whether your driveway is available every weekday, only during certain hours, or occasionally during local events, ParkShare gives you a way to put that space to work.</P>
+          <P>You control when your space is available. You control your listing. And you decide when you want to share it.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Your driveway. Your schedule. Your opportunity.</P>
         </section>
 
-        <section id="parker" className="ps-about-parker">
-          <div className="ps-about-parker-art">
-            <img src={PARKER.aboutWaving} alt="Parker, ParkShare's valet parker mascot, waving" />
+        <section id="drivers" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>🚗</div>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: 0 }}>For Drivers</h2>
           </div>
-          <div className="ps-about-parker-copy">
-            <div className="ps-about-eyebrow">MEET PARKER</div>
-            <h2>ParkShare&apos;s friendly valet parker.</h2>
-            <P>Parker isn&apos;t just our mascot — he&apos;s ParkShare&apos;s valet parker and the friendly face of the ParkShare experience.</P>
-            <P>A great valet helps take the uncertainty out of parking. Parker represents that same idea: making the experience feel welcoming, clear and easy from the moment you start looking for a space or listing one of your own.</P>
-            <P>For Drivers, Parker is the friendly guide helping you get from search to parked. For Hosts, he&apos;s the helpful partner showing how an unused driveway can become an opportunity.</P>
-            <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>Friendly. Helpful. Approachable. Always ready to help you park.</P>
-          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: "0 0 10px" }}>Know where you're going to park before you arrive.</p>
+          <P>ParkShare is designed to make finding parking simpler.</P>
+          <P>Discover available spaces, compare your options, reserve a spot and head to your destination knowing your parking is waiting for you.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Less searching. Less uncertainty. Better parking.</P>
         </section>
 
-        <section id="canadian" className="ps-about-canadian">
-          <div className="ps-about-canadian-copy">
-            <div className="ps-about-eyebrow">PROUDLY CANADIAN 🇨🇦</div>
-            <h2>Built in Canada. Designed around a simple idea.</h2>
-            <P style={{ color: C.navy }}>Communities already have an enormous amount of parking infrastructure. Much of it simply isn&apos;t being used all the time.</P>
-            <P style={{ color: C.navy }}>ParkShare was created to help make that existing space easier to share — creating more parking choices for Drivers and new opportunities for Hosts.</P>
-            <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
-          </div>
-          <img src={PARKER.aboutThumbsUp} alt="Parker giving a thumbs up" />
+        {/* Meet Parker */}
+        <section id="parker" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Meet Parker</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Your friendly guide to better parking.</p>
+          <ParkerTip pose="fullbody" style={{ marginBottom: 12 }}>
+            Parker is more than our mascot — he's here to make hosting and parking feel simple.
+          </ParkerTip>
+          <P>Parker is more than our mascot. He represents what we want every interaction with ParkShare to feel like: friendly, helpful, approachable and easy.</P>
+          <P>Whether you're listing your first driveway or looking for a spot near your destination, Parker is here to help make the experience a little simpler — and a lot more fun.</P>
+          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Because parking doesn't have to be complicated.</P>
         </section>
 
-        <section className="ps-about-closing">
-          <div className="ps-about-eyebrow">THE IDEA IS SIMPLE</div>
-          <h2>The space is already there.</h2>
-          <p>ParkShare helps put it to better use.</p>
-          <div className="ps-about-closing-actions">
-            <button className="ps-about-closing-primary" onClick={onDriverClick}>Find Parking</button>
-            <button className="ps-about-closing-secondary" onClick={onHostClick}>Become a Host</button>
-          </div>
-          <button className="ps-about-trust-link" onClick={onTrustClick}>Learn About Trust &amp; Safety →</button>
+        {/* Proudly Canadian */}
+        <section id="canadian" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
+          <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>Proudly Canadian</div>
+          <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Built in Canada. Designed for communities everywhere.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>ParkShare was created in Canada around a simple idea: communities already have an enormous amount of parking infrastructure sitting unused.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 10px" }}>By connecting those spaces with the people who need them, we can create new opportunities for homeowners, more choices for drivers and better utilization of the communities we've already built.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, fontWeight: 700, margin: 0 }}>We're starting at home. But our vision goes much further.</p>
         </section>
-      </main>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
-        onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} />
+        {/* We're Just Getting Started — closing */}
+        <section style={{ textAlign: "center", marginBottom: 28 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 10px" }}>We're Just Getting Started</p>
+          <P style={{ textAlign: "center" }}>ParkShare isn't simply about finding somewhere to leave your car. It's about unlocking something that has been hiding in plain sight.</P>
+          <p style={{ fontWeight: 800, fontSize: 16, color: C.navy, margin: "0 0 20px" }}>Millions of spaces. Millions of destinations. One marketplace connecting them. And we're only getting started.</p>
+
+          <div style={{ fontWeight: 800, fontSize: 18, color: C.navy, marginBottom: 14 }}>Ready to ParkShare?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
+            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+          </div>
+        </section>
+      </div>
+
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onHelpClick={onHelpClick} />
     </div>
   );
 }
@@ -4620,7 +4389,6 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // A richer, host-specific calculator matching the "Estimate Your Potential"
 // fields in the new Host page copy (price, days/week, average bookings)
 // rather than the simpler hours-per-day slider used on the homepage.
-
 function HostEarningsCalculator() {
   const [price, setPrice] = useState(12);
   const [days, setDays] = useState(5);
@@ -5161,7 +4929,6 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
 // (not JSX) so the accordion/search UI below can filter and render it
 // generically, and so adding a question later is a one-line edit.
 // ─────────────────────────────────────────────────────────────────────────────
-
 const HELP_DATA = [
   {
     id: "drivers", icon: "🚗", title: "Drivers",
@@ -5283,6 +5050,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
 
+  // Flattened search results across every category/group, tagged with
+  // which category they came from so results still make sense out of context.
   const searchResults = searching
     ? HELP_DATA.flatMap(cat =>
         cat.groups.flatMap((grp, gi) =>
@@ -5294,530 +5063,35 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
     : [];
 
   return (
-    <div className="ps-help-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
 
-        .ps-help-page,
-        .ps-help-page * { box-sizing: border-box; }
-
-        .ps-help-hero {
-          max-width: 1180px;
-          margin: 26px auto 0;
-          display: grid;
-          grid-template-columns: 1.08fr .92fr;
-          border-radius: 22px;
-          overflow: hidden;
-          box-shadow: 0 12px 30px rgba(14,27,46,.10);
-        }
-        .ps-help-hero-copy {
-          background: ${C.navy};
-          padding: 50px 48px 46px;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
-        .ps-help-eyebrow {
-          font-family: 'Poppins', sans-serif;
-          font-size: 11px;
-          font-weight: 800;
-          color: ${C.amber};
-          text-transform: uppercase;
-          letter-spacing: .07em;
-          margin-bottom: 10px;
-        }
-        .ps-help-hero h1 {
-          font-family: 'Poppins', sans-serif;
-          font-size: clamp(34px, 4vw, 52px);
-          line-height: 1.05;
-          font-weight: 800;
-          color: ${C.white};
-          margin: 0 0 14px;
-          letter-spacing: -.025em;
-        }
-        .ps-help-hero-copy p {
-          font-family: 'Poppins', sans-serif;
-          color: rgba(255,255,255,.78);
-          font-size: 15px;
-          line-height: 1.75;
-          margin: 0 0 24px;
-          max-width: 610px;
-        }
-        .ps-help-search {
-          display: flex;
-          align-items: center;
-          gap: 11px;
-          background: ${C.white};
-          border-radius: 13px;
-          padding: 14px 16px;
-          max-width: 650px;
-          box-shadow: 0 6px 18px rgba(0,0,0,.12);
-        }
-        .ps-help-search input {
-          flex: 1;
-          min-width: 0;
-          border: 0;
-          outline: 0;
-          background: transparent;
-          font-family: 'Poppins', sans-serif;
-          font-size: 14px;
-          color: ${C.navy};
-        }
-        .ps-help-hero-art {
-          background: ${C.amber};
-          min-height: 380px;
-          padding: 34px 38px 30px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .ps-help-support-visual {
-          width: 100%;
-          max-width: 390px;
-          text-align: center;
-          font-family: 'Poppins', sans-serif;
-          color: ${C.navy};
-        }
-        .ps-help-parker-frame {
-          width: min(100%, 290px);
-          height: 265px;
-          margin: 0 auto 14px;
-          padding: 14px 18px 0;
-          background: ${C.white};
-          border: 4px solid ${C.navy};
-          border-radius: 28px;
-          display: flex;
-          align-items: flex-end;
-          justify-content: center;
-          overflow: hidden;
-          box-shadow: 0 4px 12px rgba(14,27,46,.10);
-        }
-        .ps-help-parker-frame img {
-          display: block;
-          width: 100%;
-          height: 100%;
-          max-width: 100%;
-          object-fit: contain;
-          object-position: center bottom;
-          margin: 0;
-        }
-        .ps-help-small-parker-frame {
-          width: 285px;
-          height: 176px;
-          flex: 0 0 285px;
-          position: relative;
-          overflow: visible;
-        }
-        .ps-help-small-parker-card {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 225px;
-          height: 176px;
-          background: ${C.white};
-          border: 3px solid ${C.navy};
-          border-radius: 26px;
-          overflow: visible;
-          box-shadow: 0 4px 12px rgba(14,27,46,.08);
-        }
-        .ps-help-small-parker-card img {
-          position: absolute;
-          left: -10px;
-          top: -24px;
-          width: 305px;
-          height: auto;
-          max-width: none;
-          margin: 0;
-          object-fit: contain;
-          pointer-events: none;
-          z-index: 2;
-          /* Crop only the lower body; keep Parker's single presenting hand visible. */
-          clip-path: inset(0 0 56% 0);
-        }
-        @media (max-width: 820px) {
-          .ps-help-small-parker-frame {
-            width: 245px;
-            height: 156px;
-            flex-basis: 245px;
-          }
-          .ps-help-small-parker-card {
-            width: 195px;
-            height: 156px;
-            border-radius: 24px;
-          }
-          .ps-help-small-parker-card img {
-            width: 260px;
-            left: -9px;
-            top: -16px;
-            clip-path: inset(0 0 55% 0);
-          }
-        }
-        @media (max-width: 620px) {
-          .ps-help-small-parker-frame {
-            width: 205px;
-            height: 136px;
-            flex-basis: 205px;
-          }
-          .ps-help-small-parker-card {
-            width: 160px;
-            height: 136px;
-            border-radius: 22px;
-          }
-          .ps-help-small-parker-card img {
-            width: 220px;
-            left: -8px;
-            top: -12px;
-            clip-path: inset(0 0 54% 0);
-          }
-        }
-
-        .ps-help-support-visual h2 {
-          font-size: 24px;
-          line-height: 1.15;
-          font-weight: 800;
-          margin: 0 0 7px;
-        }
-        .ps-help-support-visual p {
-          font-size: 13px;
-          line-height: 1.55;
-          margin: 0 auto;
-          max-width: 330px;
-          opacity: .76;
-        }
-
-        .ps-help-shell {
-          max-width: 1180px;
-          margin: 0 auto;
-          padding: 20px 24px 0;
-          font-family: 'Poppins', sans-serif;
-        }
-        .ps-help-topic-grid {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0,1fr));
-          gap: 14px;
-          scroll-margin-top: 24px;
-          margin-bottom: 22px;
-        }
-        .ps-help-topic-card {
-          background: ${C.white};
-          border: 1.5px solid ${C.concrete};
-          border-radius: 17px;
-          padding: 20px 16px;
-          min-height: 126px;
-          text-align: center;
-          cursor: pointer;
-          box-shadow: 0 5px 16px rgba(14,27,46,.05);
-          transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-        }
-        .ps-help-topic-card:hover {
-          transform: translateY(-2px);
-          border-color: ${C.navy};
-          box-shadow: 0 9px 22px rgba(14,27,46,.09);
-        }
-        .ps-help-topic-icon { font-size: 29px; margin-bottom: 9px; }
-        .ps-help-topic-title {
-          color: ${C.navy};
-          font-size: 13.5px;
-          line-height: 1.3;
-          font-weight: 800;
-        }
-
-        .ps-help-guide {
-          display: grid;
-          grid-template-columns: auto 1fr;
-          align-items: center;
-          gap: 18px;
-          background: ${C.navy};
-          border-radius: 18px;
-          padding: 18px 24px;
-          margin: 0 0 30px;
-          color: ${C.white};
-        }
-        .ps-help-guide > img {
-          width: 86px;
-          height: 86px;
-          object-fit: contain;
-        }
-
-        .ps-help-guide strong {
-          display: block;
-          font-size: 15px;
-          margin-bottom: 4px;
-        }
-        .ps-help-guide span {
-          display: block;
-          font-size: 13px;
-          line-height: 1.6;
-          color: rgba(255,255,255,.80);
-        }
-
-        .ps-help-category {
-          background: rgba(255,255,255,.45);
-          border: 1px solid rgba(227,221,201,.9);
-          border-radius: 20px;
-          padding: 24px;
-          margin-bottom: 18px;
-          scroll-margin-top: 28px;
-        }
-        .ps-help-category-head {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 18px;
-        }
-        .ps-help-category-head .icon { font-size: 22px; }
-        .ps-help-category-head h2 {
-          font-family: 'Poppins', sans-serif;
-          font-weight: 800;
-          font-size: 23px;
-          color: ${C.navy};
-          margin: 0;
-        }
-        .ps-help-group-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0,1fr));
-          gap: 18px;
-        }
-        .ps-help-group {
-          min-width: 0;
-        }
-        .ps-help-group-title {
-          font-family: 'Poppins', sans-serif;
-          font-weight: 800;
-          font-size: 11px;
-          color: ${C.amber};
-          text-transform: uppercase;
-          letter-spacing: .055em;
-          margin-bottom: 8px;
-        }
-        .ps-help-accordion-stack {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .ps-help-category-links {
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          flex-wrap: wrap;
-          margin-top: 14px;
-        }
-        .ps-help-text-link {
-          background: none;
-          border: none;
-          padding: 0;
-          color: ${C.moss};
-          text-decoration: underline;
-          font-family: 'Poppins', sans-serif;
-          font-size: 12.5px;
-          font-weight: 700;
-          cursor: pointer;
-        }
-
-        .ps-help-search-results {
-          max-width: 900px;
-          margin: 4px auto 32px;
-        }
-
-        .ps-help-bottom-grid {
-          display: grid;
-          grid-template-columns: 1.15fr .85fr;
-          gap: 18px;
-          margin: 28px 0 34px;
-          align-items: stretch;
-        }
-        .ps-help-contact-card {
-          background: ${C.navy};
-          border-radius: 20px;
-          padding: 30px;
-          color: ${C.white};
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
-        .ps-help-contact-card h3 {
-          font-family: 'Poppins', sans-serif;
-          font-size: 22px;
-          line-height: 1.2;
-          font-weight: 800;
-          margin: 0 0 8px;
-        }
-        .ps-help-contact-card p {
-          font-family: 'Poppins', sans-serif;
-          font-size: 13px;
-          line-height: 1.65;
-          color: rgba(255,255,255,.76);
-          margin: 0 0 18px;
-          max-width: 650px;
-        }
-        .ps-help-contact-card button {
-          align-self: flex-start;
-          background: ${C.amber};
-          color: ${C.navy};
-          border: 0;
-          border-radius: 11px;
-          padding: 12px 22px;
-          font-family: 'Poppins', sans-serif;
-          font-size: 13px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-        .ps-help-cta-card {
-          background: ${C.white};
-          border: 1.5px solid ${C.concrete};
-          border-radius: 20px;
-          padding: 26px;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-        }
-        .ps-help-cta-card h3 {
-          font-family: 'Poppins', sans-serif;
-          font-size: 18px;
-          font-weight: 800;
-          color: ${C.navy};
-          margin: 0 0 16px;
-          text-align: center;
-        }
-        .ps-help-cta-actions {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-        .ps-help-cta-actions button {
-          border: 0;
-          border-radius: 11px;
-          padding: 13px 16px;
-          font-family: 'Poppins', sans-serif;
-          font-size: 13px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-        .ps-help-cta-actions .driver { background: ${C.amber}; color: ${C.navy}; }
-        .ps-help-cta-actions .host { background: ${C.navy}; color: ${C.white}; }
-
-        @media (max-width: 899px) {
-          .ps-help-hero {
-            display: block;
-            margin: 0 auto;
-            max-width: 460px;
-            border-radius: 0;
-            box-shadow: none;
-          }
-          .ps-help-hero-copy {
-            padding: 30px 24px 26px;
-            text-align: center;
-          }
-          .ps-help-hero h1 { font-size: 23px; margin-bottom: 16px; }
-          .ps-help-hero-copy p { display: none; }
-          .ps-help-search { padding: 12px 14px; }
-          .ps-help-hero-art { display: none; }
-          .ps-help-shell { max-width: 460px; padding: 16px 24px 0; }
-          .ps-help-topic-grid {
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 18px;
-          }
-          .ps-help-topic-card {
-            min-height: 0;
-            padding: 16px 10px;
-            border: 2px solid ${C.navy};
-            box-shadow: none;
-          }
-          .ps-help-topic-icon { font-size: 25px; margin-bottom: 7px; }
-          .ps-help-topic-title { font-size: 12px; }
-          .ps-help-guide {
-            grid-template-columns: 62px 1fr;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 14px;
-            margin-bottom: 20px;
-          }
-          .ps-help-guide img { width: 62px; height: 72px; }
-          .ps-help-guide strong { font-size: 12.5px; }
-          .ps-help-guide span { font-size: 11.5px; line-height: 1.45; }
-          .ps-help-category {
-            background: transparent;
-            border: 0;
-            border-radius: 0;
-            padding: 0;
-            margin-bottom: 24px;
-          }
-          .ps-help-category-head { margin-bottom: 10px; gap: 8px; }
-          .ps-help-category-head .icon { font-size: 18px; }
-          .ps-help-category-head h2 { font-size: 18px; }
-          .ps-help-group-grid { grid-template-columns: 1fr; gap: 12px; }
-          .ps-help-category-links { margin-top: 6px; gap: 12px; }
-          .ps-help-bottom-grid {
-            grid-template-columns: 1fr;
-            gap: 16px;
-            margin: 24px 0 28px;
-          }
-          .ps-help-contact-card { padding: 22px 20px; text-align: center; border-radius: 16px; }
-          .ps-help-contact-card h3 { font-size: 15px; }
-          .ps-help-contact-card p { font-size: 12.5px; }
-          .ps-help-contact-card button { align-self: stretch; width: 100%; }
-          .ps-help-cta-card { padding: 6px 0 0; border: 0; background: transparent; }
-          .ps-help-cta-card h3 { font-size: 15px; margin-bottom: 18px; }
-          .ps-help-cta-actions { grid-template-columns: 1fr; }
-        }
-      `}</style>
-
-      <Header
-        tab={tab}
-        onTabChange={onTabChange}
-        onLogoClick={onLogoClick}
-        user={user}
-        onShowAuth={onShowAuth}
-        onSignOut={onSignOut}
-        onHostClick={onHostClick}
-        onAboutClick={onAboutClick}
-        onTrustClick={onTrustClick}
-        onHelpClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-      />
-
-      <section className="ps-help-hero">
-        <div className="ps-help-hero-copy">
-          <div className="ps-help-eyebrow">ParkShare Help Centre</div>
-          <h1>How can we help?</h1>
-          <p>Find quick answers for Drivers and Hosts, understand payments and accounts, or get guidance on Trust &amp; Safety.</p>
-          <div className="ps-help-search">
-            <span aria-hidden="true">🔍</span>
-            <input
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search ParkShare Help..."
-              aria-label="Search ParkShare Help"
-            />
-          </div>
+      {/* Hero + search */}
+      <div style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "30px 24px 26px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>ParkShare Help Centre</div>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 23, color: C.white, margin: "0 0 16px" }}>How can we help?</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.white, borderRadius: 12, padding: "12px 14px" }}>
+          <span style={{ fontSize: 16 }}>🔍</span>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search ParkShare Help..."
+            style={{ flex: 1, border: "none", outline: "none", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, color: C.navy, background: "transparent" }}
+          />
         </div>
+      </div>
 
-        <div className="ps-help-hero-art">
-          <div className="ps-help-support-visual">
-            <div className="ps-help-parker-frame">
-              <img
-                src="/parker/Parker-Customer-Care-Fullbody.png"
-                alt="Parker, ParkShare support guide"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = PARKER.thinking;
-                }}
-              />
-            </div>
-            <h2>Support when you need it.</h2>
-            <p>Clear answers, helpful guidance and a direct path to ParkShare Support when you need a person.</p>
-          </div>
-        </div>
-      </section>
+      <div style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
 
-      <main className="ps-help-shell">
         {searching ? (
-          <div className="ps-help-search-results">
+          /* Search mode — flat, filtered results only */
+          <div style={{ marginBottom: 28 }}>
             <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
               {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{query}"
             </p>
             {searchResults.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "30px 0" }}>
+              <div style={{ textAlign: "center", padding: "20px 0" }}>
                 <p style={{ fontSize: 13.5, color: C.muted, marginBottom: 12 }}>Parker couldn't find an answer for that.</p>
                 <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Contact Support</button>
               </div>
@@ -5834,84 +5108,73 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
         ) : (
           <>
-            <div id="help-topics" className="ps-help-topic-grid">
+            {/* Category cards */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
               {HELP_DATA.map(cat => (
-                <button key={cat.id} className="ps-help-topic-card" onClick={() => scrollTo(cat.id)}>
-                  <div className="ps-help-topic-icon">{cat.icon}</div>
-                  <div className="ps-help-topic-title">{cat.title}</div>
+                <button
+                  key={cat.id}
+                  onClick={() => scrollTo(cat.id)}
+                  style={{ background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "18px 12px", textAlign: "center", cursor: "pointer" }}
+                >
+                  <div style={{ fontSize: 26, marginBottom: 8 }}>{cat.icon}</div>
+                  <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.navy, lineHeight: 1.3 }}>{cat.title}</div>
                 </button>
               ))}
             </div>
 
-            <div className="ps-help-guide">
-              <div className="ps-help-small-parker-frame">
-                <div className="ps-help-small-parker-card">
-                  <img
-                src={PARKER.helpful}
-                alt="Parker"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = PARKER.thinking;
-                }}
-              />
-                </div>
-              </div>
-              <div>
-                <strong>Need a hand?</strong>
-                <span>Choose a Help topic, search for a question, or browse the answers below. I’ll help point you in the right direction.</span>
-              </div>
+            {/* Parker, in his customer-care role */}
+            <div style={{ marginBottom: 28 }}>
+              <ParkerTip pose="thinking">
+                Tap a topic above, search up top, or scroll down — I've grouped every answer by who's asking.
+              </ParkerTip>
             </div>
 
+            {/* Full accordion content, grouped by category */}
             {HELP_DATA.map(cat => (
-              <section key={cat.id} id={cat.id} className="ps-help-category">
-                <div className="ps-help-category-head">
-                  <span className="icon">{cat.icon}</span>
-                  <h2>{cat.title}</h2>
+              <section key={cat.id} id={cat.id} style={{ scrollMarginTop: 20, marginBottom: 32 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                  <span style={{ fontSize: 18 }}>{cat.icon}</span>
+                  <h2 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>{cat.title}</h2>
                 </div>
-
-                <div className="ps-help-group-grid">
-                  {cat.groups.map((grp, gi) => (
-                    <div key={gi} className="ps-help-group">
-                      <div className="ps-help-group-title">{grp.sub}</div>
-                      <div className="ps-help-accordion-stack">
-                        {grp.items.map((item, ii) => {
-                          const key = cat.id + "-" + gi + "-" + ii;
-                          return <HelpAccordionItem key={key} q={item.q} a={item.a} isOpen={openKeys.has(key)} onToggle={() => toggle(key)} />;
-                        })}
-                      </div>
+                {cat.groups.map((grp, gi) => (
+                  <div key={gi} style={{ marginBottom: 16 }}>
+                    <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>{grp.sub}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {grp.items.map((item, ii) => {
+                        const key = cat.id + "-" + gi + "-" + ii;
+                        return <HelpAccordionItem key={key} q={item.q} a={item.a} isOpen={openKeys.has(key)} onToggle={() => toggle(key)} />;
+                      })}
                     </div>
-                  ))}
-                </div>
-
-                <div className="ps-help-category-links">
-                  {cat.id === "trust" && (
-                    <button onClick={onTrustClick} className="ps-help-text-link">Learn More About Trust &amp; Safety →</button>
-                  )}
-                  <button onClick={() => scrollTo("help-topics")} className="ps-help-text-link">Back to Help topics ↑</button>
-                </div>
+                  </div>
+                ))}
+                {cat.id === "trust" && (
+                  <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Learn More About Trust &amp; Safety →</button>
+                )}
               </section>
             ))}
           </>
         )}
 
-        <div className="ps-help-bottom-grid">
-          <section className="ps-help-contact-card">
-            <h3>Still need help?</h3>
-            <p>Tell us what happened and include your account information or reservation number where applicable. ParkShare Support can help you work through the next step.</p>
-            <button onClick={onContactClick}>Contact ParkShare Support</button>
-          </section>
+        {/* Still Need Help? */}
+        <section style={{ marginBottom: 28, background: C.navy, borderRadius: 16, padding: "22px 20px", textAlign: "center" }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 4px" }}>Parker couldn't find the answer?</p>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontSize: 12.5, color: "rgba(255,255,255,0.75)", margin: "0 0 16px", lineHeight: 1.6 }}>
+            Sometimes you just need to talk to someone. Tell us how we can help, and provide your account info and reservation number where applicable.
+          </p>
+          <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 24px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>Contact ParkShare Support</button>
+        </section>
 
-          <section className="ps-help-cta-card">
-            <h3>Parking should be simple.</h3>
-            <div className="ps-help-cta-actions">
-              <button className="driver" onClick={onDriverClick}>Find Parking</button>
-              <button className="host" onClick={onHostClick}>Become a Host</button>
-            </div>
-          </section>
-        </div>
-      </main>
+        {/* Closing */}
+        <section style={{ textAlign: "center", marginBottom: 28 }}>
+          <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 20px" }}>Parking should be simple.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button onClick={onDriverClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
+            <button onClick={onHostClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Become a Host</button>
+          </div>
+        </section>
+      </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} />
+      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} />
     </div>
   );
 }
