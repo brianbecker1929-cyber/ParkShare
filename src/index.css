@@ -1148,3 +1148,87 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ParkShare mobile About + Help production fix — 2026-08-12
+   Keeps desktop layouts unchanged; fixes mobile overlap only.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 819px) {
+  /* ABOUT: the host Parker was absolutely positioned over live copy on phones.
+     Put him into the normal flex flow between the copy and CTA instead. */
+  .ps-about-host-card .ps-about-card-parker {
+    position: static !important;
+    order: 2 !important;
+    width: 128px !important;
+    max-width: 44% !important;
+    height: auto !important;
+    align-self: flex-end !important;
+    margin: -4px 2px 4px 0 !important;
+    transform: none !important;
+  }
+  .ps-about-host-card > div {
+    order: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+  .ps-about-host-card > button {
+    order: 3 !important;
+  }
+}
+
+@media (max-width: 620px) {
+  /* HELP: the guide used a 62px grid column while its Parker frame remained
+     205px wide, so the frame physically covered the text column. */
+  .ps-help-guide {
+    grid-template-columns: 142px minmax(0, 1fr) !important;
+    gap: 12px !important;
+    align-items: center !important;
+    overflow: hidden !important;
+  }
+  .ps-help-small-parker-frame {
+    width: 142px !important;
+    height: 126px !important;
+    flex: 0 0 142px !important;
+    min-width: 0 !important;
+  }
+  .ps-help-small-parker-card {
+    width: 118px !important;
+    height: 126px !important;
+    border-radius: 20px !important;
+  }
+  .ps-help-small-parker-card img {
+    width: 174px !important;
+    max-width: none !important;
+    left: -9px !important;
+    top: -8px !important;
+    clip-path: inset(0 0 53% 0) !important;
+  }
+  .ps-help-guide > div:last-child {
+    min-width: 0 !important;
+    position: relative !important;
+    z-index: 3 !important;
+  }
+  .ps-help-guide strong,
+  .ps-help-guide span {
+    overflow-wrap: anywhere !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .ps-help-guide {
+    grid-template-columns: 126px minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+  .ps-help-small-parker-frame {
+    width: 126px !important;
+    flex-basis: 126px !important;
+  }
+  .ps-help-small-parker-card {
+    width: 106px !important;
+  }
+  .ps-help-small-parker-card img {
+    width: 158px !important;
+  }
+}
