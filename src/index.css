@@ -1259,7 +1259,7 @@ button, input, select, textarea { font: inherit; }
     max-width: none !important;
     height: auto !important;
     left: 50% !important;
-    top: 18px !important;
+    top: 2px !important;
     bottom: auto !important;
     transform: translateX(-50%) !important;
     clip-path: none !important;
