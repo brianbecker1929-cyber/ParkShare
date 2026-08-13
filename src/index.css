@@ -1369,3 +1369,32 @@ button, input, select, textarea { font: inherit; }
     overflow: hidden !important;
   }
 }
+
+
+/* Trust & Safety Parker proportion lock — 2026-08-13
+   Match the taller About-page visual treatment without changing surrounding content. */
+.ps-trust-v2-parker-frame {
+  width: min(310px, 78%) !important;
+  aspect-ratio: 3 / 4 !important;
+  max-height: none !important;
+}
+.ps-trust-v2-parker-frame img {
+  width: 88% !important;
+  height: 96% !important;
+  object-fit: fill !important;
+  object-position: center bottom !important;
+  transform: translateY(4px) !important;
+}
+@media (min-width: 820px) {
+  .ps-trust-v2-parker-frame {
+    width: min(310px, 70%) !important;
+    aspect-ratio: 3 / 4 !important;
+    max-height: none !important;
+  }
+  .ps-trust-v2-parker-frame img {
+    width: 86% !important;
+    height: 97% !important;
+    object-fit: fill !important;
+    transform: translateY(4px) !important;
+  }
+}
