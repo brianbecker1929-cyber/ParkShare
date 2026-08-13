@@ -4601,7 +4601,6 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 
         <section id="canadian" className="ps-about-canadian">
           <div className="ps-about-canadian-copy">
-            <div className="ps-about-eyebrow">PROUDLY CANADIAN 🇨🇦</div>
             <h2>Built in Canada. Designed around a simple idea.</h2>
             <P style={{ color: C.navy }}>Communities already have an enormous amount of parking infrastructure. Much of it simply isn&apos;t being used all the time.</P>
             <P style={{ color: C.navy }}>ParkShare was created to help make that existing space easier to share — creating more parking choices for Drivers and new opportunities for Hosts.</P>
