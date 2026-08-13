@@ -1340,3 +1340,32 @@ button, input, select, textarea { font: inherit; }
     line-height: 1.62 !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ParkShare Help — let Parker's hand extend beyond the white card — 2026-08-13
+   Mobile only. Keeps Parker's current size and placement, but removes the
+   white-card clipping so the outstretched hand can overlap the navy help panel.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 620px) {
+  .ps-help-small-parker-frame {
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-help-small-parker-card {
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-help-small-parker-card img {
+    z-index: 3 !important;
+  }
+
+  /* Keep the overall navy Help card contained while allowing Parker to leave
+     only the inner white box. */
+  .ps-help-guide {
+    overflow: hidden !important;
+  }
+}
