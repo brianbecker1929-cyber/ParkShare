@@ -3995,7 +3995,7 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
+function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick }) {
   const UPDATED = "July 18, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -4006,7 +4006,18 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+      <Header
+        tab={tab}
+        onTabChange={onTabChange}
+        onLogoClick={onLogoClick}
+        user={user}
+        onShowAuth={onShowAuth}
+        onSignOut={onSignOut}
+        onHostClick={onHostClick}
+        onAboutClick={onAboutClick}
+        onTrustClick={onTrustClick}
+        onHelpClick={onHelpClick}
+      />
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
         <div style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32 }}>
@@ -5916,7 +5927,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
   );
 }
 
-function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
+function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick }) {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
@@ -5947,7 +5958,18 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
   return (
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} />
+      <Header
+        tab={tab}
+        onTabChange={onTabChange}
+        onLogoClick={onLogoClick}
+        user={user}
+        onShowAuth={onShowAuth}
+        onSignOut={onSignOut}
+        onHostClick={onHostClick}
+        onAboutClick={onAboutClick}
+        onTrustClick={onTrustClick}
+        onHelpClick={onHelpClick}
+      />
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
 
@@ -6266,6 +6288,7 @@ export default function App() {
           onTrustClick={openTrust}
           onAboutClick={openAbout}
           onHelpClick={openHelp}
+          onHostClick={openHost}
         />
       ) : screen === "trust" ? (
         <TrustPage
@@ -6355,6 +6378,7 @@ export default function App() {
           onTrustClick={openTrust}
           onAboutClick={openAbout}
           onHelpClick={openHelp}
+          onHostClick={openHost}
         />
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
