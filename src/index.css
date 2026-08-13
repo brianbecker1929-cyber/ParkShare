@@ -1370,31 +1370,31 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Trust & Safety — approved fixed Parker card asset — 2026-08-13
+   Parker + white/navy rectangle are one image so Parker's proportions
+   remain identical on mobile and desktop.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-trust-v2-parker-card {
+  display: block;
+  width: min(315px, 78%);
+  height: auto;
+  max-height: none;
+  object-fit: contain;
+  flex: 0 0 auto;
+  margin: 0 auto;
+}
 
-/* Trust & Safety Parker proportion lock — 2026-08-13
-   Match the taller About-page visual treatment without changing surrounding content. */
-.ps-trust-v2-parker-frame {
-  width: min(310px, 78%) !important;
-  aspect-ratio: 3 / 4 !important;
-  max-height: none !important;
-}
-.ps-trust-v2-parker-frame img {
-  width: 88% !important;
-  height: 96% !important;
-  object-fit: fill !important;
-  object-position: center bottom !important;
-  transform: translateY(4px) !important;
-}
 @media (min-width: 820px) {
-  .ps-trust-v2-parker-frame {
-    width: min(310px, 70%) !important;
-    aspect-ratio: 3 / 4 !important;
-    max-height: none !important;
-  }
-  .ps-trust-v2-parker-frame img {
-    width: 86% !important;
-    height: 97% !important;
-    object-fit: fill !important;
-    transform: translateY(4px) !important;
+  .ps-trust-v2-parker-card {
+    width: min(300px, 70%);
+    height: auto;
+    max-height: none;
   }
 }
+
+/* Legacy frame no longer rendered by App.jsx. */
+.ps-trust-v2-parker-frame {
+  display: none !important;
+}
+
