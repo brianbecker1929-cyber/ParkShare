@@ -1619,45 +1619,81 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ABOUT HERO — NARROWER PARKER WHITE BOX ONLY — 2026-08-14
-   Targets ONLY the About hero. Keep Parker's visual size and vertical card
-   height while bringing the left/right white edges closer to Parker.
-   Host page is intentionally untouched.
+   ParkShare Host — official Parker savings artwork — 2026-08-14
+   Uses /public/parker/parker-host-savings.png via the public URL
+   /parker/parker-host-savings.png without changing the existing Host layout.
    ───────────────────────────────────────────────────────────────────────────── */
-.ps-about-page .ps-about-hero-visual img {
-  width: min(220px, 61%) !important;
-  height: 300px !important;
-  max-height: 300px !important;
+.ps-host-hero-visual img {
+  content: url("/parker/parker-host-savings.png") !important;
   object-fit: contain !important;
   object-position: center center !important;
-  border-radius: 30px !important;
-  background: #FFFFFF !important;
-  box-shadow: 0 0 0 5px #0E1B2E, 0 0 0 8px #FFFFFF !important;
-  padding: 8px !important;
 }
 
-/* Desktop / desktop-site view: preserve Parker's current visual height while
-   narrowing only the white card horizontally. */
+/* ─────────────────────────────────────────────────────────────────────────────
+   HOST HERO PARKER — FINAL CARD BORDER FIX — 2026-08-14
+   Keep the approved parker-host-savings.png at the existing scale.
+   The artwork itself already contains the rounded white card + navy inner outline.
+   Remove the website-added amber/white halo and any extra card styling.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-host-hero-visual img {
+  content: url("/parker/parker-host-savings.png") !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HOST HERO — FINAL LOCKED DESIGN — 2026-08-14
+   Keep Parker/card scale and placement unchanged.
+   Remove only website-generated outer amber/white framing so the PNG's own
+   white rounded card + navy inner outline are the only visible card borders.
+   Do not alter the Host hero background, copy, spacing, or layout.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-host-hero-visual img {
+  content: url("/parker/parker-host-savings.png") !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+/* Cancel any inherited decorative frame around the Host hero artwork. */
+.ps-host-hero-visual,
+.ps-host-hero-visual > *,
+.ps-host-hero-visual picture,
+.ps-host-hero-visual figure {
+  border-color: transparent !important;
+}
+
+.ps-host-hero-visual img::before,
+.ps-host-hero-visual img::after {
+  content: none !important;
+}
+
+/* ABOUT HERO — narrower Parker card, Parker scale preserved — 2026-08-14 */
+.ps-about-hero-visual {
+  overflow: hidden !important;
+}
+.ps-about-hero-visual img {
+  width: min(225px, 62%) !important;
+  max-height: 300px !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+}
 @media (min-width: 820px) {
-  .ps-about-page .ps-about-hero-visual img {
-    width: 250px !important;
-    height: 330px !important;
+  .ps-about-hero-visual img {
+    width: min(265px, 64%) !important;
     max-height: 330px !important;
-    object-fit: contain !important;
-  }
-}
-
-/* ABOUT HERO — slightly narrower vertical Parker box — 2026-08-14
-   Keep Parker's current scale/height; reduce only the card width. */
-.ps-about-page .ps-about-hero-visual img {
-  width: min(205px, 57%) !important;
-}
-
-@media (min-width: 820px) {
-  .ps-about-page .ps-about-hero-visual img {
-    width: 230px !important;
-    height: 330px !important;
-    max-height: 330px !important;
+    object-fit: cover !important;
+    object-position: center center !important;
   }
 }
 
