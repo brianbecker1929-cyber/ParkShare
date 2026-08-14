@@ -1619,55 +1619,34 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   HOST HERO — RESTORE PARKER IMAGE — 2026-08-14
-   Restore the Host hero image and keep the website-added halo removed.
+   HOST HERO — FINAL PARKER CARD — 2026-08-14
+   Parker stays at the current visual scale.
+   White rounded rectangle + NAVY INNER outline only.
+   No amber outer border and no extra white outer halo.
    ───────────────────────────────────────────────────────────────────────────── */
 @media (min-width: 900px) {
   .ps-host-hero-visual img {
     display: block !important;
+
+    /* Preserve Parker's current rendered content size. */
     width: min(250px, 72%) !important;
     height: auto !important;
     max-width: 100% !important;
+    box-sizing: content-box !important;
+
+    /* Build the card around Parker without scaling him down. */
+    padding: 12px !important;
+    background: #FFFFFF !important;
+    border: 0 !important;
+    border-radius: 28px !important;
+
+    /* Navy outline sits INSIDE the white card. No external halo. */
+    box-shadow: inset 0 0 0 4px #0E1B2E !important;
+
     object-fit: contain !important;
     object-position: center center !important;
-    background: transparent !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
     margin: 0 auto !important;
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   ABOUT HERO — NARROWER CARD ONLY — 2026-08-14
-   The About hero is the ONLY target below.
-   Parker keeps the same image scale while the visible card is narrowed by
-   clipping the left and right edges inside a centered viewport.
-   ───────────────────────────────────────────────────────────────────────────── */
-.ps-about-hero-visual {
-  overflow: hidden !important;
-}
-
-/* Keep the image at its established About-page scale. */
-.ps-about-hero-visual img {
-  display: block !important;
-  width: min(255px, 70%) !important;
-  max-height: 300px !important;
-  height: auto !important;
-  object-fit: contain !important;
-  object-position: center center !important;
-  transform: none !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  clip-path: inset(0 7% 0 7% round 30px) !important;
-}
-
-@media (min-width: 820px) {
-  .ps-about-hero-visual img {
-    width: min(310px, 75%) !important;
-    max-height: 330px !important;
-    clip-path: inset(0 8% 0 8% round 30px) !important;
+    transform: none !important;
   }
 }
 
