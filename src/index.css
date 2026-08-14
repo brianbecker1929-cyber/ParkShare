@@ -1510,3 +1510,39 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   HELP PAGE — FINAL DESKTOP PARKER FRAME
+   Matches the approved tall vertical frame design.
+   IMPORTANT: targets the actual Help hero selector used in App.jsx.
+   Existing Parker artwork/pose is unchanged.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 820px) {
+  .ps-help-parker-frame {
+    width: 240px !important;
+    height: 390px !important;
+    max-width: 240px !important;
+    padding: 10px 12px 0 !important;
+    margin: 0 auto 14px !important;
+    background: #FFFFFF !important;
+    border: 4px solid #0E1B2E !important;
+    border-radius: 28px !important;
+    box-shadow: 0 0 0 6px #FFFFFF !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .ps-help-parker-frame img {
+    display: block !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    transform: none !important;
+    margin: 0 !important;
+  }
+}
+
