@@ -1647,3 +1647,17 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ABOUT HERO — slightly narrower vertical Parker box — 2026-08-14
+   Keep Parker's current scale/height; reduce only the card width. */
+.ps-about-page .ps-about-hero-visual img {
+  width: min(205px, 57%) !important;
+}
+
+@media (min-width: 820px) {
+  .ps-about-page .ps-about-hero-visual img {
+    width: 230px !important;
+    height: 330px !important;
+    max-height: 330px !important;
+  }
+}
+
