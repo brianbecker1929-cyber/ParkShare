@@ -1546,3 +1546,25 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   HELP PAGE — FINAL LOCKED PARKER SCALE
+   Keep the approved vertical frame exactly as-is.
+   Enlarge/reposition only the existing Help Parker artwork inside the frame.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 820px) {
+  .ps-help-parker-frame {
+    overflow: hidden !important;
+  }
+
+  .ps-help-parker-frame img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: none !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    transform: scale(1.58) !important;
+    transform-origin: center bottom !important;
+    margin: 0 !important;
+  }
+}
+
