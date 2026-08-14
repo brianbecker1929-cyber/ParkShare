@@ -1619,118 +1619,55 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ParkShare Host — official Parker savings artwork — 2026-08-14
-   Uses /public/parker/parker-host-savings.png via the public URL
-   /parker/parker-host-savings.png without changing the existing Host layout.
+   HOST HERO — RESTORE PARKER IMAGE — 2026-08-14
+   Restore the Host hero image and keep the website-added halo removed.
    ───────────────────────────────────────────────────────────────────────────── */
-.ps-host-hero-visual img {
-  content: url("/parker/parker-host-savings.png") !important;
-  object-fit: contain !important;
-  object-position: center center !important;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   HOST HERO PARKER — FINAL CARD BORDER FIX — 2026-08-14
-   Keep the approved parker-host-savings.png at the existing scale.
-   The artwork itself already contains the rounded white card + navy inner outline.
-   Remove the website-added amber/white halo and any extra card styling.
-   ───────────────────────────────────────────────────────────────────────────── */
-.ps-host-hero-visual img {
-  content: url("/parker/parker-host-savings.png") !important;
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  object-fit: contain !important;
-  object-position: center center !important;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   HOST HERO — FINAL LOCKED DESIGN — 2026-08-14
-   Keep Parker/card scale and placement unchanged.
-   Remove only website-generated outer amber/white framing so the PNG's own
-   white rounded card + navy inner outline are the only visible card borders.
-   Do not alter the Host hero background, copy, spacing, or layout.
-   ───────────────────────────────────────────────────────────────────────────── */
-.ps-host-hero-visual img {
-  content: url("/parker/parker-host-savings.png") !important;
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  object-fit: contain !important;
-  object-position: center center !important;
-}
-
-/* Cancel any inherited decorative frame around the Host hero artwork. */
-.ps-host-hero-visual,
-.ps-host-hero-visual > *,
-.ps-host-hero-visual picture,
-.ps-host-hero-visual figure {
-  border-color: transparent !important;
-}
-
-.ps-host-hero-visual img::before,
-.ps-host-hero-visual img::after {
-  content: none !important;
-}
-
-/* ABOUT HERO — narrower Parker card, Parker scale preserved — 2026-08-14 */
-.ps-about-hero-visual {
-  overflow: hidden !important;
-}
-.ps-about-hero-visual img {
-  width: min(225px, 62%) !important;
-  max-height: 300px !important;
-  object-fit: cover !important;
-  object-position: center center !important;
-}
-@media (min-width: 820px) {
-  .ps-about-hero-visual img {
-    width: min(265px, 64%) !important;
-    max-height: 330px !important;
-    object-fit: cover !important;
+@media (min-width: 900px) {
+  .ps-host-hero-visual img {
+    display: block !important;
+    width: min(250px, 72%) !important;
+    height: auto !important;
+    max-width: 100% !important;
+    object-fit: contain !important;
     object-position: center center !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
   }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   ABOUT HERO — NARROWER WHITE PARKER CARD VIA CROPPED CONTAINER — 2026-08-14
-   Keep Parker at the current visual scale. Narrow only the visible left/right
-   edges of the baked-in white rounded card by clipping the image horizontally.
+   ABOUT HERO — NARROWER CARD ONLY — 2026-08-14
+   The About hero is the ONLY target below.
+   Parker keeps the same image scale while the visible card is narrowed by
+   clipping the left and right edges inside a centered viewport.
    ───────────────────────────────────────────────────────────────────────────── */
-
-/* The yellow visual panel becomes the clipping viewport. */
 .ps-about-hero-visual {
   overflow: hidden !important;
 }
 
-/* Keep Parker/image scale unchanged; crop only the outer left/right card edges. */
+/* Keep the image at its established About-page scale. */
 .ps-about-hero-visual img {
-  width: min(310px, 75%) !important;
-  max-height: 330px !important;
+  display: block !important;
+  width: min(255px, 70%) !important;
+  max-height: 300px !important;
+  height: auto !important;
   object-fit: contain !important;
   object-position: center center !important;
-  transform: scale(1.16) !important;
-  transform-origin: center center !important;
-  clip-path: inset(0 7.5% 0 7.5% round 30px) !important;
-  margin-left: -7.5% !important;
-  margin-right: -7.5% !important;
+  transform: none !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  clip-path: inset(0 7% 0 7% round 30px) !important;
 }
 
-/* Mobile keeps the same Parker scale relationship while using a slightly
-   gentler crop so the card remains balanced on smaller screens. */
-@media (max-width: 819px) {
+@media (min-width: 820px) {
   .ps-about-hero-visual img {
-    width: min(255px, 70%) !important;
-    max-height: 300px !important;
-    transform: scale(1.14) !important;
-    clip-path: inset(0 6.5% 0 6.5% round 28px) !important;
-    margin-left: -6.5% !important;
-    margin-right: -6.5% !important;
+    width: min(310px, 75%) !important;
+    max-height: 330px !important;
+    clip-path: inset(0 8% 0 8% round 30px) !important;
   }
 }
 
