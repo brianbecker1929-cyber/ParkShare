@@ -1462,3 +1462,20 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Help Parker — match Trust Parker white rounded / navy outlined card
+   Keeps the existing Help Parker artwork and its natural proportions.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-help-small-parker-card {
+  background: #FFFFFF !important;
+  border: 4px solid #0E1B2E !important;
+  box-shadow: 0 0 0 5px #FFFFFF !important;
+  border-radius: 28px !important;
+}
+
+@media (max-width: 620px) {
+  .ps-help-small-parker-card {
+    border-radius: 24px !important;
+  }
+}
+
