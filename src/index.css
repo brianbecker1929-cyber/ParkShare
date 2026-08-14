@@ -1618,3 +1618,14 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   ParkShare Host — official Parker savings artwork — 2026-08-14
+   Uses /public/parker/parker-host-savings.png via the public URL
+   /parker/parker-host-savings.png without changing the existing Host layout.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-host-hero-visual img {
+  content: url("/parker/parker-host-savings.png") !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
