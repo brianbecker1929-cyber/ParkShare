@@ -5389,26 +5389,26 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           color: ${C.navy};
         }
         .ps-help-parker-frame {
-          width: min(100%, 290px);
-          height: 265px;
+          width: min(100%, 240px);
+          height: auto;
           margin: 0 auto 14px;
-          padding: 14px 18px 0;
-          background: ${C.white};
-          border: 4px solid ${C.navy};
-          border-radius: 28px;
+          padding: 0;
+          background: transparent;
+          border: 0;
+          border-radius: 0;
           display: flex;
-          align-items: flex-end;
+          align-items: center;
           justify-content: center;
-          overflow: hidden;
-          box-shadow: 0 4px 12px rgba(14,27,46,.10);
+          overflow: visible;
+          box-shadow: none;
         }
         .ps-help-parker-frame img {
           display: block;
           width: 100%;
-          height: 100%;
+          height: auto;
           max-width: 100%;
           object-fit: contain;
-          object-position: center bottom;
+          object-position: center center;
           margin: 0;
         }
         .ps-help-small-parker-frame {
@@ -5806,7 +5806,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div className="ps-help-support-visual">
             <div className="ps-help-parker-frame">
               <img
-                src="/parker/Parker-Customer-Care-Fullbody.png"
+                src="/parker/parker-help-card.jpg"
                 alt="Parker, ParkShare support guide"
                 onError={(e) => {
                   e.currentTarget.onerror = null;
