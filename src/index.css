@@ -1568,3 +1568,53 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Help hero Parker card — FINAL FIT FIX
+   parker-help-card.jpg already contains Parker + white rounded card + navy
+   border + white outer outline. Display the COMPLETE asset with no zoom/crop.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-help-parker-frame {
+  width: min(100%, 240px) !important;
+  height: auto !important;
+  max-width: 240px !important;
+  padding: 0 !important;
+  margin: 0 auto 14px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  display: block !important;
+}
+
+.ps-help-parker-frame img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  transform: none !important;
+  transform-origin: center center !important;
+  margin: 0 !important;
+}
+
+/* Explicitly cancel any older desktop zoom rules. */
+@media (min-width: 820px) {
+  .ps-help-parker-frame {
+    width: 240px !important;
+    height: auto !important;
+    max-width: 240px !important;
+    overflow: visible !important;
+  }
+
+  .ps-help-parker-frame img {
+    width: 100% !important;
+    height: auto !important;
+    transform: none !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+  }
+}
+
