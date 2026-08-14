@@ -1482,3 +1482,31 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Help page — FINAL locked desktop Parker frame
+   Same height, reduced width for a vertical rectangle.
+   White outer outline around ParkShare navy border.
+   Existing Help Parker artwork remains unchanged.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 820px) {
+  .ps-help-hero-parker-card {
+    width: 240px !important;
+    height: 390px !important;
+    max-width: none !important;
+    background: #FFFFFF !important;
+    border: 4px solid #0E1B2E !important;
+    box-shadow: 0 0 0 6px #FFFFFF !important;
+    border-radius: 28px !important;
+    overflow: hidden !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .ps-help-hero-parker-card img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+    object-position: center center !important;
+  }
+}
+
