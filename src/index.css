@@ -1619,34 +1619,31 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   HOST HERO — FINAL PARKER CARD — 2026-08-14
-   Parker stays at the current visual scale.
-   White rounded rectangle + NAVY INNER outline only.
-   No amber outer border and no extra white outer halo.
+   ABOUT HERO — NARROWER PARKER WHITE BOX ONLY — 2026-08-14
+   Targets ONLY the About hero. Keep Parker's visual size and vertical card
+   height while bringing the left/right white edges closer to Parker.
+   Host page is intentionally untouched.
    ───────────────────────────────────────────────────────────────────────────── */
-@media (min-width: 900px) {
-  .ps-host-hero-visual img {
-    display: block !important;
+.ps-about-page .ps-about-hero-visual img {
+  width: min(220px, 61%) !important;
+  height: 300px !important;
+  max-height: 300px !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  border-radius: 30px !important;
+  background: #FFFFFF !important;
+  box-shadow: 0 0 0 5px #0E1B2E, 0 0 0 8px #FFFFFF !important;
+  padding: 8px !important;
+}
 
-    /* Preserve Parker's current rendered content size. */
-    width: min(250px, 72%) !important;
-    height: auto !important;
-    max-width: 100% !important;
-    box-sizing: content-box !important;
-
-    /* Build the card around Parker without scaling him down. */
-    padding: 12px !important;
-    background: #FFFFFF !important;
-    border: 0 !important;
-    border-radius: 28px !important;
-
-    /* Navy outline sits INSIDE the white card. No external halo. */
-    box-shadow: inset 0 0 0 4px #0E1B2E !important;
-
+/* Desktop / desktop-site view: preserve Parker's current visual height while
+   narrowing only the white card horizontally. */
+@media (min-width: 820px) {
+  .ps-about-page .ps-about-hero-visual img {
+    width: 250px !important;
+    height: 330px !important;
+    max-height: 330px !important;
     object-fit: contain !important;
-    object-position: center center !important;
-    margin: 0 auto !important;
-    transform: none !important;
   }
 }
 
