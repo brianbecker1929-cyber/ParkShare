@@ -1440,14 +1440,14 @@ button, input, select, textarea { font: inherit; }
 }
 
 .ps-trust-v2-support-parker-card img {
-  transform: translateY(-22px);
-  margin-bottom: -22px;
+  transform: translateY(-26px);
+  margin-bottom: -26px;
 }
 
 @media (max-width: 819px) {
   .ps-trust-v2-support-parker-card img {
-    transform: translateY(-20px);
-    margin-bottom: -20px;
+    transform: translateY(-24px);
+    margin-bottom: -24px;
   }
 }
 
