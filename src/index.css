@@ -1629,3 +1629,52 @@ button, input, select, textarea { font: inherit; }
   object-position: center center !important;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   HOST HERO PARKER — FINAL CARD BORDER FIX — 2026-08-14
+   Keep the approved parker-host-savings.png at the existing scale.
+   The artwork itself already contains the rounded white card + navy inner outline.
+   Remove the website-added amber/white halo and any extra card styling.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-host-hero-visual img {
+  content: url("/parker/parker-host-savings.png") !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HOST HERO — FINAL LOCKED DESIGN — 2026-08-14
+   Keep Parker/card scale and placement unchanged.
+   Remove only website-generated outer amber/white framing so the PNG's own
+   white rounded card + navy inner outline are the only visible card borders.
+   Do not alter the Host hero background, copy, spacing, or layout.
+   ───────────────────────────────────────────────────────────────────────────── */
+.ps-host-hero-visual img {
+  content: url("/parker/parker-host-savings.png") !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+/* Cancel any inherited decorative frame around the Host hero artwork. */
+.ps-host-hero-visual,
+.ps-host-hero-visual > *,
+.ps-host-hero-visual picture,
+.ps-host-hero-visual figure {
+  border-color: transparent !important;
+}
+
+.ps-host-hero-visual img::before,
+.ps-host-hero-visual img::after {
+  content: none !important;
+}
+
