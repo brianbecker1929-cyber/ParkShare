@@ -4424,22 +4424,14 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             className="ps-trust-v2-support-side"
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
-            <img
-              src="/parker/Parker-Helpful.png"
-              alt="Parker ready to help"
-              loading="eager"
-              decoding="async"
-              style={{
-                width: "253px",
-                maxWidth: "74.8%",
-                height: "auto",
-                maxHeight: "270px",
-                objectFit: "contain",
-                objectPosition: "center bottom",
-                display: "block",
-                margin: "0 auto 14px"
-              }}
-            />
+            <div className="ps-trust-v2-support-parker-card">
+              <img
+                src="/parker/Parker-Helpful.png"
+                alt="Parker ready to help"
+                loading="eager"
+                decoding="async"
+              />
+            </div>
             <strong>Need help?</strong>
             <span>Give us the reservation details and tell us what happened.</span>
           </div>

@@ -1398,3 +1398,39 @@ button, input, select, textarea { font: inherit; }
   display: none !important;
 }
 
+/* Trust & Safety — Support Parker tight white/navy card — 2026-08-13 */
+.ps-trust-v2-support-parker-card {
+  width: min(253px, 74.8%);
+  padding: 8px;
+  margin: 0 auto 14px;
+  background: #FFFFFF;
+  border: 4px solid #0E1B2E;
+  border-radius: 28px;
+  box-shadow: 0 0 0 5px #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ps-trust-v2-support-parker-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 270px;
+  object-fit: contain;
+  object-position: center bottom;
+}
+
+@media (max-width: 819px) {
+  .ps-trust-v2-support-parker-card {
+    width: min(225px, 72%);
+    padding: 7px;
+    border-radius: 25px;
+  }
+
+  .ps-trust-v2-support-parker-card img {
+    max-height: 240px;
+  }
+}
+
