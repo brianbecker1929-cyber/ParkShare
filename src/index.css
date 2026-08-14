@@ -1451,3 +1451,14 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Help page — FINAL locked Parker alignment — 2026-08-13
+   Mobile: move Parker up 6px so the torso/elbow cutoff aligns with the
+   bottom edge of the white rounded card. No size/layout changes.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 620px) {
+  .ps-help-small-parker-card img {
+    top: 12px !important;
+  }
+}
+
