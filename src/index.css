@@ -1434,3 +1434,20 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* Support Parker — final locked vertical alignment — 2026-08-13 */
+.ps-trust-v2-support-parker-card {
+  position: relative;
+}
+
+.ps-trust-v2-support-parker-card img {
+  transform: translateY(-18px);
+  margin-bottom: -18px;
+}
+
+@media (max-width: 819px) {
+  .ps-trust-v2-support-parker-card img {
+    transform: translateY(-16px);
+    margin-bottom: -16px;
+  }
+}
+
