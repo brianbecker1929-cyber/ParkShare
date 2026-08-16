@@ -3252,6 +3252,56 @@ function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHe
   );
 }
 
+function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+  const goPrivacy = () => {
+    onLegalClick?.();
+    window.setTimeout(() => {
+      document.getElementById("privacy")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
+
+  return (
+    <footer className="ps-footer ps-footer-v2">
+      <div className="ps-footer-v2-inner">
+        <div className="ps-footer-v2-brand">
+          <button className="ps-footer-v2-logo" onClick={onAboutClick} aria-label="About ParkShare">
+            <img src="/website-logo.png" alt="ParkShare" />
+          </button>
+          <p>Share your space. Find your place.</p>
+          <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
+            <span aria-label="Instagram" title="Instagram">◎</span>
+            <span aria-label="Facebook" title="Facebook">f</span>
+            <span aria-label="X" title="X">𝕏</span>
+            <span aria-label="YouTube" title="YouTube">▶</span>
+            <span aria-label="LinkedIn" title="LinkedIn">in</span>
+          </div>
+        </div>
+
+        <div className="ps-footer-v2-column">
+          <strong>Explore</strong>
+          <button onClick={onDriverClick}>Driver</button>
+          <button onClick={onHostClick}>Host</button>
+          <button onClick={onAboutClick}>About Us</button>
+          <button onClick={onTrustClick}>Trust &amp; Safety</button>
+        </div>
+
+        <div className="ps-footer-v2-column">
+          <strong>Support</strong>
+          <button onClick={onHelpClick}>Help &amp; FAQ</button>
+          <button onClick={onContactClick}>Contact Us</button>
+        </div>
+
+        <div className="ps-footer-v2-column">
+          <strong>Legal</strong>
+          <button onClick={onLegalClick}>Terms &amp; Conditions</button>
+          <button onClick={goPrivacy}>Privacy Policy</button>
+        </div>
+      </div>
+      <div className="ps-footer-v2-bottom">© 2026 ParkShare. All rights reserved.</div>
+    </footer>
+  );
+}
+
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick }) {
   const tabs = user?.role === "host"
     ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
@@ -3650,309 +3700,150 @@ function FoundingHostsCard({ onShowAuth }) {
 }
 
 function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick, onHelpClick }) {
-  const allListings = useAllListings();
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [loadingSug, setLoadingSug] = useState(false);
-  const [sugError, setSugError] = useState(false);
-  const debounceRef = useRef(null);
-
-  // Same geocoder + local-listing fallback BrowseView uses, so results are
-  // identical whether someone searches here or on the map screen.
-  const localFallbackSuggestions = (val) => {
-    const q = val.toLowerCase();
-    return allListings
-      .filter(l => l.address.toLowerCase().includes(q) || l.title.toLowerCase().includes(q))
-      .slice(0, 5)
-      .map(l => ({ short: l.address, full: l.title + " — " + l.address, lat: l.lat, lng: l.lng }));
-  };
-
-  const handleSearch = (val) => {
-    setQuery(val);
-    setSuggestions([]);
-    setSugError(false);
-    clearTimeout(debounceRef.current);
-    if (val.length < 2) { setLoadingSug(false); return; }
-    setLoadingSug(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" + encodeURIComponent(val), { headers: { "Accept-Language": "en" } });
-        if (!res.ok) throw new Error("Geocoder returned " + res.status);
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error("Unexpected response shape");
-        const results = data.map(d => ({
-          short: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb, d.address.state].filter(Boolean).join(", "),
-          full: d.display_name,
-          lat: parseFloat(d.lat),
-          lng: parseFloat(d.lon),
-        }));
-        if (results.length === 0) {
-          setSuggestions(localFallbackSuggestions(val));
-        } else {
-          setSuggestions(results);
-        }
-      } catch (e) {
-        setSugError(true);
-        setSuggestions(localFallbackSuggestions(val));
-      }
-      setLoadingSug(false);
-    }, 350);
-  };
-
-  // Picking a suggestion here carries the exact address straight into the
-  // Browse map — same lat/lng BrowseView would use if picked there directly.
-  const pickSuggestion = (s) => {
-    setQuery(s.short);
-    setSuggestions([]);
-    onSearchAddress(s);
-  };
-
-  const handleSubmit = () => {
-    if (suggestions.length > 0) {
-      pickSuggestion(suggestions[0]);
-    } else {
-      onSearchAddress(null, query);
-    }
-  };
-
   return (
-    <div className="ps-landing-page" style={{ minHeight: "100vh", background: C.warmWhite, fontFamily: "'Poppins', sans-serif" }}>
-      <style>{`
-        .ps-hit { transition: background 0.1s ease; }
-        .ps-hit:active { background: rgba(28,43,57,0.06); }
-      `}</style>
+    <div className="ps-landing-page ps-home-v2">
+      <Header
+        tab={tab}
+        onTabChange={onTabChange}
+        onLogoClick={onLogoClick}
+        user={user}
+        onShowAuth={onShowAuth}
+        onSignOut={onSignOut}
+        onHostClick={onHostClick}
+        onAboutClick={onAboutClick}
+        onTrustClick={onTrustClick}
+        onHelpClick={onHelpClick}
+      />
 
-      {/* Shared header — same one used everywhere else in the app */}
-      <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={onHostClick} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
-
-      <div className="ps-landing-hero-grid">
-      {/* Vision statement — leads directly with the value proposition and
-          a one-line positioning statement, rather than building up through
-          the problem first. */}
-      <div className="ps-landing-vision" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "40px 28px 34px", textAlign: "center" }}>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 26, color: C.white, lineHeight: 1.25, margin: "0 0 10px" }}>
-          Turn Empty Driveways Into <span style={{ color: C.amber }}>Opportunity</span>
-        </p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: "rgba(255,255,255,0.75)", lineHeight: 1.5, margin: 0 }}>
-          Park<span style={{ color: C.amber }}>Share</span> is Canada's Driveway Rental Marketplace
-        </p>
-        <div className="ps-hero-ctas">
-          <button onClick={onDriverClick} className="ps-hero-cta ps-hero-cta-primary">Find Parking →</button>
-          <button onClick={onHostClick} className="ps-hero-cta ps-hero-cta-secondary">Become a Host →</button>
-        </div>
-      </div>
-
-      {/* Top: brand / welcome hero — live text (not a baked image) so the
-          title and subtitle always render in the actual Poppins font and
-          exact brand colors, alongside Parker's mascot art. */}
-      <div className="ps-landing-welcome" style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "28px 24px 20px", textAlign: "center" }}>
-        <img src={PARKER.homeWave} alt="Parker, ParkShare's mascot, holding a phone with the ParkShare app" style={{ height: 173, width: "auto", display: "block", margin: "0 auto 10px" }} />
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 15, color: C.navy, margin: "0 0 2px" }}>Welcome to</h1>
-        <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 34, color: C.navy, lineHeight: 1.1, margin: "0 0 8px" }}>Park<span style={{ color: C.white }}>Share</span></div>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 14, color: C.navy, margin: 0 }}>
-          Let <span style={{ fontStyle: "italic", color: C.white }}>Parker</span> find you great parking anywhere!
-        </p>
-      </div>
-      </div>
-
-      {/* Audience split — routes visitors to a dedicated page for their
-          situation immediately, instead of making both hosts and drivers
-          read through the same generic homepage. The host card leads with
-          the value proposition ("turn income into...") since "find parking"
-          is self-explanatory but the host opportunity needs more selling —
-          and both cards end in an explicit, equally weighted action label
-          so neither path requires guessing what happens next. */}
-      <div className="ps-two-ways-section" style={{ maxWidth: 460, margin: "0 auto", padding: "22px 24px 0" }}>
-        <div style={{ textAlign: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, color: C.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
-          Two ways to ParkShare
-        </div>
-        <div className="ps-two-ways-grid" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <button
-            onClick={onHostClick}
-            className="ps-audience-card"
-            style={{ textAlign: "left", width: "100%", background: C.amber, border: "3px solid " + C.navy, borderRadius: 18, padding: "20px 20px", boxShadow: "0 3px 12px rgba(14,27,46,0.15)", cursor: "pointer" }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-              <div style={{ width: 46, height: 46, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>🏠</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 10.5, color: C.navy, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, opacity: 0.7 }}>For hosts</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 19, color: C.navy, lineHeight: 1.2, marginBottom: 6 }}>Turn your empty driveway into income</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12.5, color: C.navy, lineHeight: 1.5, opacity: 0.85 }}>Your driveway sits empty while you're at work. What if it earned money instead?</div>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.navy, borderRadius: 10, padding: "11px 16px" }}>
-              <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.white }}>Become a Host</span>
-              <span style={{ fontSize: 15, color: C.amber }}>→</span>
-            </div>
-          </button>
-
-          <button
-            onClick={onDriverClick}
-            className="ps-audience-card"
-            style={{ textAlign: "left", width: "100%", background: C.navy, border: "3px solid " + C.navy, borderRadius: 18, padding: "20px 20px", boxShadow: "0 3px 12px rgba(14,27,46,0.15)", cursor: "pointer" }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
-              <div style={{ width: 46, height: 46, borderRadius: "50%", background: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>🚗</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 10.5, color: C.amber, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>For drivers</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 19, color: C.white, lineHeight: 1.2, marginBottom: 6 }}>Find parking with confidence</div>
-                <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12.5, color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>Imagine arriving knowing your parking spot is waiting for you.</div>
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, background: C.amber, borderRadius: 10, padding: "11px 16px" }}>
-              <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13.5, color: C.navy }}>Find Parking</span>
-              <span style={{ fontSize: 15, color: C.navy }}>→</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Potential Earnings — answers a homeowner's first question ("how much
-          can I make?") immediately, with clearly-labeled estimates rather
-          than a vague pitch. */}
-      <PotentialEarningsSection />
-
-      {/* Urgency — invites early hosts in without a business promise (like
-          a commission rate) that hasn't actually been confirmed/decided. */}
-      {!user && <FoundingHostsCard onShowAuth={onShowAuth} />}
-
-      {/* Stories — makes the value concrete through two short, illustrative
-          scenarios (one host, one driver) rather than another stat. Framed
-          as "how people use ParkShare" rather than named testimonials,
-          since these are illustrative examples, not verified reviews. */}
-      <div className="ps-stories-section" style={{ maxWidth: 460, margin: "0 auto", padding: "26px 24px 6px" }}>
-        <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.navy }}>How people use ParkShare</div>
-        </div>
-        <div className="ps-stories-grid" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.amber, color: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🏠</div>
-            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
-              Sarah works downtown. Her driveway sat empty every weekday. Today it earns enough to cover her internet bill.
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "16px 18px" }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 15, flexShrink: 0 }}>🚗</div>
-            <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 13.5, color: C.navy, lineHeight: 1.6, margin: 0 }}>
-              David searched 20 minutes for parking every morning. Now he books the same driveway in advance.
-            </p>
+      {/* Section 1 — Hero */}
+      <section className="ps-home-v2-hero">
+        <div className="ps-home-v2-hero-copy">
+          <div className="ps-home-v2-eyebrow">PARKSHARE</div>
+          <h1>Your spot. Their destination. <span>ParkShare.</span></h1>
+          <p>Find convenient parking when you need it, or turn your unused driveway into extra income.</p>
+          <div className="ps-home-v2-actions">
+            <button className="ps-home-v2-primary" onClick={onDriverClick}>Find Parking</button>
+            <button className="ps-home-v2-secondary" onClick={onHostClick}>Become a Host</button>
           </div>
         </div>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10.5, color: C.muted, textAlign: "center", margin: "10px 0 0" }}>
-          Illustrative examples, not verified customer reviews.
-        </p>
-      </div>
-
-      {/* Parker as guide: a quick orientation nudge for people who aren't
-          signed in yet (a reasonable proxy for "first time here"). */}
-      {!user && (
-        <div style={{ maxWidth: 460, margin: "0 auto", padding: "18px 24px 0" }}>
-          <ParkerTip pose="icon" circle>
-            First time here? I'll show you how ParkShare works. <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={onShowAuth}>Get started →</span>
-          </ParkerTip>
-        </div>
-      )}
-
-      {/* Real, live search bar — same autocomplete BrowseView uses, not a static image */}
-      <div className="ps-home-search" style={{ maxWidth: 460, margin: "0 auto", padding: "16px 24px 0" }}>
-        <div style={{ position: "relative" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.white, border: "2px solid " + C.navy, borderRadius: 16, padding: "12px 14px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)" }}>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🔍</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <input
-                value={query}
-                onChange={e => handleSearch(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") handleSubmit(); }}
-                placeholder="Search an address"
-                style={{ border: "none", outline: "none", background: "transparent", width: "100%", fontWeight: 700, fontSize: 15, color: C.navy, fontFamily: "inherit", padding: 0 }}
-              />
-              <div style={{ fontSize: 11.5, color: C.muted }}>Find parking near any location</div>
-            </div>
-            {loadingSug && <span style={{ fontSize: 13, flexShrink: 0 }}>⏳</span>}
-            <button onClick={handleSubmit} aria-label="Search" style={{ background: "none", border: "none", fontSize: 18, color: C.navy, cursor: "pointer", flexShrink: 0, padding: 0 }}>›</button>
+        <div className="ps-home-v2-hero-art">
+          <div className="ps-home-v2-parker-card">
+            <img src={PARKER.homeWave} alt="Parker, ParkShare's parking guide" />
           </div>
-
-          {/* Autocomplete dropdown */}
-          {suggestions.length === 0 && sugError && !loadingSug && query.length >= 2 && (
-            <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 12, boxShadow: "0 6px 20px rgba(0,0,0,0.12)", zIndex: 500, padding: "10px 14px", fontSize: 12, color: C.muted }}>
-              Couldn't reach the address lookup service, and no nearby listings matched "{query}".
-            </div>
-          )}
-          {suggestions.length > 0 && (
-            <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 12, boxShadow: "0 6px 20px rgba(0,0,0,0.12)", zIndex: 500, overflow: "hidden" }}>
-              {sugError && (
-                <div style={{ padding: "6px 14px", fontSize: 10.5, color: C.muted, background: C.warmWhite, borderBottom: "1px solid " + C.concrete }}>
-                  Live address lookup unavailable — showing matches from nearby listings
-                </div>
-              )}
-              {suggestions.map((s, i) => (
-                <div key={i} onClick={() => pickSuggestion(s)}
-                  style={{ padding: "10px 14px", borderBottom: i < suggestions.length - 1 ? "1px solid " + C.concrete : "none", cursor: "pointer", display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <span style={{ flexShrink: 0, marginTop: 1 }}>📍</span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: C.navy, whiteSpace: "normal", wordBreak: "break-word" }}>{s.short}</div>
-                    <div style={{ fontSize: 11, color: C.muted, whiteSpace: "normal", wordBreak: "break-word" }}>{s.full}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
-      </div>
+      </section>
 
-      {/* Use my current location — real button, same layout/size as the search bar above */}
-      <div className="ps-current-location" style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
-        <button
-          onClick={onUseLocation}
-          className="ps-hit"
-          style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: C.white, border: "2px solid " + C.amber, borderRadius: 16, padding: "12px 14px", boxShadow: "0 2px 10px rgba(28,43,57,0.05)", cursor: "pointer", textAlign: "left" }}
-        >
-          <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.amber, color: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>🎯</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: C.navy }}>Use my current location</div>
-            <div style={{ fontSize: 11.5, color: C.muted }}>Find parking near you</div>
+      {/* Section 2 — Driver vs Host */}
+      <section className="ps-home-v2-section ps-home-v2-paths">
+        <div className="ps-home-v2-section-heading">
+          <div className="ps-home-v2-eyebrow">TWO WAYS TO PARKSHARE</div>
+          <h2>Choose the path that fits you.</h2>
+        </div>
+        <div className="ps-home-v2-two-col">
+          <article className="ps-home-v2-path-card ps-home-v2-driver-card">
+            <div className="ps-home-v2-card-icon">🚗</div>
+            <div className="ps-home-v2-card-label">DRIVER</div>
+            <h3>Parking that works for you.</h3>
+            <p>Find available parking near where you're going, reserve your spot, and arrive knowing where you'll park.</p>
+            <button onClick={onDriverClick}>Find Parking →</button>
+          </article>
+          <article className="ps-home-v2-path-card ps-home-v2-host-card">
+            <div className="ps-home-v2-card-icon">🏠</div>
+            <div className="ps-home-v2-card-label">HOST</div>
+            <h3>Put your driveway to work.</h3>
+            <p>List your available parking space, choose when it's available, and earn extra income when Drivers book.</p>
+            <button onClick={onHostClick}>Become a Host →</button>
+          </article>
+        </div>
+      </section>
+
+      {/* Section 3 — How ParkShare Works */}
+      <section className="ps-home-v2-section ps-home-v2-how">
+        <div className="ps-home-v2-section-heading">
+          <div className="ps-home-v2-eyebrow">HOW PARKSHARE WORKS</div>
+          <h2>Simple on both sides.</h2>
+        </div>
+        <div className="ps-home-v2-how-grid">
+          <article>
+            <div className="ps-home-v2-how-title"><span>🚗</span><strong>For Drivers</strong></div>
+            <div className="ps-home-v2-steps">
+              <div><b>1</b><strong>Search</strong><p>Enter where you're going and find available parking nearby.</p></div>
+              <div><b>2</b><strong>Book</strong><p>Choose the space that works for you and reserve it.</p></div>
+              <div><b>3</b><strong>Park</strong><p>Follow your booking details, pull in, and you're good to go.</p></div>
+            </div>
+          </article>
+          <article>
+            <div className="ps-home-v2-how-title"><span>🏠</span><strong>For Hosts</strong></div>
+            <div className="ps-home-v2-steps">
+              <div><b>1</b><strong>List</strong><p>Add your driveway or available parking space to ParkShare.</p></div>
+              <div><b>2</b><strong>Set</strong><p>Choose your availability and hourly rate.</p></div>
+              <div><b>3</b><strong>Earn</strong><p>Get paid when Drivers book your space.</p></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      {/* Section 4 — Trust & Safety */}
+      <section className="ps-home-v2-trust">
+        <div className="ps-home-v2-trust-copy">
+          <div className="ps-home-v2-eyebrow">TRUST &amp; SAFETY</div>
+          <h2>Parking should feel simple. And it should feel secure.</h2>
+          <p>ParkShare is building a community where Drivers and Hosts can connect with confidence, with clear booking details, secure payments, and tools that help both sides stay in control.</p>
+          <button onClick={onTrustClick}>Explore Trust &amp; Safety →</button>
+        </div>
+        <div className="ps-home-v2-trust-grid">
+          <div><span>🔒</span><strong>Secure Payments</strong><p>Payments are handled securely through ParkShare.</p></div>
+          <div><span>📋</span><strong>Clear Booking Details</strong><p>Drivers know where they're parking and Hosts know when to expect them.</p></div>
+          <div><span>🎛️</span><strong>Host Control</strong><p>Hosts choose when their space is available and set their own hourly rate.</p></div>
+          <div><span>⭐</span><strong>Ratings &amp; Reviews</strong><p>Community feedback helps Drivers and Hosts make informed decisions.</p></div>
+        </div>
+      </section>
+
+      {/* Section 5 — Why ParkShare */}
+      <section className="ps-home-v2-section ps-home-v2-why">
+        <div className="ps-home-v2-section-heading">
+          <div className="ps-home-v2-eyebrow">WHY PARKSHARE?</div>
+          <h2>A better way to park. A smarter way to share.</h2>
+        </div>
+        <div className="ps-home-v2-benefits">
+          <article><span>📍</span><h3>More parking options</h3><p>Discover private parking spaces near the places you're going.</p></article>
+          <article><span>💰</span><h3>Make unused space valuable</h3><p>Turn an available driveway or parking space into an additional source of income.</p></article>
+          <article><span>🤝</span><h3>Built for Drivers and Hosts</h3><p>A simple marketplace designed to make sharing private parking easier for everyone.</p></article>
+        </div>
+      </section>
+
+      {/* Section 6 — Final conversion */}
+      <section className="ps-home-v2-final">
+        <div className="ps-home-v2-final-inner">
+          <div className="ps-home-v2-eyebrow">YOUR NEXT STEP</div>
+          <h2>Ready when you are.</h2>
+          <div className="ps-home-v2-final-grid">
+            <article>
+              <span>🚗</span>
+              <h3>I need parking.</h3>
+              <p>Find a convenient spot near where you're going.</p>
+              <button className="ps-home-v2-primary" onClick={onDriverClick}>Find Parking →</button>
+            </article>
+            <article>
+              <span>🏠</span>
+              <h3>I have parking.</h3>
+              <p>Turn your available driveway into extra income.</p>
+              <button className="ps-home-v2-amber" onClick={onHostClick}>Become a Host →</button>
+            </article>
           </div>
-          <span style={{ fontSize: 18, color: C.amber, flexShrink: 0 }}>›</span>
-        </button>
-      </div>
-
-      {/* Keep the existing mobile trust artwork unchanged. Desktop uses
-          launch-safe live text so we don't overclaim verification/reviews. */}
-      <div className="ps-trust-mobile-image" style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
-        <img src={LANDING_ACTION} alt="ParkShare trust and access benefits" style={{ width: "100%", height: "auto", display: "block" }} />
-      </div>
-      <div className="ps-trust-signals" style={{ maxWidth: 460, margin: "0 auto", padding: "12px 24px 0" }}>
-        <div className="ps-trust-signal">
-          <div className="ps-trust-icon">🔒</div>
-          <div><strong>Secure Payments</strong><span>Protected checkout</span></div>
         </div>
-        <div className="ps-trust-signal">
-          <div className="ps-trust-icon">⭐</div>
-          <div><strong>Community Feedback</strong><span>Ratings & reviews</span></div>
-        </div>
-        <div className="ps-trust-signal">
-          <div className="ps-trust-icon">🕒</div>
-          <div><strong>Flexible Parking</strong><span>Park on your time</span></div>
-        </div>
-      </div>
+      </section>
 
-      {/* Closing vision — bookends the opening vision statement, leaving
-          visitors with an inspired last impression before the footer. */}
-      <div style={{ maxWidth: 460, margin: "24px auto 0", background: C.navy, padding: "40px 28px" }}>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 16, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, textAlign: "center", margin: "0 0 10px" }}>
-          Every empty driveway has value.
-        </p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 16, color: "rgba(255,255,255,0.85)", lineHeight: 1.6, textAlign: "center", margin: "0 0 18px" }}>
-          Every driver deserves an easier way to park.
-        </p>
-        <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 21, color: C.white, lineHeight: 1.35, textAlign: "center", margin: 0 }}>
-          Together we're building <span style={{ color: C.amber }}>Canada's driveway marketplace.</span>
-        </p>
-      </div>
-
-      <div style={{ marginTop: 0 }}>
-        <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
-      </div>
+      {/* Section 7 — Footer */}
+      <HomeFooter
+        onLegalClick={onLegalClick}
+        onContactClick={onContactClick}
+        onTrustClick={onTrustClick}
+        onAboutClick={onAboutClick}
+        onHelpClick={onHelpClick}
+        onHostClick={onHostClick}
+        onDriverClick={onDriverClick}
+      />
     </div>
   );
 }
