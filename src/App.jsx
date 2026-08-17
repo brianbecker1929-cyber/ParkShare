@@ -4866,7 +4866,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 }
 
 const DRIVER_SECTIONS = [
-  { id: "search", icon: "🔎", title: "Find Parking" },
+  { id: "find", icon: "🔎", title: "Find Parking" },
   { id: "know", icon: "📍", title: "Know Before You Go" },
   { id: "how", icon: "🚗", title: "How It Works" },
   { id: "confidence", icon: "🛡️", title: "Confidence" },
@@ -4874,21 +4874,27 @@ const DRIVER_SECTIONS = [
 ];
 
 function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick, onHostClick, onHelpClick }) {
+  const [openFaq, setOpenFaq] = useState(null);
+
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  const P = ({ children, style }) => (
-    <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "#333", margin: "0 0 12px", ...style }}>{children}</p>
-  );
 
   const knowCards = [
     { icon: "📷", title: "Photos", text: "See the parking space before you arrive." },
-    { icon: "💰", title: "Price", text: "Understand the applicable parking price before booking." },
+    { icon: "💰", title: "Price", text: "Understand the parking price and applicable fees before you book." },
     { icon: "📍", title: "Location", text: "See where the space is in relation to your destination." },
     { icon: "🚘", title: "Parking Instructions", text: "Know where and how the Host expects you to park." },
     { icon: "🕐", title: "Availability", text: "Choose parking that matches the time you need it." },
     { icon: "ℹ️", title: "Space Details", text: "Review size considerations, restrictions and important listing information." },
+  ];
+
+  // Locked Driver journey — simplified to three steps: Search. Book. Park.
+  const steps = [
+    { n: 1, title: "Search", text: "Enter where you're going and find available parking nearby." },
+    { n: 2, title: "Book", text: "Choose the space that works for you and reserve it." },
+    { n: 3, title: "Park", text: "Follow your booking details, pull in, and you're good to go." },
   ];
 
   const realLife = [
@@ -4900,20 +4906,79 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
     { icon: "🍽️", title: "Going out", text: "Find parking near restaurants, shopping and busy neighbourhoods." },
   ];
 
-  const faqs = [
-    { q: "Do I need to reserve parking in advance?", a: "Available parking and reservation requirements depend on the individual listing. Reserving ahead can help you know where you're going to park before you arrive." },
-    { q: "How do I know where to park?", a: "Review the parking location, photographs, listing details and Host instructions associated with your reservation." },
-    { q: "Can I extend my parking time?", a: "Any extension depends on continued availability and the options available through ParkShare. Do not assume the space remains available beyond your confirmed reservation." },
-    { q: "What if I'm running late?", a: "Review your reservation details and use the communication or support options available through ParkShare when appropriate." },
-    { q: "What if the parking space isn't what I expected?", a: "Review the listing and reservation information and contact ParkShare through the available support process if assistance is required." },
-    { q: "Can I park a large vehicle?", a: "Review the space details and restrictions before reserving to determine whether the parking space appears appropriate for your vehicle." },
-    { q: "How do payments work?", a: "Eligible payments are processed according to ParkShare's checkout process and applicable terms." },
-    { q: "Where can I learn about safety?", a: "Visit ParkShare's Trust & Safety page for marketplace expectations and guidance." },
+  const confidenceCards = [
+    { icon: "🔒", title: "Secure Payments", text: "Complete your booking and payment through ParkShare's checkout." },
+    { icon: "📋", title: "Clear Listings", text: "Review photos, parking details, restrictions and Host instructions before reserving." },
+    { icon: "💬", title: "Community Feedback", text: "Ratings and reviews can help Drivers make more informed decisions as the community grows." },
+    { icon: "🛡️", title: "Trust & Safety", text: "Community expectations and marketplace guidance help create a more responsible experience." },
   ];
 
+  const greatDriverCards = [
+    { icon: "🕐", title: "Respect the reservation", text: "Arrive and leave within your confirmed parking time." },
+    { icon: "📍", title: "Park where you're expected", text: "Follow the Host's instructions and use only the space you've reserved." },
+    { icon: "🏠", title: "Respect the property", text: "Keep driveways, garages, sidewalks, and access points clear." },
+    { icon: "💬", title: "Communicate when needed", text: "If something changes or you're unsure about the space, use ParkShare's available communication options." },
+  ];
+
+  const faqGroups = [
+    {
+      title: "Booking",
+      items: [
+        {
+          q: "Do I need to reserve parking in advance?",
+          a: "You can book available parking ahead of time so you know where you're going to park before you arrive. Availability depends on the individual space and time you need it.",
+        },
+        {
+          q: "What happens after I book?",
+          a: "You'll receive your reservation details, including the parking location, booked time, and available Host instructions. Review them before you leave so you know where you're going and where to park.",
+        },
+        {
+          q: "Can I park a large vehicle?",
+          a: "Check the listing's photos, space details, and restrictions before booking. If you're unsure whether your vehicle will fit, contact the Host before reserving the space.",
+        },
+      ],
+    },
+    {
+      title: "Your Reservation",
+      items: [
+        {
+          q: "How do I know where to park?",
+          a: "Your booking includes the parking location and available listing details. Review the photos and Host instructions before you arrive so you know exactly where to park.",
+        },
+        {
+          q: "Can I extend my parking time?",
+          a: "If the space is still available, you may be able to add more time to your booking. Always extend your booking before your current parking time ends.",
+        },
+        {
+          q: "What if I'm running late?",
+          a: "If you're arriving late, review your booking and let the Host know when appropriate. If you need to stay beyond your booked time, check whether the space is available and extend your booking before it ends.",
+        },
+        {
+          q: "What if the parking space isn't what I expected?",
+          a: "Review the listing details and parking instructions first. If the space is significantly different from the listing or you can't use it as expected, contact ParkShare Support for help.",
+        },
+      ],
+    },
+    {
+      title: "Payments & Safety",
+      items: [
+        {
+          q: "How do payments work?",
+          a: "Complete your booking and payment through ParkShare's checkout. You'll see the applicable parking price and fees before confirming your reservation.",
+        },
+        {
+          q: "Where can I learn more about Trust & Safety?",
+          a: "Visit ParkShare's Trust & Safety page to learn about listing expectations, responsible parking, payments, community standards, and support.",
+          trustLink: true,
+        },
+      ],
+    },
+  ];
+
+  const faqItems = faqGroups.flatMap(group => group.items);
+
   return (
-    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+    <div className="ps-driver-v2-page">
       <Header
         tab={tab}
         onTabChange={onTabChange}
@@ -4927,131 +4992,208 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         onHelpClick={onHelpClick}
       />
 
-      <div className="ps-driver-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
-        <div className="ps-driver-hero-copy">
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>For ParkShare Drivers</div>
-          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.white, lineHeight: 1.25, margin: "0 0 14px" }}>Parking shouldn't be the hardest part of getting there.</h1>
-          <p className="ps-driver-hero-subcopy">Search for private parking near where you're going, reserve your space and arrive knowing where you're going to park.</p>
-          <button onClick={onFindParking} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking →</button>
+      {/* 1 — Hero */}
+      <section className="ps-driver-v2-hero">
+        <div className="ps-driver-v2-hero-copy">
+          <div className="ps-driver-v2-eyebrow">FOR PARKSHARE DRIVERS</div>
+          <h1>Parking shouldn't be the hardest part of getting there.</h1>
+          <p>Search for private parking near where you're going, book your space and arrive knowing where you're going to park.</p>
+          <button className="ps-driver-v2-primary" onClick={onFindParking}>Find Parking →</button>
         </div>
-        <div className="ps-driver-hero-visual" aria-hidden="true">
-          <img src={PARKER.fullbody} alt="" />
-          <div><strong>Your destination.</strong><span>Your parking spot. Your time.</span></div>
+        <div className="ps-driver-v2-hero-art" aria-hidden="true">
+          <div className="ps-driver-v2-hero-parker">
+            <img src={PARKER.fullbody} alt="" />
+          </div>
+          <div className="ps-driver-v2-hero-note">
+            <strong>Your destination.</strong>
+            <span>Your parking spot. Your time.</span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="ps-driver-section-nav" style={{ maxWidth: 460, margin: "0 auto", padding: "20px 20px 0", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
-        {DRIVER_SECTIONS.map(s => (
-          <button key={s.id} onClick={() => scrollTo(s.id)} style={{ background: C.amber, border: "2px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, color: C.navy, borderRadius: 20, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11.5, padding: "7px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
-            <span>{s.icon}</span>{s.title}
+      <nav className="ps-driver-v2-section-nav" aria-label="Driver page sections">
+        {DRIVER_SECTIONS.map(section => (
+          <button key={section.id} onClick={() => scrollTo(section.id)}>
+            <span>{section.icon}</span>{section.title}
           </button>
         ))}
-      </div>
+      </nav>
 
-      <div className="ps-driver-content" style={{ maxWidth: 460, margin: "0 auto", padding: "20px 24px 0", fontFamily: "'Poppins', sans-serif" }}>
-        <section className="ps-driver-intro" style={{ marginBottom: 28 }}>
-          <P>You already know where you're going. ParkShare helps with what comes next.</P>
-          <P>Search the area, compare your options and reserve the parking space that works for your plans.</P>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: 0 }}>Spend less time looking for parking and more time getting where you're going.</p>
-        </section>
-
-        <section id="search" className="ps-driver-search" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px" }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Find Parking That Fits Your Plans</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.white, margin: "0 0 8px" }}>Where are you going?</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "rgba(255,255,255,.8)", margin: "0 0 16px" }}>Search near your destination and explore parking options offered by local Hosts.</p>
-          <button onClick={onFindParking} style={{ width: "100%", background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 18px", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>🔎 Search Parking</button>
-        </section>
-
-        <section id="know" className="ps-driver-know" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Know Before You Go</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.navy, margin: "0 0 8px" }}>A parking space shouldn't come with surprises.</p>
-          <P>Review the information available for a listing before you reserve so you can choose a space that fits your vehicle, schedule and destination.</P>
-          <div className="ps-driver-know-grid" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
-            {knowCards.map((card, i) => <div key={i} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}><div style={{ fontSize: 21, marginBottom: 5 }}>{card.icon}</div><div style={{ fontWeight: 700, color: C.navy, fontSize: 13.5, marginBottom: 3 }}>{card.title}</div><div style={{ fontSize: 12.5, color: "#444", lineHeight: 1.55 }}>{card.text}</div></div>)}
+      <main className="ps-driver-v2-main">
+        {/* 2 — Find Parking That Fits Your Plans */}
+        <section id="find" className="ps-driver-v2-find">
+          <div className="ps-driver-v2-intro">
+            <p>You already know where you're going. ParkShare helps with what comes next.</p>
+            <p>Search the area, compare your options and book the parking space that works for your plans.</p>
+            <strong>Spend less time looking for parking and more time getting where you're going.</strong>
           </div>
-          <P style={{ fontWeight: 700, color: C.navy, margin: "14px 0 0" }}>The more you know before you arrive, the easier parking becomes.</P>
-        </section>
-
-        <section id="how" className="ps-driver-how" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>How ParkShare Works</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.navy, margin: "0 0 14px" }}>From search to parked in five simple steps.</p>
-          <div className="ps-driver-how-grid" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
-            {[
-              { n: 1, t: "Search", d: "Enter where you're going and when you need parking." },
-              { n: 2, t: "Compare", d: "Review available spaces, prices, locations and listing details." },
-              { n: 3, t: "Reserve", d: "Choose the parking space that works for your trip and complete your reservation." },
-              { n: 4, t: "Arrive", d: "Follow the Host's parking instructions and park during your confirmed reservation period." },
-              { n: 5, t: "Go", d: "Get on with the reason you came in the first place." },
-            ].map(step => <div key={step.n} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}><div style={{ width: 30, height: 30, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, marginBottom: 8 }}>{step.n}</div><div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 4 }}>{step.t}</div><div style={{ fontSize: 12.5, color: "#333", lineHeight: 1.6 }}>{step.d}</div></div>)}
-          </div>
-          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: 0 }}>Parking handled. Now go enjoy where you're actually going.</p>
-        </section>
-
-        <section className="ps-driver-life" style={{ marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px" }}>
-          <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: .75 }}>Parking for Real Life</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.navy, margin: "0 0 14px" }}>Wherever life takes you.</p>
-          <div className="ps-driver-life-grid" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {realLife.map((card, i) => <div key={i} style={{ background: "rgba(255,255,255,.82)", borderRadius: 13, padding: "13px 15px" }}><div style={{ fontSize: 20, marginBottom: 4 }}>{card.icon}</div><div style={{ fontWeight: 700, color: C.navy, fontSize: 13.5, marginBottom: 3 }}>{card.title}</div><div style={{ fontSize: 12.5, color: C.navy, lineHeight: 1.55, opacity: .82 }}>{card.text}</div></div>)}
+          <div className="ps-driver-v2-find-card">
+            <div className="ps-driver-v2-eyebrow">FIND PARKING THAT FITS YOUR PLANS</div>
+            <h2>Where are you going?</h2>
+            <p>Search near your destination and explore parking options offered by local Hosts.</p>
+            <button className="ps-driver-v2-primary" onClick={onFindParking}>🔎 Search Parking</button>
           </div>
         </section>
 
-        <section className="ps-driver-location" style={{ marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Park Closer to Where You're Going</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.navy, margin: "0 0 10px" }}>Think beyond the parking lot.</p>
-          <P>Private parking may be available near the places people visit every day:</P>
-          <div className="ps-driver-location-grid" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
-            {["Transit stations", "Offices", "Hospitals", "Universities", "Restaurants", "Shopping", "Stadiums", "Entertainment districts", "Airports", "Tourist destinations", "Festivals", "Busy neighbourhoods"].map((t, i) => <span key={i} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 999, padding: "7px 11px", fontSize: 12, fontWeight: 600, color: C.navy }}>{t}</span>)}
+        {/* 3 — Know Before You Go */}
+        <section id="know" className="ps-driver-v2-section">
+          <div className="ps-driver-v2-section-heading">
+            <div className="ps-driver-v2-eyebrow">KNOW BEFORE YOU GO</div>
+            <h2>A parking space shouldn't come with surprises.</h2>
+            <p>Review the information available for a listing before you book so you can choose a space that fits your vehicle, schedule and destination.</p>
           </div>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Sometimes the best parking space isn't in a parking lot at all.</P>
-        </section>
-
-        <section id="confidence" className="ps-driver-confidence" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px" }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Parking With Confidence</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.white, margin: "0 0 14px" }}>Know what you're booking.</p>
-          <div className="ps-driver-confidence-grid" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 15 }}>
-            {[
-              ["🔒", "Secure Payments", "Complete eligible transactions through ParkShare's payment experience."],
-              ["📋", "Clear Listings", "Review relevant information supplied for the parking space before reserving."],
-              ["💬", "Community Feedback", "Ratings and reviews can help Drivers make informed decisions as the community grows."],
-              ["🛡️", "Trust & Safety", "Community expectations and marketplace guidance help create a more responsible experience."],
-            ].map(([icon,title,text],i) => <div key={i} style={{ background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.14)", borderRadius: 13, padding: "14px 15px" }}><div style={{ fontSize: 20, marginBottom: 5 }}>{icon}</div><div style={{ color: C.amber, fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>{title}</div><div style={{ color: "rgba(255,255,255,.8)", fontSize: 12.5, lineHeight: 1.55 }}>{text}</div></div>)}
+          <div className="ps-driver-v2-know-grid">
+            {knowCards.map(card => (
+              <article key={card.title} className="ps-driver-v2-white-card">
+                <span className="ps-driver-v2-card-icon">{card.icon}</span>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+              </article>
+            ))}
           </div>
-          <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.amber, textDecoration: "underline", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Learn About Trust &amp; Safety →</button>
+          <strong className="ps-driver-v2-section-close">The more you know before you arrive, the easier parking becomes.</strong>
         </section>
 
-        <section className="ps-driver-great" style={{ marginBottom: 28, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "20px" }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Great Drivers Create Great Experiences</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.navy, margin: "0 0 12px" }}>A few simple things make a big difference.</p>
-          <ul className="ps-driver-great-list" style={{ margin: "0 0 14px", paddingLeft: 20 }}>
-            {["Arrive during the confirmed reservation period", "Follow the Host's parking instructions", "Park only in the reserved space", "Respect private property", "Keep access points clear", "Follow applicable parking restrictions", "Communicate respectfully", "Leave the space when the reservation ends"].map((t,i)=><li key={i} style={{ fontSize: 13, lineHeight: 1.7, color: "#333", marginBottom: 4 }}>{t}</li>)}
-          </ul>
-          <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Good Hosts create confident Drivers. Responsible Drivers create confident Hosts. Both make ParkShare better.</P>
-        </section>
-
-        <section className="ps-driver-parker" style={{ marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Meet Parker's Driver Tip</div>
-          <ParkerTip pose="fullbody">Before you leave, take a quick look at your parking instructions. Knowing exactly where you're going to park can make arrival a whole lot easier.</ParkerTip>
-          <P style={{ fontWeight: 700, color: C.navy, margin: "12px 0 0" }}>Search. Reserve. Park. Get on with your day.</P>
-        </section>
-
-        <section id="faq" className="ps-driver-faq" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Driver FAQ</div>
-          <p style={{ fontWeight: 800, fontSize: 17, color: C.navy, margin: "0 0 14px" }}>Questions before you park?</p>
-          <div className="ps-driver-faq-grid" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {faqs.map((item,i)=><div key={i} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}><div style={{ fontWeight: 700, color: C.navy, fontSize: 13.5, marginBottom: 5 }}>{item.q}</div><div style={{ fontSize: 12.5, color: "#444", lineHeight: 1.6 }}>{item.a}</div></div>)}
+        {/* 4 — How ParkShare Works */}
+        <section id="how" className="ps-driver-v2-section">
+          <div className="ps-driver-v2-section-heading">
+            <div className="ps-driver-v2-eyebrow">HOW PARKSHARE WORKS</div>
+            <h2>From search to parked in three simple steps.</h2>
           </div>
+          <div className="ps-driver-v2-steps-grid">
+            {steps.map(step => (
+              <article key={step.n} className="ps-driver-v2-white-card ps-driver-v2-step-card">
+                <span className="ps-driver-v2-step-number">{step.n}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </article>
+            ))}
+          </div>
+          <strong className="ps-driver-v2-section-close">Parking handled. Now go enjoy where you're actually going.</strong>
         </section>
 
-        <section className="ps-driver-closing" style={{ textAlign: "center", marginBottom: 28 }}>
-          <p style={{ fontWeight: 800, fontSize: 20, color: C.navy, margin: "0 0 6px" }}>Your destination is already decided.</p>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 10px" }}>Now let's make parking the easy part.</p>
-          <P>You know where you're going. You know when you need to be there. Somewhere nearby may be a parking space waiting for you.</P>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button onClick={onFindParking} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Find Parking</button>
-            <button onClick={onTrustClick} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>Learn About Trust &amp; Safety</button>
+        {/* 5 — Parking for Real Life */}
+        <section className="ps-driver-v2-real-life">
+          <div className="ps-driver-v2-eyebrow ps-driver-v2-eyebrow-dark">PARKING FOR REAL LIFE</div>
+          <h2>Wherever life takes you.</h2>
+          <div className="ps-driver-v2-life-grid">
+            {realLife.map(card => (
+              <article key={card.title}>
+                <span className="ps-driver-v2-card-icon">{card.icon}</span>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+              </article>
+            ))}
           </div>
         </section>
-      </div>
+
+        {/* 6 — Park Closer */}
+        <section className="ps-driver-v2-section ps-driver-v2-location">
+          <div className="ps-driver-v2-section-heading">
+            <div className="ps-driver-v2-eyebrow">PARK CLOSER TO WHERE YOU'RE GOING</div>
+            <h2>Think beyond the parking lot.</h2>
+            <p>Private parking may be available near the places people visit every day:</p>
+          </div>
+          <div className="ps-driver-v2-location-grid">
+            {["Transit stations", "Offices", "Hospitals", "Universities", "Restaurants", "Shopping", "Stadiums", "Entertainment districts", "Airports", "Tourist destinations", "Festivals", "Busy neighbourhoods"].map(item => <span key={item}>{item}</span>)}
+          </div>
+          <strong className="ps-driver-v2-section-close">Sometimes the best parking space isn't in a parking lot at all.</strong>
+        </section>
+
+        {/* 7 — Parking With Confidence */}
+        <section id="confidence" className="ps-driver-v2-confidence">
+          <div className="ps-driver-v2-eyebrow">PARKING WITH CONFIDENCE</div>
+          <h2>Know what you're booking.</h2>
+          <div className="ps-driver-v2-confidence-grid">
+            {confidenceCards.map(card => (
+              <article key={card.title}>
+                <span className="ps-driver-v2-card-icon">{card.icon}</span>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+              </article>
+            ))}
+          </div>
+          <button className="ps-driver-v2-text-link" onClick={onTrustClick}>Learn About Trust &amp; Safety →</button>
+        </section>
+
+        {/* 8 — Great Drivers Create Great Experiences */}
+        <section className="ps-driver-v2-section ps-driver-v2-great">
+          <div className="ps-driver-v2-section-heading">
+            <div className="ps-driver-v2-eyebrow">GREAT DRIVERS CREATE GREAT EXPERIENCES</div>
+            <h2>Park like a good neighbour.</h2>
+          </div>
+          <div className="ps-driver-v2-great-grid">
+            {greatDriverCards.map(card => (
+              <article key={card.title} className="ps-driver-v2-white-card">
+                <span className="ps-driver-v2-card-icon">{card.icon}</span>
+                <h3>{card.title}</h3>
+                <p>{card.text}</p>
+              </article>
+            ))}
+          </div>
+          <strong className="ps-driver-v2-section-close">Good Hosts. Responsible Drivers. Better parking for everyone.</strong>
+        </section>
+
+        {/* 9 — Parker's Driver Tip */}
+        <section className="ps-driver-v2-parker-tip">
+          <div className="ps-driver-v2-eyebrow">PARKER'S DRIVER TIP</div>
+          <div className="ps-driver-v2-parker-tip-row">
+            <img src={PARKER.fullbody} alt="Parker, ParkShare's parking guide" />
+            <div className="ps-driver-v2-parker-tip-bubble">
+              Before you leave, take a quick look at your parking instructions. Knowing exactly where you're going to park can make arrival a whole lot easier.
+            </div>
+          </div>
+          <strong>Search. Book. Park. Get on with your day.</strong>
+        </section>
+
+        {/* 10 — Driver FAQ */}
+        <section id="faq" className="ps-driver-v2-section ps-driver-v2-faq">
+          <div className="ps-driver-v2-section-heading">
+            <div className="ps-driver-v2-eyebrow">DRIVER FAQ</div>
+            <h2>Questions before you park?</h2>
+          </div>
+
+          <div className="ps-driver-v2-faq-groups">
+            {faqGroups.map(group => (
+              <div key={group.title} className="ps-driver-v2-faq-group">
+                <h3>{group.title}</h3>
+                <div className="ps-driver-v2-faq-stack">
+                  {group.items.map(item => {
+                    const index = faqItems.findIndex(f => f.q === item.q);
+                    const open = openFaq === index;
+                    return (
+                      <article key={item.q} className={"ps-driver-v2-faq-item" + (open ? " is-open" : "")}>
+                        <button onClick={() => setOpenFaq(open ? null : index)} aria-expanded={open}>
+                          <span>{item.q}</span>
+                          <b>{open ? "−" : "+"}</b>
+                        </button>
+                        {open && (
+                          <div className="ps-driver-v2-faq-answer">
+                            <p>{item.a}</p>
+                            {item.trustLink && <button className="ps-driver-v2-text-link" onClick={onTrustClick}>Explore Trust &amp; Safety →</button>}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 11 — Final Conversion CTA */}
+        <section className="ps-driver-v2-final">
+          <div className="ps-driver-v2-final-copy">
+            <div className="ps-driver-v2-eyebrow">READY TO PARK?</div>
+            <h2>Your destination is set. Let's find your parking spot.</h2>
+            <p>Search available private parking near where you're going and reserve the space that works for you.</p>
+            <button className="ps-driver-v2-primary" onClick={onFindParking}>Find Parking →</button>
+            <strong>Search. Book. Park.</strong>
+          </div>
+          <img className="ps-driver-v2-final-parker" src={PARKER.fullbody} alt="" aria-hidden="true" />
+        </section>
+      </main>
 
       <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
     </div>
