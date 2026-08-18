@@ -42,7 +42,6 @@ const PARKER = {
   aboutThumbsUp: "/parker/parker-about-thumbs-up.png",
 };
 
-const ESKA_LOGO = "/parker/parker-eska-logo.png";
 
 const REVIEWS_DATA = {
   1: [
@@ -3233,25 +3232,6 @@ function FloatingParkerHelp() {
 
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
-function Footer({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick }) {
-  const btnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, minWidth: 70, height: 38, padding: "0 12px", fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" };
-  return (
-    <footer className="ps-footer" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", padding: "14px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 8 }}>
-        <button style={btnStyle} onClick={onAboutClick}>About Us</button>
-        <button style={btnStyle} onClick={onHelpClick}>Help</button>
-        <button style={btnStyle} onClick={onContactClick}>Contact Us</button>
-        <button style={btnStyle} onClick={onTrustClick}>Trust &amp; Safety</button>
-        <button style={btnStyle} onClick={onLegalClick}>Legal &amp; T/C</button>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-        <span style={{ color: C.white, fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}>Powered by</span>
-        <img src={ESKA_LOGO} alt="Eska Technologies" style={{ height: 22, width: "auto" }} />
-      </div>
-    </footer>
-  );
-}
-
 function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
   const goPrivacy = () => {
     onLegalClick?.();
@@ -3886,7 +3866,7 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick }) {
+function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
   const UPDATED = "July 18, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -4155,7 +4135,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
-      <Footer onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
+      <HomeFooter onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -4345,7 +4325,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </section>
       </main>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -4512,8 +4492,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </section>
       </main>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
-        onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
+        onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -4596,7 +4576,7 @@ const HOST_FAQS = [
 // flexibility, location angle, benefits, host standards, FAQ, Parker tip,
 // closing) using the same pill-nav pattern as Trust & Safety and About.
 // ─────────────────────────────────────────────────────────────────────────────
-function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted, onAboutClick, onHelpClick }) {
+function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4860,7 +4840,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -4873,7 +4853,7 @@ const DRIVER_SECTIONS = [
   { id: "faq", icon: "❓", title: "FAQ" },
 ];
 
-function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick, onHostClick, onHelpClick }) {
+function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onFindParking, onAboutClick, onHostClick, onHelpClick, onDriverClick }) {
   const [openFaq, setOpenFaq] = useState(null);
 
   const scrollTo = (id) => {
@@ -5195,7 +5175,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         </section>
       </main>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -5954,12 +5934,12 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </div>
       </main>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
 
-function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick }) {
+function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
@@ -6036,7 +6016,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </section>
       </div>
 
-      <Footer onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -6321,6 +6301,7 @@ export default function App() {
           onAboutClick={openAbout}
           onHelpClick={openHelp}
           onHostClick={openHost}
+          onDriverClick={openDriver}
         />
       ) : screen === "trust" ? (
         <TrustPage
@@ -6381,6 +6362,8 @@ export default function App() {
           onGetStarted={handleHostGetStarted}
           onAboutClick={openAbout}
           onHelpClick={openHelp}
+          onHostClick={openHost}
+          onDriverClick={openDriver}
         />
       ) : screen === "driver" ? (
         <DriverPage
@@ -6397,6 +6380,7 @@ export default function App() {
           onAboutClick={openAbout}
           onHostClick={openHost}
           onHelpClick={openHelp}
+          onDriverClick={openDriver}
         />
       ) : screen === "contact" ? (
         <ContactPage
@@ -6411,6 +6395,7 @@ export default function App() {
           onAboutClick={openAbout}
           onHelpClick={openHelp}
           onHostClick={openHost}
+          onDriverClick={openDriver}
         />
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
@@ -6448,7 +6433,7 @@ export default function App() {
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <FloatingParkerHelp />
-          <Footer onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} />
+          <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
       {showAuth && <SignInModal onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
