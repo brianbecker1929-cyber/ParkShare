@@ -4561,14 +4561,15 @@ const HOST_SECTIONS = [
 ];
 
 const HOST_FAQS = [
-  { q: "Do I decide when my driveway is available?", a: "Yes. Your listing should reflect when you want your parking space available for reservations." },
-  { q: "Do I set my own price?", a: "Hosts can select pricing using the options currently available through ParkShare. Your location, demand and nearby parking alternatives can all influence an appropriate price." },
-  { q: "Does my driveway have to be available every day?", a: "No. ParkShare is designed around flexible availability." },
-  { q: "What if I need my driveway back?", a: "Keep your availability current and avoid making your space bookable when you expect to need it. Existing confirmed reservations should be handled according to ParkShare's applicable cancellation policies." },
-  { q: "What type of parking space can I list?", a: "Eligible private parking spaces will need to comply with ParkShare's listing requirements and applicable local rules." },
-  { q: "How do I get paid?", a: "Eligible Host earnings are distributed according to ParkShare's payout process and applicable terms." },
-  { q: "Is hosting right for every property?", a: "Not necessarily. Hosts are responsible for making sure they're permitted to offer their parking space and for following applicable property, municipal, condominium, lease or other requirements." },
-  { q: "Where can I learn more about safety?", a: "Visit ParkShare's Trust & Safety page for information about community expectations, listings, payments, privacy and responsible use of the marketplace." },
+  { group: "Your Space", q: "Do I decide when my driveway is available?", a: "Yes. You choose when your parking space is available for Drivers to reserve. Keep your availability current so your space is only bookable when it works for you." },
+  { group: "Your Space", q: "Do I set my own price?", a: "Yes. You can choose the hourly rate for your space using ParkShare's available pricing options. Your location, availability and nearby parking demand can help you decide what makes sense." },
+  { group: "Your Space", q: "What if I need my driveway for myself?", a: "Update your availability whenever you know you'll need the space. Existing confirmed reservations should be handled according to ParkShare's applicable booking and cancellation policies." },
+  { group: "Your Space", q: "What type of parking space can I list?", a: "Eligible private parking spaces must meet ParkShare's listing requirements and any applicable property, municipal, condominium, lease or other requirements. You must have the authority to offer the space." },
+  { group: "Bookings & Earnings", q: "What happens after a Driver books my space?", a: "You'll have the reservation information available through ParkShare. Make sure the reserved space is available during the confirmed time and that your parking instructions are clear and up to date." },
+  { group: "Bookings & Earnings", q: "How do I get paid?", a: "Eligible Host earnings are distributed through ParkShare's applicable payout process. You'll need to complete any required payment-account setup before receiving payouts." },
+  { group: "Bookings & Earnings", q: "What fees does ParkShare charge?", a: "Any applicable ParkShare fees should be disclosed before they apply. Review ParkShare's current pricing and Host terms for the details that apply to your listing and bookings." },
+  { group: "Support & Safety", q: "What if something goes wrong with a reservation?", a: "Review the reservation details and use ParkShare's available communication or support options when appropriate. Provide the relevant reservation information and a clear description of what happened if you need assistance." },
+  { group: "Support & Safety", q: "Where can I learn more about Trust & Safety?", a: "Visit ParkShare's Trust & Safety page for information about listings, responsible parking, payments, community expectations and support.", trustLink: true },
 ];
 
 // ─── Host page — dedicated landing spot for the "For hosts" homepage card.
@@ -4577,6 +4578,7 @@ const HOST_FAQS = [
 // closing) using the same pill-nav pattern as Trust & Safety and About.
 // ─────────────────────────────────────────────────────────────────────────────
 function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onGetStarted, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+  const [openHostFaq, setOpenHostFaq] = useState(null);
   const scrollTo = (id) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4769,17 +4771,16 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <section id="why" className="ps-host-why" style={{ scrollMarginTop: 20, marginBottom: 16 }}>
           <div style={{ textAlign: "center", marginBottom: 4 }}>
             <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Why Host With ParkShare?</div>
-            <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: "0 0 16px" }}>More than an empty driveway.</p>
+            <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: "0 0 10px" }}>Your driveway can do more than sit empty.</p>
+            <P style={{ maxWidth: 820, margin: "0 auto 18px" }}>When you make an available parking space bookable, you're not only creating an opportunity for yourself. You're giving a Driver another place to park near somewhere they need to be.</P>
           </div>
           <div className="ps-host-why-grid" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
             {[
-              { icon: "💵", t: "Create Additional Income", d: "Put unused parking space to productive use." },
-              { icon: "🎛️", t: "Stay in Control", d: "Choose your availability, listing details and applicable pricing options." },
-              { icon: "🏠", t: "Use What You Already Have", d: "No new property. No additional parking space to build." },
-              { icon: "🤝", t: "Help Drivers Nearby", d: "Provide another parking option for people travelling to destinations in your community." },
-              { icon: "🌍", t: "Be Part of Something Bigger", d: "Help create a marketplace that makes better use of existing spaces." },
+              { icon: "💰", t: "Create value from unused space", d: "Turn available parking into an opportunity to earn additional income when Drivers book." },
+              { icon: "🚗", t: "Give Drivers another option", d: "Your space could help someone park closer to work, transit, an appointment, an event or another destination nearby." },
+              { icon: "🌎", t: "Make better use of the space we already have", d: "ParkShare helps turn underused private parking into part of a more flexible parking network." },
             ].map((row, i) => (
-              <div key={i} style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
+              <div className="ps-host-why-card" key={i} style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: C.amberLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>{row.icon}</div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 2 }}>{row.t}</div>
@@ -4791,34 +4792,46 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, textAlign: "center", margin: 0 }}>One driveway might seem small. Thousands of them can change how a city parks.</p>
         </section>
 
-        <div style={{ marginBottom: 28 }} />
-
         {/* Great Hosts Create Great Experiences */}
-        <section id="great" className="ps-host-great" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
+        <section id="great" className="ps-host-great" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Great Hosts Create Great Experiences</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>A few simple things make a big difference.</p>
-          <p style={{ fontSize: 13.5, fontWeight: 700, color: "rgba(255,255,255,0.9)", margin: "0 0 6px" }}>Great ParkShare Hosts:</p>
-          <ul style={{ margin: "0 0 14px", paddingLeft: 20 }}>
-            {["Keep listing information accurate", "Provide current photographs", "Clearly describe where Drivers should park", "Disclose important restrictions", "Keep the reserved space accessible", "Honour confirmed reservations", "Communicate clearly and respectfully", "Keep availability up to date"].map((t, i) => (
-              <li key={i} style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.85)", marginBottom: 4 }}>{t}</li>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>Make it easy for Drivers to know what to expect.</p>
+          <div className="ps-host-great-grid">
+            {[
+              ["📋", "Keep your listing accurate", "Keep your photos, parking details, restrictions and availability up to date."],
+              ["📍", "Make the space easy to understand", "Give Drivers clear instructions about where to enter and exactly where to park."],
+              ["🕐", "Honour the reservation", "Keep the reserved space available and accessible during the confirmed parking time."],
+              ["💬", "Communicate when needed", "Use ParkShare's available communication options to share relevant reservation information or help resolve questions."],
+            ].map(([icon, title, description]) => (
+              <div key={title}><span>{icon}</span><strong>{title}</strong><small>{description}</small></div>
             ))}
-          </ul>
-          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.8)", margin: "0 0 4px" }}>Good information creates confident Drivers.</p>
-          <p style={{ fontSize: 13.5, color: "rgba(255,255,255,0.8)", margin: "0 0 4px" }}>Confident Drivers create better experiences.</p>
-          <p style={{ fontSize: 13.5, fontWeight: 700, color: C.amber, margin: 0 }}>Better experiences help build a stronger ParkShare community.</p>
+          </div>
+          <p className="ps-host-community-close">Good Hosts. Responsible Drivers. Better parking for everyone.</p>
         </section>
 
         {/* FAQ */}
         <section id="faq" className="ps-host-faq" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Questions About Hosting?</div>
-            <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>We've got answers.</p>
+            <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Host FAQ</div>
+            <p style={{ fontWeight: 800, fontSize: 18, color: C.navy, margin: 0 }}>Questions about hosting?</p>
           </div>
-          <div className="ps-host-faq-grid" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {HOST_FAQS.map((f, i) => (
-              <div key={i} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
-                <div style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, marginBottom: 5 }}>{f.q}</div>
-                <div style={{ fontSize: 12.5, color: "#333", lineHeight: 1.65 }}>{f.a}</div>
+          <div className="ps-host-faq-groups">
+            {["Your Space", "Bookings & Earnings", "Support & Safety"].map(group => (
+              <div className="ps-host-faq-group" key={group}>
+                <h3>{group}</h3>
+                <div className="ps-host-faq-stack">
+                  {HOST_FAQS.map((f, i) => ({ ...f, i })).filter(f => f.group === group).map(f => {
+                    const open = openHostFaq === f.i;
+                    return (
+                      <article className={"ps-host-faq-item" + (open ? " is-open" : "")} key={f.q}>
+                        <button onClick={() => setOpenHostFaq(open ? null : f.i)} aria-expanded={open}>
+                          <span>{f.q}</span><b>{open ? "−" : "+"}</b>
+                        </button>
+                        {open && <div className="ps-host-faq-answer"><p>{f.a}</p>{f.trustLink && <button onClick={onTrustClick}>Explore Trust &amp; Safety →</button>}</div>}
+                      </article>
+                    );
+                  })}
+                </div>
               </div>
             ))}
           </div>
@@ -4826,26 +4839,24 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
         {/* Parker's Host Tip */}
         <section className="ps-host-parker-tip" style={{ marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Meet Parker's Host Tip</div>
-          <ParkerTip pose="fullbody">
-            Your driveway doesn't need to be available all the time to have value. Start with the hours you know you don't normally use it — you can adjust your availability as you learn what works best for you.
-          </ParkerTip>
-          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, textAlign: "center", margin: "12px 0 0" }}>Start simple. Stay in control. Put your empty space to work.</p>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Parker's Host Tip</div>
+          <div className="ps-host-tip-row">
+            <img src={PARKER.savings} alt="Parker, ParkShare's parking guide" />
+            <div>Before your first booking, take a quick look at your listing from a Driver's point of view. Clear photos and simple parking instructions can make it much easier for someone to find the right space when they arrive.</div>
+          </div>
+          <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, textAlign: "center", margin: "12px 0 0" }}>List. Set. Earn. Put your space to work.</p>
         </section>
 
         {/* Closing */}
-        <section className="ps-host-closing" style={{ textAlign: "center", marginBottom: 28 }}>
-          <p style={{ fontWeight: 700, fontSize: 16, color: C.navy, margin: "0 0 4px" }}>Your Driveway Is Already There.</p>
-          <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 14px" }}>Maybe it's time it did a little more.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 4px" }}>Every parking space has a location.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 4px" }}>Every location has potential.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "#333", margin: "0 0 16px" }}>And somewhere nearby, someone may be looking for exactly the space you have.</p>
-          <p style={{ fontWeight: 800, fontSize: 16, color: C.navy, margin: "0 0 20px" }}>Turn your empty driveway into opportunity with ParkShare.</p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "14px 26px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
-            <button onClick={onTrustClick} style={{ background: "none", border: "none", padding: 0, color: C.moss, textDecoration: "underline", fontFamily: "'Poppins', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Learn About Trust &amp; Safety →</button>
+        <section className="ps-host-closing" style={{ marginBottom: 28 }}>
+          <div className="ps-host-closing-copy">
+            <div className="ps-host-closing-eyebrow">Ready to Host?</div>
+            <h2>Your driveway is already there. Let's put it to work.</h2>
+            <p>List your available parking space, choose when it can be booked, and create an opportunity to earn when Drivers reserve it.</p>
+            <button onClick={onGetStarted}>List Your Space →</button>
+            <strong>List. Set. Earn.</strong>
           </div>
+          <img className="ps-host-closing-parker" src={PARKER.savings} alt="" aria-hidden="true" />
         </section>
       </div>
 
