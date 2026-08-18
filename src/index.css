@@ -2456,13 +2456,19 @@ button, input, select, textarea { font: inherit; }
 .ps-driver-v2-final-parker {
   position: absolute;
   right: 38px;
-  bottom: -12px;
+  bottom: 50%;
+  transform: translateY(50%);
   z-index: 1;
   width: 205px;
   height: 300px;
   object-fit: contain;
   object-position: center bottom;
   opacity: .98;
+  filter:
+    drop-shadow(1px 0 0 #fff)
+    drop-shadow(-1px 0 0 #fff)
+    drop-shadow(0 1px 0 #fff)
+    drop-shadow(0 -1px 0 #fff);
 }
 
 /* Tablet */
