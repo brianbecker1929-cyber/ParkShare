@@ -2855,3 +2855,64 @@ button, input, select, textarea { font: inherit; }
     font-size: 12.5px;
   }
 }
+
+/* ========================================================================
+   HOST PAGE — SECTION 1 HERO (APPROVED LOCK, AUG 17 2026)
+   Desktop: 55% amber message panel / 45% navy Host Parker panel.
+   Mobile: preserve the existing clean amber-first hero; Parker panel omitted.
+   Locked hero copy remains: eyebrow + headline + List Your Space CTA only.
+   ======================================================================== */
+
+/* The approved Section 1 lock does not include supporting hero body copy. */
+.ps-host-hero-subcopy {
+  display: none !important;
+}
+
+@media (min-width: 900px) {
+  .ps-host-hero {
+    grid-template-columns: minmax(0, 55fr) minmax(360px, 45fr) !important;
+    background: transparent !important;
+    overflow: hidden !important;
+  }
+
+  .ps-host-hero-copy {
+    background: #FFC107 !important;
+    padding: 58px 60px !important;
+    text-align: left !important;
+    align-items: flex-start !important;
+  }
+
+  .ps-host-hero-copy h1 {
+    max-width: 700px !important;
+    margin-bottom: 24px !important;
+  }
+
+  .ps-host-hero-copy button {
+    width: auto !important;
+    min-width: 190px;
+    min-height: 50px;
+    align-self: flex-start !important;
+  }
+
+  .ps-host-hero-visual {
+    display: flex !important;
+    background: #0E1B2E !important;
+    min-width: 0;
+    padding: 42px 38px !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .ps-host-hero-visual img {
+    width: min(275px, 74%) !important;
+    max-height: 340px;
+    object-fit: contain;
+  }
+}
+
+/* Keep the approved mobile hero simple and amber-first. */
+@media (max-width: 899px) {
+  .ps-host-hero-visual {
+    display: none !important;
+  }
+}
