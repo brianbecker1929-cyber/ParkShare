@@ -4499,7 +4499,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 }
 
 // A richer, host-specific calculator matching the "Estimate Your Potential"
-// fields in the new Host page copy (price, days/week, average bookings)
+// fields in the new Host page copy (price, days/week, booked hours)
 // rather than the simpler hours-per-day slider used on the homepage.
 
 function HostEarningsCalculator() {
@@ -4530,7 +4530,7 @@ function HostEarningsCalculator() {
       </div>
 
       <div style={fieldStyle}>
-        <div style={labelRow}><span style={labelText}>Average bookings (hrs/day)</span><span style={valueText}>{avgBookings} hr{avgBookings !== 1 ? "s" : ""}</span></div>
+        <div style={labelRow}><span style={labelText}>Estimated booked hours per day</span><span style={valueText}>{avgBookings} hr{avgBookings !== 1 ? "s" : ""}</span></div>
         <input type="range" min={1} max={10} step={1} value={avgBookings} onChange={e => setAvgBookings(Number(e.target.value))} style={{ width: "100%", accentColor: C.amber, cursor: "pointer" }} />
       </div>
 
@@ -4602,12 +4602,10 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <div className="ps-host-hero-copy">
           <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
           <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.navy, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
-          <p className="ps-host-hero-subcopy">Turn unused parking space into additional income while staying in control of your schedule, pricing and listing.</p>
           <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
         </div>
         <div className="ps-host-hero-visual" aria-hidden="true">
           <img src={PARKER.savings} alt="" />
-          <div><strong>Your space.</strong><span>Your schedule. Your opportunity.</span></div>
         </div>
       </div>
 
@@ -4632,7 +4630,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <P style={{ margin: "0 0 4px" }}>While you're away.</P>
           <P style={{ margin: "0 0 4px" }}>During events nearby.</P>
           <P>Or simply because you have more parking space than you need.</P>
-          <P>ParkShare helps you turn that unused space into an opportunity.</P>
+          <P>ParkShare helps turn that unused space into an opportunity.</P>
           <P>List your available parking space, choose when it's available and connect with Drivers looking for convenient parking nearby.</P>
           <P style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Your space. Your schedule. Your opportunity.</P>
         </section>
@@ -4640,39 +4638,42 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         {/* Space You Already Have */}
         <section id="value" className="ps-host-value" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.navy, borderRadius: 16, padding: "20px 20px" }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Put the Space You Already Have to Work.</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Put your empty parking space to work.</p>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.white, margin: "0 0 12px" }}>Your parking space is already an asset.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>You don't need to build anything.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 6px" }}>You don't need another property.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>You already have the asset.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>ParkShare gives homeowners and property owners a way to make better use of parking space that might otherwise sit empty.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>You already have the space.</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>ParkShare gives homeowners and property owners a way to make better use of parking that might otherwise sit empty.</p>
           <p style={{ fontSize: 13.5, lineHeight: 1.75, color: "rgba(255,255,255,0.8)", margin: "0 0 10px" }}>Whether your space is available every weekday or only occasionally, you decide when sharing makes sense for you.</p>
           <p style={{ fontSize: 13.5, fontWeight: 700, color: C.amber, margin: 0 }}>Empty driveway? Put it to work.</p>
         </section>
 
         {/* What Could Your Driveway Earn */}
         <section id="earn" className="ps-host-earn" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>What Could Your Driveway Earn?</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A little unused space can add up.</p>
-          <P className="ps-host-earn-intro">Your earning potential can depend on several factors. The strongest opportunities usually combine the right location, useful availability and local demand.</P>
-          <div className="ps-host-earn-factors">
-            {[
-              ["📍", "Location", "Where your space is matters."],
-              ["🚗", "Demand", "Nearby parking needs can change by day and time."],
-              ["🕐", "Availability", "More useful hours can create more booking opportunities."],
-              ["🎟️", "Events", "Venues and events can create concentrated demand."],
-              ["💵", "Pricing", "Your rate helps shape the value of each booking."],
-            ].map(([icon, title, desc]) => (
-              <div key={title}><span>{icon}</span><strong>{title}</strong><small>{desc}</small></div>
-            ))}
-          </div>
-          <P>A driveway near a commuter station might be valuable during weekdays.</P>
-          <P>A space near a stadium or entertainment district might see greater demand during events.</P>
-          <P>A driveway near a hospital, university or busy commercial area could serve Drivers throughout the week.</P>
-          <P style={{ fontWeight: 700, color: C.navy, margin: "0 0 16px" }}>The opportunity is different for every Host.</P>
+          <div className="ps-host-earn-layout">
+            <div className="ps-host-earn-copy">
+              <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>What Could Your Driveway Earn?</div>
+              <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>A little unused space can add up.</p>
+              <P className="ps-host-earn-intro">Your earning potential depends on your location, availability, pricing and local parking demand.</P>
+              <div className="ps-host-earn-factors">
+                {[
+                  ["📍", "Location", "Where your space is."],
+                  ["🚗", "Demand", "How many Drivers need parking nearby."],
+                  ["🕐", "Availability", "When your space can be booked."],
+                  ["🎟️", "Events", "Nearby events can create periods of increased demand."],
+                  ["💵", "Pricing", "The hourly rate you choose."],
+                ].map(([icon, title, desc]) => (
+                  <div key={title}><span>{icon}</span><strong>{title}</strong><small>{desc}</small></div>
+                ))}
+              </div>
+              <P className="ps-host-earn-transition" style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Every driveway is different. Use the calculator below to explore what your space could potentially earn.</P>
+            </div>
 
-          <HostEarningsCalculator />
-          <div style={{ textAlign: "center", marginTop: 14 }}>
-            <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>See What Your Space Could Earn</button>
+            <div className="ps-host-earn-calculator-column">
+              <HostEarningsCalculator />
+              <div className="ps-host-earn-cta" style={{ textAlign: "center", marginTop: 14 }}>
+                <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space →</button>
+              </div>
+            </div>
           </div>
         </section>
 
