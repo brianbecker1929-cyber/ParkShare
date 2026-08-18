@@ -4680,18 +4680,17 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         {/* You're Always in Control */}
         <section id="control" className="ps-host-control" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>You're Always in Control</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Share your driveway on your terms.</p>
-          <P>It's your property. You decide how you want to use it.</P>
-          <P>With ParkShare, Hosts can manage important aspects of their listing, including:</P>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Your driveway. Your rules. Your schedule.</p>
+          <P>It's your property. ParkShare gives you control over the important details of your listing.</P>
           <div className="ps-host-control-grid" style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
             {[
-              { t: "Availability", d: "Choose when your parking space is available." },
-              { t: "Pricing", d: "Set the price for your space using the pricing options available through ParkShare." },
-              { t: "Parking Instructions", d: "Tell Drivers exactly where and how to park." },
-              { t: "Listing Details", d: "Provide photographs, space information and important restrictions." },
-              { t: "Your Schedule", d: "Make your space available when it works for you." },
+              { icon: "🕐", t: "Choose your availability", d: "Decide when your parking space is available for Drivers to reserve." },
+              { icon: "💵", t: "Set your price", d: "Choose the hourly rate for your space using ParkShare's available pricing options." },
+              { icon: "📍", t: "Set your parking instructions", d: "Show Drivers where to park and provide the information they need before arriving." },
+              { icon: "📋", t: "Manage your listing", d: "Keep your photos, space details, restrictions and other important information up to date." },
             ].map((row, i) => (
               <div key={i} style={{ background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 12, padding: "12px 14px" }}>
+                <div className="ps-host-card-icon">{row.icon}</div>
                 <div style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, marginBottom: 2 }}>{row.t}</div>
                 <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>{row.d}</div>
               </div>
@@ -4702,49 +4701,47 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 
         {/* Hosting Made Simple */}
         <section id="steps" className="ps-host-steps" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Hosting Made Simple</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>From empty driveway to active listing.</p>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>How ParkShare Works</div>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>Three simple steps. Your space stays yours.</p>
           <div className="ps-host-steps-grid" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
             {[
-              { n: 1, t: "Create Your Listing", d: "Tell Drivers about your parking space. Add your location, photographs, availability, parking details and instructions." },
-              { n: 2, t: "Set Your Availability", d: "Choose when Drivers can reserve your space. Weekdays. Weekends. Events. Certain hours. You decide." },
-              { n: 3, t: "Set Your Price", d: "Choose a price that makes sense for your space and location using the options available through ParkShare." },
-              { n: 4, t: "Welcome Your Driver", d: "When your space is booked, make sure it's available and ready during the reservation period. Clear instructions help Drivers find the correct space quickly." },
-              { n: 5, t: "Get Paid", d: "Eligible Host earnings are paid according to ParkShare's applicable payout process and terms." },
+              { n: 1, icon: "🏠", word: "List", t: "Create your parking listing.", d: "Add your space, photos, parking details and instructions so Drivers know what you're offering." },
+              { n: 2, icon: "🎛️", word: "Set", t: "Choose when it's available and what it costs.", d: "Set your availability and hourly rate, and keep your listing information current." },
+              { n: 3, icon: "💰", word: "Earn", t: "Get paid when Drivers book your space.", d: "When your available space is reserved, eligible Host earnings are paid according to ParkShare's applicable payout process and terms." },
             ].map(step => (
-              <div key={step.n} style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
+              <div className="ps-host-step-card" key={step.n} style={{ display: "flex", gap: 12, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 14, padding: "14px 16px" }}>
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.navy, color: C.amber, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{step.n}</div>
                 <div>
+                  <div className="ps-host-step-word"><span>{step.icon}</span>{step.word}</div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: C.navy, marginBottom: 3 }}>{step.t}</div>
                   <div style={{ fontSize: 12.5, color: "#333", lineHeight: 1.6 }}>{step.d}</div>
                 </div>
               </div>
             ))}
           </div>
-          <P style={{ fontWeight: 700, color: C.navy, margin: "0 0 16px" }}>That's it. Your empty parking space just became useful.</P>
-          <button onClick={onGetStarted} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>Create Your Listing</button>
+          <P style={{ fontWeight: 700, color: C.navy, margin: "0 0 16px" }}>List. Set. Earn. That's ParkShare.</P>
+          <button onClick={onGetStarted} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space →</button>
         </section>
 
         {/* Hosting That Fits Your Life */}
         <section id="flexible" className="ps-host-flexible" style={{ scrollMarginTop: 20, marginBottom: 28, background: C.amber, borderRadius: 16, padding: "20px 20px" }}>
           <div style={{ color: C.navy, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, opacity: 0.75 }}>Hosting That Fits Your Life</div>
           <p style={{ fontWeight: 800, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>You don't have to become a full-time Host.</p>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 12px" }}>One of the advantages of ParkShare is flexibility. Your driveway might only be available:</p>
+          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 12px" }}>ParkShare is designed to work around your schedule. Make your space available regularly, occasionally, or only when you know you won't need it.</p>
           <div className="ps-host-flexible-grid" style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
             {[
-              { t: "While you're at work", d: "Turn daytime vacancy into an opportunity." },
-              { t: "When you're travelling", d: "Going away? Your parking space doesn't have to sit empty." },
-              { t: "During local events", d: "Concerts, sporting events, festivals and community events can create parking demand." },
-              { t: "On weekdays", d: "Live near offices, transit or a university? Commuters may need your space." },
-              { t: "On weekends", d: "Some locations experience their highest demand when the workweek ends." },
+              { icon: "💼", t: "While you're at work", d: "Make your driveway available during the hours you're normally away." },
+              { icon: "✈️", t: "When you're travelling", d: "Your parking space doesn't have to sit empty while you're away." },
+              { icon: "🎟️", t: "During local events", d: "Make your space available when nearby events create additional parking demand." },
+              { icon: "📅", t: "When it works for you", d: "Offer your space regularly or only on the days and times that fit your schedule." },
             ].map((row, i) => (
-              <div key={i} style={{ background: "rgba(14,27,46,0.08)", borderRadius: 10, padding: "10px 12px" }}>
+              <div key={i} style={{ background: "rgba(255,255,255,0.78)", borderRadius: 10, padding: "10px 12px" }}>
+                <div className="ps-host-card-icon">{row.icon}</div>
                 <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{row.t}</div>
                 <div style={{ fontSize: 12, color: C.navy, opacity: 0.8, marginTop: 2 }}>{row.d}</div>
               </div>
             ))}
           </div>
-          <p style={{ fontSize: 13.5, lineHeight: 1.75, color: C.navy, margin: "0 0 8px" }}>Or you may decide to make your space available regularly.</p>
           <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, margin: 0 }}>There is no single way to ParkShare.</p>
         </section>
 
@@ -4752,9 +4749,20 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <section id="location" className="ps-host-location" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Location Creates Opportunity</div>
           <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 12px" }}>Think about what's around you.</p>
-          <P>Parking demand isn't limited to downtown. Drivers need parking near:</P>
-          <UL items={["Transit stations", "Hospitals", "Universities and colleges", "Office districts", "Shopping areas", "Restaurants", "Entertainment districts", "Sporting venues", "Airports", "Tourist destinations", "Festivals and events", "Busy neighbourhoods"]} />
-          <P style={{ margin: 0 }}>Sometimes a driveway that seems ordinary to you could be exactly where someone else needs to park.</P>
+          <P>You don't need to live downtown to have a useful parking space. Drivers need parking near the places they go every day.</P>
+          <div className="ps-host-location-grid">
+            {[
+              ["🚉", "Transit & Commuting", "Stations, offices and employment areas."],
+              ["🏥", "Hospitals & Healthcare", "Hospitals, clinics and medical destinations."],
+              ["🎓", "Schools & Campuses", "Universities, colleges and other busy campuses."],
+              ["🍽️", "Shopping & Dining", "Restaurants, shopping districts and neighbourhood destinations."],
+              ["🏟️", "Sports & Entertainment", "Stadiums, arenas, concerts and entertainment districts."],
+              ["✈️", "Travel & Events", "Airports, tourist destinations, festivals and special events."],
+            ].map(([icon, title, description]) => (
+              <div key={title}><span>{icon}</span><strong>{title}</strong><small>{description}</small></div>
+            ))}
+          </div>
+          <P className="ps-host-location-close" style={{ fontWeight: 700, color: C.navy, margin: 0 }}>Sometimes a driveway that seems ordinary to you could be exactly where someone else needs to park.</P>
         </section>
 
         {/* Why Host With ParkShare */}
