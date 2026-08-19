@@ -1957,11 +1957,21 @@ button, input, select, textarea { font: inherit; }
   .ps-home-v2-trust-grid { max-width: 460px; margin: 0 auto; grid-template-columns: 1fr; }
   .ps-home-v2-trust-grid > div { min-height: 0; }
   .ps-home-v2-final { padding: 48px 24px; }
-  .ps-footer-v2 { padding: 34px 24px 18px !important; }
-  .ps-footer-v2-inner { grid-template-columns: 1fr; gap: 24px; text-align: left; }
-  .ps-footer-v2-column { padding-top: 2px; }
+}
+
+@media (max-width: 768px) {
+  .ps-footer-v2 { padding: 32px 16px 18px !important; overflow-x: hidden; }
+  .ps-footer-v2-inner { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 12px; text-align: left; }
+  .ps-footer-v2-brand { grid-column: 1 / -1; text-align: center; }
+  .ps-footer-v2-logo { min-height: 44px; margin: 0 auto; display: flex; align-items: center; justify-content: center; }
   .ps-footer-v2-logo img { width: 150px; }
-  .ps-footer-v2-bottom { margin-top: 26px; }
+  .ps-footer-v2-brand p { margin: 10px 0 14px; }
+  .ps-footer-v2-social { justify-content: center; flex-wrap: nowrap; }
+  .ps-footer-v2-column { min-width: 0; padding-top: 2px; gap: 0; }
+  .ps-footer-v2-column strong { width: 100%; margin-bottom: 3px; }
+  .ps-footer-v2-column button { width: 100%; min-height: 32px; padding: 2px 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+  .ps-footer-v2 button:focus-visible { outline: 2px solid #FFC107; outline-offset: 3px; border-radius: 3px; }
+  .ps-footer-v2-bottom { margin-top: 20px; padding-top: 14px; }
 }
 
 
