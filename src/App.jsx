@@ -4144,7 +4144,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // Legal page, with a simple form. Reached via the footer's "Contact Us"
 // button. Form has no backend wired up yet — see the TODO on handleSubmit.
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactField({ label, name, value, onChange, type = "text", textarea, error }) {
+function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled }) {
   const fieldStyle = {
     width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14,
     border: "2px solid " + (error ? C.hazard : C.concrete), fontFamily: "'Poppins', sans-serif",
@@ -4153,10 +4153,15 @@ function ContactField({ label, name, value, onChange, type = "text", textarea, e
   return (
     <div style={{ marginBottom: 16 }}>
       <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
-      {textarea ? (
-        <textarea name={name} value={value} onChange={onChange} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
+      {options ? (
+        <select name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
+          <option value="">Select a topic</option>
+          {options.map(option => <option key={option} value={option}>{option}</option>)}
+        </select>
+      ) : textarea ? (
+        <textarea name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
       ) : (
-        <input type={type} name={name} value={value} onChange={onChange} style={fieldStyle} />
+        <input type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
       )}
       {error && <div style={{ color: C.hazard, fontSize: 12, marginTop: 4, fontWeight: 600 }}>{error}</div>}
     </div>
@@ -5960,36 +5965,90 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
 }
 
 function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
-  const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", helpType: "", reservationNumber: "", message: "", website: "" });
   const [errors, setErrors] = useState({});
   const [sent, setSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
 
-  const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(f => ({ ...f, [name]: value }));
+    setErrors(current => ({ ...current, [name]: "" }));
+    setSubmissionError("");
+  };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting || sent) return;
+
     const errs = {};
-    if (!form.name.trim()) errs.name = "Please enter your name";
-    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) errs.email = "Please enter a valid email";
-    if (!form.message.trim()) errs.message = "Please enter a message";
+    if (!form.name.trim()) errs.name = "Please enter your name.";
+    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = "Please enter a valid email address.";
+    if (!form.helpType) errs.helpType = "Please select what you need help with.";
+    if (!form.message.trim()) errs.message = "Please enter a message.";
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
-    // TODO: wire this up to a real backend before launch — e.g. a Supabase
-    // Edge Function, Formspree endpoint, or EmailJS call that sends the
-    // submission to Support@myparkshare.ca. For now this just opens a
-    // pre-filled email as a working fallback so the form isn't a dead end.
-    const mailBody = encodeURIComponent(`${form.message}\n\n— ${form.name} (${form.email})`);
-    const mailSubject = encodeURIComponent(form.subject || "ParkShare Contact Form");
-    window.location.href = `mailto:Support@myparkshare.ca?subject=${mailSubject}&body=${mailBody}`;
-    setSent(true);
+    setIsSubmitting(true);
+    setSubmissionError("");
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "We couldn't send your message right now. Please try again.");
+      setSent(true);
+    } catch (error) {
+      setSubmissionError(error.message || "We couldn't send your message right now. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const pillBtnStyle = { background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Poppins', sans-serif" };
+  const helpTypes = ["Driver", "Host", "Booking", "Payment or Account", "Trust & Safety", "General"];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.warmWhite }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
+    <div className="ps-contact-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
+        .ps-contact-page, .ps-contact-page * { box-sizing: border-box; }
+        .ps-contact-hero { max-width: 1180px; min-height: 390px; margin: 26px auto 0; display: grid; grid-template-columns: 1.08fr .92fr; border-radius: 22px; overflow: hidden; box-shadow: 0 12px 30px rgba(14,27,46,.10); font-family: 'Poppins',sans-serif; }
+        .ps-contact-hero-copy { background: ${C.navy}; padding: 54px 48px; display: flex; flex-direction: column; justify-content: center; }
+        .ps-contact-eyebrow { color: ${C.amber}; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 11px; }
+        .ps-contact-hero h1 { color: ${C.white}; font-size: clamp(34px,4vw,52px); line-height: 1.08; letter-spacing: -.025em; margin: 0 0 16px; }
+        .ps-contact-hero p { max-width: 620px; color: rgba(255,255,255,.78); font-size: 15px; line-height: 1.75; margin: 0; }
+        .ps-contact-hero-art { background: ${C.amber}; display: flex; align-items: flex-end; justify-content: center; padding: 28px 34px 0; overflow: hidden; }
+        .ps-contact-hero-art img { display: block; width: min(100%,370px); max-height: 350px; object-fit: contain; object-position: center bottom; }
+        .ps-contact-shell { max-width: 940px; margin: 0 auto; padding: 28px 24px 64px; font-family: 'Poppins',sans-serif; }
+        .ps-contact-details { background: ${C.navy}; color: ${C.white}; border-radius: 18px; padding: 24px 28px; margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+        .ps-contact-details h2 { font-size: 18px; margin: 0 0 6px; }
+        .ps-contact-details p { color: rgba(255,255,255,.72); font-size: 12.5px; margin: 0; }
+        .ps-contact-details a { color: ${C.amber}; font-size: 14px; font-weight: 700; text-decoration: underline; }
+        .ps-contact-form-card { background: ${C.white}; border: 1.5px solid ${C.concrete}; border-radius: 20px; padding: 30px; box-shadow: 0 8px 24px rgba(14,27,46,.06); }
+        .ps-contact-form-card h2 { color: ${C.navy}; font-size: 24px; margin: 0 0 22px; }
+        .ps-contact-submit { background: ${C.amber}; color: ${C.navy}; border: 2px solid ${C.navy}; border-radius: 11px; padding: 13px 24px; font: 800 13px 'Poppins',sans-serif; cursor: pointer; }
+        .ps-contact-submit:disabled { cursor: not-allowed; opacity: .65; }
+        .ps-contact-status { border-radius: 12px; padding: 18px 20px; font-size: 13.5px; line-height: 1.6; }
+        .ps-contact-status.success { background: ${C.mossLight}; border: 2px solid ${C.moss}; color: ${C.navy}; }
+        .ps-contact-status.error { background: ${C.redLight}; border: 2px solid ${C.red}; color: ${C.red}; margin-bottom: 18px; }
+        @media (max-width: 899px) {
+          .ps-contact-hero { display: block; margin: 0 auto; max-width: 460px; min-height: 0; border-radius: 0; box-shadow: none; }
+          .ps-contact-hero-copy { padding: 34px 24px 30px; text-align: center; }
+          .ps-contact-hero h1 { font-size: 27px; }
+          .ps-contact-hero p { font-size: 13px; }
+          .ps-contact-hero-art { min-height: 250px; padding-top: 18px; }
+          .ps-contact-hero-art img { max-height: 250px; width: min(100%,280px); }
+          .ps-contact-shell { max-width: 460px; padding: 20px 24px 44px; }
+          .ps-contact-details { display: block; padding: 22px 20px; text-align: center; }
+          .ps-contact-details a { display: inline-block; margin-top: 14px; }
+          .ps-contact-form-card { padding: 22px 20px; border-radius: 16px; }
+          .ps-contact-form-card h2 { font-size: 20px; }
+          .ps-contact-submit { width: 100%; }
+        }
+      `}</style>
       <Header
         tab={tab}
         onTabChange={onTabChange}
@@ -6003,38 +6062,48 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         onHelpClick={onHelpClick}
       />
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
-
-        <div style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32 }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>Reach us</div>
-          <div style={{ fontSize: 14, color: C.navy, lineHeight: 1.8 }}>
-            <div><strong>Email:</strong> <a href="mailto:Support@myparkshare.ca" style={{ color: C.moss, textDecoration: "underline" }}>Support@myparkshare.ca</a></div>
-          </div>
+      <section className="ps-contact-hero">
+        <div className="ps-contact-hero-copy">
+          <div className="ps-contact-eyebrow">Contact ParkShare</div>
+          <h1>Questions? We’re here to help.</h1>
+          <p>Whether you have a question about parking, hosting, your account or an existing reservation, send us a message and we’ll help point you in the right direction.</p>
         </div>
+        <div className="ps-contact-hero-art">
+          <img src="/parker/Parker-Customer-Care-Fullbody.png" alt="Parker, ParkShare customer support guide" />
+        </div>
+      </section>
 
-        <section style={{ marginBottom: 40 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Get in touch</div>
-          <div style={{ display: "inline-block", background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "8px 18px", marginBottom: 4 }}>
-            <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>Contact <span style={{ color: C.white }}>Us</span></h1>
+      <main className="ps-contact-shell">
+        <section className="ps-contact-details">
+          <div>
+            <h2>Reach ParkShare Support</h2>
+            <p>For questions about parking, hosting, accounts, payments or reservations.</p>
           </div>
-          <p style={{ color: C.muted, fontSize: 12.5, margin: "10px 0 20px" }}>Questions, feedback, or an issue with a booking — send it over and we'll get back to you.</p>
+          <a href="mailto:support@myparkshare.ca">support@myparkshare.ca</a>
+        </section>
 
+        <section className="ps-contact-form-card">
+          <h2>Send us a message</h2>
           {sent ? (
-            <div style={{ background: C.mossLight, border: "2px solid " + C.moss, borderRadius: 12, padding: "20px", fontSize: 14, color: C.navy }}>
-              Thanks, {form.name || "there"} — your email client should have opened with your message ready to send. If it didn't, email us directly at{" "}
-              <a href="mailto:Support@myparkshare.ca" style={{ color: C.moss, textDecoration: "underline" }}>Support@myparkshare.ca</a>.
+            <div className="ps-contact-status success" role="status">
+              <strong>Thanks, {form.name}.</strong><br />Your message has been sent to ParkShare Support. We’ll get back to you as soon as we can.
             </div>
           ) : (
-            <form onSubmit={handleSubmit} style={{ background: C.white, border: "1px solid " + C.concrete, borderRadius: 14, padding: "22px 20px" }}>
-              <ContactField label="Name" name="name" value={form.name} onChange={handleChange} error={errors.name} />
-              <ContactField label="Email" name="email" type="email" value={form.email} onChange={handleChange} error={errors.email} />
-              <ContactField label="Subject" name="subject" value={form.subject} onChange={handleChange} />
-              <ContactField label="Message" name="message" value={form.message} onChange={handleChange} textarea error={errors.message} />
-              <button type="submit" style={pillBtnStyle}>Send Message</button>
+            <form onSubmit={handleSubmit} noValidate>
+              {submissionError && <div className="ps-contact-status error" role="alert">{submissionError}</div>}
+              <ContactField label="Name" name="name" value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
+              <ContactField label="Email" name="email" type="email" value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
+              <ContactField label="What can we help with?" name="helpType" value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
+              <ContactField label="Reservation number — optional" name="reservationNumber" value={form.reservationNumber} onChange={handleChange} disabled={isSubmitting} />
+              <ContactField label="Message" name="message" value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
+              <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
+                <label>Website<input name="website" value={form.website} onChange={handleChange} tabIndex={-1} autoComplete="off" /></label>
+              </div>
+              <button type="submit" className="ps-contact-submit" disabled={isSubmitting}>{isSubmitting ? "Sending…" : "Send Message →"}</button>
             </form>
           )}
         </section>
-      </div>
+      </main>
 
       <HomeFooter onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
