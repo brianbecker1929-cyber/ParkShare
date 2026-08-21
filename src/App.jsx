@@ -3083,10 +3083,10 @@ function SignInModal({ onClose, onAuth }) {
               <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>Disclaimer of Liability</div>
               <div style={{ background: C.warmWhite, border: "1.5px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", maxHeight: 220, overflowY: "auto", fontSize: 12.5, color: C.navy, lineHeight: 1.6 }}>
                 <p style={{ margin: "0 0 10px" }}>
-                  ParkShare is a booking platform, not an insurer or property manager. We connect driveway owners ("Hosts") with drivers ("Renters") and are not a party to the parking arrangement between you.
+                  ParkShare is a booking platform, not an insurer or property manager. We connect driveway owners ("Hosts") with drivers ("Drivers") and are not a party to the parking arrangement between you.
                 </p>
                 <p style={{ margin: "0 0 10px" }}>
-                  <strong>Renters</strong> are responsible for their vehicle while parked, including any damage, theft, towing, or fines — even through no fault of their own.
+                  <strong>Drivers</strong> are responsible for their vehicle while parked, including any damage, theft, towing, or fines — even through no fault of their own.
                 </p>
                 <p style={{ margin: "0 0 10px" }}>
                   <strong>Hosts</strong> are responsible for their property and for accurately describing their listing.
@@ -3101,7 +3101,7 @@ function SignInModal({ onClose, onAuth }) {
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
                 <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: C.navy, cursor: "pointer" }} />
                 <span style={{ fontSize: 12.5, color: C.navy, lineHeight: 1.5 }}>
-                  I have read and agree to this Disclaimer of Liability, including that all risk of damage and any towing or impound costs are my responsibility as the Renter.
+                  I have read and agree to this Disclaimer of Liability, including that all risk of damage and any towing or impound costs are my responsibility as the Driver.
                 </span>
               </label>
               {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
@@ -3835,13 +3835,16 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
 // ─────────────────────────────────────────────────────────────────────────────
 function LegalDoc({ eyebrow, title, accent, updated, children }) {
   return (
-    <section style={{ marginBottom: 56, scrollMarginTop: 90 }}>
+    <section style={{ marginBottom: 56 }}>
       <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>{eyebrow}</div>
       <div style={{ display: "inline-block", background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "8px 18px", marginBottom: 4 }}>
         <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.white }}>{accent}</span></h1>
       </div>
       <p style={{ color: C.muted, fontSize: 12.5, margin: "10px 0 20px" }}>Last updated: {updated}</p>
       {children}
+      <a href="#legal-documents" style={{ display: "inline-block", color: C.moss, textDecoration: "underline", fontWeight: 700, fontSize: 12.5, marginTop: 16 }}>
+        Back to Legal documents ↑
+      </a>
     </section>
   );
 }
@@ -3891,7 +3894,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
       />
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
-        <div style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32 }}>
+        <div id="legal-documents" style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32, scrollMarginTop: 90 }}>
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>On this page</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {nav.map(([id, label]) => (
@@ -3903,14 +3906,14 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
 
-        <div id="terms">
+        <div id="terms" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 1 of 4" title="Terms of" accent="Service" updated={UPDATED}>
             <LegalH2>1. Agreement to Terms</LegalH2>
             <LegalP>These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"), operated by ESKA Technologies Inc. ("ParkShare," "we," "us," or "our"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
             <LegalP>If you do not agree to these Terms, do not use the Platform.</LegalP>
 
             <LegalH2>2. What ParkShare Is</LegalH2>
-            <LegalP>ParkShare is a marketplace that connects individuals who own or control private driveways and parking spaces ("Hosts") with individuals seeking to rent parking ("Renters"). ParkShare does not own, operate, inspect, or manage any parking space listed on the Platform. ParkShare is not a party to the parking arrangement formed between a Host and a Renter — we merely provide the platform, booking tools, and payment facilitation.</LegalP>
+            <LegalP>ParkShare is a marketplace that connects individuals who own or control private driveways and parking spaces ("Hosts") with individuals seeking to book parking ("Drivers"). ParkShare does not own, operate, inspect, or manage any parking space listed on the Platform. ParkShare is not a party to the parking arrangement formed between a Host and a Driver — we merely provide the platform, booking tools, and payment facilitation.</LegalP>
 
             <LegalH2>3. Eligibility and Accounts</LegalH2>
             <LegalUl items={[
@@ -3930,7 +3933,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
               "You are solely responsible for any tax obligations, permits, HOA/condo restrictions, insurance requirements, or municipal bylaws applicable to renting out your driveway.",
             ]} />
 
-            <LegalH2>5. Renter Responsibilities</LegalH2>
+            <LegalH2>5. Driver Responsibilities</LegalH2>
             <LegalUl items={[
               "You will park only in the exact space you booked, for the exact time window booked, and will vacate promptly at the end of your booking.",
               "You assume full responsibility for your vehicle while it is parked at a Host's location, including risk of damage, theft, or towing resulting from your own actions or violation of the Host's posted instructions.",
@@ -3942,7 +3945,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>All bookings are paid for through the Platform via our third-party payment processor (Stripe). See the <LegalLink href="#payments">Payment Processing Agreement</LegalLink> for details. ParkShare charges a service fee on each booking, shown at checkout. Prices are set by Hosts, subject to any platform minimums or maximums we may establish. Payouts to Hosts are issued after a completed booking, subject to processing times determined by our payment processor.</LegalP>
 
             <LegalH2>7. Cancellations and Refunds</LegalH2>
-            <LegalP>Renters may cancel a booking in accordance with the cancellation window shown at the time of booking. Refund eligibility depends on how close to the booking start time the cancellation occurs. Hosts who cancel a confirmed booking without cause may be subject to penalties, including reduced visibility on the Platform or account suspension. ParkShare reserves the right to issue refunds or credits at its discretion in cases of Platform error, fraud, or unresolved disputes.</LegalP>
+            <LegalP>Drivers may cancel a booking in accordance with the cancellation window shown at the time of booking. Refund eligibility depends on how close to the booking start time the cancellation occurs. Hosts who cancel a confirmed booking without cause may be subject to penalties, including reduced visibility on the Platform or account suspension. ParkShare reserves the right to issue refunds or credits at its discretion in cases of Platform error, fraud, or unresolved disputes.</LegalP>
 
             <LegalH2>8. Reviews</LegalH2>
             <LegalP>Reviews must be honest, based on an actual completed booking, and must not contain harassment, discriminatory content, or false statements. We reserve the right to remove reviews that violate this policy.</LegalP>
@@ -3953,7 +3956,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
               "List a space you do not have the right to offer.",
               "Provide false information about a listing, vehicle, or identity.",
               "Use the Platform for any unlawful purpose.",
-              "Circumvent ParkShare's payment system to avoid fees (e.g., arranging payment directly with a Host or Renter outside the Platform for a booking initiated on ParkShare).",
+              "Circumvent ParkShare's payment system to avoid fees (e.g., arranging payment directly with a Host or Driver outside the Platform for a booking initiated on ParkShare).",
               "Harass, threaten, or discriminate against other users.",
               "Interfere with the security or proper functioning of the Platform.",
             ]} />
@@ -3969,7 +3972,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>You agree to indemnify and hold harmless ParkShare and its officers, employees, and agents from any claims, damages, losses, liabilities, and expenses (including legal fees) arising from your use of the Platform, your violation of these Terms, or your violation of any rights of a third party.</LegalP>
 
             <LegalH2>13. Dispute Resolution</LegalH2>
-            <LegalP>Disputes between a Host and a Renter regarding a specific booking should first be addressed directly between the parties using the Platform's messaging feature. ParkShare may, but is not obligated to, assist in resolving disputes.</LegalP>
+            <LegalP>Disputes between a Host and a Driver regarding a specific booking should first be addressed directly between the parties using the Platform's messaging feature. ParkShare may, but is not obligated to, assist in resolving disputes.</LegalP>
             <LegalP>Any dispute between you and ParkShare arising from these Terms shall be resolved through binding arbitration in Ontario, Canada, except where prohibited by law. You waive any right to participate in a class action.</LegalP>
 
             <LegalH2>14. Modifications to the Platform and Terms</LegalH2>
@@ -3983,12 +3986,12 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </LegalDoc>
         </div>
 
-        <div id="privacy">
+        <div id="privacy" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 2 of 4" title="Privacy" accent="Policy" updated={UPDATED}>
             <LegalP>This Privacy Policy explains how ESKA Technologies Inc. ("ParkShare," "we," "us," or "our") collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
 
             <LegalH2>1. Information We Collect</LegalH2>
-            <LegalP><strong>Information you provide:</strong> account details, listing info (Hosts), booking info (Renters), payment info (processed by Stripe), messages, reviews, and support requests.</LegalP>
+            <LegalP><strong>Information you provide:</strong> account details, listing info (Hosts), booking info (Drivers), payment info (processed by Stripe), messages, reviews, and support requests.</LegalP>
             <LegalP><strong>Information collected automatically:</strong> location data (with your permission), usage data, and cookies.</LegalP>
             <LegalP><strong>From third parties:</strong> authentication data (Supabase), address/geocoding data (Google Maps / OpenStreetMap), and transaction metadata (Stripe).</LegalP>
 
@@ -3996,7 +3999,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalUl items={[
               "Create and manage your account, display listings, and process bookings.",
               "Facilitate payments and payouts.",
-              "Enable Host–Renter communication and send booking notifications.",
+              "Enable Host–Driver communication and send booking notifications.",
               "Verify Host identity and property ownership.",
               "Detect and prevent fraud and abuse.",
               "Improve the Platform and comply with legal obligations.",
@@ -4004,7 +4007,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalCallout>We do not sell your personal information to third parties.</LegalCallout>
 
             <LegalH2>3. How We Share Your Information</LegalH2>
-            <LegalP><strong>Between Hosts and Renters:</strong> limited info (name, listing address, access instructions, messages) is shared to facilitate a booking.</LegalP>
+            <LegalP><strong>Between Hosts and Drivers:</strong> limited info (name, listing address, access instructions, messages) is shared to facilitate a booking.</LegalP>
             <LegalP><strong>Service providers:</strong> Stripe (payments), Supabase (authentication/database), Vercel (hosting), Google Maps / OpenStreetMap (mapping).</LegalP>
             <LegalP><strong>Legal requirements:</strong> we may disclose information if required by law or to protect rights, property, or safety.</LegalP>
 
@@ -4037,7 +4040,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </LegalDoc>
         </div>
 
-        <div id="payments">
+        <div id="payments" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 3 of 4" title="Payment Processing" accent="Agreement" updated={UPDATED}>
             <LegalP>This Agreement explains how payments, fees, and payouts work on the ParkShare Platform, and forms part of the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink>. By making a booking or listing a driveway on ParkShare, you agree to this Agreement.</LegalP>
 
@@ -4045,17 +4048,17 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>ParkShare uses <strong>Stripe, Inc.</strong> ("Stripe") to process all payments on the Platform. ParkShare is not a bank, and does not directly hold, transmit, or store your payment card details. All card data is collected and processed by Stripe in accordance with PCI-DSS security standards.</LegalP>
             <LegalP>By using ParkShare's payment features, you also agree to Stripe's <LegalLink href="https://stripe.com/connect-account/legal">Connected Account Agreement</LegalLink> and <LegalLink href="https://stripe.com/legal">Terms of Service</LegalLink>, as applicable.</LegalP>
 
-            <LegalH2>2. How Charges Work (Renters)</LegalH2>
+            <LegalH2>2. How Charges Work (Drivers)</LegalH2>
             <LegalP>Your total charge is calculated as (hourly rate × hours booked) + service fee, and charged in full via Stripe Checkout at booking confirmation. You'll receive a receipt via email. All charges are in CAD unless otherwise indicated.</LegalP>
 
             <LegalH2>3. Service Fees</LegalH2>
-            <LegalP>ParkShare charges a service fee (currently displayed as a percentage at checkout, e.g., 15%) on each booking. The fee is disclosed before you confirm payment and is included in the total shown at checkout. Service fees are non-refundable except where a booking is cancelled or refunded per Section 5.</LegalP>
+            <LegalP>ParkShare charges an applicable service fee on each booking. The fee is disclosed before you confirm payment and is included in the total shown at checkout. Service fees are non-refundable except where a booking is cancelled or refunded per Section 5.</LegalP>
 
             <LegalH2>4. Payouts to Hosts</LegalH2>
             <LegalP>Hosts receive payouts for completed bookings, less the applicable ParkShare service fee, via Stripe. Hosts must complete Stripe's identity verification and connected account onboarding process before they can receive payouts. Payout timing follows Stripe's standard payout schedule and may vary based on your bank, region, and account verification status. ParkShare is not responsible for delays in payout caused by Stripe, your financial institution, or incomplete/inaccurate account information you provide.</LegalP>
 
             <LegalH2>5. Cancellations, Refunds, and Disputes</LegalH2>
-            <LegalP>Refund eligibility for cancelled bookings is governed by the cancellation policy shown at the time of booking. Approved refunds are issued to the original payment method via Stripe and may take several business days to appear, depending on your bank. If a Renter disputes a charge directly with their bank or card issuer ("chargeback"), ParkShare and/or the Host may provide booking records to Stripe to contest the dispute. Hosts may have payouts withheld or reversed if a chargeback is upheld against a related booking. ParkShare reserves the right to investigate suspected fraudulent bookings and to withhold or reverse payouts pending investigation.</LegalP>
+            <LegalP>Refund eligibility for cancelled bookings is governed by the cancellation policy shown at the time of booking. Approved refunds are issued to the original payment method via Stripe and may take several business days to appear, depending on your bank. If a Driver disputes a charge directly with their bank or card issuer ("chargeback"), ParkShare and/or the Host may provide booking records to Stripe to contest the dispute. Hosts may have payouts withheld or reversed if a chargeback is upheld against a related booking. ParkShare reserves the right to investigate suspected fraudulent bookings and to withhold or reverse payouts pending investigation.</LegalP>
 
             <LegalH2>6. Taxes</LegalH2>
             <LegalP>Hosts are solely responsible for determining and remitting any taxes owed on income earned through ParkShare, including but not limited to income tax, HST/GST, or other applicable sales taxes. ParkShare does not provide tax advice. Hosts should consult a tax professional regarding their obligations. Where required by law, ParkShare or Stripe may issue tax reporting documents (e.g., 1099-K in the U.S., or equivalent) to Hosts who meet applicable reporting thresholds.</LegalP>
@@ -4080,20 +4083,20 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </LegalDoc>
         </div>
 
-        <div id="liability">
+        <div id="liability" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 4 of 4" title="Disclaimer of" accent="Liability" updated={UPDATED}>
             <LegalP>This Disclaimer of Liability supplements the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink> and applies to all use of the ParkShare Platform. By using ParkShare, you acknowledge and agree to the following.</LegalP>
 
             <LegalH2>1. ParkShare Is a Marketplace, Not a Party to Bookings</LegalH2>
-            <LegalP>ParkShare is a technology platform that connects driveway owners ("Hosts") with drivers seeking parking ("Renters"). ParkShare does not own, inspect, maintain, or control any parking space listed on the Platform, and is not a party to the parking arrangement formed between a Host and a Renter.</LegalP>
+            <LegalP>ParkShare is a technology platform that connects driveway owners ("Hosts") with drivers seeking parking ("Drivers"). ParkShare does not own, inspect, maintain, or control any parking space listed on the Platform, and is not a party to the parking arrangement formed between a Host and a Driver.</LegalP>
 
-            <LegalH2>2. Renter Assumption of Risk</LegalH2>
-            <LegalP>By booking and parking a vehicle through ParkShare, the Renter assumes full responsibility for their vehicle while it is parked at a Host's location. This includes, without limitation:</LegalP>
+            <LegalH2>2. Driver Assumption of Risk</LegalH2>
+            <LegalP>By booking and parking a vehicle through ParkShare, the Driver assumes full responsibility for their vehicle while it is parked at a Host's location. This includes, without limitation:</LegalP>
             <LegalUl items={[
-              "Any damage to the Renter's vehicle, however caused, while parked at the Host's property.",
-              "Any damage the Renter's vehicle causes to the Host's property or to other property or vehicles.",
+              "Any damage to the Driver's vehicle, however caused, while parked at the Host's property.",
+              "Any damage the Driver's vehicle causes to the Host's property or to other property or vehicles.",
               "Any towing, impound, ticketing, or storage costs incurred as a result of the booking, improper parking, overstaying the booked time, or violation of a Host's posted instructions.",
-              "Any theft or vandalism affecting the Renter's vehicle or its contents while parked.",
+              "Any theft or vandalism affecting the Driver's vehicle or its contents while parked.",
             ]} />
             <LegalP>ParkShare and the Host are not liable for any of the above.</LegalP>
 
@@ -4102,20 +4105,20 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalUl items={[
               "Accurately describing their space, access instructions, and any restrictions.",
               "Ensuring they have the legal right (as owner, tenant with permission, etc.) to offer the space for rent.",
-              "Any hazards, defects, or conditions on their property, except as caused by a Renter's negligence or misconduct.",
+              "Any hazards, defects, or conditions on their property, except as caused by a Driver's negligence or misconduct.",
               "Compliance with any applicable municipal bylaws, HOA/condo rules, insurance requirements, or lease terms related to renting out their driveway.",
             ]} />
             <LegalP>ParkShare does not inspect or certify the safety or legality of any listed space.</LegalP>
 
             <LegalH2>4. No Warranty on Listings</LegalH2>
-            <LegalP>ParkShare does not guarantee the accuracy of any listing, including photos, described dimensions, features, or availability. Renters are encouraged to review listing details, photos, and reviews carefully, and to communicate with the Host before booking if they have questions.</LegalP>
+            <LegalP>ParkShare does not guarantee the accuracy of any listing, including photos, described dimensions, features, or availability. Drivers are encouraged to review listing details, photos, and reviews carefully, and to communicate with the Host before booking if they have questions.</LegalP>
 
             <LegalH2>5. Limitation of Liability</LegalH2>
             <LegalP>To the maximum extent permitted by applicable law, ParkShare, its officers, employees, contractors, and agents shall not be liable for:</LegalP>
             <LegalUl items={[
               "Any indirect, incidental, special, consequential, exemplary, or punitive damages;",
               "Any loss of use, data, profits, or goodwill;",
-              "Any dispute, loss, damage, theft, towing fee, fine, personal injury, or property damage arising from or related to a booking, a Host, or a Renter,",
+              "Any dispute, loss, damage, theft, towing fee, fine, personal injury, or property damage arising from or related to a booking, a Host, or a Driver,",
             ]} />
             <LegalP>whether based in contract, tort (including negligence), strict liability, or any other legal theory, even if ParkShare has been advised of the possibility of such damages.</LegalP>
             <LegalP>Where liability cannot be fully excluded under applicable law, ParkShare's total aggregate liability shall not exceed the greater of (a) the fees paid by the affected user to ParkShare in the twelve (12) months preceding the event giving rise to the claim, or (b) CAD $100.</LegalP>
@@ -6539,8 +6542,6 @@ export default function App() {
     </>
   );
 }
-
-
 
 
 
