@@ -1193,21 +1193,30 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
   );
 }
 
-// Fetches host-created listings from Supabase and merges them with the
-// built-in demo listings, so new "List Your Driveway" submissions show up
-// in Browse immediately alongside the sample data.
+// Fetches host-created listings from Supabase. Browse keeps loading, error,
+// and genuine empty states separate so a failed database request is never
+// presented to Drivers as though there simply are no active listings.
 function useAllListings() {
   const [dbListings, setDbListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const refresh = () => {
+    setLoading(true);
+    setError("");
     supabase
       .from("listings")
       .select("*, profiles(name)")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (error || !data) return;
+        if (error) {
+          console.error("Couldn't load public listings:", error);
+          setError("We couldn't load available driveways right now.");
+          setLoading(false);
+          return;
+        }
         setDbListings(
-          data.map(row => ({
+          (data || []).map(row => ({
             id: "db-" + row.id,
             title: row.title,
             address: row.address,
@@ -1226,17 +1235,18 @@ function useAllListings() {
             hostImg: "🧑",
           }))
         );
+        setLoading(false);
       });
   };
 
   useEffect(() => { refresh(); }, []);
 
-  return dbListings;
+  return { listings: dbListings, loading, error, refresh };
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
 function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocation, initialQuery }) {
-  const allListings = useAllListings();
+  const { listings: allListings, loading: listingsLoading, error: listingsError, refresh: refreshListings } = useAllListings();
   const [query, setQuery] = useState("");
   const [locatedSearch, setLocatedSearch] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -1404,14 +1414,29 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
           </button>
           <div style={{ display: "flex", flexShrink: 0 }}>
             {[["split","⊞"],["list","☰"],["map","🗺"]].map(([v,label]) => (
-              <button key={v} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+              <button key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
           </div>
         </div>
       </div>
 
-        {/* Content — fills all remaining height, no scroll */}
+      {/* Content — fills all remaining height, no scroll */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+        {(listingsLoading || listingsError || allListings.length === 0) ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
+            <div style={{ maxWidth: 360, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "24px 22px", boxShadow: "0 6px 18px rgba(14,27,46,0.08)" }}>
+              <div style={{ fontSize: 34, marginBottom: 10 }}>{listingsLoading ? "⏳" : listingsError ? "⚠️" : "🅿️"}</div>
+              <div style={{ color: C.navy, fontWeight: 800, fontSize: 16, marginBottom: 7 }}>
+                {listingsLoading ? "Loading available driveways…" : listingsError ? "Driveways couldn't be loaded" : "No active driveways yet"}
+              </div>
+              <p style={{ color: C.muted, fontSize: 12.5, lineHeight: 1.6, margin: listingsError ? "0 0 14px" : 0 }}>
+                {listingsLoading ? "We're checking ParkShare for available parking." : listingsError ? listingsError : "ParkShare is growing. Please check back soon as new Hosts add their spaces."}
+              </p>
+              {listingsError && <Btn small variant="outline" onClick={refreshListings}>Try again</Btn>}
+            </div>
+          </div>
+        ) : (<>
 
         {/* Listing column */}
         {view !== "map" && (
@@ -1451,6 +1476,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
             </div>
           </div>
         )}
+        </>)}
       </div>
     </div>
   );
@@ -3233,11 +3259,10 @@ function FloatingParkerHelp() {
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
 function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
-  const goPrivacy = () => {
-    onLegalClick?.();
-    window.setTimeout(() => {
-      document.getElementById("privacy")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 60);
+  const socialIconStyle = {
+    width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center",
+    border: "1px solid rgba(255,255,255,.28)", color: C.white, fontSize: 12,
+    fontWeight: 800, textDecoration: "none", boxSizing: "border-box",
   };
 
   return (
@@ -3249,11 +3274,11 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
           </button>
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
-            <span aria-label="Instagram" title="Instagram">◎</span>
-            <span aria-label="Facebook" title="Facebook">f</span>
-            <span aria-label="X" title="X">𝕏</span>
-            <span aria-label="YouTube" title="YouTube">▶</span>
-            <span aria-label="LinkedIn" title="LinkedIn">in</span>
+            <a href="https://www.instagram.com/myparkshare/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Instagram" title="Instagram" style={socialIconStyle}>◎</a>
+            <a href="https://www.facebook.com/ParkerParksHere/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Facebook" title="Facebook" style={socialIconStyle}>f</a>
+            <a href="https://www.youtube.com/@ParkerParksHere" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on YouTube" title="YouTube" style={socialIconStyle}>▶</a>
+            <span aria-label="X link coming soon" title="X link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>𝕏</span>
+            <span aria-label="LinkedIn link coming soon" title="LinkedIn link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>in</span>
           </div>
         </div>
 
@@ -3273,8 +3298,8 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
 
         <div className="ps-footer-v2-column">
           <strong>Legal</strong>
-          <button onClick={onLegalClick}>Terms &amp; Conditions</button>
-          <button onClick={goPrivacy}>Privacy Policy</button>
+          <button onClick={() => onLegalClick?.("terms")}>Terms &amp; Conditions</button>
+          <button onClick={() => onLegalClick?.("privacy")}>Privacy Policy</button>
         </div>
       </div>
       <div className="ps-footer-v2-bottom">© 2026 ParkShare. All rights reserved.</div>
@@ -3870,7 +3895,7 @@ function LegalCallout({ children }) {
 }
 
 function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
-  const UPDATED = "July 18, 2026";
+  const UPDATED = "August 21, 2026";
   const nav = [
     ["terms", "Terms of Service"],
     ["privacy", "Privacy Policy"],
@@ -4182,10 +4207,10 @@ const TRUST_SECTIONS = [
   { id: "listings", icon: "📋", title: "Listings" },
   { id: "payments", icon: "🔒", title: "Payments" },
   { id: "reviews", icon: "⭐", title: "Reviews" },
-  { id: "respect", icon: "🏡", title: "Respect" },
+  { id: "standards", icon: "🏡", title: "Respect" },
   { id: "privacy", icon: "🛡️", title: "Privacy" },
-  { id: "before-park", icon: "🚗", title: "Before You Park" },
-  { id: "before-host", icon: "🏠", title: "Before You Host" },
+  { id: "drivers", icon: "🚗", title: "Before You Park" },
+  { id: "hosts", icon: "🏠", title: "Before You Host" },
   { id: "support", icon: "💬", title: "Support" },
 ];
 
@@ -4245,16 +4270,16 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
       </section>
 
       <nav className="ps-trust-v2-section-nav" aria-label="Trust and Safety sections">
-        {TRUST_SECTIONS.map((s) => <button key={s.id} onClick={() => scrollTo(s.id)}><span>{s.icon}</span>{s.title}</button>)}
+        {TRUST_SECTIONS.map((s) => <button key={s.id} onClick={() => s.id === "privacy" ? onLegalClick?.("privacy") : scrollTo(s.id)}><span>{s.icon}</span>{s.title}</button>)}
       </nav>
 
       <main className="ps-trust-v2-content">
-        <section className="ps-trust-v2-intro">
+        <section id="community" className="ps-trust-v2-intro">
           <div className="ps-trust-v2-eyebrow">A MARKETPLACE BUILT ON CLEAR EXPECTATIONS</div>
           <h2>Safety works better when everyone knows their part.</h2>
           <P>ParkShare connects people who have private parking space with people looking for somewhere convenient to park. That relationship depends on accurate information, respectful communication and responsible use of the space.</P>
           <div className="ps-trust-v2-principles">
-            {safetyCards.map(([icon,title,text]) => <div className="ps-trust-v2-card" key={title}><span className="ps-trust-v2-card-icon">{icon}</span><strong>{title}</strong><small>{text}</small></div>)}
+            {safetyCards.map(([icon,title,text], index) => <div id={index === 0 ? "listings" : index === 3 ? "reviews" : undefined} className="ps-trust-v2-card" key={title}><span className="ps-trust-v2-card-icon">{icon}</span><strong>{title}</strong><small>{text}</small></div>)}
           </div>
         </section>
 
@@ -6227,6 +6252,24 @@ export default function App() {
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
   const [browseInitialLocation, setBrowseInitialLocation] = useState(null);
   const [browseInitialQuery, setBrowseInitialQuery] = useState("");
+  const navigationAnchorRef = useRef(null);
+
+  // This is a single-page app, so changing screens does not trigger the
+  // browser's normal new-page scroll reset. Restore that expected behaviour
+  // after every screen/tab transition, while still supporting deliberate
+  // deep links such as the footer's Privacy Policy button.
+  useEffect(() => {
+    const anchor = navigationAnchorRef.current;
+    navigationAnchorRef.current = null;
+    const frame = window.requestAnimationFrame(() => {
+      if (anchor) {
+        document.getElementById(anchor)?.scrollIntoView({ block: "start" });
+      } else {
+        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [screen, tab]);
 
   // Detect returning from Stripe's hosted checkout page and show a banner,
   // then strip the query params so refreshing doesn't re-show it.
@@ -6308,17 +6351,35 @@ export default function App() {
     };
   }, []);
 
-  const goHome = () => { setScreen("landing"); setTab("Browse"); setBrowseKey(k => k + 1); };
-  const openLegal = () => setScreen("legal");
-  const openContact = () => setScreen("contact");
-  const openTrust = () => setScreen("trust");
-  const openHost = () => setScreen("host");
-  const openDriver = () => setScreen("driver");
-  const openAbout = () => setScreen("about");
-  const openHelp = () => setScreen("help");
+  const navigateToScreen = (nextScreen, anchor = null) => {
+    navigationAnchorRef.current = anchor;
+    if (screen === nextScreen) {
+      const target = anchor ? document.getElementById(anchor) : null;
+      if (target) target.scrollIntoView({ block: "start" });
+      else window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      navigationAnchorRef.current = null;
+      return;
+    }
+    setScreen(nextScreen);
+  };
+
+  const goHome = () => {
+    navigationAnchorRef.current = null;
+    if (screen === "landing") window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    setScreen("landing");
+    setTab("Browse");
+    setBrowseKey(k => k + 1);
+  };
+  const openLegal = (section = "terms") => navigateToScreen("legal", section);
+  const openContact = () => navigateToScreen("contact");
+  const openTrust = () => navigateToScreen("trust");
+  const openHost = () => navigateToScreen("host");
+  const openDriver = () => navigateToScreen("driver");
+  const openAbout = () => navigateToScreen("about");
+  const openHelp = () => navigateToScreen("help");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
-  const changeTab = (t) => { setScreen("app"); setTab(t); };
+  const changeTab = (t) => { navigationAnchorRef.current = null; setScreen("app"); setTab(t); };
 
   const requireAuth = (content, msg) => {
     if (!user) return (
@@ -6336,7 +6397,7 @@ export default function App() {
 
   // Landing-page actions route straight into the real app logic —
   // no duplicated search/geolocation code, just a different entry point.
-  const enterApp = (nextTab) => { setScreen("app"); if (nextTab) setTab(nextTab); };
+  const enterApp = (nextTab) => { navigationAnchorRef.current = null; setScreen("app"); if (nextTab) setTab(nextTab); };
   const handleLandingSearch = (suggestion, typedQuery) => {
     setBrowseAutoLocate(false);
     if (suggestion) {
@@ -6542,8 +6603,3 @@ export default function App() {
     </>
   );
 }
-
-
-
-
-
