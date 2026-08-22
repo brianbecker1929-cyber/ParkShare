@@ -1938,7 +1938,7 @@ button, input, select, textarea { font: inherit; }
 .ps-footer-v2-column button:hover { color: #FFC107; }
 .ps-footer-v2-bottom { width: min(1120px,100%); margin: 34px auto 0; padding-top: 16px; border-top: 1px solid rgba(255,255,255,.14); color: rgba(255,255,255,.55); font-size: 10.5px; text-align: center; }
 .ps-footer-v2-powered { margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 9px; color: rgba(255,255,255,.72); font-size: 10px; font-weight: 600; }
-.ps-footer-v2-powered-logo { width: 172px; height: 62px; padding: 4px 8px; border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.ps-footer-v2-powered-logo { width: 190px; height: 42px; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; overflow: visible; }
 .ps-footer-v2-powered-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
 @media (max-width: 820px) {
@@ -1976,7 +1976,7 @@ button, input, select, textarea { font: inherit; }
   .ps-footer-v2 button:focus-visible { outline: 2px solid #FFC107; outline-offset: 3px; border-radius: 3px; }
   .ps-footer-v2-bottom { margin-top: 20px; padding-top: 14px; }
   .ps-footer-v2-powered { margin-top: 10px; gap: 7px; }
-  .ps-footer-v2-powered-logo { width: 152px; height: 56px; }
+  .ps-footer-v2-powered-logo { width: 172px; height: 38px; }
 }
 
 
