@@ -3302,7 +3302,15 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
           <button onClick={() => onLegalClick?.("privacy")}>Privacy Policy</button>
         </div>
       </div>
-      <div className="ps-footer-v2-bottom">© 2026 ParkShare. All rights reserved.</div>
+      <div className="ps-footer-v2-bottom">
+        <div>© 2026 ParkShare. All rights reserved.</div>
+        <div className="ps-footer-v2-powered" aria-label="Powered by ESKA Technologies">
+          <span>Powered by</span>
+          <span className="ps-footer-v2-powered-logo">
+            <img src="/parker/parker-eska-logo.png" alt="ESKA Technologies" />
+          </span>
+        </div>
+      </div>
     </footer>
   );
 }
@@ -3895,7 +3903,7 @@ function LegalCallout({ children }) {
 }
 
 function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
-  const UPDATED = "August 21, 2026";
+  const UPDATED = "August 22, 2026";
   const nav = [
     ["terms", "Terms of Service"],
     ["privacy", "Privacy Policy"],
@@ -3934,7 +3942,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         <div id="terms" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 1 of 4" title="Terms of" accent="Service" updated={UPDATED}>
             <LegalH2>1. Agreement to Terms</LegalH2>
-            <LegalP>These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"), operated by ESKA Technologies Inc. ("ParkShare," "we," "us," or "our"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
+            <LegalP>ParkShare is a product developed and operated by ESKA Technologies Inc. ("ESKA Technologies," "we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
             <LegalP>If you do not agree to these Terms, do not use the Platform.</LegalP>
 
             <LegalH2>2. What ParkShare Is</LegalH2>
@@ -4013,7 +4021,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 
         <div id="privacy" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 2 of 4" title="Privacy" accent="Policy" updated={UPDATED}>
-            <LegalP>This Privacy Policy explains how ESKA Technologies Inc. ("ParkShare," "we," "us," or "our") collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
+            <LegalP>This Privacy Policy explains how ESKA Technologies Inc., the developer and operator of ParkShare ("we," "us," or "our"), collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
 
             <LegalH2>1. Information We Collect</LegalH2>
             <LegalP><strong>Information you provide:</strong> account details, listing info (Hosts), booking info (Drivers), payment info (processed by Stripe), messages, reviews, and support requests.</LegalP>
@@ -4061,7 +4069,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>We may update this Privacy Policy from time to time. Material changes will be reflected with a new "Last updated" date.</LegalP>
 
             <LegalH2>12. Contact Us</LegalH2>
-            <LegalP>ESKA Technologies Inc.<br />Vaughan, Ontario<br /><LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
+            <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
           </LegalDoc>
         </div>
 
@@ -4163,7 +4171,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
-      <HomeFooter onLegalClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
+      <HomeFooter onLegalClick={(section = "terms") => document.getElementById(section)?.scrollIntoView({ block: "start" })} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
