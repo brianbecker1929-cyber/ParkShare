@@ -289,6 +289,7 @@ function MessagingPanel({ listing, onClose, user }) {
   const [input, setInput] = useState("");
   const bottomRef = useRef(null);
   const msgs = isRealListing ? dbMsgs : (threads[listing.id] || []);
+  const otherParty = listing.host || listing.driver || "ParkShare user";
 
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
@@ -346,13 +347,13 @@ function MessagingPanel({ listing, onClose, user }) {
         <div style={{ padding: "16px 20px", borderBottom: "1px solid "+C.concrete, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{listing.hostImg}</div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{listing.host}</div>
+            <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{otherParty}</div>
             <div style={{ fontSize: 11, color: C.muted }}>Host · {listing.title}</div>
           </div>
           <button onClick={onClose} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {msgs.length === 0 && <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No messages yet. Say hi to {listing.host}!</div>}
+          {msgs.length === 0 && <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No messages yet. Say hi to {otherParty}!</div>}
           {msgs.map(m => (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.from === "me" ? "flex-end" : "flex-start" }}>
               <div style={{ background: m.from === "me" ? C.navy : C.warmWhite, color: m.from === "me" ? C.white : C.navy, padding: "9px 14px", borderRadius: m.from === "me" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", fontSize: 13, maxWidth: "75%", lineHeight: 1.45 }}>{m.text}</div>
@@ -362,7 +363,7 @@ function MessagingPanel({ listing, onClose, user }) {
           <div ref={bottomRef} />
         </div>
         <div style={{ padding: "12px 16px", borderTop: "1px solid "+C.concrete, display: "flex", gap: 8 }}>
-          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={"Message "+listing.host+"…"}
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={"Message "+otherParty+"…"}
             style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 24, padding: "10px 16px", fontSize: 13, outline: "none", fontFamily: "'Poppins', sans-serif", color: C.navy }} />
           <button onClick={send} disabled={!input.trim()} style={{ background: input.trim() ? C.navy : C.concrete, color: input.trim() ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: input.trim() ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>↑</button>
         </div>
@@ -433,7 +434,11 @@ const subtotal = listing.price * hours;
           total,
           listingTitle: listing.title,
           spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
-          bookingDate: date instanceof Date ? date.toISOString() : undefined,
+          // Send a date-only value. Sending a full ISO timestamp and later
+          // appending another time produced invalid future booking windows.
+          bookingDate: date instanceof Date
+            ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+            : undefined,
           startHour,
           endHour,
         }),
@@ -540,7 +545,7 @@ const subtotal = listing.price * hours;
               </div>
             )}
             {[
-              [listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal],
+              ["$"+listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal],
               ["Service fee (15%)", "$"+serviceFee],
             ].map(([label, val]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 6 }}>
@@ -992,6 +997,10 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
         {listing.features.map(f => <Badge key={f}>{f}</Badge>)}
       </div>
 
+      {listing.description && (
+        <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px" }}>{listing.description}</p>
+      )}
+
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
@@ -1150,9 +1159,11 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
       )}
       {showSpotPicker && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
-          <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
-            <ListingThumb listing={listing} size="100%" />
-          </div>
+          {typeof listing.img === "string" && listing.img.startsWith("data:") && (
+            <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
+              <ListingThumb listing={listing} size="100%" />
+            </div>
+          )}
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>
             {selectedAvailability
               ? (selectedAvailability.available
@@ -1206,7 +1217,7 @@ function useAllListings() {
     setError("");
     supabase
       .from("listings")
-      .select("*, profiles(name)")
+      .select("*, profiles(name), reviews(rating)")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
@@ -1221,10 +1232,11 @@ function useAllListings() {
             title: row.title,
             address: row.address,
             price: Number(row.price),
-            rating: 5,
-            reviewCount: 0,
+            rating: row.reviews?.length ? row.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / row.reviews.length : 0,
+            reviewCount: row.reviews?.length || 0,
             spaces: row.spaces,
             features: row.features || [],
+            description: row.description || "",
             img: row.img || "🏠",
             photos: row.photos || [],
             distance: "—",
@@ -1354,8 +1366,8 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
 
   const filtered = allListings
     .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
-    .map(l => ({ ...l, distMiles: userLoc ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng) : parseFloat(l.distance) }))
-    .sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : a.distMiles - b.distMiles);
+    .map(l => ({ ...l, distMiles: userLoc && typeof l.lat === "number" && typeof l.lng === "number" ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng) : null }))
+    .sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
 
   if (selected) return <ListingDetail listing={selected} onBack={() => setSelected(null)} onMessage={onMessage} user={user} />;
 
@@ -1461,7 +1473,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.navy, fontWeight: 700 }}>
                   <span>★ {l.rating} <span style={{ fontWeight: 500, opacity: 0.7 }}>({l.reviewCount})</span></span>
-                  <span style={{ fontWeight: 500, opacity: 0.8 }}>{l.distMiles.toFixed(1)} mi</span>
+                  <span style={{ fontWeight: 500, opacity: 0.8 }}>{Number.isFinite(l.distMiles) ? `${l.distMiles.toFixed(1)} mi` : "Distance unavailable"}</span>
                 </div>
               </div>
             ))}
@@ -1882,6 +1894,11 @@ function HostDashboard({ user, setTab }) {
                 status: row.status === "confirmed" ? "Confirmed" : row.status === "completed" ? "Completed" : "Cancelled",
               }))
             );
+            const counts = bookingRows.reduce((acc, row) => {
+              acc[row.listing_id] = (acc[row.listing_id] || 0) + 1;
+              return acc;
+            }, {});
+            setDbListings(prev => prev.map(listing => ({ ...listing, bookings: counts[listing.rawId] || 0 })));
           });
       });
   }, [user]);
@@ -1913,7 +1930,6 @@ function HostDashboard({ user, setTab }) {
     setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
     return true;
   };
-  const totalEarnings = myListings.reduce((s, l) => s + l.earnings, 0);
   const { data: txData, loading: txLoading } = useTransactions(user);
 
   const now = new Date();
@@ -1926,8 +1942,10 @@ function HostDashboard({ user, setTab }) {
   const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
   const lastMonthEarned = paidEarned.filter(t => sameMonth(t.date, 1)).reduce((s, t) => s + t.net, 0);
   const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
+  const totalEarnings = allTimeEarned;
   const nextPayout = txData.payouts.find(p => p.status === "pending" || p.status === "in_transit");
-  const totalBookings = myListings.reduce((s, l) => s + l.bookings, 0);
+  const totalBookings = dbBookings.length;
+  const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
 
   return (
@@ -1940,7 +1958,7 @@ function HostDashboard({ user, setTab }) {
           <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2 }}>Host since Jan 2025</div>
         </div>
         <div style={{ background: C.amber, borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: C.navy }}>${totalEarnings}</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: C.navy }}>{txLoading ? "…" : money(totalEarnings)}</div>
           <div style={{ fontSize: 9, color: C.navy, fontWeight: 600, textTransform: "uppercase" }}>Earned</div>
         </div>
       </div>
@@ -1953,7 +1971,7 @@ function HostDashboard({ user, setTab }) {
           {[
             { label: "Bookings", value: String(totalBookings), icon: "📅" },
             { label: "Avg Rating", value: "★ "+avgRating, icon: "⭐" },
-            { label: "Pending", value: "$140", icon: "💳" },
+            { label: "Pending", value: txLoading ? "…" : money(pendingAmount), icon: "💳" },
           ].map(s => (
             <div key={s.label} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
               <div style={{ fontSize: 16, marginBottom: 2 }}>{s.icon}</div>
@@ -1986,7 +2004,7 @@ function HostDashboard({ user, setTab }) {
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>🏠 Listings</span>
-            <button style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "2px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>+ Add</button>
+            <button onClick={() => setTab?.("List Your Driveway")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "2px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>+ Add</button>
           </div>
           <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 5 }}>
             {myListings.length === 0 && (
@@ -2092,6 +2110,8 @@ function HostDashboard({ user, setTab }) {
 // ─── Messages Inbox ───────────────────────────────────────────────────────────
 function MessagesView({ onOpenThread, user }) {
   const [dbConvos, setDbConvos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -2102,7 +2122,12 @@ function MessagesView({ onOpenThread, user }) {
       .select("*, listings(*, profiles(name))")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (error || !data) return;
+        setLoading(false);
+        if (error || !data) {
+          console.error("Couldn't load conversations:", error);
+          setError("We couldn't load your conversations right now.");
+          return;
+        }
         const seen = new Set();
         const convos = [];
         for (const row of data) {
@@ -2113,7 +2138,7 @@ function MessagesView({ onOpenThread, user }) {
           convos.push({
             id: "db-" + row.listing_id,
             title: row.listings?.title || "Listing",
-            host: row.listings?.profiles?.name || "Host",
+            host: listingHostId === user.id ? "Renter" : (row.listings?.profiles?.name || "Host"),
             hostImg: "🧑",
             preview: row.text,
           });
@@ -2127,8 +2152,10 @@ function MessagesView({ onOpenThread, user }) {
   return (
     <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 4 }}>Messages</h2>
-      <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Your conversations with hosts.</p>
-      {conversations.length === 0 && (
+      <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Your ParkShare conversations.</p>
+      {loading && <div style={{ color: C.muted, fontSize: 13 }}>Loading conversations…</div>}
+      {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
+      {!loading && !error && conversations.length === 0 && (
         <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No conversations yet.</div>
       )}
       {conversations.map(l => (
@@ -2768,17 +2795,23 @@ function buildNavigationUrl(address, lat, lng) {
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function MyBookingsView({ onMessage, user, highlightBookingId }) {
   const [dbBookings, setDbBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const highlightRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("bookings")
-      .select("*, listings(*)")
+      .select("*, listings(*, profiles(name))")
       .eq("renter_id", user.id)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
-        if (error || !data) return;
+        setLoading(false);
+        if (error || !data) {
+          setLoadError("We couldn't load your bookings right now. Please try again.");
+          return;
+        }
         setDbBookings(
           data.map(row => ({
             id: "db-" + row.id,
@@ -2793,6 +2826,8 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
               img: row.listings?.img || "🏠",
               lat: row.listings?.lat,
               lng: row.listings?.lng,
+              host: row.listings?.profiles?.name || "Host",
+              hostImg: "🧑",
             },
             date: new Date(row.created_at).toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
@@ -2819,6 +2854,9 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
   return (
     <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+      {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
+      {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
+      {!loading && !loadError && bookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
       {bookings.map(b => {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
         return (
@@ -2982,17 +3020,10 @@ function SignInModal({ onClose, onAuth }) {
       return;
     }
 
-    // signup: create the auth user first, decide role next
-    const { data, error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-    });
     setLoading(false);
-    if (error) {
-      setAuthError(error.message);
-      return;
-    }
-    setPendingUser({ id: data.user.id, name: form.name, email: form.email, role: null });
+    // Collect role and legal consent before creating the auth record. This
+    // prevents abandoned signup flows from leaving orphaned auth users.
+    setPendingUser({ name: form.name.trim(), email: form.email.trim(), password: form.password, role: null });
     setScreen("role");
   };
 
@@ -3004,19 +3035,32 @@ function SignInModal({ onClose, onAuth }) {
   const finalizeSignup = async () => {
     if (!agreed || !pendingUser) return;
     setLoading(true);
-    const { error } = await supabase.from("profiles").insert({
-      id: pendingUser.id,
-      name: pendingUser.name,
+    const { data, error } = await supabase.auth.signUp({
       email: pendingUser.email,
-      role: pendingUser.role,
+      password: pendingUser.password,
+      options: { data: { name: pendingUser.name, role: pendingUser.role, legal_agreed_at: new Date().toISOString() } },
     });
     setLoading(false);
     if (error) {
       setAuthError(error.message);
       return;
     }
-    onAuth(pendingUser);
+    if (!data.session) {
+      setScreen("verify");
+      return;
+    }
+    const profile = { id: data.user.id, name: pendingUser.name, email: pendingUser.email, role: pendingUser.role };
+    const { error: profileError } = await supabase.from("profiles").upsert(profile);
+    if (profileError) { setAuthError(profileError.message); return; }
+    onAuth(profile);
     onClose();
+  };
+
+  const resetPassword = async () => {
+    setAuthError("");
+    if (!form.email.includes("@")) { setErrors({ email: "Enter your email first" }); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: window.location.origin });
+    setAuthError(error ? error.message : "Password reset email sent. Check your inbox.");
   };
 
   return (
@@ -3034,6 +3078,7 @@ function SignInModal({ onClose, onAuth }) {
             {screen === "signup" && "Create your free account"}
             {screen === "role" && "How will you use ParkShare?"}
             {screen === "disclaimer" && "Before you continue"}
+            {screen === "verify" && "Check your email"}
           </div>
           {screen !== "landing" && screen !== "role" && (
             <button onClick={() => { setScreen(screen === "disclaimer" ? "role" : "landing"); setErrors({}); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
@@ -3064,6 +3109,7 @@ function SignInModal({ onClose, onAuth }) {
               <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="Your password" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
               {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
               <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
+              <button onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => { setScreen("signup"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
             </div>
           )}
@@ -3099,7 +3145,7 @@ function SignInModal({ onClose, onAuth }) {
                   <div style={{ marginLeft: "auto", fontSize: 18, color: C.muted }}>›</div>
                 </button>
               ))}
-              <div style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 4 }}>You can switch roles anytime in settings</div>
+              <div style={{ textAlign: "center", fontSize: 11, color: C.muted, marginTop: 4 }}>Choose the option that best matches how you'll start.</div>
             </div>
           )}
 
@@ -3121,17 +3167,24 @@ function SignInModal({ onClose, onAuth }) {
                   ParkShare is not liable for damage, injury, disputes, or losses connected to a booking, to the fullest extent the law allows.
                 </p>
                 <p style={{ margin: 0 }}>
-                  This is a summary. <a href="https://myparkshare.ca/legal.html#liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
+                  This is a summary. <a href="/?legal=liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
                 </p>
               </div>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
                 <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: C.navy, cursor: "pointer" }} />
                 <span style={{ fontSize: 12.5, color: C.navy, lineHeight: 1.5 }}>
-                  I have read and agree to this Disclaimer of Liability, including that all risk of damage and any towing or impound costs are my responsibility as the Driver.
+                  I have read and agree to the Disclaimer of Liability and ParkShare's Terms and Privacy Policy as a {pendingUser?.role === "host" ? "Host" : "Driver"}.
                 </span>
               </label>
               {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
               <button onClick={finalizeSignup} disabled={!agreed || loading} style={{ background: agreed ? C.amber : C.concrete, color: agreed ? C.navy : C.muted, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: agreed && !loading ? "pointer" : "not-allowed" }}>{loading ? "Creating account…" : "I Agree & Create Account"}</button>
+            </div>
+          )}
+
+          {screen === "verify" && (
+            <div style={{ textAlign: "center" }}>
+              <p style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>We sent a confirmation link to <strong>{pendingUser?.email}</strong>. Confirm it, then return here to sign in.</p>
+              <button onClick={onClose} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Done</button>
             </div>
           )}
 
@@ -6283,22 +6336,29 @@ export default function App() {
   // then strip the query params so refreshing doesn't re-show it.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has("booking_success")) {
+    if (params.get("legal")) {
+      navigationAnchorRef.current = params.get("legal");
+      setScreen("legal");
+    } else if (params.has("booking_success")) {
       setCheckoutBanner("success");
+      setScreen("app");
       setTab("My Bookings");
     } else if (params.has("booking_cancelled")) {
       setCheckoutBanner("cancelled");
+      setScreen("app");
     } else if (params.get("stripe_onboarding") === "return") {
       // Stripe's account_onboarding return_url (set in api/connect-onboarding.js)
       // — the account.updated webhook may take a few seconds to land, but
       // HostDashboard re-reads the profile on mount so it'll pick up the
       // latest status shortly after.
       setConnectBanner("success");
+      setScreen("app");
       setTab("Host Dashboard");
     } else if (params.get("stripe_onboarding") === "refresh") {
       // Stripe's refresh_url — the onboarding link expired or was abandoned;
       // send them back to the dashboard so they can restart it.
       setConnectBanner("refresh");
+      setScreen("app");
       setTab("Host Dashboard");
     } else if (params.get("extend_booking")) {
       // Arrived via the "Add Additional Time" link in a reminder email
@@ -6314,9 +6374,10 @@ export default function App() {
       // the specific booking instead of just dropping them on the
       // unfiltered list to go find it themselves.
       setTab("My Bookings");
+      setScreen("app");
       setViewBookingId(params.get("view_booking"));
     }
-    if (params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking") || params.has("view_booking")) {
+    if (params.has("legal") || params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking") || params.has("view_booking")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -6329,6 +6390,9 @@ export default function App() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setCheckoutBanner(null);
+    setConnectBanner(null);
+    setMessageThread(null);
     setTab("Browse");
   };
 

@@ -2973,3 +2973,8 @@ button, input, select, textarea { font: inherit; }
     font-size: 12.5px;
   }
 }
+/* Consistent keyboard focus across the SPA. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid #FFC107;
+  outline-offset: 3px;
+}
