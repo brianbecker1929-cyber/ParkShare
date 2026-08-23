@@ -176,7 +176,12 @@ async function fetchExtensionsForBookings(bookingIds) {
     .select("id, booking_id, added_hours, added_amount, status, paid_at")
     .in("booking_id", bookingIds)
     .not("paid_at", "is", null);
-  if (error) throw error;
+  // Older deployments may not have applied the extensions migration yet.
+  // Original booking history must remain usable while that migration lands.
+  if (error) {
+    if (error.code === "PGRST205" || /booking_extensions/i.test(error.message || "")) return [];
+    throw error;
+  }
   return data || [];
 }
 

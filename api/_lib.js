@@ -111,7 +111,9 @@ export function getSessionWindow(booking) {
     const startHour = Number(booking.start_hour);
     const hh = String(Math.floor(startHour)).padStart(2, "0");
     const mm = String(Math.round((startHour % 1) * 60)).padStart(2, "0");
-    const candidate = new Date(`${booking.booking_date}T${hh}:${mm}:00Z`);
+    const rawDate = String(booking.booking_date);
+    const dateOnly = rawDate.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+    const candidate = dateOnly ? new Date(`${dateOnly}T${hh}:${mm}:00Z`) : new Date(NaN);
     start = isNaN(candidate.getTime()) ? new Date(booking.paid_at) : candidate;
   } else {
     start = new Date(booking.paid_at);

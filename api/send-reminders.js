@@ -36,11 +36,10 @@ export default async function handler(req, res) {
   }
 
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = req.headers.authorization || "";
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+  if (!cronSecret) return res.status(503).json({ error: "Reminder service is not configured." });
+  const authHeader = req.headers.authorization || "";
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   const now = new Date();
