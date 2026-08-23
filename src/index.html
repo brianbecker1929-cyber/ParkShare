@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ParkShare | Find or List Private Parking</title>
+    <meta name="description" content="Find convenient private parking near your destination or earn income by listing your available driveway with ParkShare." />
+    <link rel="canonical" href="https://www.myparkshare.ca/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="ParkShare | Your spot. Their destination." />
+    <meta property="og:description" content="Search, book, and host convenient private parking with ParkShare." />
+    <meta property="og:url" content="https://www.myparkshare.ca/" />
+    <meta property="og:image" content="https://www.myparkshare.ca/website-logo.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="/icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/icons/site.webmanifest">
+<meta name="theme-color" content="#0E1B2E">
+    <script>
+      // If the app crashes before React can mount (e.g. a bad env var makes
+      // supabaseClient.js throw at import time), this shows the real error
+      // instead of a silent blank white page — makes remote debugging on a
+      // phone possible without needing DevTools.
+      function showBootError(message) {
+        var root = document.getElementById("root");
+        if (!root || root.childElementCount > 0) return; // React already mounted, don't clobber it
+        root.innerHTML =
+          '<div style="font-family: monospace; padding: 24px; color: #b00020; background: #fff3f3; min-height: 100vh; box-sizing: border-box;">' +
+          '<h2 style="margin-top:0;">ParkShare failed to load</h2>' +
+          '<p style="white-space: pre-wrap; word-break: break-word;">' + message + '</p>' +
+          '<p style="color:#555;">Screenshot this and send it — this is the real error.</p>' +
+          '</div>';
+      }
+      window.addEventListener("error", function (e) {
+        showBootError((e.message || "Unknown error") + "\n" + (e.filename ? e.filename + ":" + e.lineno : ""));
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        showBootError("Unhandled promise rejection: " + (e.reason && e.reason.message ? e.reason.message : String(e.reason)));
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
