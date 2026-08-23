@@ -19,7 +19,10 @@ export default async function handler(req, res) {
   }
 
   const secret = process.env.CRON_SECRET;
-  if (secret && req.query?.secret !== secret) {
+  if (process.env.VERCEL_ENV === "production") {
+    return res.status(404).json({ error: "Not found" });
+  }
+  if (!secret || req.query?.secret !== secret) {
     return res.status(401).json({ error: "Unauthorized — pass ?secret=<your CRON_SECRET>" });
   }
 
