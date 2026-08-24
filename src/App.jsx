@@ -283,37 +283,38 @@ function ListingsMap({ listings, selected, onSelect, userLoc }) {
 function MessagingPanel({ listing, onClose, user }) {
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null && user;
+  const bookingId = listing.bookingId || null;
 
   const [threads, setThreads] = useState(INITIAL_THREADS);
   const [dbMsgs, setDbMsgs] = useState([]);
   const [input, setInput] = useState("");
+  const [messageError, setMessageError] = useState("");
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
   const msgs = isRealListing ? dbMsgs : (threads[listing.id] || []);
   const otherParty = listing.host || listing.driver || "ParkShare user";
 
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-  const loadMessages = () => {
+  const loadMessages = async () => {
     if (!isRealListing) return;
-    supabase
-      .from("messages")
-      .select("*")
-      .eq("listing_id", numericId)
-      .order("created_at", { ascending: true })
-      .then(({ data, error }) => {
-        if (error || !data) return;
-        setDbMsgs(
-          data.map(row => ({
-            id: row.id,
-            from: row.sender_id === user.id ? "me" : "host",
-            text: row.text,
-            ts: fmtTime(row.created_at),
-          }))
-        );
-      });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Please sign in again to view messages.");
+      const params = new URLSearchParams({ listingId: String(numericId) });
+      if (bookingId) params.set("bookingId", String(bookingId));
+      if (listing.participantId) params.set("participantId", listing.participantId);
+      const res = await fetch(`/api/messages?${params}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't load messages.");
+      setDbMsgs((data.messages || []).map(row => ({ id: row.id, from: row.sender_id === user.id ? "me" : "host", text: row.text, ts: fmtTime(row.created_at) })));
+      setMessageError("");
+    } catch (error) {
+      setMessageError(error.message || "Couldn't load messages.");
+    }
   };
 
-  useEffect(() => { loadMessages(); }, [listing.id, user]);
+  useEffect(() => { loadMessages(); }, [listing.id, bookingId, listing.participantId, user]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
 
   const send = async () => {
@@ -322,12 +323,25 @@ function MessagingPanel({ listing, onClose, user }) {
     setInput("");
 
     if (isRealListing) {
-      const { error } = await supabase.from("messages").insert({
-        listing_id: numericId,
-        sender_id: user.id,
-        text,
-      });
-      if (!error) loadMessages();
+      setSending(true);
+      setMessageError("");
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error("Please sign in again to send this message.");
+        const res = await fetch("/api/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ listingId: numericId, bookingId, participantId: listing.participantId, text }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Message could not be sent.");
+        await loadMessages();
+      } catch (error) {
+        setInput(text);
+        setMessageError(error.message || "Message could not be sent.");
+      } finally {
+        setSending(false);
+      }
       return;
     }
 
@@ -362,10 +376,11 @@ function MessagingPanel({ listing, onClose, user }) {
           ))}
           <div ref={bottomRef} />
         </div>
+        {messageError && <div role="alert" style={{ color: C.red, background: C.redLight, padding: "8px 16px", fontSize: 11 }}>{messageError}</div>}
         <div style={{ padding: "12px 16px", borderTop: "1px solid "+C.concrete, display: "flex", gap: 8 }}>
           <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={"Message "+otherParty+"…"}
             style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 24, padding: "10px 16px", fontSize: 13, outline: "none", fontFamily: "'Poppins', sans-serif", color: C.navy }} />
-          <button onClick={send} disabled={!input.trim()} style={{ background: input.trim() ? C.navy : C.concrete, color: input.trim() ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: input.trim() ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>↑</button>
+          <button onClick={send} disabled={!input.trim() || sending} style={{ background: input.trim() && !sending ? C.navy : C.concrete, color: input.trim() && !sending ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: input.trim() && !sending ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>{sending ? "…" : "↑"}</button>
         </div>
       </div>
     </div>
@@ -1685,8 +1700,7 @@ function TransactionsView({ user }) {
   const { data, loading, error } = useTransactions(user);
   const [section, setSection] = useState("spent"); // "spent" | "earned" | "payouts"
 
-  const hasEarnings = data.earned.length > 0 || data.payouts.length > 0;
-  const sections = hasEarnings ? ["spent", "earned", "payouts"] : ["spent"];
+  const sections = ["spent", "earned", "payouts"];
   const sectionLabels = { spent: "What you've paid", earned: "What you've earned", payouts: "Payouts" };
 
   const rows = section === "spent" ? data.spent : section === "earned" ? data.earned : [];
@@ -1695,10 +1709,9 @@ function TransactionsView({ user }) {
     <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 640, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>Transactions</h2>
 
-      {sections.length > 1 && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+      <div role="tablist" aria-label="Transaction categories" style={{ display: "flex", gap: 8, marginBottom: 18 }}>
           {sections.map(s => (
-            <button key={s} onClick={() => setSection(s)} style={{
+            <button type="button" role="tab" aria-selected={section === s} key={s} onClick={() => setSection(s)} style={{
               flex: 1, padding: "9px 10px", borderRadius: 8, cursor: "pointer",
               border: section === s ? "2px solid " + C.amber : "1.5px solid " + C.concrete,
               background: section === s ? C.amberLight : C.white,
@@ -1707,8 +1720,7 @@ function TransactionsView({ user }) {
               {sectionLabels[s]}
             </button>
           ))}
-        </div>
-      )}
+      </div>
 
       {loading && <p style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
       {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
@@ -1777,22 +1789,24 @@ function HostDashboard({ user, setTab }) {
   const [connectError, setConnectError] = useState("");
   const [connecting, setConnecting] = useState(false);
 
-  const refreshStripeStatus = () => {
+  const refreshStripeStatus = async () => {
     if (!user) return;
-    supabase
-      .from("profiles")
-      .select("stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled")
-      .eq("id", user.id)
-      .single()
-      .then(({ data, error }) => {
-        if (error || !data) { setStripeStatus(s => ({ ...s, loading: false })); return; }
-        setStripeStatus({
-          loading: false,
-          accountId: data.stripe_account_id || null,
-          chargesEnabled: !!data.stripe_charges_enabled,
-          payoutsEnabled: !!data.stripe_payouts_enabled,
-        });
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Please sign in again to check payout status.");
+      const res = await fetch("/api/connect-status", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't refresh Stripe status.");
+      setStripeStatus({
+        loading: false,
+        accountId: data.connected ? "connected" : null,
+        chargesEnabled: !!data.chargesEnabled,
+        payoutsEnabled: !!data.payoutsEnabled,
       });
+    } catch (error) {
+      setStripeStatus(s => ({ ...s, loading: false }));
+      setConnectError(error.message || "Couldn't refresh Stripe status.");
+    }
   };
 
   useEffect(() => { refreshStripeStatus(); }, [user]);
@@ -1884,15 +1898,22 @@ function HostDashboard({ user, setTab }) {
           .order("created_at", { ascending: false })
           .then(({ data: bookingRows, error: bookingErr }) => {
             if (bookingErr || !bookingRows) return;
+            const now = Date.now();
             setDbBookings(
-              bookingRows.map(row => ({
-                id: "db-" + row.id,
-                listing: row.listings?.title || "Listing",
-                driver: row.profiles?.name || "Renter",
-                time: new Date(row.created_at).toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
-                total: row.total,
-                status: row.status === "confirmed" ? "Confirmed" : row.status === "completed" ? "Completed" : "Cancelled",
-              }))
+              bookingRows.map(row => {
+                const window = clientBookingWindow(row);
+                const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
+                const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
+                const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
+                return {
+                  id: "db-" + row.id,
+                  listing: row.listings?.title || "Listing",
+                  driver: row.profiles?.name || "Renter",
+                  time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+                  total: row.total,
+                  status: cancelled ? "Cancelled" : completed ? "Completed" : active ? "Active" : "Upcoming",
+                };
+              })
             );
             const counts = bookingRows.reduce((acc, row) => {
               acc[row.listing_id] = (acc[row.listing_id] || 0) + 1;
@@ -1904,7 +1925,10 @@ function HostDashboard({ user, setTab }) {
   }, [user]);
 
   const myListings = dbListings;
-  const upcomingBookings = dbBookings;
+  // Only future and currently active reservations belong in this card.
+  // Completed/cancelled bookings remain included in lifetime statistics and
+  // transactions, but must never be presented to the host as upcoming work.
+  const upcomingBookings = dbBookings.filter(b => b.status === "Upcoming" || b.status === "Active");
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
@@ -1985,6 +2009,9 @@ function HostDashboard({ user, setTab }) {
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>📅 Upcoming</div>
           <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
+            {upcomingBookings.length === 0 && (
+              <div style={{ fontSize: 10, color: C.muted, textAlign: "center", padding: "12px 0" }}>No upcoming bookings.</div>
+            )}
             {upcomingBookings.map(b => (
               <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid "+C.concrete }}>
                 <div style={{ minWidth: 0 }}>
@@ -1992,7 +2019,7 @@ function HostDashboard({ user, setTab }) {
                   <div style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.listing} · {b.time}</div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 6 }}>
-                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: b.status === "Confirmed" ? C.mossLight : C.amberLight, color: b.status === "Confirmed" ? C.moss : C.navy }}>{b.status}</div>
+                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: C.mossLight, color: C.moss }}>{b.status}</div>
                   <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>${b.total}</div>
                 </div>
               </div>
@@ -2115,36 +2142,29 @@ function MessagesView({ onOpenThread, user }) {
 
   useEffect(() => {
     if (!user) return;
-    // Pull every message the user sent or received (as the listing's host),
-    // newest first, then collapse to one row per listing.
-    supabase
-      .from("messages")
-      .select("*, listings(*, profiles(name))")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
+    const load = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error("Please sign in again to view messages.");
+        const res = await fetch("/api/messages", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "We couldn't load your conversations right now.");
         setLoading(false);
-        if (error || !data) {
-          console.error("Couldn't load conversations:", error);
-          setError("We couldn't load your conversations right now.");
-          return;
-        }
-        const seen = new Set();
-        const convos = [];
-        for (const row of data) {
-          const listingHostId = row.listings?.host_id;
-          const isParticipant = row.sender_id === user.id || listingHostId === user.id;
-          if (!isParticipant || seen.has(row.listing_id)) continue;
-          seen.add(row.listing_id);
-          convos.push({
-            id: "db-" + row.listing_id,
-            title: row.listings?.title || "Listing",
-            host: listingHostId === user.id ? "Renter" : (row.listings?.profiles?.name || "Host"),
-            hostImg: "🧑",
-            preview: row.text,
-          });
-        }
-        setDbConvos(convos);
-      });
+        setDbConvos((data.conversations || []).map(c => ({
+          id: "db-" + c.listingId,
+          bookingId: c.bookingId,
+          participantId: c.participantId,
+          title: c.title,
+          host: c.otherParty,
+          hostImg: "🧑",
+          preview: c.preview,
+        })));
+      } catch (err) {
+        setLoading(false);
+        setError(err.message || "We couldn't load your conversations right now.");
+      }
+    };
+    load();
   }, [user]);
 
   const conversations = dbConvos;
@@ -2793,7 +2813,22 @@ function buildNavigationUrl(address, lat, lng) {
 }
 
 // ─── My Bookings ──────────────────────────────────────────────────────────────
-function MyBookingsView({ onMessage, user, highlightBookingId }) {
+function clientBookingWindow(booking) {
+  let start;
+  const dateOnly = String(booking.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (dateOnly && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
+    const hour = Number(booking.start_hour);
+    const hh = String(Math.floor(hour)).padStart(2, "0");
+    const mm = String(Math.round((hour % 1) * 60)).padStart(2, "0");
+    start = new Date(`${dateOnly}T${hh}:${mm}:00Z`);
+  } else {
+    start = new Date(booking.paid_at || booking.created_at);
+  }
+  const end = new Date(start.getTime() + Number(booking.hours || 0) * 3600 * 1000);
+  return { start, end };
+}
+
+function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
   const [dbBookings, setDbBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -2812,8 +2847,14 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
           setLoadError("We couldn't load your bookings right now. Please try again.");
           return;
         }
+        const now = Date.now();
         setDbBookings(
-          data.map(row => ({
+          data.map(row => {
+            const window = clientBookingWindow(row);
+            const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
+            const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
+            const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
+            return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
                             // ?view_booking={booking.id} links from emails,
@@ -2828,13 +2869,15 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
               lng: row.listings?.lng,
               host: row.listings?.profiles?.name || "Host",
               hostImg: "🧑",
+              bookingId: row.id,
             },
-            date: new Date(row.created_at).toLocaleDateString(),
+            date: window.start.toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             total: row.total,
-            status: row.status === "confirmed" ? "Upcoming" : row.status === "completed" ? "Completed" : "Cancelled",
-            canReview: row.status === "completed",
-          }))
+            status: cancelled ? "Cancelled" : completed ? "Completed" : active ? "Active" : "Upcoming",
+            active,
+            canReview: completed,
+          });})
         );
       });
   }, [user]);
@@ -2879,9 +2922,10 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 5 }}>📍 {b.listing.address}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{b.date} · {b.time}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {b.status === "Upcoming" && (
+                {(b.status === "Upcoming" || b.status === "Active") && (
                   <Btn small variant="amber" onClick={() => window.open(buildNavigationUrl(b.listing.address, b.listing.lat, b.listing.lng), "_blank", "noopener,noreferrer")}>🧭 Navigate</Btn>
                 )}
+                {b.active && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
                 {b.canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
@@ -2890,7 +2934,7 @@ function MyBookingsView({ onMessage, user, highlightBookingId }) {
               </div>
             </div>
             <div style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
-              <Badge color={b.status === "Upcoming" ? C.moss : C.navy}>{b.status}</Badge>
+              <Badge color={b.status === "Upcoming" || b.status === "Active" ? C.moss : C.navy}>{b.status}</Badge>
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>${b.total}</div>
             </div>
           </div>
@@ -6346,6 +6390,14 @@ export default function App() {
     } else if (params.has("booking_cancelled")) {
       setCheckoutBanner("cancelled");
       setScreen("app");
+    } else if (params.has("extension_success")) {
+      setCheckoutBanner("extension-success");
+      setScreen("app");
+      setTab("My Bookings");
+    } else if (params.has("extension_cancelled")) {
+      setCheckoutBanner("extension-cancelled");
+      setScreen("app");
+      setTab("My Bookings");
     } else if (params.get("stripe_onboarding") === "return") {
       // Stripe's account_onboarding return_url (set in api/connect-onboarding.js)
       // — the account.updated webhook may take a few seconds to land, but
@@ -6377,7 +6429,7 @@ export default function App() {
       setScreen("app");
       setViewBookingId(params.get("view_booking"));
     }
-    if (params.has("legal") || params.has("booking_success") || params.has("booking_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking") || params.has("view_booking")) {
+    if (params.has("legal") || params.has("booking_success") || params.has("booking_cancelled") || params.has("extension_success") || params.has("extension_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking") || params.has("view_booking")) {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -6638,6 +6690,15 @@ export default function App() {
               <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
+          {checkoutBanner === "extension-success" && (
+            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+              <span>✓ Additional time purchased — your booking has been extended.</span>
+              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
+            </div>
+          )}
+          {checkoutBanner === "extension-cancelled" && (
+            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>Additional-time checkout was cancelled — no charge was made.</div>
+          )}
           {connectBanner === "success" && (
             <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>🎉 Stripe account connected! It may take a moment to finish verifying.</span>
@@ -6653,7 +6714,7 @@ export default function App() {
           {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
-          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
+          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
