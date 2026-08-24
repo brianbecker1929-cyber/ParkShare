@@ -1898,15 +1898,22 @@ function HostDashboard({ user, setTab }) {
           .order("created_at", { ascending: false })
           .then(({ data: bookingRows, error: bookingErr }) => {
             if (bookingErr || !bookingRows) return;
+            const now = Date.now();
             setDbBookings(
-              bookingRows.map(row => ({
-                id: "db-" + row.id,
-                listing: row.listings?.title || "Listing",
-                driver: row.profiles?.name || "Renter",
-                time: new Date(row.created_at).toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
-                total: row.total,
-                status: row.status === "confirmed" ? "Confirmed" : row.status === "completed" ? "Completed" : "Cancelled",
-              }))
+              bookingRows.map(row => {
+                const window = clientBookingWindow(row);
+                const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
+                const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
+                const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
+                return {
+                  id: "db-" + row.id,
+                  listing: row.listings?.title || "Listing",
+                  driver: row.profiles?.name || "Renter",
+                  time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+                  total: row.total,
+                  status: cancelled ? "Cancelled" : completed ? "Completed" : active ? "Active" : "Upcoming",
+                };
+              })
             );
             const counts = bookingRows.reduce((acc, row) => {
               acc[row.listing_id] = (acc[row.listing_id] || 0) + 1;
@@ -1918,7 +1925,10 @@ function HostDashboard({ user, setTab }) {
   }, [user]);
 
   const myListings = dbListings;
-  const upcomingBookings = dbBookings;
+  // Only future and currently active reservations belong in this card.
+  // Completed/cancelled bookings remain included in lifetime statistics and
+  // transactions, but must never be presented to the host as upcoming work.
+  const upcomingBookings = dbBookings.filter(b => b.status === "Upcoming" || b.status === "Active");
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
@@ -1999,6 +2009,9 @@ function HostDashboard({ user, setTab }) {
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>📅 Upcoming</div>
           <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
+            {upcomingBookings.length === 0 && (
+              <div style={{ fontSize: 10, color: C.muted, textAlign: "center", padding: "12px 0" }}>No upcoming bookings.</div>
+            )}
             {upcomingBookings.map(b => (
               <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid "+C.concrete }}>
                 <div style={{ minWidth: 0 }}>
@@ -2006,7 +2019,7 @@ function HostDashboard({ user, setTab }) {
                   <div style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.listing} · {b.time}</div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 6 }}>
-                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: b.status === "Confirmed" ? C.mossLight : C.amberLight, color: b.status === "Confirmed" ? C.moss : C.navy }}>{b.status}</div>
+                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: C.mossLight, color: C.moss }}>{b.status}</div>
                   <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>${b.total}</div>
                 </div>
               </div>
