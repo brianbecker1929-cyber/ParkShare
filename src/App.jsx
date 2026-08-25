@@ -6261,7 +6261,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
             <h2>Reach ParkShare Support</h2>
             <p>For questions about parking, hosting, accounts, payments or reservations.</p>
           </div>
-          <a href="mailto:support@myparkshare.ca">support@myparkshare.ca</a>
+          <a href="mailto:info@myparkshare.ca">info@myparkshare.ca</a>
         </section>
 
         <section className="ps-contact-form-card">
