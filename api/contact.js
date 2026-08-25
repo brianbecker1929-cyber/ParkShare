@@ -1,6 +1,6 @@
 import { sendEmail } from "./_email.js";
 
-const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@myparkshare.ca";
+const SUPPORT_EMAIL = "info@myparkshare.ca";
 const HELP_TYPES = new Set(["Driver", "Host", "Booking", "Payment or Account", "Trust & Safety", "General"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
