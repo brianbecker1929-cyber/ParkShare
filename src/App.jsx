@@ -3020,6 +3020,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
   const [loading, setLoading] = useState(false);
   const [pendingUser, setPendingUser] = useState(null);
   const [agreed, setAgreed] = useState(false);
+  const [authSuccess, setAuthSuccess] = useState("");
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
@@ -3039,6 +3040,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
   const submit = async () => {
     if (!validate()) return;
     setAuthError("");
+    setAuthSuccess("");
     setLoading(true);
 
     if (screen === "signin") {
@@ -3103,9 +3105,12 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
 
   const resetPassword = async () => {
     setAuthError("");
+    setAuthSuccess("");
     if (!form.email.includes("@")) { setErrors({ email: "Enter your email first" }); return; }
+    setErrors({});
     const { error } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: window.location.origin });
-    setAuthError(error ? error.message : "Password reset email sent. Check your inbox.");
+    if (error) setAuthError(error.message);
+    else setAuthSuccess("Password reset email sent. Check your inbox.");
   };
 
   const updatePassword = async () => {
@@ -3174,6 +3179,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
               <div><label style={lS}>Email</label><input style={iS(errors.email)} type="email" placeholder="you@example.com" value={form.email} onChange={e => upd("email", e.target.value)} />{errors.email && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}</div>
               <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="Your password" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
               {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              {authSuccess && <div style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
               <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
               <button onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => { setScreen("signup"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
