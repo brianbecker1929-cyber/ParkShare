@@ -3012,9 +3012,10 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 }
 
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
-function SignInModal({ onClose, onAuth }) {
-  const [screen, setScreen] = useState("landing"); // landing | signin | signup | role | disclaimer
+function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
+  const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
   const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [pendingUser, setPendingUser] = useState(null);
@@ -3107,6 +3108,25 @@ function SignInModal({ onClose, onAuth }) {
     setAuthError(error ? error.message : "Password reset email sent. Check your inbox.");
   };
 
+  const updatePassword = async () => {
+    const recoveryErrors = {};
+    if (form.password.length < 6) recoveryErrors.password = "Min 6 characters";
+    if (!confirmPassword) recoveryErrors.confirmPassword = "Confirm your new password";
+    else if (form.password !== confirmPassword) recoveryErrors.confirmPassword = "Passwords do not match";
+    setErrors(recoveryErrors);
+    if (Object.keys(recoveryErrors).length) return;
+
+    setAuthError("");
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: form.password });
+    setLoading(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    setScreen("recoverySuccess");
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(26,42,107,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, fontFamily: "'Poppins', sans-serif" }}>
       <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", overflow: "hidden" }}>
@@ -3123,8 +3143,10 @@ function SignInModal({ onClose, onAuth }) {
             {screen === "role" && "How will you use ParkShare?"}
             {screen === "disclaimer" && "Before you continue"}
             {screen === "verify" && "Check your email"}
+            {screen === "recovery" && "Choose a new password"}
+            {screen === "recoverySuccess" && "Password updated"}
           </div>
-          {screen !== "landing" && screen !== "role" && (
+          {screen !== "landing" && screen !== "role" && screen !== "recovery" && screen !== "recoverySuccess" && (
             <button onClick={() => { setScreen(screen === "disclaimer" ? "role" : "landing"); setErrors({}); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
           )}
           {screen !== "role" && screen !== "disclaimer" && (
@@ -3142,7 +3164,7 @@ function SignInModal({ onClose, onAuth }) {
               </div>
               <button onClick={() => setScreen("signup")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Create free account</button>
               <button onClick={() => setScreen("signin")} style={{ background: "transparent", color: C.navy, border: "2px solid "+C.concrete, borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 4 }}>Join 12,000+ drivers and hosts</div>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 4 }}>Join the ParkShare community.</div>
             </div>
           )}
 
@@ -3155,6 +3177,27 @@ function SignInModal({ onClose, onAuth }) {
               <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
               <button onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => { setScreen("signup"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
+            </div>
+          )}
+
+          {/* Password recovery */}
+          {screen === "recovery" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, textAlign: "center" }}>Enter and confirm the new password you want to use for your ParkShare account.</div>
+              <div><label style={lS}>New password</label><input style={iS(errors.password)} type="password" placeholder="At least 6 characters" value={form.password} onChange={e => upd("password", e.target.value)} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
+              <div><label style={lS}>Confirm new password</label><input style={iS(errors.confirmPassword)} type="password" placeholder="Re-enter your new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && updatePassword()} />{errors.confirmPassword && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.confirmPassword}</div>}</div>
+              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              <button onClick={updatePassword} disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
+            </div>
+          )}
+
+          {/* Password recovery complete */}
+          {screen === "recoverySuccess" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 32, color: C.moss }}>✓</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: C.navy }}>Your password has been updated.</div>
+              <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>You can now continue using ParkShare with your new password.</div>
+              <button onClick={onClose} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Continue</button>
             </div>
           )}
 
@@ -6348,6 +6391,7 @@ export default function App() {
   const [messageThread, setMessageThread] = useState(null);
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
+  const [authInitialScreen, setAuthInitialScreen] = useState("landing");
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
   const [connectBanner, setConnectBanner] = useState(null); // "success" | "refresh" | null
@@ -6465,7 +6509,11 @@ export default function App() {
       }
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setAuthInitialScreen("recovery");
+        setShowAuth(true);
+      }
       if (!session) setUser(null);
     });
 
@@ -6722,7 +6770,7 @@ export default function App() {
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
-      {showAuth && <SignInModal onClose={() => setShowAuth(false)} onAuth={handleAuth} />}
+      {showAuth && <SignInModal initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
       {extendBookingId && (
         user ? (
           <ExtendSessionModal bookingId={extendBookingId} onClose={() => setExtendBookingId(null)} />
