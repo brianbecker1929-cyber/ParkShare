@@ -200,6 +200,83 @@ const MAP_STYLE = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
+// Compact ParkShare locator: the pin stays visually anchored by its pointed
+// tip, while the selected state reveals the listing's hourly price.
+function ParkingMapPin({ listing, selected, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(listing)}
+      aria-label={`${listing.title || "Parking spot"}, $${listing.price} per hour${selected ? ", selected" : ""}`}
+      title={selected ? `$${listing.price}/hr` : "View parking spot"}
+      style={{
+        position: "relative",
+        width: 36,
+        height: 46,
+        padding: 0,
+        border: 0,
+        background: "transparent",
+        cursor: "pointer",
+        transform: `translate(-50%, -100%)${selected ? " scale(1.1)" : ""}`,
+        transformOrigin: "50% 100%",
+        transition: "transform 0.16s ease",
+        filter: "drop-shadow(0 3px 4px rgba(14,27,46,0.28))",
+        overflow: "visible",
+        fontFamily: "'Poppins', sans-serif",
+        zIndex: selected ? 2 : 1,
+      }}
+    >
+      {selected && (
+        <span style={{
+          position: "absolute",
+          left: "50%",
+          bottom: 49,
+          transform: "translateX(-50%)",
+          minWidth: 70,
+          padding: "5px 9px",
+          borderRadius: 9,
+          border: `2px solid ${C.navy}`,
+          background: C.amber,
+          color: C.navy,
+          boxShadow: "0 2px 8px rgba(14,27,46,0.24)",
+          fontSize: 12,
+          fontWeight: 800,
+          lineHeight: 1,
+          whiteSpace: "nowrap",
+        }}>
+          ${listing.price}<span style={{ fontSize: 9, fontWeight: 700 }}>/hr</span>
+        </span>
+      )}
+
+      <svg
+        viewBox="0 0 36 46"
+        width="36"
+        height="46"
+        aria-hidden="true"
+        focusable="false"
+        style={{ display: "block", overflow: "visible" }}
+      >
+        <path
+          d="M18 1.5C8.9 1.5 1.5 8.9 1.5 18c0 11.6 11.2 23 16.5 27 5.3-4 16.5-15.4 16.5-27C34.5 8.9 27.1 1.5 18 1.5Z"
+          fill={C.amber}
+          stroke={C.navy}
+          strokeWidth="3"
+          strokeLinejoin="round"
+        />
+        <text
+          x="18"
+          y="24.2"
+          textAnchor="middle"
+          fill={C.navy}
+          fontFamily="Poppins, Arial, sans-serif"
+          fontSize="19"
+          fontWeight="900"
+        >P</text>
+      </svg>
+    </button>
+  );
+}
+
 function ListingsMap({ listings, selected, onSelect, userLoc }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
@@ -264,13 +341,7 @@ function ListingsMap({ listings, selected, onSelect, userLoc }) {
           const on = selected?.id === l.id;
           return (
             <OverlayView key={l.id} position={{ lat: l.lat, lng: l.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-              <button onClick={() => onSelect(l)} style={{
-                transform: "translate(-50%,-100%)" + (on ? " scale(1.12)" : ""),
-                background: on ? C.hazard : C.warmWhite, color: on ? "#fff" : C.navy, fontWeight: 700, fontSize: 12,
-                padding: "4px 9px", borderRadius: 7, border: "2px solid " + (on ? C.hazard : C.navy),
-                boxShadow: "0 2px 8px rgba(0,0,0,0.22)", whiteSpace: "nowrap", cursor: "pointer",
-                fontFamily: "'Poppins', sans-serif", transition: "transform 0.15s",
-              }}>${l.price}/hr</button>
+              <ParkingMapPin listing={l} selected={on} onSelect={onSelect} />
             </OverlayView>
           );
         })}
