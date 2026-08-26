@@ -200,7 +200,118 @@ const MAP_STYLE = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-function ListingsMap({ listings, selected, onSelect, userLoc }) {
+// Compact ParkShare locator: the pin stays visually anchored by its pointed
+// tip, while the selected state reveals the listing's hourly price.
+function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: 36,
+        height: 46,
+        transform: `translate(-50%, -100%)${selected ? " scale(1.1)" : ""}`,
+        transformOrigin: "50% 100%",
+        transition: "transform 0.16s ease",
+        fontFamily: "'Poppins', sans-serif",
+        zIndex: selected ? 2 : 1,
+      }}
+    >
+      {selected && (
+        <div
+          role="dialog"
+          aria-label={`Preview of ${listing.title || "parking spot"}`}
+          onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+          onPointerUp={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+          style={{
+          position: "absolute",
+          left: "50%",
+          bottom: 53,
+          transform: "translateX(-50%)",
+          width: 184,
+          padding: 8,
+          borderRadius: 12,
+          border: `2px solid ${C.navy}`,
+          background: C.white,
+          color: C.navy,
+          boxShadow: "0 2px 8px rgba(14,27,46,0.24)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: C.amberLight }}>
+              <ListingThumb listing={listing} size={38} fontSize={23} />
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listing.title || "Parking spot"}</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, marginTop: 2 }}>
+                <span style={{ color: C.muted, fontSize: 9, fontWeight: 700 }}>★ {listing.rating ?? "New"}</span>
+                <span style={{ color: C.navy, fontSize: 12, fontWeight: 900 }}>${listing.price}<span style={{ fontSize: 8, fontWeight: 700 }}>/hr</span></span>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onViewListing(listing); }}
+            onPointerDown={e => e.stopPropagation()}
+            onPointerUp={e => e.stopPropagation()}
+            onTouchStart={e => e.stopPropagation()}
+            onTouchEnd={e => e.stopPropagation()}
+            style={{
+              width: "100%", marginTop: 7, padding: "6px 9px", border: 0,
+              borderRadius: 8, background: C.amber, color: C.navy,
+              fontFamily: "'Poppins', sans-serif", fontSize: 9.5, fontWeight: 800,
+              cursor: "pointer",
+            }}
+          >
+            View parking →
+          </button>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={e => { e.stopPropagation(); onSelect(listing); }}
+        aria-label={`${listing.title || "Parking spot"}, $${listing.price} per hour${selected ? ", preview open" : ""}`}
+        aria-expanded={selected}
+        title={selected ? `$${listing.price}/hr preview open` : "Preview parking spot"}
+        style={{
+          width: 36, height: 46, padding: 0, border: 0, background: "transparent",
+          cursor: "pointer", filter: "drop-shadow(0 3px 4px rgba(14,27,46,0.28))",
+          overflow: "visible",
+        }}
+      >
+        <svg
+          viewBox="0 0 36 46"
+          width="36"
+          height="46"
+          aria-hidden="true"
+          focusable="false"
+          style={{ display: "block", overflow: "visible" }}
+        >
+          <path
+            d="M18 1.5C8.9 1.5 1.5 8.9 1.5 18c0 11.6 11.2 23 16.5 27 5.3-4 16.5-15.4 16.5-27C34.5 8.9 27.1 1.5 18 1.5Z"
+            fill={C.amber}
+            stroke={C.navy}
+            strokeWidth="3"
+            strokeLinejoin="round"
+          />
+          <text
+            x="18"
+            y="24.2"
+            textAnchor="middle"
+            fill={C.navy}
+            fontFamily="Poppins, Arial, sans-serif"
+            fontSize="19"
+            fontWeight="900"
+          >P</text>
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -264,13 +375,7 @@ function ListingsMap({ listings, selected, onSelect, userLoc }) {
           const on = selected?.id === l.id;
           return (
             <OverlayView key={l.id} position={{ lat: l.lat, lng: l.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-              <button onClick={() => onSelect(l)} style={{
-                transform: "translate(-50%,-100%)" + (on ? " scale(1.12)" : ""),
-                background: on ? C.hazard : C.warmWhite, color: on ? "#fff" : C.navy, fontWeight: 700, fontSize: 12,
-                padding: "4px 9px", borderRadius: 7, border: "2px solid " + (on ? C.hazard : C.navy),
-                boxShadow: "0 2px 8px rgba(0,0,0,0.22)", whiteSpace: "nowrap", cursor: "pointer",
-                fontFamily: "'Poppins', sans-serif", transition: "transform 0.15s",
-              }}>${l.price}/hr</button>
+              <ParkingMapPin listing={l} selected={on} onSelect={onSelect} onViewListing={onViewListing} />
             </OverlayView>
           );
         })}
@@ -1499,7 +1604,13 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
         {view !== "list" && (
           <div style={{ flex: 1, padding: 6 }}>
             <div style={{ height: "100%", borderRadius: 10, overflow: "hidden", border: "1px solid "+C.concrete }}>
-              <ListingsMap listings={filtered} selected={mapHovered} onSelect={l => { setMapHovered(l); setSelected(l); }} userLoc={userLoc} />
+              <ListingsMap
+                listings={filtered}
+                selected={mapHovered}
+                onSelect={setMapHovered}
+                onViewListing={setSelected}
+                userLoc={userLoc}
+              />
             </div>
           </div>
         )}
