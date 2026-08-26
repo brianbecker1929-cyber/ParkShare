@@ -205,11 +205,12 @@ const MAP_STYLE = [
 function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
   return (
     <div
+      className="ps-map-parking-pin"
       style={{
         position: "relative",
-        width: 36,
-        height: 46,
-        transform: `translate(-50%, -100%)${selected ? " scale(1.1)" : ""}`,
+        width: "var(--ps-pin-width)",
+        height: "var(--ps-pin-height)",
+        transform: `translate(-50%, -100%)${selected ? " scale(var(--ps-pin-selected-scale))" : ""}`,
         transformOrigin: "50% 100%",
         transition: "transform 0.16s ease",
         fontFamily: "'Poppins', sans-serif",
@@ -228,7 +229,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
           style={{
           position: "absolute",
           left: "50%",
-          bottom: 53,
+          bottom: "calc(var(--ps-pin-height) + 7px)",
           transform: "translateX(-50%)",
           width: 184,
           padding: 8,
@@ -276,15 +277,15 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
         aria-expanded={selected}
         title={selected ? `$${listing.price}/hr preview open` : "Preview parking spot"}
         style={{
-          width: 36, height: 46, padding: 0, border: 0, background: "transparent",
+          width: "100%", height: "100%", padding: 0, border: 0, background: "transparent",
           cursor: "pointer", filter: "drop-shadow(0 3px 4px rgba(14,27,46,0.28))",
           overflow: "visible",
         }}
       >
         <svg
           viewBox="0 0 36 46"
-          width="36"
-          height="46"
+          width="100%"
+          height="100%"
           aria-hidden="true"
           focusable="false"
           style={{ display: "block", overflow: "visible" }}
@@ -297,6 +298,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
             strokeLinejoin="round"
           />
           <text
+            className="ps-map-parking-pin-letter"
             x="18"
             y="24.2"
             textAnchor="middle"
@@ -336,6 +338,19 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
     mapRef.current.fitBounds(bounds, 48);
   }, [withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
 
+  // On narrow mobile maps, center the chosen spot and leave vertical room
+  // above its pin so the compact preview cannot be clipped by the toolbar.
+  useEffect(() => {
+    if (!selected || !mapRef.current || typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 700px)").matches) return;
+    if (typeof selected.lat !== "number" || typeof selected.lng !== "number") return;
+
+    const map = mapRef.current;
+    map.panTo({ lat: selected.lat, lng: selected.lng });
+    const frame = window.requestAnimationFrame(() => map.panBy(0, -105));
+    return () => window.cancelAnimationFrame(frame);
+  }, [selected?.id]);
+
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 }}>Map unavailable — missing Google Maps API key</div>;
   }
@@ -353,6 +368,25 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
 
   return (
     <div style={{ width: "100%", height: "100%", borderRadius: 12, overflow: "hidden" }}>
+      <style>{`
+        .ps-map-parking-pin {
+          --ps-pin-width: 36px;
+          --ps-pin-height: 46px;
+          --ps-pin-selected-scale: 1.1;
+        }
+
+        @media (max-width: 700px) {
+          .ps-map-parking-pin {
+            --ps-pin-width: 29px;
+            --ps-pin-height: 37px;
+            --ps-pin-selected-scale: 1.08;
+          }
+
+          .ps-map-parking-pin-letter {
+            font-size: 15px;
+          }
+        }
+      `}</style>
       <GoogleMap
         mapContainerStyle={{ width: "100%", height: "100%" }}
         center={center}
