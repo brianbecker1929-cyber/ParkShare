@@ -221,6 +221,10 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
           role="dialog"
           aria-label={`Preview of ${listing.title || "parking spot"}`}
           onClick={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
+          onPointerUp={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
           style={{
           position: "absolute",
           left: "50%",
@@ -249,6 +253,10 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
           <button
             type="button"
             onClick={e => { e.stopPropagation(); onViewListing(listing); }}
+            onPointerDown={e => e.stopPropagation()}
+            onPointerUp={e => e.stopPropagation()}
+            onTouchStart={e => e.stopPropagation()}
+            onTouchEnd={e => e.stopPropagation()}
             style={{
               width: "100%", marginTop: 7, padding: "6px 9px", border: 0,
               borderRadius: 8, background: C.amber, color: C.navy,
@@ -303,7 +311,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
   );
 }
 
-function ListingsMap({ listings, selected, onSelect, onViewListing, onClearSelection, userLoc }) {
+function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -350,7 +358,6 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onClearSelec
         center={center}
         zoom={13}
         onLoad={(map) => { mapRef.current = map; }}
-        onClick={() => onClearSelection?.()}
         options={{
           styles: MAP_STYLE,
           disableDefaultUI: true,
@@ -1602,7 +1609,6 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
                 selected={mapHovered}
                 onSelect={setMapHovered}
                 onViewListing={setSelected}
-                onClearSelection={() => setMapHovered(null)}
                 userLoc={userLoc}
               />
             </div>
