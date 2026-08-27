@@ -3484,11 +3484,22 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
 
   return (
     <div style={{ position: "fixed", right: corner.right, bottom: corner.bottom, zIndex: 1500, fontFamily: "'Poppins', sans-serif" }}>
+      <svg aria-hidden="true" focusable="false" width="0" height="0" style={{ position: "absolute" }}>
+        <filter id="parker-solid-white-outline" x="-12%" y="-12%" width="124%" height="124%" colorInterpolationFilters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius="1.15" result="expandedAlpha" />
+          <feFlood floodColor="#FFFFFF" floodOpacity="1" result="solidWhite" />
+          <feComposite in="solidWhite" in2="expandedAlpha" operator="in" result="whiteSilhouette" />
+          <feMerge>
+            <feMergeNode in="whiteSilhouette" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </svg>
       {open && (
         <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 4, borderRadius: "16px 16px 0 0", position: "relative", zIndex: 1 }}>
             <div style={{ width: 88, height: 68, background: "transparent", overflow: "visible", flexShrink: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", position: "relative", zIndex: 2 }}>
-              <img src={PARKER.customerCare} alt="Parker" style={{ height: 94, width: "auto", maxWidth: "none", objectFit: "contain", objectPosition: "center top", transform: "translateY(-7px)", flexShrink: 0, filter: "drop-shadow(0 0 1.5px #fff) drop-shadow(0 2px 3px rgba(0,0,0,0.25))", pointerEvents: "none" }} />
+              <img src={PARKER.customerCare} alt="Parker" style={{ height: 94, width: "auto", maxWidth: "none", objectFit: "contain", objectPosition: "center top", transform: "translateY(-7px)", flexShrink: 0, filter: "url(#parker-solid-white-outline)", pointerEvents: "none" }} />
             </div>
             <div>
               <div style={{ color: C.white, fontWeight: 700, fontSize: 14 }}>Ask Parker</div>
