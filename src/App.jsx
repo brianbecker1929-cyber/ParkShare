@@ -3487,8 +3487,8 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
       {open && (
         <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderRadius: "16px 16px 0 0" }}>
-            <div style={{ width: 52, height: 64, borderRadius: "50%", background: C.white, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + C.amber }}>
-              <img src={PARKER.customerCare} alt="Parker" style={{ width: "88px", height: "88px", maxWidth: "none", objectFit: "contain", objectPosition: "center top", transform: "translateY(8px)", flexShrink: 0 }} />
+            <div style={{ width: 64, height: 64, background: "transparent", overflow: "visible", flexShrink: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", position: "relative", zIndex: 2 }}>
+              <img src={PARKER.customerCare} alt="Parker" style={{ width: 74, height: 74, maxWidth: "none", objectFit: "contain", objectPosition: "center top", transform: "translateY(3px)", flexShrink: 0, filter: "drop-shadow(1.5px 0 0 #fff) drop-shadow(-1.5px 0 0 #fff) drop-shadow(0 1.5px 0 #fff) drop-shadow(0 -1.5px 0 #fff)", pointerEvents: "none" }} />
             </div>
             <div>
               <div style={{ color: C.white, fontWeight: 700, fontSize: 14 }}>Ask Parker</div>
