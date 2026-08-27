@@ -30,6 +30,7 @@ const PARKER = {
   face: "/parker/parker-face.png",
   headset: "/parker/parker-headset.png",
   helpful: "/parker/Parker-Helpful.png",
+  customerCare: "/parker/Parker-Customer-Care-Fullbody.png",
   thankyou: "/parker/parker-thankyou.png",
   thinking: "/parker/parker-thinking.png",
   welcome: "/parker/parker-welcome.png",
@@ -3434,15 +3435,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 // ─── Floating Parker Help Assistant ────────────────────────────────────────────
-const HELP_TOPICS = [
-  { q: "How do I book a driveway?", a: "Browse listings or search by address, pick a spot, choose your hours, and pay securely — you'll get directions and any gate codes right in your confirmation." },
-  { q: "How do I list my driveway?", a: "Tap \"List Your Driveway,\" add photos, set your hourly price and availability, and you're live. Most hosts get their first booking within a few days!" },
-  { q: "How do payments work?", a: "You're only charged when a booking is confirmed. Hosts get paid out automatically after each completed booking, minus ParkShare's small service fee." },
-  { q: "How do I contact a host?", a: "Open any listing and tap \"Message host\" — or find the conversation anytime under the Messages tab." },
-  { q: "Can I cancel a booking?", a: "Yes — head to My Bookings and select the booking you'd like to cancel. Refund timing depends on how close you are to the start time." },
-];
-
-function FloatingParkerHelp() {
+function FloatingParkerHelp({ onHelpClick, onContactClick }) {
   const [open, setOpen] = useState(false);
   const [activeQ, setActiveQ] = useState(null);
   const [pos, setPos] = useState(null); // { right, bottom } in px; null = default corner
@@ -3495,7 +3488,7 @@ function FloatingParkerHelp() {
         <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderRadius: "16px 16px 0 0" }}>
             <div style={{ width: 52, height: 64, borderRadius: "50%", background: C.white, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + C.amber }}>
-              <img src={PARKER.thinking} alt="Parker" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center 25%" }} />
+              <img src={PARKER.customerCare} alt="Parker" style={{ width: "88px", height: "88px", maxWidth: "none", objectFit: "contain", objectPosition: "center top", transform: "translateY(8px)", flexShrink: 0 }} />
             </div>
             <div>
               <div style={{ color: C.white, fontWeight: 700, fontSize: 14 }}>Ask Parker</div>
@@ -3515,6 +3508,9 @@ function FloatingParkerHelp() {
                     </button>
                   ))}
                 </div>
+                <button onClick={onHelpClick} style={{ width: "100%", marginTop: 12, background: C.navy, color: C.white, border: "none", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  View all Help &amp; FAQ →
+                </button>
               </>
             ) : (
               <div>
@@ -3523,6 +3519,12 @@ function FloatingParkerHelp() {
                 <div style={{ background: C.mossLight, border: "1px solid " + C.moss, borderRadius: 10, padding: "12px 14px", color: C.navy, fontSize: 13, lineHeight: 1.5 }}>
                   {HELP_TOPICS[activeQ].a}
                 </div>
+                <button onClick={onContactClick} style={{ width: "100%", marginTop: 10, background: C.amber, color: C.navy, border: "none", borderRadius: 10, padding: "10px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  Still need help? Contact Us →
+                </button>
+                <button onClick={onHelpClick} style={{ width: "100%", marginTop: 8, background: "transparent", color: C.navy, border: "1.5px solid " + C.navy, borderRadius: 10, padding: "9px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  View all Help &amp; FAQ →
+                </button>
               </div>
             )}
           </div>
@@ -5550,6 +5552,7 @@ const HELP_DATA = [
       ]},
       { sub: "Managing Your Reservation", items: [
         { q: "Where can I find my reservation?", a: "Your ParkShare account provides access to your booking information and relevant reservation details." },
+        { q: "How do I contact a Host?", a: "Open the relevant listing or reservation and use the available messaging option to contact the Host. You can return to the conversation through the Messages area of your ParkShare account." },
         { q: "Can I change my reservation?", a: "Available modification options depend on the reservation and ParkShare's applicable booking policies. Check your reservation details for the options currently available." },
         { q: "Can I extend my parking time?", a: "If additional time is available for the space, ParkShare may provide an option to extend your reservation. Always extend your booking before your existing reservation ends." },
         { q: "What happens if I'm late?", a: "Your reservation only covers the confirmed booking period. If you expect to remain longer, check whether additional time is available and extend your reservation when possible." },
@@ -5612,6 +5615,22 @@ const HELP_DATA = [
     ],
   },
 ];
+
+// Ask Parker uses the same question-and-answer objects as the Help Centre,
+// keeping quick answers and the full FAQ synchronized from one source.
+const ASK_PARKER_QUESTIONS = [
+  "How do I find parking?",
+  "How do I create a listing?",
+  "How do Drivers pay?",
+  "How do I contact a Host?",
+  "Can I cancel a reservation?",
+];
+
+const HELP_TOPICS = ASK_PARKER_QUESTIONS.map(question =>
+  HELP_DATA.flatMap(category => category.groups)
+    .flatMap(group => group.items)
+    .find(item => item.q === question)
+).filter(Boolean);
 
 function HelpAccordionItem({ q, a, isOpen, onToggle }) {
   return (
@@ -6917,7 +6936,7 @@ export default function App() {
           {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
-          <FloatingParkerHelp />
+          <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
