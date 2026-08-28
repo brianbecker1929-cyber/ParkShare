@@ -185,7 +185,7 @@ function milesBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const GOOGLE_MAPS_LIBRARIES = ["drawing"]; // stable array reference — required by useJsApiLoader to avoid reload loops. "drawing" powers the satellite spot-marking tool in the host listing flow.
+const GOOGLE_MAPS_LIBRARIES = ["drawing", "places"]; // Stable reference: drawing powers the Host spot tool; places lets Drivers search destinations, landmarks, businesses, and addresses.
 
 // Muted "curbside" map styling so Google's default map matches the app's palette.
 const MAP_STYLE = [
@@ -1413,6 +1413,10 @@ function useAllListings() {
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
 function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocation, initialQuery }) {
+  const { isLoaded: placesLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
   const { listings: allListings, loading: listingsLoading, error: listingsError, refresh: refreshListings } = useAllListings();
   const [query, setQuery] = useState("");
   const [locatedSearch, setLocatedSearch] = useState(false);
@@ -1428,9 +1432,11 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   const [locationError, setLocationError] = useState(null);
   const debounceRef = useRef(null);
   const searchInputRef = useRef(null);
+  const autocompleteTokenRef = useRef(null);
+  const suggestionRequestRef = useRef(0);
 
-  // If the live geocoder can't be reached, fall back to matching against our
-  // own listing addresses so the dropdown still shows something useful.
+  // If Google Places can't be reached, fall back to matching against our own
+  // listing addresses and titles so the search field still stays useful.
   const localFallbackSuggestions = (val) => {
     const q = val.toLowerCase();
     return allListings
@@ -1440,35 +1446,45 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   };
 
   const handleSearch = (val) => {
+    const requestId = ++suggestionRequestRef.current;
     setQuery(val);
     setLocatedSearch(false);
     setSuggestions([]);
     setSugError(false);
     clearTimeout(debounceRef.current);
-    if (val.length < 2) { setLoadingSug(false); return; }
+    if (val.trim().length < 2) { setLoadingSug(false); return; }
     setLoadingSug(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" + encodeURIComponent(val), { headers: { "Accept-Language": "en" } });
-        if (!res.ok) throw new Error("Geocoder returned " + res.status);
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error("Unexpected response shape");
-        const results = data.map(d => ({
-          short: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb, d.address.state].filter(Boolean).join(", "),
-          full: d.display_name,
-          lat: parseFloat(d.lat),
-          lng: parseFloat(d.lon),
-        }));
+        if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Places search is still loading");
+        const { AutocompleteSessionToken, AutocompleteSuggestion } = await google.maps.importLibrary("places");
+        if (!autocompleteTokenRef.current) autocompleteTokenRef.current = new AutocompleteSessionToken();
+        const { suggestions: placeSuggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: val,
+          sessionToken: autocompleteTokenRef.current,
+        });
+        const results = placeSuggestions
+          .filter(suggestion => suggestion.placePrediction)
+          .slice(0, 5)
+          .map(suggestion => {
+            const prediction = suggestion.placePrediction;
+            return {
+              short: prediction.mainText?.text || prediction.text?.text || "Destination",
+              full: prediction.secondaryText?.text || prediction.text?.text || "",
+              prediction,
+            };
+          });
+        if (requestId !== suggestionRequestRef.current) return;
         if (results.length === 0) {
-          // No matches from the geocoder — still offer local listing matches if any.
+          // No Google result — still offer matching ParkShare listings.
           const local = localFallbackSuggestions(val);
           setSuggestions(local);
         } else {
           setSuggestions(results);
         }
       } catch (e) {
-        // Network/CORS/geocoder failure — fall back to matching local listings
-        // so the search bar isn't a dead end, and flag that live lookup failed.
+        if (requestId !== suggestionRequestRef.current) return;
+        // API/configuration failure — keep the field useful with local listings.
         setSugError(true);
         setSuggestions(localFallbackSuggestions(val));
       }
@@ -1476,11 +1492,29 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
     }, 350);
   };
 
-  const pickSuggestion = (s) => {
-    setQuery(s.short);
+  const pickSuggestion = async (s) => {
     setSuggestions([]);
-    if (!isNaN(s.lat) && !isNaN(s.lng)) {
-      setUserLoc({ lat: s.lat, lng: s.lng });
+    setSugError(false);
+    setQuery(s.short);
+    let lat = s.lat;
+    let lng = s.lng;
+    let destinationName = s.short;
+    try {
+      if (s.prediction) {
+        const place = s.prediction.toPlace();
+        await place.fetchFields({ fields: ["displayName", "formattedAddress", "location"] });
+        lat = place.location?.lat();
+        lng = place.location?.lng();
+        destinationName = place.displayName || s.short;
+        setQuery(destinationName);
+      }
+    } catch (e) {
+      setSugError(true);
+    } finally {
+      autocompleteTokenRef.current = null;
+    }
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setUserLoc({ lat, lng });
       setSort("distance");
       setLocatedSearch(true);
     }
@@ -1534,20 +1568,20 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
           <div style={{ flex: 1, position: "relative" }}>
-            <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search address or driveway…"
+            <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
               style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
             {loadingSug && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11 }}>⏳</span>}
             {/* Autocomplete dropdown */}
             {suggestions.length === 0 && sugError && !loadingSug && query.length >= 2 && (
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.white, border: "1.5px solid "+C.concrete, borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.12)", zIndex: 500, padding: "9px 12px", fontSize: 11, color: C.muted }}>
-                Couldn't reach the address lookup service, and no nearby listings matched "{query}".
+                Couldn't reach destination search, and no ParkShare listings matched "{query}".
               </div>
             )}
             {suggestions.length > 0 && (
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.white, border: "1.5px solid "+C.concrete, borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.12)", zIndex: 500, overflow: "hidden" }}>
                 {sugError && (
                   <div style={{ padding: "6px 12px", fontSize: 10, color: C.muted, background: C.warmWhite, borderBottom: "1px solid "+C.concrete }}>
-                    Live address lookup unavailable — showing matches from nearby listings
+                    Live destination search unavailable — showing ParkShare listing matches
                   </div>
                 )}
                 {suggestions.map((s, i) => (
