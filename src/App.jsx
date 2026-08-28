@@ -323,11 +323,17 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
 
   const withCoords = listings.filter(l => typeof l.lat === "number" && typeof l.lng === "number");
 
-  // Fit the map to show every pin (plus the user's location, if known) whenever the
-  // underlying set of listings changes — e.g. after a new search or filter.
+  // A searched destination (or device location) is the map's anchor. Centre it
+  // immediately instead of fitting every marketplace pin into one wide view;
+  // without a location search, keep the useful overview of all listing pins.
   useEffect(() => {
     if (!mapRef.current || !window.google) return;
-    const pts = userLoc ? [...withCoords, userLoc] : withCoords;
+    if (userLoc) {
+      mapRef.current.panTo({ lat: userLoc.lat, lng: userLoc.lng });
+      mapRef.current.setZoom(14);
+      return;
+    }
+    const pts = withCoords;
     if (pts.length === 0) return;
     if (pts.length === 1) {
       mapRef.current.panTo({ lat: pts[0].lat, lng: pts[0].lng });
@@ -337,7 +343,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
     const bounds = new window.google.maps.LatLngBounds();
     pts.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
     mapRef.current.fitBounds(bounds, 48);
-  }, [withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
+  }, [isLoaded, withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
 
   // On narrow mobile maps, center the chosen spot and leave vertical room
   // above its pin so the compact preview cannot be clipped by the toolbar.
