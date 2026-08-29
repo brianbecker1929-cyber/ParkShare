@@ -152,12 +152,21 @@ export async function checkAvailability(listingId, spaces, start, end) {
     .gte("paid_at", since);
   if (error) throw error;
 
+  const { data: holds, error: holdsError } = await supabaseAdmin
+    .from("booking_holds")
+    .select("id, starts_at, ends_at")
+    .eq("listing_id", listingId)
+    .gt("expires_at", new Date().toISOString())
+    .lt("starts_at", end.toISOString())
+    .gt("ends_at", start.toISOString());
+  if (holdsError) throw holdsError;
+
   const overlapping = (bookings || []).filter((b) => {
     const w = getSessionWindow(b);
     return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
   });
 
-  const spacesTaken = overlapping.length;
+  const spacesTaken = overlapping.length + (holds || []).length;
   const spacesFree = Math.max(0, Number(spaces) - spacesTaken);
   return { available: spacesFree > 0, spacesTotal: Number(spaces), spacesTaken, spacesFree };
 }
@@ -193,13 +202,24 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
     .gte("paid_at", since);
   if (error) throw error;
 
+  const { data: holds, error: holdsError } = await supabaseAdmin
+    .from("booking_holds")
+    .select("id")
+    .eq("listing_id", listingId)
+    .ilike("spot_label", label)
+    .gt("expires_at", new Date().toISOString())
+    .lt("starts_at", end.toISOString())
+    .gt("ends_at", start.toISOString())
+    .limit(1);
+  if (holdsError) throw holdsError;
+
   const conflict = (bookings || []).find((b) => {
     if (String(b.spot_label || "").trim().toUpperCase() !== label) return false;
     const w = getSessionWindow(b);
     return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
   });
 
-  return { available: !conflict, spotLabel: label, conflictingBookingId: conflict?.id ?? null };
+  return { available: !conflict && !(holds || []).length, spotLabel: label, conflictingBookingId: conflict?.id ?? null };
 }
 
 // Batched version of checkSpotAvailability() for showing live status across
@@ -226,6 +246,15 @@ export async function checkAllSpotAvailability(listingId, labels, start, end) {
     .gte("paid_at", since);
   if (error) throw error;
 
+  const { data: holds, error: holdsError } = await supabaseAdmin
+    .from("booking_holds")
+    .select("spot_label")
+    .eq("listing_id", listingId)
+    .gt("expires_at", new Date().toISOString())
+    .lt("starts_at", end.toISOString())
+    .gt("ends_at", start.toISOString());
+  if (holdsError) throw holdsError;
+
   const overlapping = (bookings || []).filter((b) => {
     const w = getSessionWindow(b);
     return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
@@ -233,6 +262,10 @@ export async function checkAllSpotAvailability(listingId, labels, start, end) {
   const takenLabels = new Set(
     overlapping.map((b) => String(b.spot_label || "").trim().toUpperCase()).filter(Boolean)
   );
+  for (const hold of holds || []) {
+    const heldLabel = String(hold.spot_label || "").trim().toUpperCase();
+    if (heldLabel) takenLabels.add(heldLabel);
+  }
 
   const status = {};
   for (const label of wantedLabels) {
