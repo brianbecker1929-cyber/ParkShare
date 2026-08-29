@@ -2343,6 +2343,16 @@ function HostDashboard({ user, setTab }) {
           onSave={saveListingEdit}
         />
       )}
+      {cancelTarget && (
+        <CancellationModal
+          title={`Cancel ${cancelTarget.driver}'s booking?`}
+          actor="host"
+          busy={cancelBusy}
+          error={cancelError}
+          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onConfirm={cancelHostBooking}
+        />
+      )}
     </div>
   );
 }
@@ -2433,17 +2443,6 @@ function DrivewayFrame({ children }) {
       <div style={{ position: "absolute", ...DRIVEWAY_PAVEMENT, display: "flex", alignItems: "center", justifyContent: "center", padding: "3% 4%", boxSizing: "border-box", overflow: "hidden" }}>
         {children}
       </div>
-
-      {cancelTarget && (
-        <CancellationModal
-          title={`Cancel ${cancelTarget.driver}'s booking?`}
-          actor="host"
-          busy={cancelBusy}
-          error={cancelError}
-          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
-          onConfirm={cancelHostBooking}
-        />
-      )}
     </div>
   );
 }
