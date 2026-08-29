@@ -107,7 +107,7 @@ function PriceTag({ price, size = "md" }) {
       fontWeight: 800, fontSize: dims.font, padding: dims.pad, borderRadius: 6,
       border: "2px solid " + C.navy, transform: "rotate(-1.5deg)", flexShrink: 0,
     }}>
-      ${price}<span style={{ fontSize: dims.sub, fontWeight: 600, color: C.muted }}>/hr</span>
+      {money(price)}<span style={{ fontSize: dims.sub, fontWeight: 600, color: C.muted }}>/hr</span>
     </span>
   );
 }
@@ -248,7 +248,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
               <div style={{ fontSize: 10.5, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{listing.title || "Parking spot"}</div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 5, marginTop: 2 }}>
                 <span style={{ color: C.muted, fontSize: 9, fontWeight: 700 }}>★ {listing.rating ?? "New"}</span>
-                <span style={{ color: C.navy, fontSize: 12, fontWeight: 900 }}>${listing.price}<span style={{ fontSize: 8, fontWeight: 700 }}>/hr</span></span>
+                <span style={{ color: C.navy, fontSize: 12, fontWeight: 900 }}>{money(listing.price)}<span style={{ fontSize: 8, fontWeight: 700 }}>/hr</span></span>
               </div>
             </div>
           </div>
@@ -274,9 +274,9 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
       <button
         type="button"
         onClick={e => { e.stopPropagation(); onSelect(listing); }}
-        aria-label={`${listing.title || "Parking spot"}, $${listing.price} per hour${selected ? ", preview open" : ""}`}
+        aria-label={`${listing.title || "Parking spot"}, ${money(listing.price)} per hour${selected ? ", preview open" : ""}`}
         aria-expanded={selected}
-        title={selected ? `$${listing.price}/hr preview open` : "Preview parking spot"}
+        title={selected ? `${money(listing.price)}/hr preview open` : "Preview parking spot"}
         style={{
           width: "100%", height: "100%", padding: 0, border: 0, background: "transparent",
           cursor: "pointer", filter: "drop-shadow(0 3px 4px rgba(14,27,46,0.28))",
@@ -666,7 +666,7 @@ const subtotal = listing.price * hours;
         <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>
           <strong>{listing.title}</strong> · {hours} hr{hours > 1 ? "s" : ""}{chosenSpot !== null && chosenSpot !== undefined ? " · Spot " + spotLabel(chosenSpot) : ""}
         </p>
-        <p style={{ color: C.amber, fontWeight: 800, fontSize: 20, marginBottom: 20 }}>${total} charged</p>
+        <p style={{ color: C.amber, fontWeight: 800, fontSize: 20, marginBottom: 20 }}>{money(total)} charged</p>
         <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "12px 16px", color: C.moss, fontSize: 13, fontWeight: 600, marginBottom: 24 }}>
           📍 {listing.address}
         </div>
@@ -706,15 +706,15 @@ const subtotal = listing.price * hours;
               </div>
             )}
             {[
-              ["$"+listing.price+"/hr × "+hours+" hr"+(hours>1?"s":""), "$"+subtotal],
-              ["Service fee (15%)", "$"+serviceFee],
+              [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
+              ["Service fee (15%)", money(serviceFee)],
             ].map(([label, val]) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, marginBottom: 6 }}>
                 <span>{label}</span><span>{val}</span>
               </div>
             ))}
             <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, fontSize: 16, color: C.navy, borderTop: "1px solid "+C.concrete, paddingTop: 10, marginTop: 6 }}>
-              <span>Total</span><span style={{ color: C.amber }}>${total}</span>
+              <span>Total</span><span style={{ color: C.amber }}>{money(total)}</span>
             </div>
           </div>
 
@@ -746,7 +746,7 @@ const subtotal = listing.price * hours;
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ background: C.warmWhite, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: C.muted, display: "flex", justifyContent: "space-between" }}>
-            <span>Total due</span><span style={{ fontWeight: 800, color: C.amber, fontSize: 16 }}>${total}</span>
+            <span>Total due</span><span style={{ fontWeight: 800, color: C.amber, fontSize: 16 }}>{money(total)}</span>
           </div>
 
           <div>
@@ -783,7 +783,7 @@ const subtotal = listing.price * hours;
 
           <div style={{ display: "flex", gap: 10 }}>
             <Btn variant="pill" onClick={() => setStep(1)}>← Back</Btn>
-            <Btn variant="amber" onClick={pay} full>Pay ${total}</Btn>
+            <Btn variant="amber" onClick={pay} full>Pay {money(total)}</Btn>
           </div>
         </div>
       )}
@@ -1307,7 +1307,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>${Math.round(listing.price * hours * 1.15)}</div>
+              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
             </div>
             <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || selectedAvailability?.available === false}>Reserve & pay →</Btn>
           </div>
@@ -2206,7 +2206,7 @@ function HostDashboard({ user, setTab }) {
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 6 }}>
                   <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: C.mossLight, color: C.moss }}>{b.status}</div>
-                  <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>${b.total}</div>
+                  <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>{money(b.total)}</div>
                 </div>
               </div>
             ))}
@@ -2228,7 +2228,7 @@ function HostDashboard({ user, setTab }) {
                 <div style={{ width: 22, height: 22, borderRadius: 5, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={18} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
-                  <div style={{ fontSize: 9, color: C.muted }}>${l.price}/hr · ★{l.rating} · {l.bookings} bookings</div>
+                  <div style={{ fontSize: 9, color: C.muted }}>{money(l.price)}/hr · ★{l.rating} · {l.bookings} bookings</div>
                 </div>
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
@@ -2244,7 +2244,7 @@ function HostDashboard({ user, setTab }) {
                 )}
               </div>
             ))}
-            <div style={{ fontSize: 11, color: C.amber, fontWeight: 700, textAlign: "center", marginTop: 4 }}>${totalEarnings} total earned</div>
+            <div style={{ fontSize: 11, color: C.amber, fontWeight: 700, textAlign: "center", marginTop: 4 }}>{money(totalEarnings)} total earned</div>
           </div>
         </div>
 
@@ -2735,7 +2735,7 @@ function ListDrivewayView({ user }) {
           <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 16 }} />
         </div>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
-        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>${form.price}/hr</strong>.</p>
+        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(form.price)}/hr</strong>.</p>
         <Btn onClick={resetAll}>List another driveway</Btn>
       </div>
     );
@@ -2963,7 +2963,7 @@ function ListDrivewayView({ user }) {
           </div>
           {form.price && (
             <ParkerTip pose="success">
-              This driveway could earn its owner over <strong>${(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12).toLocaleString()}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
+              This driveway could earn its owner over <strong>{money(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12)}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
             </ParkerTip>
           )}
           {publishError && <div style={{ color: C.red, fontSize: 12.5, textAlign: "right" }}>{publishError}</div>}
@@ -3121,7 +3121,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
             </div>
             <div style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={b.status === "Upcoming" || b.status === "Active" ? C.moss : C.navy}>{b.status}</Badge>
-              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>${b.total}</div>
+              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
             </div>
           </div>
         </div>
@@ -3956,8 +3956,8 @@ function EarningsCalculator() {
       <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Try it yourself</div>
       <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, marginBottom: 18 }}>How much could your driveway earn?</div>
 
-      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 36, color: C.amber, lineHeight: 1 }}>${annual.toLocaleString()}</div>
-      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 3, marginBottom: 20 }}>estimated per year (${monthly.toLocaleString()}/mo)</div>
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 36, color: C.amber, lineHeight: 1 }}>{money(annual)}</div>
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 500, fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 3, marginBottom: 20 }}>estimated per year ({money(monthly)}/mo)</div>
 
       <div style={{ textAlign: "left", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -3992,7 +3992,7 @@ function EarningsCalculator() {
       </button>
 
       <p style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 400, fontSize: 10, color: "rgba(255,255,255,0.55)", margin: "14px 0 0", lineHeight: 1.5 }}>
-        Estimate only, based on a $12/hr average rate and ~15 booked days/month. Actual earnings vary.
+        Estimate only, based on a $12.00/hr average rate and ~15 booked days/month. Actual earnings vary.
       </p>
     </div>
   );
@@ -4024,7 +4024,7 @@ function PotentialEarningsSection() {
             </div>
             <div style={{ flexShrink: 0, textAlign: "right" }}>
               <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 16, color: C.navy, whiteSpace: "nowrap" }}>
-                ${row.low}–${row.high}<span style={{ fontWeight: 600, fontSize: 10.5, color: C.muted }}>/mo</span>
+                {money(row.low)}–{money(row.high)}<span style={{ fontWeight: 600, fontSize: 10.5, color: C.muted }}>/mo</span>
               </div>
               <Badge color={C.moss}>est.</Badge>
             </div>
@@ -4903,7 +4903,7 @@ function HostEarningsCalculator() {
       <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 15, color: C.white, marginBottom: 18 }}>What could your driveway earn?</div>
 
       <div style={fieldStyle}>
-        <div style={labelRow}><span style={labelText}>Your price (per hour)</span><span style={valueText}>${price}/hr</span></div>
+        <div style={labelRow}><span style={labelText}>Your price (per hour)</span><span style={valueText}>{money(price)}/hr</span></div>
         <input type="range" min={5} max={30} step={1} value={price} onChange={e => setPrice(Number(e.target.value))} style={{ width: "100%", accentColor: C.amber, cursor: "pointer" }} />
       </div>
 
@@ -4920,11 +4920,11 @@ function HostEarningsCalculator() {
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 16, marginTop: 4 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
           <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, color: "rgba(255,255,255,0.75)" }}>Estimated Monthly Earnings</span>
-          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14, color: C.white }}>${monthly.toLocaleString()}</span>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 14, color: C.white }}>{money(monthly)}</span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 600, fontSize: 12.5, color: "rgba(255,255,255,0.75)" }}>Estimated Annual Earnings</span>
-          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: C.amber }}>${annual.toLocaleString()}</span>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 18, color: C.amber }}>{money(annual)}</span>
         </div>
       </div>
 
