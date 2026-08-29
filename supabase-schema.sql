@@ -15,11 +15,11 @@ alter table profiles enable row level security;
 create policy "Profiles are viewable by everyone"
   on profiles for select using (true);
 
-create policy "Users can insert their own profile"
-  on profiles for insert with check (auth.uid() = id);
-
-create policy "Users can update their own profile"
-  on profiles for update using (auth.uid() = id);
+-- Only non-sensitive display columns are readable through the browser.
+-- Email comes from the signed-in auth session; Stripe and account-control
+-- fields are available only to authenticated server endpoints.
+revoke all privileges on table public.profiles from anon, authenticated;
+grant select (id, name, role) on table public.profiles to anon, authenticated;
 
 -- 2. Listings: driveways hosts have listed
 create table if not exists listings (
@@ -71,11 +71,11 @@ create policy "Hosts can view bookings on their listings"
     auth.uid() in (select host_id from listings where listings.id = bookings.listing_id)
   );
 
-create policy "Renters can create bookings"
-  on bookings for insert with check (auth.uid() = renter_id);
-
-create policy "Renters can update their own bookings"
-  on bookings for update using (auth.uid() = renter_id);
+-- Booking/payment records are server-owned. The Stripe webhook uses the
+-- service-role client to create and reconcile them after verified payment.
+-- Browser roles must never be able to fabricate a confirmed booking or edit
+-- totals, Stripe identifiers, session times, or payment status directly.
+revoke insert, update on table public.bookings from anon, authenticated;
 
 -- 4. Messages: chat between renter and host, scoped to a listing
 create table if not exists messages (
@@ -138,6 +138,28 @@ alter table bookings add column if not exists booking_date text;
 alter table bookings add column if not exists start_hour numeric;
 alter table bookings add column if not exists end_hour numeric;
 alter table bookings add column if not exists paid_at timestamptz;
+alter table bookings add column if not exists cancellation_requested_at timestamptz;
+alter table bookings add column if not exists cancelled_at timestamptz;
+alter table bookings add column if not exists cancelled_by text;
+alter table bookings add column if not exists cancellation_reason text;
+alter table bookings add column if not exists stripe_refund_id text;
+alter table bookings add column if not exists refund_amount numeric;
+alter table bookings add column if not exists refund_status text;
+alter table bookings add column if not exists refund_failure_reason text;
+alter table bookings drop constraint if exists bookings_cancelled_by_check;
+alter table bookings add constraint bookings_cancelled_by_check check (
+  cancelled_by is null or cancelled_by in ('driver', 'host', 'support', 'system')
+);
+alter table bookings drop constraint if exists bookings_refund_status_check;
+alter table bookings add constraint bookings_refund_status_check check (
+  refund_status is null or refund_status in ('pending', 'requires_action', 'succeeded', 'failed', 'canceled')
+);
+alter table bookings drop constraint if exists bookings_refund_amount_check;
+alter table bookings add constraint bookings_refund_amount_check check (
+  refund_amount is null or refund_amount >= 0
+);
+create unique index if not exists bookings_stripe_refund_id_idx
+  on bookings (stripe_refund_id) where stripe_refund_id is not null;
 
 create index if not exists profiles_stripe_account_id_idx on profiles(stripe_account_id);
 create index if not exists bookings_stripe_payment_intent_id_idx on bookings(stripe_payment_intent_id);
