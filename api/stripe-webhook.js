@@ -4,6 +4,7 @@
 
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
+import { disputeReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 
@@ -433,25 +434,23 @@ export default async function handler(req, res) {
       // — worth its own explicit decision rather than bundling into this
       // fix. Ask for it directly if refunding extensions needs to work.
       case "charge.refunded": {
-        const charge = event.data.object;
-        const paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
-        if (paymentIntentId) {
+        const reconciliation = refundReconciliation(event.data.object);
+        if (reconciliation) {
           await supabaseAdmin
             .from("bookings")
-            .update({ status: charge.refunded ? "refunded" : "partially_refunded" })
-            .eq("stripe_payment_intent_id", paymentIntentId);
+            .update({ status: reconciliation.status })
+            .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
         }
         break;
       }
 
       case "charge.dispute.created": {
-        const dispute = event.data.object;
-        const chargeId = typeof dispute.charge === "string" ? dispute.charge : dispute.charge?.id;
-        if (chargeId) {
+        const reconciliation = disputeReconciliation(event.data.object);
+        if (reconciliation) {
           await supabaseAdmin
             .from("bookings")
-            .update({ status: "disputed" })
-            .eq("stripe_charge_id", chargeId);
+            .update({ status: reconciliation.status })
+            .eq("stripe_charge_id", reconciliation.chargeId);
         }
         break;
       }
