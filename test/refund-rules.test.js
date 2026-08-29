@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   disputeReconciliation,
+  refundEventReconciliation,
   refundReconciliation,
   stripeObjectId,
 } from "../api/_refund-rules.js";
@@ -30,6 +31,27 @@ test("a partial refund reconciles the booking as partially refunded", () => {
 
 test("refund events without a payment intent cannot update a booking", () => {
   assert.equal(refundReconciliation({ refunded: true }), null);
+});
+
+test("refund lifecycle events preserve Stripe reconciliation details", () => {
+  assert.deepEqual(refundEventReconciliation({
+    id: "re_123",
+    payment_intent: { id: "pi_123" },
+    status: "failed",
+    amount: 28750,
+    failure_reason: "lost_or_stolen_card",
+  }), {
+    paymentIntentId: "pi_123",
+    refundId: "re_123",
+    refundStatus: "failed",
+    refundAmount: 287.5,
+    refundFailureReason: "lost_or_stolen_card",
+  });
+});
+
+test("unknown or incomplete refund lifecycle events are ignored", () => {
+  assert.equal(refundEventReconciliation({ id: "re_123", status: "succeeded" }), null);
+  assert.equal(refundEventReconciliation({ id: "re_123", payment_intent: "pi_123", status: "mystery" }), null);
 });
 
 test("a dispute reconciles by the originating Stripe charge", () => {
