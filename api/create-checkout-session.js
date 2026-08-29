@@ -3,6 +3,7 @@
 // service fee is collected as an application fee.
 
 import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
+import { calculateBookingAmounts, isRentableSpot } from "./_booking-rules.js";
 
 const SERVICE_FEE_RATE = 0.15;
 const MAX_HOURS = 24 * 31;
@@ -33,12 +34,7 @@ export default async function handler(req, res) {
 
     if (listingError || !listing) return res.status(404).json({ error: "Listing not found." });
     if (listing.host_id === user.id) return res.status(400).json({ error: "Hosts can't book their own listing." });
-    const spotIndex = /^[A-Z]$/.test(spotLabel) ? spotLabel.charCodeAt(0) - 65 : -1;
-    const configuredSpots = Array.isArray(listing.spots) ? listing.spots : [];
-    const validConfiguredSpot = configuredSpots.length > 0
-      ? spotIndex >= 0 && spotIndex < configuredSpots.length && configuredSpots[spotIndex]?.forRent === true
-      : spotIndex >= 0 && spotIndex < Math.max(1, Number(listing.spaces) || 1);
-    if (!validConfiguredSpot) {
+    if (!isRentableSpot(listing, spotLabel)) {
       return res.status(400).json({ error: "Please select a valid parking spot before checkout." });
     }
 
@@ -66,10 +62,11 @@ export default async function handler(req, res) {
     }
 
     // All amounts are calculated server-side from the database price.
-    const hourlyCents = Math.round(Number(listing.price) * 100);
-    const subtotalCents = Math.round(hourlyCents * hours);
-    const serviceFeeCents = Math.round(subtotalCents * SERVICE_FEE_RATE);
-    const totalCents = subtotalCents + serviceFeeCents;
+    const { hourlyCents, subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(
+      listing.price,
+      hours,
+      SERVICE_FEE_RATE
+    );
     if (hourlyCents < 50 || totalCents < 50) return res.status(400).json({ error: "Booking amount is too small." });
 
     const holdExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
