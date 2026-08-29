@@ -53,14 +53,15 @@ async function confirmBooking(session, connectedAccountId) {
   const listingId = Number(metadata.listing_id);
   const hours = Number(metadata.hours);
   const totalCents = Number(metadata.total_cents);
+  const chargeAccountId = connectedAccountId || metadata.connected_account_id || null;
   if (!Number.isInteger(listingId) || !metadata.renter_id || !Number.isFinite(hours) || !Number.isFinite(totalCents)) {
     throw new Error("Checkout Session is missing required ParkShare metadata.");
   }
 
   const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
   let chargeId = null;
-  if (paymentIntentId && connectedAccountId) {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, { stripeAccount: connectedAccountId });
+  if (paymentIntentId && chargeAccountId) {
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, { stripeAccount: chargeAccountId });
     chargeId = typeof paymentIntent.latest_charge === "string" ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id || null;
   }
 
@@ -75,7 +76,7 @@ async function confirmBooking(session, connectedAccountId) {
     stripe_checkout_session_id: session.id,
     stripe_payment_intent_id: paymentIntentId,
     stripe_charge_id: chargeId,
-    stripe_connected_account_id: connectedAccountId || null,
+    stripe_connected_account_id: chargeAccountId,
     spot_label: metadata.spot_label || null,
     booking_date: metadata.booking_date || null,
     start_hour: metadata.start_hour === "" ? null : Number(metadata.start_hour),
@@ -91,7 +92,29 @@ async function confirmBooking(session, connectedAccountId) {
     .from("bookings")
     .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
     .select("id, listing_id, renter_id, hours, total, spot_label, paid_at, booking_date, start_hour");
-  if (error) throw error;
+  if (error) {
+    // A hold should make this exceptionally rare, but a payment can complete
+    // at the exact expiry boundary. Never leave that customer charged without
+    // a booking: issue an idempotent automatic refund on a database conflict.
+    if (error.code === "23P01" && paymentIntentId && chargeAccountId) {
+      await stripe.refunds.create(
+        {
+          payment_intent: paymentIntentId,
+          reason: "requested_by_customer",
+          metadata: { parkshare_reason: "booking_conflict", checkout_session_id: session.id },
+        },
+        { stripeAccount: chargeAccountId, idempotencyKey: `booking-conflict-${session.id}` }
+      );
+      await supabaseAdmin.from("booking_holds").delete().eq("id", metadata.hold_id || "00000000-0000-0000-0000-000000000000");
+      console.error("Automatically refunded conflicting paid checkout", session.id);
+      return;
+    }
+    throw error;
+  }
+
+  if (metadata.hold_id) {
+    await supabaseAdmin.from("booking_holds").delete().eq("id", metadata.hold_id);
+  }
 
   if (inserted && inserted.length > 0) {
     await sendBookingConfirmationEmail(inserted[0]).catch(err => {
@@ -380,6 +403,17 @@ export default async function handler(req, res) {
             .from("bookings")
             .update({ status: "payment_failed" })
             .eq("stripe_checkout_session_id", session.id);
+          if (session.metadata?.hold_id) {
+            await supabaseAdmin.from("booking_holds").delete().eq("id", session.metadata.hold_id);
+          }
+        }
+        break;
+      }
+
+      case "checkout.session.expired": {
+        const session = event.data.object;
+        if (session.metadata?.hold_id) {
+          await supabaseAdmin.from("booking_holds").delete().eq("id", session.metadata.hold_id);
         }
         break;
       }
