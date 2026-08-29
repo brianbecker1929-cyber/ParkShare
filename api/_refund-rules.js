@@ -22,6 +22,24 @@ export function refundReconciliation(charge) {
   };
 }
 
+export function refundEventReconciliation(refund) {
+  const paymentIntentId = stripeObjectId(refund?.payment_intent);
+  const refundId = stripeObjectId(refund);
+  if (!paymentIntentId || !refundId) return null;
+
+  const allowedStatuses = new Set(["pending", "requires_action", "succeeded", "failed", "canceled"]);
+  const status = String(refund?.status || "").toLowerCase();
+  if (!allowedStatuses.has(status)) return null;
+
+  return {
+    paymentIntentId,
+    refundId,
+    refundStatus: status,
+    refundAmount: Number(refund?.amount || 0) / 100,
+    refundFailureReason: refund?.failure_reason || null,
+  };
+}
+
 export function disputeReconciliation(dispute) {
   const chargeId = stripeObjectId(dispute?.charge);
   return chargeId ? { chargeId, status: "disputed" } : null;

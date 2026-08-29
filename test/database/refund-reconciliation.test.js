@@ -4,7 +4,7 @@ import { after, before, beforeEach, describe, test } from "node:test";
 
 import pg from "pg";
 
-import { disputeReconciliation, refundReconciliation } from "../../api/_refund-rules.js";
+import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "../../api/_refund-rules.js";
 
 const { Pool } = pg;
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -80,6 +80,23 @@ describe("refund and dispute database reconciliation", { skip: !databaseUrl, con
     return rows;
   }
 
+  async function applyRefundEvent(refund) {
+    const reconciliation = refundEventReconciliation(refund);
+    if (!reconciliation) return [];
+    const { rows } = await pool.query(
+      `update public.bookings
+          set stripe_refund_id = $1,
+              refund_status = $2,
+              refund_amount = $3,
+              refund_failure_reason = $4
+        where stripe_payment_intent_id = $5
+        returning id, stripe_refund_id, refund_status, refund_amount::text, refund_failure_reason`,
+      [reconciliation.refundId, reconciliation.refundStatus, reconciliation.refundAmount,
+       reconciliation.refundFailureReason, reconciliation.paymentIntentId]
+    );
+    return rows;
+  }
+
   test("partial and then full refund events advance one booking deterministically", async () => {
     assert.deepEqual(await applyRefund({ payment_intent: "pi_refund", refunded: false }), [
       { id: bookingId, status: "partially_refunded" },
@@ -110,6 +127,31 @@ describe("refund and dispute database reconciliation", { skip: !databaseUrl, con
   test("a dispute is idempotently linked by Stripe charge id", async () => {
     assert.deepEqual(await applyDispute({ charge: "ch_refund" }), [{ id: bookingId, status: "disputed" }]);
     assert.deepEqual(await applyDispute({ charge: { id: "ch_refund" } }), [{ id: bookingId, status: "disputed" }]);
+  });
+
+  test("refund lifecycle events reconcile amount, state, and failures", async () => {
+    assert.deepEqual(await applyRefundEvent({
+      id: "re_refund",
+      payment_intent: "pi_refund",
+      status: "pending",
+      amount: 28750,
+    }), [{
+      id: bookingId,
+      stripe_refund_id: "re_refund",
+      refund_status: "pending",
+      refund_amount: "287.5",
+      refund_failure_reason: null,
+    }]);
+
+    const failed = await applyRefundEvent({
+      id: "re_refund",
+      payment_intent: "pi_refund",
+      status: "failed",
+      amount: 28750,
+      failure_reason: "lost_or_stolen_card",
+    });
+    assert.equal(failed[0].refund_status, "failed");
+    assert.equal(failed[0].refund_failure_reason, "lost_or_stolen_card");
   });
 
   test("the schema rejects unknown financial states", async () => {

@@ -4,7 +4,7 @@
 
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
-import { disputeReconciliation, refundReconciliation } from "./_refund-rules.js";
+import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 
@@ -436,9 +436,29 @@ export default async function handler(req, res) {
       case "charge.refunded": {
         const reconciliation = refundReconciliation(event.data.object);
         if (reconciliation) {
+          const update = { status: reconciliation.status };
+          if (reconciliation.status === "refunded") update.cancelled_at = new Date().toISOString();
           await supabaseAdmin
             .from("bookings")
-            .update({ status: reconciliation.status })
+            .update(update)
+            .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
+        }
+        break;
+      }
+
+      case "refund.created":
+      case "refund.updated":
+      case "refund.failed": {
+        const reconciliation = refundEventReconciliation(event.data.object);
+        if (reconciliation) {
+          await supabaseAdmin
+            .from("bookings")
+            .update({
+              stripe_refund_id: reconciliation.refundId,
+              refund_status: reconciliation.refundStatus,
+              refund_amount: reconciliation.refundAmount,
+              refund_failure_reason: reconciliation.refundFailureReason,
+            })
             .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
         }
         break;

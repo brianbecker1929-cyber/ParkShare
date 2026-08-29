@@ -1966,6 +1966,10 @@ function TransactionsView({ user }) {
 function HostDashboard({ user, setTab }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const [cancelNotice, setCancelNotice] = useState("");
 
   // ─── Stripe Connect payout status ────────────────────────────────────────
   // Reads straight from `profiles` so it always reflects the latest state
@@ -2091,13 +2095,16 @@ function HostDashboard({ user, setTab }) {
                 const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
+                const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
                 return {
                   id: "db-" + row.id,
+                  rawId: row.id,
                   listing: row.listings?.title || "Listing",
                   driver: row.profiles?.name || "Renter",
                   time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   total: row.total,
-                  status: cancelled ? "Cancelled" : completed ? "Completed" : active ? "Active" : "Upcoming",
+                  status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
+                  canCancel: !refundPending && !cancelled && !completed && window.start.getTime() > now,
                 };
               })
             );
@@ -2114,7 +2121,7 @@ function HostDashboard({ user, setTab }) {
   // Only future and currently active reservations belong in this card.
   // Completed/cancelled bookings remain included in lifetime statistics and
   // transactions, but must never be presented to the host as upcoming work.
-  const upcomingBookings = dbBookings.filter(b => b.status === "Upcoming" || b.status === "Active");
+  const upcomingBookings = dbBookings.filter(b => b.status === "Upcoming" || b.status === "Active" || b.status === "Cancellation pending");
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
@@ -2139,6 +2146,23 @@ function HostDashboard({ user, setTab }) {
     if (error) { alert("Couldn't save changes: " + error.message); return false; }
     setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
     return true;
+  };
+
+  const cancelHostBooking = async () => {
+    if (!cancelTarget) return;
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      const result = await requestBookingCancellation(cancelTarget.rawId, "Cancelled by Host");
+      const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
+      setDbBookings(prev => prev.map(b => b.rawId === cancelTarget.rawId ? { ...b, status: nextStatus, canCancel: false } : b));
+      setCancelNotice(result.message || "Cancellation received.");
+      setCancelTarget(null);
+    } catch (error) {
+      setCancelError(error.message || "Couldn't cancel this booking.");
+    } finally {
+      setCancelBusy(false);
+    }
   };
   const { data: txData, loading: txLoading } = useTransactions(user);
 
@@ -2194,6 +2218,7 @@ function HostDashboard({ user, setTab }) {
         {/* Upcoming Bookings */}
         <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>📅 Upcoming</div>
+          {cancelNotice && <div role="status" style={{ fontSize: 9, color: C.moss, marginBottom: 5 }}>{cancelNotice}</div>}
           <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
             {upcomingBookings.length === 0 && (
               <div style={{ fontSize: 10, color: C.muted, textAlign: "center", padding: "12px 0" }}>No upcoming bookings.</div>
@@ -2207,6 +2232,7 @@ function HostDashboard({ user, setTab }) {
                 <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 6 }}>
                   <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: C.mossLight, color: C.moss }}>{b.status}</div>
                   <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>{money(b.total)}</div>
+                  {b.canCancel && <button onClick={() => { setCancelError(""); setCancelTarget(b); }} style={{ border: "none", background: "none", color: C.red, padding: 0, marginTop: 2, fontSize: 8, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Cancel</button>}
                 </div>
               </div>
             ))}
@@ -2407,6 +2433,17 @@ function DrivewayFrame({ children }) {
       <div style={{ position: "absolute", ...DRIVEWAY_PAVEMENT, display: "flex", alignItems: "center", justifyContent: "center", padding: "3% 4%", boxSizing: "border-box", overflow: "hidden" }}>
         {children}
       </div>
+
+      {cancelTarget && (
+        <CancellationModal
+          title={`Cancel ${cancelTarget.driver}'s booking?`}
+          actor="host"
+          busy={cancelBusy}
+          error={cancelError}
+          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onConfirm={cancelHostBooking}
+        />
+      )}
     </div>
   );
 }
@@ -3014,10 +3051,55 @@ function clientBookingWindow(booking) {
   return { start, end };
 }
 
+async function requestBookingCancellation(bookingId, reason) {
+  let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  let session = sessionData?.session;
+  if (sessionError || !session?.access_token) {
+    const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+    if (refreshError) throw refreshError;
+    session = refreshedData?.session;
+  }
+  if (!session?.access_token) throw new Error("Your session is invalid or expired. Please sign in again.");
+
+  const response = await fetch("/api/cancel-booking", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ bookingId, reason }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Couldn't cancel this booking.");
+  return data;
+}
+
+function CancellationModal({ title, actor, busy, error, onClose, onConfirm }) {
+  return (
+    <Modal title={title} onClose={onClose}>
+      <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
+        {actor === "host"
+          ? "The Driver will receive a full refund, including the ParkShare service fee."
+          : "Because this scheduled booking starts at least one hour from now, you'll receive a full refund, including the ParkShare service fee."}
+      </p>
+      <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>
+      {error && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 10 }}>
+        <Btn variant="ghost" onClick={onClose} disabled={busy}>Keep booking</Btn>
+        <Btn variant="outline" full onClick={onConfirm} disabled={busy}>{busy ? "Cancelling…" : "Confirm cancellation"}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
   const [dbBookings, setDbBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+  const [cancelNotice, setCancelNotice] = useState("");
   const highlightRef = useRef(null);
 
   useEffect(() => {
@@ -3040,6 +3122,8 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
             const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
             const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
+            const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+            const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
@@ -3060,9 +3144,10 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
             date: window.start.toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             total: row.total,
-            status: cancelled ? "Cancelled" : completed ? "Completed" : active ? "Active" : "Upcoming",
+            status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
+            canCancel: !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
           });})
         );
       });
@@ -3080,9 +3165,27 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewed, setReviewed] = useState({});
 
+  const cancelDriverBooking = async () => {
+    if (!cancelTarget) return;
+    setCancelBusy(true);
+    setCancelError("");
+    try {
+      const result = await requestBookingCancellation(cancelTarget.rawId, "Cancelled by Driver");
+      const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
+      setDbBookings(prev => prev.map(b => b.rawId === cancelTarget.rawId ? { ...b, status: nextStatus, canCancel: false } : b));
+      setCancelNotice(result.message || "Cancellation received.");
+      setCancelTarget(null);
+    } catch (error) {
+      setCancelError(error.message || "Couldn't cancel this booking.");
+    } finally {
+      setCancelBusy(false);
+    }
+  };
+
   return (
     <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+      {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
       {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
       {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
       {!loading && !loadError && bookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
@@ -3113,6 +3216,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
                 )}
                 {b.active && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
+                {b.canCancel && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
                 {b.canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
                 )}
@@ -3134,6 +3238,16 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
           onClose={() => setReviewTarget(null)}
           onSubmit={() => { setReviewed(r => ({ ...r, [reviewTarget.id]: true })); setReviewTarget(null); }}
           user={user}
+        />
+      )}
+      {cancelTarget && (
+        <CancellationModal
+          title={`Cancel ${cancelTarget.listing.title}?`}
+          actor="driver"
+          busy={cancelBusy}
+          error={cancelError}
+          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onConfirm={cancelDriverBooking}
         />
       )}
     </div>

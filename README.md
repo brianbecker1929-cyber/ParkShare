@@ -23,8 +23,20 @@ checkout.session.async_payment_failed
 account.updated
 charge.refunded
 charge.dispute.created
+refund.created
+refund.updated
+refund.failed
 Use a separate webhook destination and signing secret for test mode and live mode.
-4. Test before live mode
+4. Enable cancellations and refunds
+In Supabase SQL Editor, run:
+supabase-migration-006-cancellations-refunds.sql
+
+Scheduled Driver bookings receive an automatic full refund when cancelled at
+least one hour before their start time. Hosts may cancel before the booking
+starts. Book Now, late, active, extension, partial-refund, and failed-refund
+cases require ParkShare support review. Automatic refunds include the original
+ParkShare application fee.
+5. Test before live mode
 Sign up as a ParkShare Host.
 Open Host Dashboard and select Connect Stripe.
 Complete Stripe test onboarding.

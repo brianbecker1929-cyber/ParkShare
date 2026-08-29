@@ -60,6 +60,14 @@ create table public.bookings (
   stripe_payment_intent_id text,
   stripe_charge_id text,
   stripe_connected_account_id text,
+  cancellation_requested_at timestamptz,
+  cancelled_at timestamptz,
+  cancelled_by text check (cancelled_by is null or cancelled_by in ('driver', 'host', 'support', 'system')),
+  cancellation_reason text,
+  stripe_refund_id text unique,
+  refund_amount numeric check (refund_amount is null or refund_amount >= 0),
+  refund_status text check (refund_status is null or refund_status in ('pending', 'requires_action', 'succeeded', 'failed', 'canceled')),
+  refund_failure_reason text,
   paid_at timestamptz,
   created_at timestamptz not null default now()
 );
