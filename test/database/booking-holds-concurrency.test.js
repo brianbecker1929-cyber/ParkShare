@@ -43,7 +43,11 @@ describe("create_booking_hold database concurrency", { skip: !databaseUrl, concu
   let listingId;
 
   before(async () => {
-    pool = new Pool({ connectionString: databaseUrl, max: 6 });
+    pool = new Pool({
+      connectionString: databaseUrl,
+      connectionTimeoutMillis: 5_000,
+      max: 6,
+    });
     const [fixtureSql, migrationSql] = await Promise.all([
       readFile(fixtureUrl, "utf8"),
       readFile(migrationUrl, "utf8"),
