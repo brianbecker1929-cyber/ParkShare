@@ -46,7 +46,26 @@ create table public.listings (
 create table public.bookings (
   id bigint generated always as identity primary key,
   listing_id bigint not null references public.listings(id) on delete cascade,
-  status text not null,
+  renter_id uuid references public.profiles(id) on delete cascade,
+  hours numeric not null default 1,
+  total numeric not null default 0,
+  subtotal numeric,
+  service_fee numeric,
+  status text not null check (
+    status in ('pending', 'confirmed', 'cancelled', 'completed', 'payment_failed', 'refunded', 'partially_refunded', 'disputed')
+  ),
   spot_label text,
-  session_range tstzrange not null
+  session_range tstzrange not null,
+  stripe_checkout_session_id text unique,
+  stripe_payment_intent_id text,
+  stripe_charge_id text,
+  stripe_connected_account_id text,
+  paid_at timestamptz,
+  created_at timestamptz not null default now()
 );
+
+create index bookings_stripe_payment_intent_id_idx
+  on public.bookings (stripe_payment_intent_id);
+
+create index bookings_stripe_charge_id_idx
+  on public.bookings (stripe_charge_id);
