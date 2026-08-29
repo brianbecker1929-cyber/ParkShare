@@ -1,5 +1,8 @@
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { getSessionWindow, windowsOverlap } from "./_booking-rules.js";
+
+export { getSessionWindow } from "./_booking-rules.js";
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -105,24 +108,6 @@ export function jsonMethod(req, res, method = "POST") {
 // parsing a date string with no offset on a server). Revisit this once the
 // advance-booking date/time picker UI actually exists and we know what
 // timezone it's collecting in.
-export function getSessionWindow(booking) {
-  let start;
-  if (booking.booking_date && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
-    const startHour = Number(booking.start_hour);
-    const hh = String(Math.floor(startHour)).padStart(2, "0");
-    const mm = String(Math.round((startHour % 1) * 60)).padStart(2, "0");
-    const rawDate = String(booking.booking_date);
-    const dateOnly = rawDate.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
-    const candidate = dateOnly ? new Date(`${dateOnly}T${hh}:${mm}:00Z`) : new Date(NaN);
-    start = isNaN(candidate.getTime()) ? new Date(booking.paid_at) : candidate;
-  } else {
-    start = new Date(booking.paid_at);
-  }
-  const end = new Date(start.getTime() + Number(booking.hours) * 3600 * 1000);
-  const isAdvance = start.getTime() - new Date(booking.paid_at).getTime() > 5 * 60 * 1000; // scheduled >5 min after payment
-  return { start, end, isAdvance };
-}
-
 // Capacity-based availability check — this is the ONE place that decides
 // whether a listing has a free spot for a given time window. Used both to
 // show a live "X available now" count to renters browsing, and to enforce
@@ -163,7 +148,7 @@ export async function checkAvailability(listingId, spaces, start, end) {
 
   const overlapping = (bookings || []).filter((b) => {
     const w = getSessionWindow(b);
-    return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
+    return windowsOverlap(w.start, w.end, start, end);
   });
 
   const spacesTaken = overlapping.length + (holds || []).length;
@@ -216,7 +201,7 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
   const conflict = (bookings || []).find((b) => {
     if (String(b.spot_label || "").trim().toUpperCase() !== label) return false;
     const w = getSessionWindow(b);
-    return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
+    return windowsOverlap(w.start, w.end, start, end);
   });
 
   return { available: !conflict && !(holds || []).length, spotLabel: label, conflictingBookingId: conflict?.id ?? null };
@@ -257,7 +242,7 @@ export async function checkAllSpotAvailability(listingId, labels, start, end) {
 
   const overlapping = (bookings || []).filter((b) => {
     const w = getSessionWindow(b);
-    return w.start.getTime() < end.getTime() && start.getTime() < w.end.getTime();
+    return windowsOverlap(w.start, w.end, start, end);
   });
   const takenLabels = new Set(
     overlapping.map((b) => String(b.spot_label || "").trim().toUpperCase()).filter(Boolean)

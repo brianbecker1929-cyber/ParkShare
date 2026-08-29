@@ -3,6 +3,7 @@
 // events from connected accounts. Direct-charge events include event.account.
 
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
+import { isNewWebhookInsert } from "./_booking-rules.js";
 import { sendEmail, confirmationEmailHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 
@@ -116,7 +117,7 @@ async function confirmBooking(session, connectedAccountId) {
     await supabaseAdmin.from("booking_holds").delete().eq("id", metadata.hold_id);
   }
 
-  if (inserted && inserted.length > 0) {
+  if (isNewWebhookInsert(inserted)) {
     await sendBookingConfirmationEmail(inserted[0]).catch(err => {
       // Email failure should never fail the webhook / trigger a Stripe retry
       // of the whole event — the booking itself is already confirmed.
@@ -166,7 +167,7 @@ async function confirmExtension(session, connectedAccountId) {
     .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
     .select("id, booking_id, added_hours");
   if (error) throw error;
-  if (!inserted || inserted.length === 0) return; // already processed this exact session before
+  if (!isNewWebhookInsert(inserted)) return; // already processed this exact session before
 
   // Bump the booking's hours so getSessionWindow() — and everything built
   // on it (reminders, availability, the Phase 3 exclusion constraint) —
