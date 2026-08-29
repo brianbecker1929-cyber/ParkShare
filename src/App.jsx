@@ -3241,14 +3241,14 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
       }
       const { data: profile, error: profileErr } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, name, role")
         .eq("id", data.user.id)
         .single();
       if (profileErr || !profile) {
         setAuthError("Signed in, but couldn't load your profile.");
         return;
       }
-      onAuth({ id: profile.id, name: profile.name, email: profile.email, role: profile.role });
+      onAuth({ id: profile.id, name: profile.name, email: data.user.email, role: profile.role });
       onClose();
       return;
     }
@@ -3282,10 +3282,19 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
       setScreen("verify");
       return;
     }
-    const profile = { id: data.user.id, name: pendingUser.name, email: pendingUser.email, role: pendingUser.role };
-    const { error: profileError } = await supabase.from("profiles").upsert(profile);
-    if (profileError) { setAuthError(profileError.message); return; }
-    onAuth(profile);
+    // The auth trigger creates this profile with server-owned role and account
+    // fields. Browser code deliberately has no INSERT/UPDATE permission on the
+    // profiles table.
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, name, role")
+      .eq("id", data.user.id)
+      .single();
+    if (profileError || !profile) {
+      setAuthError("Your account was created, but we couldn't load your profile. Please sign in again.");
+      return;
+    }
+    onAuth({ id: profile.id, name: profile.name, email: data.user.email, role: profile.role });
     onClose();
   };
 
@@ -6711,11 +6720,11 @@ export default function App() {
       if (!session || !active) return;
       const { data: profile } = await supabase
         .from("profiles")
-        .select("*")
+        .select("id, name, role")
         .eq("id", session.user.id)
         .single();
       if (profile && active) {
-        setUser({ id: profile.id, name: profile.name, email: profile.email, role: profile.role });
+        setUser({ id: profile.id, name: profile.name, email: session.user.email, role: profile.role });
       }
     });
 
