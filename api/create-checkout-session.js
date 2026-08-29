@@ -27,14 +27,18 @@ export default async function handler(req, res) {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, host_id, title, address, price, spaces")
+      .select("id, host_id, title, address, price, spaces, spots")
       .eq("id", listingId)
       .single();
 
     if (listingError || !listing) return res.status(404).json({ error: "Listing not found." });
     if (listing.host_id === user.id) return res.status(400).json({ error: "Hosts can't book their own listing." });
     const spotIndex = /^[A-Z]$/.test(spotLabel) ? spotLabel.charCodeAt(0) - 65 : -1;
-    if (spotIndex < 0 || spotIndex >= Math.max(1, Number(listing.spaces) || 1)) {
+    const configuredSpots = Array.isArray(listing.spots) ? listing.spots : [];
+    const validConfiguredSpot = configuredSpots.length > 0
+      ? spotIndex >= 0 && spotIndex < configuredSpots.length && configuredSpots[spotIndex]?.forRent === true
+      : spotIndex >= 0 && spotIndex < Math.max(1, Number(listing.spaces) || 1);
+    if (!validConfiguredSpot) {
       return res.status(400).json({ error: "Please select a valid parking spot before checkout." });
     }
 
