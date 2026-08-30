@@ -2125,6 +2125,10 @@ function HostDashboard({ user, setTab }) {
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
+  const [showAllListings, setShowAllListings] = useState(false);
+  const [showAllBookings, setShowAllBookings] = useState(false);
+  const [listingActionId, setListingActionId] = useState(null);
+  const [bookingActionId, setBookingActionId] = useState(null);
 
   const deleteListing = async (rawId, displayId) => {
     setDeletingId(displayId);
@@ -2174,65 +2178,77 @@ function HostDashboard({ user, setTab }) {
   };
   const paidEarned = txData.earned.filter(t => t.status === "confirmed" || t.status === "completed");
   const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
-  const lastMonthEarned = paidEarned.filter(t => sameMonth(t.date, 1)).reduce((s, t) => s + t.net, 0);
   const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
-  const totalEarnings = allTimeEarned;
-  const nextPayout = txData.payouts.find(p => p.status === "pending" || p.status === "in_transit");
-  const totalBookings = dbBookings.length;
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
 
   return (
-    <div style={{ fontFamily: "'Poppins', sans-serif", background: C.warmWhite, height: "calc(100vh - 88px)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div className="host-dashboard-v2" style={{ fontFamily: "'Poppins', sans-serif", background: C.warmWhite, minHeight: "calc(100vh - 88px)", overflow: "visible", display: "flex", flexDirection: "column" }}>
 
       {/* Welcome banner */}
-      <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+      <div className="host-dashboard-hero" style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexShrink: 0 }}>
         <div>
-          <div style={{ fontFamily: "'Poppins', sans-serif", color: C.white, fontSize: 16, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
-          <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, marginTop: 2 }}>Host since Jan 2025</div>
+          <div style={{ fontFamily: "'Poppins', sans-serif", color: C.white, fontSize: 20, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
+          <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 3 }}>Host since January 2025</div>
         </div>
-        <div style={{ background: C.amber, borderRadius: 10, padding: "6px 12px", textAlign: "center" }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: C.navy }}>{txLoading ? "…" : money(totalEarnings)}</div>
-          <div style={{ fontSize: 9, color: C.navy, fontWeight: 600, textTransform: "uppercase" }}>Earned</div>
-        </div>
+        <button onClick={() => setTab?.("List Your Driveway")} className="host-dashboard-add-button" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42, background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>+ Add listing</button>
       </div>
 
-      {/* Main grid — everything fits on screen */}
-      <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "auto 1fr 1fr", gap: 8, padding: 10, overflow: "hidden" }}>
+      {/* Content-sized responsive grid: overview first, details second. */}
+      <div className="host-dashboard-main" style={{ width: "100%", maxWidth: 1240, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(300px, 0.8fr)", gridTemplateRows: "auto auto auto", alignItems: "start", gap: 14, padding: 18, overflow: "visible", boxSizing: "border-box" }}>
 
         {/* Stats row — spans full width */}
-        <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        <div className="host-dashboard-stat-grid" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           {[
-            { label: "Bookings", value: String(totalBookings), icon: "📅" },
-            { label: "Avg Rating", value: "★ "+avgRating, icon: "⭐" },
-            { label: "Pending", value: txLoading ? "…" : money(pendingAmount), icon: "💳" },
+            { label: "Earned this month", value: txLoading ? "…" : money(thisMonthEarned), icon: "💰" },
+            { label: "Upcoming bookings", value: String(upcomingBookings.length), icon: "📅" },
+            { label: "Active listings", value: String(myListings.filter(l => l.active).length), icon: "🏠" },
+            { label: "Average rating", value: avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐" },
           ].map(s => (
-            <div key={s.label} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-              <div style={{ fontSize: 16, marginBottom: 2 }}>{s.icon}</div>
-              <div style={{ fontWeight: 800, fontSize: 16, color: C.navy }}>{s.value}</div>
-              <div style={{ fontSize: 9, color: C.muted, marginTop: 1 }}>{s.label}</div>
+            <div key={s.label} className="host-dashboard-stat" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, padding: "14px 15px", display: "flex", alignItems: "center", gap: 11, minHeight: 88 }}>
+              <div className="host-dashboard-stat-icon" style={{ width: 38, height: 38, borderRadius: 10, background: C.amberLight, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0 }}>{s.icon}</div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 18, color: C.navy, whiteSpace: "nowrap" }}>{s.value}</div>
+                <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{s.label}</div>
+              </div>
             </div>
           ))}
         </div>
 
         {/* Upcoming Bookings */}
-        <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>📅 Upcoming</div>
-          {cancelNotice && <div role="status" style={{ fontSize: 9, color: C.moss, marginBottom: 5 }}>{cancelNotice}</div>}
-          <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", gap: 5 }}>
-            {upcomingBookings.length === 0 && (
-              <div style={{ fontSize: 10, color: C.muted, textAlign: "center", padding: "12px 0" }}>No upcoming bookings.</div>
+        <div className="host-dashboard-panel host-dashboard-upcoming" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column" }}>
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>📅 Upcoming bookings</div>
+            {upcomingBookings.length > 3 && (
+              <button onClick={() => setShowAllBookings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllBookings ? "Show less" : `View all ${upcomingBookings.length}`}</button>
             )}
-            {upcomingBookings.map(b => (
-              <div key={b.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "1px solid "+C.concrete }}>
+          </div>
+          {cancelNotice && <div role="status" style={{ fontSize: 10, color: C.moss, padding: "9px 15px 0" }}>{cancelNotice}</div>}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {upcomingBookings.length === 0 && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No upcoming bookings.</div>
+            )}
+            {upcomingBookings.slice(0, showAllBookings ? upcomingBookings.length : 3).map(b => (
+              <div key={b.id} className="host-dashboard-booking-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 12, padding: "13px 15px", borderBottom: "1px solid "+C.concrete }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.driver}</div>
-                  <div style={{ fontSize: 9, color: C.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.listing} · {b.time}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
+                  <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing} · {b.time}</div>
                 </div>
-                <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 6 }}>
-                  <div style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: C.mossLight, color: C.moss }}>{b.status}</div>
-                  <div style={{ fontWeight: 800, color: C.amber, fontSize: 11, marginTop: 2 }}>{money(b.total)}</div>
-                  {b.canCancel && <button onClick={() => { setCancelError(""); setCancelTarget(b); }} style={{ border: "none", background: "none", color: C.red, padding: 0, marginTop: 2, fontSize: 8, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Cancel</button>}
+                <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
+                  <div>
+                    <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.status}</div>
+                    <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)}</div>
+                  </div>
+                  {b.canCancel && (
+                    <div style={{ position: "relative" }}>
+                      <button aria-label={`Actions for ${b.driver}'s booking`} aria-expanded={bookingActionId === b.id} onClick={() => setBookingActionId(id => id === b.id ? null : b.id)} className="host-dashboard-more-button">•••</button>
+                      {bookingActionId === b.id && (
+                        <div className="host-dashboard-action-menu">
+                          <button onClick={() => { setBookingActionId(null); setCancelError(""); setCancelTarget(b); }}>Cancel booking</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -2240,95 +2256,105 @@ function HostDashboard({ user, setTab }) {
         </div>
 
         {/* My Listings */}
-        <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>🏠 Listings</span>
-            <button onClick={() => setTab?.("List Your Driveway")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "2px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>+ Add</button>
-          </div>
-          <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: 5 }}>
-            {myListings.length === 0 && (
-              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "12px 0" }}>No listings yet.</div>
+        <div className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column" }}>
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>🏠 Your listings</div>
+            {myListings.length > 3 && (
+              <button onClick={() => setShowAllListings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllListings ? "Show less" : "Manage all"}</button>
             )}
-            {myListings.map(l => (
-              <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0", borderBottom: "1px solid "+C.concrete }}>
-                <div style={{ width: 22, height: 22, borderRadius: 5, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={18} /></div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {myListings.length === 0 && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No listings yet.</div>
+            )}
+            {myListings.slice(0, showAllListings ? myListings.length : 3).map(l => (
+              <div key={l.id} className="host-dashboard-listing-row" style={{ display: "grid", gridTemplateColumns: "40px minmax(0, 1fr) auto auto", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: "1px solid "+C.concrete }}>
+                <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={24} /></div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
-                  <div style={{ fontSize: 9, color: C.muted }}>{money(l.price)}/hr · ★{l.rating} · {l.bookings} bookings</div>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{money(l.price)}/hr · {l.bookings} bookings · {l.active ? "Active" : "Paused"}</div>
                 </div>
-                <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
-                  <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                    <button onClick={() => deleteListing(l.rawId, l.id)} disabled={deletingId === l.id} style={{ background: C.red, color: C.white, border: "none", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Confirm"}</button>
-                    <button onClick={() => setConfirmDeleteId(null)} style={{ background: C.concrete, color: C.navy, border: "none", borderRadius: 6, padding: "3px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                  <div className="host-dashboard-delete-confirm" style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <button onClick={() => deleteListing(l.rawId, l.id)} disabled={deletingId === l.id} style={{ minHeight: 34, background: C.red, color: C.white, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Delete"}</button>
+                    <button onClick={() => setConfirmDeleteId(null)} style={{ minHeight: 34, background: C.concrete, color: C.navy, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Keep</button>
                   </div>
                 ) : (
-                  <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                    <button onClick={() => setEditingListing(l)} title="Edit listing" style={{ background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>✏️</button>
-                    <button onClick={() => setConfirmDeleteId(l.id)} title="Delete listing" style={{ background: "none", border: "none", color: C.muted, fontSize: 13, cursor: "pointer", padding: "2px 4px" }}>🗑️</button>
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <button aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
+                    {listingActionId === l.id && (
+                      <div className="host-dashboard-action-menu">
+                        <button onClick={() => { setListingActionId(null); setEditingListing(l); }}>Edit listing</button>
+                        <button className="danger" onClick={() => { setListingActionId(null); setConfirmDeleteId(l.id); }}>Delete listing</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             ))}
-            <div style={{ fontSize: 11, color: C.amber, fontWeight: 700, textAlign: "center", marginTop: 4 }}>{money(totalEarnings)} total earned</div>
+            {myListings.length > 3 && !showAllListings && (
+              <button onClick={() => setShowAllListings(true)} style={{ minHeight: 46, background: "none", border: "none", color: C.navy, fontSize: 10, fontWeight: 700, cursor: "pointer" }}>View all {myListings.length} listings →</button>
+            )}
           </div>
         </div>
 
         {/* Earnings */}
-        <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>💰 Earnings</div>
+        <div className="host-dashboard-panel host-dashboard-earnings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>💰 Earnings</div>
+          </div>
 
           {/* Stripe Connect payout status — gates whether this host can actually get paid out */}
-          {!stripeStatus.loading && (
+          <div style={{ padding: "13px 15px 0" }}>{!stripeStatus.loading && (
             stripeStatus.payoutsEnabled ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>
-                <span style={{ fontSize: 11 }}>✅</span>
-                <span style={{ fontSize: 9, color: C.moss, fontWeight: 700 }}>Payouts active</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 11px", marginBottom: 10 }}>
+                <span style={{ fontSize: 13 }}>✅</span>
+                <span style={{ fontSize: 10, color: C.moss, fontWeight: 700 }}>Payouts active</span>
               </div>
             ) : (
-              <div style={{ background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "6px 7px", marginBottom: 6 }}>
-                <div style={{ fontSize: 9, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
+              <div style={{ background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 9, padding: "10px 11px", marginBottom: 10 }}>
+                <div style={{ fontSize: 10, color: C.navy, fontWeight: 700, marginBottom: 7 }}>
                   {stripeStatus.accountId ? "⏳ Finish Stripe verification to get paid" : "⚠️ Set up payouts to get paid for bookings"}
                 </div>
-                <button onClick={connectStripe} disabled={connecting} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 6, padding: "4px 8px", fontSize: 9, fontWeight: 700, cursor: connecting ? "default" : "pointer", opacity: connecting ? 0.6 : 1 }}>
+                <button onClick={connectStripe} disabled={connecting} style={{ minHeight: 36, background: C.amber, color: C.navy, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 10, fontWeight: 700, cursor: connecting ? "default" : "pointer", opacity: connecting ? 0.6 : 1 }}>
                   {connecting ? "Redirecting…" : stripeStatus.accountId ? "Finish setup →" : "Connect with Stripe →"}
                 </button>
-                {connectError && <div style={{ fontSize: 8, color: C.red, marginTop: 4 }}>{connectError}</div>}
+                {connectError && <div style={{ fontSize: 9, color: C.red, marginTop: 6 }}>{connectError}</div>}
               </div>
             )
-          )}
+          )}</div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginBottom: 6 }}>
+          <div className="host-dashboard-earnings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, padding: "0 15px 15px" }}>
             {[
               { label: "This month", value: txLoading ? "…" : money(thisMonthEarned) },
-              { label: "Last month", value: txLoading ? "…" : money(lastMonthEarned) },
+              { label: "Pending", value: txLoading ? "…" : money(pendingAmount) },
               { label: "All time", value: txLoading ? "…" : money(allTimeEarned) },
-              { label: "Next payout", value: txLoading ? "…" : nextPayout ? money(nextPayout.amount) : "—" },
             ].map(s => (
-              <div key={s.label} style={{ background: C.warmWhite, borderRadius: 6, padding: "5px 7px" }}>
-                <div style={{ fontSize: 8, color: C.muted }}>{s.label}</div>
-                <div style={{ fontWeight: 800, fontSize: 13, color: C.amber }}>{s.value}</div>
+              <div key={s.label} style={{ background: C.warmWhite, borderRadius: 9, padding: "10px 11px" }}>
+                <div style={{ fontSize: 9, color: C.muted }}>{s.label}</div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: C.navy, marginTop: 3 }}>{s.value}</div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Recent Transactions */}
-        <div style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "10px 10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingBottom: 6, borderBottom: "2px solid "+C.amber }}>
-            <div style={{ fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em" }}>🧾 Recent Transactions</div>
-            {setTab && <button onClick={() => setTab("Transactions")} style={{ background: "none", border: "none", color: C.amber, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>View all →</button>}
+        <div className="host-dashboard-panel host-dashboard-transactions" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>🧾 Recent transactions</div>
+            {setTab && <button onClick={() => setTab("Transactions")} style={{ minHeight: 34, background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>View all →</button>}
           </div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            {txLoading && <div style={{ fontSize: 10, color: C.muted, padding: "6px 0" }}>Loading…</div>}
-            {!txLoading && txData.earned.length === 0 && <div style={{ fontSize: 10, color: C.muted, padding: "6px 0" }}>No transactions yet.</div>}
-            {!txLoading && txData.earned.slice(0, 5).map(t => (
-              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "3px 0", borderBottom: "1px solid "+C.concrete }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: C.navy }}>{t.description}</div>
-                  <div style={{ fontSize: 9, color: C.muted }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {txLoading && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>Loading…</div>}
+            {!txLoading && txData.earned.length === 0 && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>No transactions yet.</div>}
+            {!txLoading && txData.earned.slice(0, 3).map(t => (
+              <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 15px", borderBottom: "1px solid "+C.concrete }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{t.description}</div>
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 11, color: C.moss }}>+{money(t.net)}</div>
+                <div style={{ fontWeight: 700, fontSize: 12, color: C.moss, whiteSpace: "nowrap" }}>+{money(t.net)}</div>
               </div>
             ))}
           </div>
@@ -3771,15 +3797,20 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
 }
 
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick }) {
+  const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
     ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
     : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
+  const dashboardMobileHeader = !!user && tab === "Host Dashboard";
+
+  useEffect(() => { setDashboardMenuOpen(false); }, [tab, user?.id]);
 
   return (
-    <header className="ps-header" style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+    <header className={`ps-header${dashboardMobileHeader ? " ps-header-dashboard" : ""}`} style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
       <style>{`
         /* One header system for every public ParkShare page. */
         .ps-mobile-header-row { display: none !important; }
+        .ps-dashboard-mobile-header-row { display: none !important; }
         .ps-desktop-guest-header { display: grid !important; }
         .ps-desktop-guest-nav { overflow: visible; }
 
@@ -3842,8 +3873,53 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             flex: 0 0 104px !important;
             font-size: 10px !important;
           }
+
+          /* The Host Dashboard uses a compact app header and an on-demand menu. */
+          .ps-header-dashboard .ps-mobile-header-row {
+            display: none !important;
+          }
+
+          .ps-header-dashboard .ps-dashboard-mobile-header-row {
+            min-height: 62px;
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 14px;
+          }
+
+          .ps-header-dashboard .ps-signed-nav {
+            display: none !important;
+            flex-wrap: wrap;
+            gap: 7px !important;
+            padding: 4px 12px 12px !important;
+          }
+
+          .ps-header-dashboard .ps-signed-nav.is-open {
+            display: flex !important;
+          }
+
+          .ps-header-dashboard .ps-dashboard-menu-account {
+            width: 100%;
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 2px 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.16);
+            margin-bottom: 2px;
+          }
         }
       `}</style>
+      {dashboardMobileHeader && (
+        <div className="ps-dashboard-mobile-header-row">
+          <button onClick={onLogoClick} aria-label="ParkShare home" style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: 0, border: "none", background: "transparent", color: C.white, cursor: "pointer" }}>
+            <span style={{ width: 38, height: 38, borderRadius: "50%", overflow: "hidden", display: "inline-flex", background: C.amber, border: "2px solid "+C.white, flexShrink: 0 }}><img src={PARKER.icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></span>
+            <span style={{ fontSize: 17, fontWeight: 800 }}>Park<span style={{ color: C.amber }}>Share</span></span>
+          </button>
+          <button onClick={() => setDashboardMenuOpen(v => !v)} aria-label="Open account and navigation menu" aria-expanded={dashboardMenuOpen} style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid rgba(255,255,255,0.28)", background: dashboardMenuOpen ? "rgba(255,255,255,0.14)" : "transparent", color: C.white, fontSize: 22, lineHeight: 1, cursor: "pointer" }}>{dashboardMenuOpen ? "×" : "☰"}</button>
+        </div>
+      )}
       {/* Top row: logo + user */}
       <div className="ps-header-row ps-mobile-header-row" style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", padding: "10px 16px", gap: 8 }}>
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
@@ -4030,9 +4106,18 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
       )}
       {/* Nav tabs — only shown once signed in; guests reach Browse via the landing page actions instead */}
       {user && (
-        <div style={{ display: "flex", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
+        <div className={`ps-signed-nav${dashboardMobileHeader && dashboardMenuOpen ? " is-open" : ""}`} style={{ display: "flex", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
+          {dashboardMobileHeader && (
+            <div className="ps-dashboard-menu-account" style={{ display: "none" }}>
+              <div>
+                <div style={{ color: C.white, fontSize: 12, fontWeight: 700 }}>{user.name}</div>
+                <div style={{ color: C.amber, fontSize: 10, fontWeight: 600 }}>🏠 Host</div>
+              </div>
+              <button onClick={() => { setDashboardMenuOpen(false); onSignOut?.(); }} style={{ minHeight: 38, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.1)", color: C.white, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Sign out</button>
+            </div>
+          )}
           {tabs.map(t => (
-            <button key={t} onClick={() => onTabChange(t)} style={{ flexShrink: 0, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t}</button>
+            <button key={t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t}</button>
           ))}
         </div>
       )}
