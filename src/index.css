@@ -2973,3 +2973,198 @@ button, input, select, textarea { font: inherit; }
     font-size: 12.5px;
   }
 }
+
+/* Host Dashboard v2 — content-sized desktop cards and a true one-column mobile flow. */
+.host-dashboard-v2 .host-dashboard-panel {
+  min-width: 0;
+  box-shadow: 0 4px 16px rgba(14, 27, 46, 0.045);
+}
+
+.host-dashboard-v2 .host-dashboard-booking-row:last-child,
+.host-dashboard-v2 .host-dashboard-listing-row:last-child,
+.host-dashboard-v2 .host-dashboard-review-row:last-child {
+  border-bottom: 0 !important;
+}
+
+.host-dashboard-v2 .host-dashboard-stat {
+  appearance: none;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.host-dashboard-v2 .host-dashboard-stat:hover,
+.host-dashboard-v2 .host-dashboard-stat:focus-visible {
+  border-color: #FFC107 !important;
+  box-shadow: 0 6px 18px rgba(14, 27, 46, 0.1);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.host-dashboard-more-button {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #0E1B2E;
+  font-family: "Poppins", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+}
+
+.host-dashboard-more-button:hover,
+.host-dashboard-more-button:focus-visible {
+  background: #FAF7F0;
+  border-color: #E3DDC9;
+}
+
+.host-dashboard-action-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 25;
+  width: 154px;
+  overflow: hidden;
+  padding: 5px;
+  border: 1px solid #E3DDC9;
+  border-radius: 10px;
+  background: #FFFFFF;
+  box-shadow: 0 12px 30px rgba(14, 27, 46, 0.18);
+}
+
+.host-dashboard-action-menu button {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #0E1B2E;
+  font-family: "Poppins", sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.host-dashboard-action-menu button:hover,
+.host-dashboard-action-menu button:focus-visible {
+  background: #FAF7F0;
+}
+
+.host-dashboard-action-menu button.danger {
+  color: #C53030;
+}
+
+@media (max-width: 760px) {
+  .host-dashboard-v2 {
+    min-height: 0 !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-hero {
+    padding: 17px 16px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-hero > div:first-child > div:first-child {
+    font-size: 18px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-add-button {
+    min-height: 42px !important;
+    padding: 8px 12px !important;
+    font-size: 11px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto !important;
+    gap: 12px !important;
+    padding: 12px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1px !important;
+    overflow: hidden;
+    border: 1px solid #E3DDC9;
+    border-radius: 14px;
+    background: #E3DDC9;
+  }
+
+  .host-dashboard-v2 .host-dashboard-stat {
+    min-height: 82px !important;
+    padding: 12px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    gap: 9px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-stat-icon {
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 15px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-stat > div:last-child > div:first-child {
+    font-size: 15px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-panel {
+    grid-column: 1 !important;
+    width: 100%;
+    box-shadow: none;
+  }
+
+  .host-dashboard-v2 .host-dashboard-booking-row {
+    gap: 9px !important;
+    padding: 12px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-listing-row {
+    grid-template-columns: 40px minmax(0, 1fr) auto !important;
+    gap: 9px !important;
+    padding: 11px 12px !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-listing-row > span {
+    display: none;
+  }
+
+  .host-dashboard-v2 .host-dashboard-delete-confirm {
+    grid-column: 2 / -1;
+    justify-content: flex-end;
+  }
+
+  .host-dashboard-v2 .host-dashboard-earnings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-earnings-grid > div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .host-dashboard-more-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .host-dashboard-action-menu button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 360px) {
+  .host-dashboard-v2 .host-dashboard-hero {
+    align-items: flex-start !important;
+  }
+
+  .host-dashboard-v2 .host-dashboard-stat {
+    align-items: flex-start !important;
+    flex-direction: column;
+  }
+}
