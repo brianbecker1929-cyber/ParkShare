@@ -2981,8 +2981,22 @@ button, input, select, textarea { font: inherit; }
 }
 
 .host-dashboard-v2 .host-dashboard-booking-row:last-child,
-.host-dashboard-v2 .host-dashboard-listing-row:last-child {
+.host-dashboard-v2 .host-dashboard-listing-row:last-child,
+.host-dashboard-v2 .host-dashboard-review-row:last-child {
   border-bottom: 0 !important;
+}
+
+.host-dashboard-v2 .host-dashboard-stat {
+  appearance: none;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.host-dashboard-v2 .host-dashboard-stat:hover,
+.host-dashboard-v2 .host-dashboard-stat:focus-visible {
+  border-color: #FFC107 !important;
+  box-shadow: 0 6px 18px rgba(14, 27, 46, 0.1);
+  transform: translateY(-1px);
+  outline: none;
 }
 
 .host-dashboard-more-button {
