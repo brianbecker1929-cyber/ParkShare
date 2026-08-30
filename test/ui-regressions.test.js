@@ -41,3 +41,18 @@ test("mobile browse stacks the map before full-width listings", () => {
 test("browse listing cards retain the ParkShare amber treatment", () => {
   assert.match(styles, /\.ps-browse-listing-card\s*{[\s\S]*?background:\s*#FFC107;/);
 });
+
+test("mobile full-map mode fills the remaining browse area", () => {
+  const browseView = functionSource("BrowseView", "EditListingModal");
+
+  assert.match(browseView, /ps-browse-content-\$\{view\}/);
+  assert.match(styles, /\.ps-browse-content-map \.ps-browse-map-column\s*{[\s\S]*?flex:\s*1 1 auto !important;/);
+});
+
+test("mobile parking previews include a dismiss control", () => {
+  const listingsMap = functionSource("ListingsMap", "MessagingPanel");
+
+  assert.match(listingsMap, /className="ps-mobile-map-listing-close"/);
+  assert.match(listingsMap, /aria-label="Close parking preview"/);
+  assert.match(listingsMap, /onClick=\{\(\) => onSelect\(null\)\}/);
+});

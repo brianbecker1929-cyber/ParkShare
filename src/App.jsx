@@ -434,6 +434,14 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
       </GoogleMap>
       {selected && (
         <div className="ps-mobile-map-listing-preview" role="dialog" aria-label={`Preview of ${selected.title || "parking spot"}`}>
+          <button
+            type="button"
+            className="ps-mobile-map-listing-close"
+            aria-label="Close parking preview"
+            onClick={() => onSelect(null)}
+          >
+            ×
+          </button>
           <div className="ps-mobile-map-listing-summary">
             <div className="ps-mobile-map-listing-thumb"><ListingThumb listing={selected} fontSize={28} /></div>
             <div className="ps-mobile-map-listing-copy">
@@ -1669,7 +1677,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
-      <div className="ps-browse-content" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div className={`ps-browse-content ps-browse-content-${view}`} style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
         {(listingsLoading || listingsError || allListings.length === 0) ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
