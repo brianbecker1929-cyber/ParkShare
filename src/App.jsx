@@ -1966,6 +1966,7 @@ function TransactionsView({ user }) {
 function HostDashboard({ user, setTab }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
+  const [hostReviews, setHostReviews] = useState([]);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState("");
@@ -2080,7 +2081,29 @@ function HostDashboard({ user, setTab }) {
         );
 
         const listingIds = data.map(row => row.id);
-        if (listingIds.length === 0) return;
+        if (listingIds.length === 0) {
+          setHostReviews([]);
+          return;
+        }
+
+        const listingTitles = Object.fromEntries(data.map(row => [row.id, row.title]));
+        supabase
+          .from("reviews")
+          .select("*, profiles(name)")
+          .in("listing_id", listingIds)
+          .order("created_at", { ascending: false })
+          .then(({ data: reviewRows, error: reviewError }) => {
+            if (reviewError || !reviewRows) return;
+            setHostReviews(reviewRows.map(row => ({
+              id: row.id,
+              listing: listingTitles[row.listing_id] || "Listing",
+              user: row.profiles?.name || "Driver",
+              rating: Number(row.rating || 0),
+              text: row.text || "",
+              createdAt: row.created_at,
+            })));
+          });
+
         supabase
           .from("bookings")
           .select("*, listings(title), profiles(name)")
@@ -2127,6 +2150,7 @@ function HostDashboard({ user, setTab }) {
   const [editingListing, setEditingListing] = useState(null);
   const [showAllListings, setShowAllListings] = useState(false);
   const [showAllBookings, setShowAllBookings] = useState(false);
+  const [showAllReviews, setShowAllReviews] = useState(false);
   const [listingActionId, setListingActionId] = useState(null);
   const [bookingActionId, setBookingActionId] = useState(null);
 
@@ -2180,7 +2204,10 @@ function HostDashboard({ user, setTab }) {
   const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
   const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  const avgRating = myListings.length ? (myListings.reduce((s, l) => s + l.rating, 0) / myListings.length).toFixed(1) : "—";
+  const avgRating = hostReviews.length ? (hostReviews.reduce((sum, review) => sum + review.rating, 0) / hostReviews.length).toFixed(1) : "—";
+  const scrollToDashboardSection = sectionId => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <div className="host-dashboard-v2" style={{ fontFamily: "'Poppins', sans-serif", background: C.warmWhite, minHeight: "calc(100vh - 88px)", overflow: "visible", display: "flex", flexDirection: "column" }}>
@@ -2200,23 +2227,23 @@ function HostDashboard({ user, setTab }) {
         {/* Stats row — spans full width */}
         <div className="host-dashboard-stat-grid" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           {[
-            { label: "Earned this month", value: txLoading ? "…" : money(thisMonthEarned), icon: "💰" },
-            { label: "Upcoming bookings", value: String(upcomingBookings.length), icon: "📅" },
-            { label: "Active listings", value: String(myListings.filter(l => l.active).length), icon: "🏠" },
-            { label: "Average rating", value: avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐" },
+            { label: "Earned this month", value: txLoading ? "…" : money(thisMonthEarned), icon: "💰", target: "host-dashboard-earnings" },
+            { label: "Upcoming bookings", value: String(upcomingBookings.length), icon: "📅", target: "host-dashboard-upcoming" },
+            { label: "Active listings", value: String(myListings.filter(l => l.active).length), icon: "🏠", target: "host-dashboard-listings" },
+            { label: "Average rating", value: avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐", target: "host-dashboard-reviews" },
           ].map(s => (
-            <div key={s.label} className="host-dashboard-stat" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, padding: "14px 15px", display: "flex", alignItems: "center", gap: 11, minHeight: 88 }}>
+            <button type="button" key={s.label} className="host-dashboard-stat" onClick={() => scrollToDashboardSection(s.target)} aria-label={`${s.label}: ${s.value}. Jump to section.`} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, padding: "14px 15px", display: "flex", alignItems: "center", gap: 11, minHeight: 88, fontFamily: "inherit", textAlign: "left", cursor: "pointer" }}>
               <div className="host-dashboard-stat-icon" style={{ width: 38, height: 38, borderRadius: 10, background: C.amberLight, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0 }}>{s.icon}</div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: 18, color: C.navy, whiteSpace: "nowrap" }}>{s.value}</div>
                 <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{s.label}</div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
         {/* Upcoming Bookings */}
-        <div className="host-dashboard-panel host-dashboard-upcoming" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column" }}>
+        <div id="host-dashboard-upcoming" className="host-dashboard-panel host-dashboard-upcoming" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
           <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>📅 Upcoming bookings</div>
             {upcomingBookings.length > 3 && (
@@ -2256,7 +2283,7 @@ function HostDashboard({ user, setTab }) {
         </div>
 
         {/* My Listings */}
-        <div className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column" }}>
+        <div id="host-dashboard-listings" className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
           <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>🏠 Your listings</div>
             {myListings.length > 3 && (
@@ -2300,9 +2327,10 @@ function HostDashboard({ user, setTab }) {
         </div>
 
         {/* Earnings */}
-        <div className="host-dashboard-panel host-dashboard-earnings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+        <div id="host-dashboard-earnings" className="host-dashboard-panel host-dashboard-earnings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>💰 Earnings</div>
+            {setTab && <button onClick={() => setTab("Transactions")} style={{ minHeight: 34, background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>View all →</button>}
           </div>
 
           {/* Stripe Connect payout status — gates whether this host can actually get paid out */}
@@ -2355,6 +2383,36 @@ function HostDashboard({ user, setTab }) {
                   <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 12, color: C.moss, whiteSpace: "nowrap" }}>+{money(t.net)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Reviews received across all of this Host's listings */}
+        <div id="host-dashboard-reviews" className="host-dashboard-panel host-dashboard-reviews" style={{ gridColumn: "1 / -1", background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "hidden", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>⭐ Reviews</div>
+            {hostReviews.length > 3 && (
+              <button onClick={() => setShowAllReviews(value => !value)} style={{ minHeight: 34, background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>{showAllReviews ? "Show less" : `View all ${hostReviews.length} →`}</button>
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {hostReviews.length === 0 && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No reviews yet. New Driver reviews will appear here.</div>
+            )}
+            {hostReviews.slice(0, showAllReviews ? hostReviews.length : 3).map(review => (
+              <div key={review.id} className="host-dashboard-review-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, padding: "13px 15px", borderBottom: "1px solid "+C.concrete }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: 12, color: C.navy }}>{review.user}</span>
+                    <span style={{ fontSize: 9, color: C.muted }}>{review.listing}</span>
+                  </div>
+                  {review.text && <p style={{ margin: "5px 0 0", fontSize: 10.5, lineHeight: 1.5, color: C.muted }}>{review.text}</p>}
+                </div>
+                <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                  <Stars rating={review.rating} size={11} />
+                  <div style={{ fontSize: 9, color: C.muted, marginTop: 4 }}>{new Date(review.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -3920,9 +3978,8 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
       `}</style>
       {dashboardMobileHeader && (
         <div className="ps-dashboard-mobile-header-row">
-          <button onClick={onLogoClick} aria-label="ParkShare home" style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: 0, border: "none", background: "transparent", color: C.white, cursor: "pointer" }}>
-            <span style={{ width: 38, height: 38, borderRadius: "50%", overflow: "hidden", display: "inline-flex", background: C.amber, border: "2px solid "+C.white, flexShrink: 0 }}><img src={PARKER.icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /></span>
-            <span style={{ fontSize: 17, fontWeight: 800 }}>Park<span style={{ color: C.amber }}>Share</span></span>
+          <button onClick={onLogoClick} aria-label="ParkShare home" style={{ width: 190, maxWidth: "62vw", minHeight: 44, padding: 0, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "flex-start" }}>
+            <img src="/website-logo.png" alt="ParkShare" style={{ display: "block", width: "100%", height: 48, objectFit: "contain", objectPosition: "left center" }} />
           </button>
           <button onClick={() => setDashboardMenuOpen(v => !v)} aria-label="Open account and navigation menu" aria-expanded={dashboardMenuOpen} style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid rgba(255,255,255,0.28)", background: dashboardMenuOpen ? "rgba(255,255,255,0.14)" : "transparent", color: C.white, fontSize: 22, lineHeight: 1, cursor: "pointer" }}>{dashboardMenuOpen ? "×" : "☰"}</button>
         </div>
