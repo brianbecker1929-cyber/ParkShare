@@ -3,10 +3,9 @@
 // service fee is collected as an application fee.
 
 import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
-import { calculateBookingAmounts, isRentableSpot } from "./_booking-rules.js";
+import { calculateBookingAmounts, isRentableSpot, isValidBookingDuration } from "./_booking-rules.js";
 
 const SERVICE_FEE_RATE = 0.15;
-const MAX_HOURS = 24 * 31;
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res)) return;
@@ -22,7 +21,7 @@ export default async function handler(req, res) {
     const startHour = Number.isFinite(Number(req.body?.startHour)) ? Number(req.body.startHour) : null;
     const endHour = Number.isFinite(Number(req.body?.endHour)) ? Number(req.body.endHour) : null;
 
-    if (!Number.isInteger(listingId) || !Number.isFinite(hours) || hours <= 0 || hours > MAX_HOURS) {
+    if (!Number.isInteger(listingId) || !isValidBookingDuration(hours, { scheduled: Boolean(bookingDate) })) {
       return res.status(400).json({ error: "Invalid listing or booking duration." });
     }
 
