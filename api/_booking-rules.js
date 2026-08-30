@@ -2,6 +2,23 @@
 // Keep this module free of Stripe, Supabase, and environment-variable access so
 // the business rules can be tested without live services or credentials.
 
+export const MIN_BOOKING_HOURS = 1;
+export const MAX_BOOKING_HOURS = 24 * 31;
+export const BOOKING_DURATION_INCREMENT = 0.25;
+
+export function isValidBookingDuration(hours, { scheduled = false } = {}) {
+  const value = Number(hours);
+  if (!Number.isFinite(value) || value < MIN_BOOKING_HOURS || value > MAX_BOOKING_HOURS) {
+    return false;
+  }
+
+  // Scheduled bookings are selected as whole-hour windows in the UI. Book Now
+  // supports quarter-hour increments, but never less than the one-hour minimum.
+  if (scheduled) return Number.isInteger(value);
+  const increments = value / BOOKING_DURATION_INCREMENT;
+  return Math.abs(increments - Math.round(increments)) < 1e-9;
+}
+
 export function spotIndexFromLabel(spotLabel) {
   const label = String(spotLabel || "").trim().toUpperCase();
   return /^[A-Z]$/.test(label) ? label.charCodeAt(0) - 65 : -1;

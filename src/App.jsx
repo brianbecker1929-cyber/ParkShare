@@ -1047,11 +1047,11 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
   const [bookingMode, setBookingMode] = useState("now");
 
   // Book Now duration — quick-pick chips, falls back to a custom hour input.
-  const NOW_DURATIONS = [0.5, 1, 2];
+  const NOW_DURATIONS = [1, 2];
   const [nowDuration, setNowDuration] = useState(1);
   const [nowCustomHours, setNowCustomHours] = useState("3");
   const isCustomDuration = !NOW_DURATIONS.includes(nowDuration);
-  const nowHours = isCustomDuration ? Math.max(0.25, Number(nowCustomHours) || 1) : nowDuration;
+  const nowHours = isCustomDuration ? Math.max(1, Number(nowCustomHours) || 1) : nowDuration;
 
   // Schedule for Later — the original date + start/end hour pickers.
   const [startHour, setStartHour] = useState(9);
@@ -1223,7 +1223,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
                     background: nowDuration === d ? C.amber : C.white,
                     border: nowDuration === d ? "2px solid " + C.navy : "1px solid " + C.concrete,
                     color: C.navy,
-                  }}>{d === 0.5 ? "30 min" : d + " hr"}</button>
+                  }}>{d + " hr"}</button>
                 ))}
                 <button onClick={() => setNowDuration("custom")} style={{
                   padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontFamily: "'Poppins', sans-serif",
@@ -1235,7 +1235,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
               </div>
               {isCustomDuration && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <input type="number" min="0.25" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                  <input type="number" min="1" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
                     style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif" }} />
                   <span style={{ fontSize: 12, color: C.muted }}>hours</span>
                 </div>

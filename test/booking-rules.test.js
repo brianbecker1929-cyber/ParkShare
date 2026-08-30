@@ -6,9 +6,25 @@ import {
   getSessionWindow,
   isNewWebhookInsert,
   isRentableSpot,
+  isValidBookingDuration,
   spotIndexFromLabel,
   windowsOverlap,
 } from "../api/_booking-rules.js";
+
+test("booking durations enforce a one-hour minimum and valid increments", () => {
+  assert.equal(isValidBookingDuration(0.01), false);
+  assert.equal(isValidBookingDuration(0.25), false);
+  assert.equal(isValidBookingDuration(0.5), false);
+  assert.equal(isValidBookingDuration(1), true);
+  assert.equal(isValidBookingDuration(1.25), true);
+  assert.equal(isValidBookingDuration(2), true);
+  assert.equal(isValidBookingDuration(1.1), false);
+  assert.equal(isValidBookingDuration(745), false);
+
+  assert.equal(isValidBookingDuration(1, { scheduled: true }), true);
+  assert.equal(isValidBookingDuration(1.25, { scheduled: true }), false);
+  assert.equal(isValidBookingDuration(2, { scheduled: true }), true);
+});
 
 test("configured rentable spots use the host's explicit per-spot settings", () => {
   const listing = {
