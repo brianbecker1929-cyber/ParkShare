@@ -3168,3 +3168,177 @@ button, input, select, textarea { font: inherit; }
     flex-direction: column;
   }
 }
+
+/* Driver route preview and confirmed-booking navigation -------------------- */
+.ps-browse-listing-heading {
+  padding: 16px 14px 6px;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ps-browse-listing-card {
+  margin: 8px 10px;
+  padding: 12px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(14, 27, 46, .08);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.ps-browse-listing-card:hover,
+.ps-browse-listing-card.is-selected {
+  border-color: #FFC107;
+  box-shadow: 0 7px 20px rgba(14, 27, 46, .14);
+}
+
+.ps-browse-listing-card.is-selected { transform: translateY(-1px); }
+
+.ps-browse-listing-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ps-browse-listing-thumb,
+.ps-mobile-map-listing-thumb {
+  width: 62px;
+  height: 62px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #FFF8E1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-browse-listing-thumb img,
+.ps-mobile-map-listing-thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.ps-browse-listing-copy {
+  min-width: 0;
+  flex: 1;
+  color: #0E1B2E;
+}
+
+.ps-browse-listing-copy strong,
+.ps-browse-listing-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-browse-listing-copy strong { font-size: 12.5px; }
+.ps-browse-listing-copy > span { margin-top: 2px; color: #71695A; font-size: 9.5px; }
+
+.ps-browse-listing-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  color: #71695A;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.ps-browse-listing-actions,
+.ps-mobile-map-listing-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ps-browse-listing-actions button,
+.ps-mobile-map-listing-actions button {
+  min-height: 36px;
+  border-radius: 9px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ps-browse-listing-actions button:first-child,
+.ps-mobile-map-listing-actions button:first-child {
+  border: 1.5px solid #0E1B2E;
+  background: #fff;
+  color: #0E1B2E;
+}
+
+.ps-browse-listing-actions button:last-child,
+.ps-mobile-map-listing-actions button:last-child {
+  border: 1.5px solid #0E1B2E;
+  background: #0E1B2E;
+  color: #fff;
+}
+
+.ps-mobile-map-listing-preview { display: none; }
+
+.ps-driver-arrival-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border: 1px solid #E3DDC9;
+  border-radius: 10px;
+  background: #FAF7F0;
+  color: #0E1B2E;
+}
+
+.ps-driver-arrival-instructions strong { font-size: 11.5px; }
+.ps-driver-arrival-instructions span { color: #71695A; font-size: 11px; line-height: 1.45; }
+
+@media (min-width: 900px) {
+  .ps-browse-toolbar { padding: 12px 20px !important; }
+  .ps-browse-listing-column { max-width: 570px; background: #FAF7F0; }
+  .ps-browse-listing-card { margin: 10px 14px; padding: 14px; }
+  .ps-browse-listing-thumb { width: 70px; height: 70px; }
+  .ps-browse-listing-copy strong { font-size: 13px; }
+  .ps-browse-listing-copy > span,
+  .ps-browse-listing-meta { font-size: 10px; }
+}
+
+@media (max-width: 899px) {
+  .ps-map-pin-popover { display: none !important; }
+
+  .ps-mobile-map-listing-preview {
+    position: absolute;
+    z-index: 20;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    display: block;
+    padding: 12px;
+    border: 1.5px solid #E3DDC9;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, .98);
+    box-shadow: 0 10px 28px rgba(14, 27, 46, .24);
+    color: #0E1B2E;
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .ps-mobile-map-listing-summary { display: flex; align-items: center; gap: 11px; }
+  .ps-mobile-map-listing-copy { min-width: 0; flex: 1; }
+  .ps-mobile-map-listing-copy > strong,
+  .ps-mobile-map-listing-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ps-mobile-map-listing-copy > strong { font-size: 12.5px; }
+  .ps-mobile-map-listing-copy > span { margin-top: 2px; color: #71695A; font-size: 9.5px; }
+  .ps-mobile-map-listing-copy > div { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .ps-mobile-map-listing-copy b { font-size: 15px; }
+  .ps-mobile-map-listing-copy b small { font-size: 9px; }
+  .ps-mobile-map-listing-copy > div > span { color: #71695A; font-size: 10px; font-weight: 600; }
+
+  .ps-driver-booking-summary { gap: 12px; }
+  .ps-driver-booking-actions > button:first-child { width: 100% !important; }
+}
+
+@media (max-width: 430px) {
+  .ps-mobile-map-listing-preview { left: 7px; right: 7px; bottom: 7px; padding: 10px; }
+  .ps-mobile-map-listing-thumb { width: 54px; height: 54px; }
+  .ps-mobile-map-listing-actions button { min-height: 38px; font-size: 10px; }
+  .ps-browse-listing-main { align-items: flex-start; }
+  .ps-browse-listing-card .ps-browse-listing-main > span { align-self: flex-start; }
+  .ps-driver-booking-summary { flex-direction: column; }
+  .ps-driver-booking-summary > div:last-child { text-align: left !important; }
+}
