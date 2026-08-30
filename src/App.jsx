@@ -3796,12 +3796,15 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
   );
 }
 
-function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick }) {
+function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
     ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
     : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
-  const dashboardMobileHeader = !!user && tab === "Host Dashboard";
+  // The compact hamburger header belongs only to the in-app Host Dashboard.
+  // Returning home must always restore the shared branded site header, even
+  // when the last selected app tab was Host Dashboard.
+  const dashboardMobileHeader = !isLandingPage && !!user && tab === "Host Dashboard";
 
   useEffect(() => { setDashboardMenuOpen(false); }, [tab, user?.id]);
 
@@ -3863,6 +3866,10 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
           }
 
           .ps-desktop-guest-nav::-webkit-scrollbar { display: none; }
+
+          .ps-signed-nav {
+            justify-content: flex-start !important;
+          }
 
           .ps-shared-nav-pill {
             width: 104px !important;
@@ -4106,7 +4113,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
       )}
       {/* Nav tabs — only shown once signed in; guests reach Browse via the landing page actions instead */}
       {user && (
-        <div className={`ps-signed-nav${dashboardMobileHeader && dashboardMenuOpen ? " is-open" : ""}`} style={{ display: "flex", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
+        <div className={`ps-signed-nav${dashboardMobileHeader && dashboardMenuOpen ? " is-open" : ""}`} style={{ display: "flex", justifyContent: "center", overflowX: "auto", gap: 6, padding: "0 12px 10px", scrollbarWidth: "none" }}>
           {dashboardMobileHeader && (
             <div className="ps-dashboard-menu-account" style={{ display: "none" }}>
               <div>
@@ -4256,6 +4263,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
   return (
     <div className="ps-landing-page ps-home-v2">
       <Header
+        isLandingPage
         tab={tab}
         onTabChange={onTabChange}
         onLogoClick={onLogoClick}
