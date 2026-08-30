@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Component } from "react";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { openNavigation } from "./lib/navigation";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -203,7 +204,7 @@ const MAP_STYLE = [
 
 // Compact ParkShare locator: the pin stays visually anchored by its pointed
 // tip, while the selected state reveals the listing's hourly price.
-function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
+function ParkingMapPin({ listing, selected, onSelect, onViewListing, onPreviewRoute }) {
   return (
     <div
       className="ps-map-parking-pin"
@@ -220,6 +221,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
     >
       {selected && (
         <div
+          className="ps-map-pin-popover"
           role="dialog"
           aria-label={`Preview of ${listing.title || "parking spot"}`}
           onClick={e => e.stopPropagation()}
@@ -252,22 +254,30 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={e => { e.stopPropagation(); onViewListing(listing); }}
-            onPointerDown={e => e.stopPropagation()}
-            onPointerUp={e => e.stopPropagation()}
-            onTouchStart={e => e.stopPropagation()}
-            onTouchEnd={e => e.stopPropagation()}
-            style={{
-              width: "100%", marginTop: 7, padding: "6px 9px", border: 0,
-              borderRadius: 8, background: C.amber, color: C.navy,
-              fontFamily: "'Poppins', sans-serif", fontSize: 9.5, fontWeight: 800,
-              cursor: "pointer",
-            }}
-          >
-            View parking →
-          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 7 }}>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onPreviewRoute(listing); }}
+              onPointerDown={e => e.stopPropagation()}
+              onPointerUp={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              onTouchEnd={e => e.stopPropagation()}
+              style={{ padding: "6px 5px", border: `1.5px solid ${C.navy}`, borderRadius: 8, background: C.white, color: C.navy, fontFamily: "'Poppins', sans-serif", fontSize: 8.5, fontWeight: 800, cursor: "pointer" }}
+            >
+              ↗ Route
+            </button>
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onViewListing(listing); }}
+              onPointerDown={e => e.stopPropagation()}
+              onPointerUp={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              onTouchEnd={e => e.stopPropagation()}
+              style={{ padding: "6px 5px", border: 0, borderRadius: 8, background: C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontSize: 8.5, fontWeight: 800, cursor: "pointer" }}
+            >
+              View parking
+            </button>
+          </div>
         </div>
       )}
 
@@ -314,7 +324,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing }) {
   );
 }
 
-function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
+function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -374,7 +384,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
   const center = userLoc || (withCoords[0] ? { lat: withCoords[0].lat, lng: withCoords[0].lng } : { lat: 40.7128, lng: -74.006 });
 
   return (
-    <div style={{ width: "100%", height: "100%", borderRadius: 12, overflow: "hidden" }}>
+    <div className="ps-listings-map" style={{ width: "100%", height: "100%", borderRadius: 12, overflow: "hidden", position: "relative" }}>
       <style>{`
         .ps-map-parking-pin {
           --ps-pin-width: 36px;
@@ -399,6 +409,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
         center={center}
         zoom={13}
         onLoad={(map) => { mapRef.current = map; }}
+        onClick={() => onSelect(null)}
         options={{
           styles: MAP_STYLE,
           disableDefaultUI: true,
@@ -416,11 +427,30 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, userLoc }) {
           const on = selected?.id === l.id;
           return (
             <OverlayView key={l.id} position={{ lat: l.lat, lng: l.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-              <ParkingMapPin listing={l} selected={on} onSelect={onSelect} onViewListing={onViewListing} />
+              <ParkingMapPin listing={l} selected={on} onSelect={onSelect} onViewListing={onViewListing} onPreviewRoute={onPreviewRoute} />
             </OverlayView>
           );
         })}
       </GoogleMap>
+      {selected && (
+        <div className="ps-mobile-map-listing-preview" role="dialog" aria-label={`Preview of ${selected.title || "parking spot"}`}>
+          <div className="ps-mobile-map-listing-summary">
+            <div className="ps-mobile-map-listing-thumb"><ListingThumb listing={selected} fontSize={28} /></div>
+            <div className="ps-mobile-map-listing-copy">
+              <strong>{selected.title || "Parking spot"}</strong>
+              <span>{selected.address}</span>
+              <div>
+                <b>{money(selected.price)}<small>/hr</small></b>
+                <span>★ {selected.rating || "New"}{selected.reviewCount ? ` (${selected.reviewCount})` : ""}</span>
+              </div>
+            </div>
+          </div>
+          <div className="ps-mobile-map-listing-actions">
+            <button type="button" onClick={() => onPreviewRoute(selected)}>↗ Preview route</button>
+            <button type="button" onClick={() => onViewListing(selected)}>View parking</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1144,6 +1174,10 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
       </div>
       <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>📍 {listing.address} · {listing.distance}</p>
 
+      <div style={{ marginBottom: 14 }}>
+        <Btn small variant="outline" onClick={() => openNavigation(listing)}>↗ Preview route</Btn>
+      </div>
+
       {liveAvailability && (
         <div style={{ marginBottom: 10 }}>
           {liveAvailability.available ? (
@@ -1189,7 +1223,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
-          <Btn small variant="amber" onClick={() => window.open(buildNavigationUrl(listing.address, listing.lat, listing.lng), "_blank", "noopener,noreferrer")}>🧭 Navigate there</Btn>
+          <Btn small variant="amber" onClick={() => openNavigation(listing)}>🧭 Navigate to parking</Btn>
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -1432,7 +1466,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
   const [mapHovered, setMapHovered] = useState(null);
-  const [view, setView] = useState("map");
+  const [view, setView] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 900px)").matches ? "split" : "map");
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
@@ -1564,13 +1598,17 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
     .map(l => ({ ...l, distMiles: userLoc && typeof l.lat === "number" && typeof l.lng === "number" ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng) : null }))
     .sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
 
+  const distanceLabel = (listing) => Number.isFinite(listing.distMiles)
+    ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
+    : "Preview route for travel details";
+
   if (selected) return <ListingDetail listing={selected} onBack={() => setSelected(null)} onMessage={onMessage} user={user} />;
 
   return (
-    <div style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
+    <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
 
       {/* Toolbar */}
-      <div style={{ background: C.white, borderBottom: "1px solid "+C.concrete, padding: "8px 12px", flexShrink: 0 }}>
+      <div className="ps-browse-toolbar" style={{ background: C.white, borderBottom: "1px solid "+C.concrete, padding: "8px 12px", flexShrink: 0 }}>
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
           <div style={{ flex: 1, position: "relative" }}>
@@ -1628,7 +1666,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+      <div className="ps-browse-content" style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
         {(listingsLoading || listingsError || allListings.length === 0) ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
@@ -1647,28 +1685,30 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
 
         {/* Listing column */}
         {view !== "map" && (
-          <div style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
+          <div className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
+            <div className="ps-browse-listing-heading">Parking near your destination</div>
             {filtered.map(l => (
-              <div key={l.id} onClick={() => setSelected(l)} onMouseEnter={() => setMapHovered(l)} onMouseLeave={() => setMapHovered(null)}
-                style={{
-                  margin: "8px 10px", borderRadius: 20, cursor: "pointer",
-                  background: C.amber, border: "3px solid " + C.white,
-                  boxShadow: mapHovered?.id === l.id ? "0 4px 16px rgba(28,43,57,0.28)" : "0 2px 7px rgba(28,43,57,0.14)",
-                  outline: mapHovered?.id === l.id ? "2px solid " + C.navy : "none",
-                  padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8,
-                  transition: "box-shadow 0.15s",
-                }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ListingThumb listing={l} fontSize={24} /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: C.navy, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.title}</div>
-                    <div style={{ fontSize: 10, color: C.navy, opacity: 0.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l.address}</div>
+              <div
+                key={l.id}
+                className={`ps-browse-listing-card${mapHovered?.id === l.id ? " is-selected" : ""}`}
+                onClick={() => setMapHovered(l)}
+                onMouseEnter={() => setMapHovered(l)}
+              >
+                <div className="ps-browse-listing-main">
+                  <div className="ps-browse-listing-thumb"><ListingThumb listing={l} fontSize={30} /></div>
+                  <div className="ps-browse-listing-copy">
+                    <strong>{l.title}</strong>
+                    <span>{l.address}</span>
+                    <div className="ps-browse-listing-meta">
+                      <span>★ {l.rating || "New"}{l.reviewCount ? ` (${l.reviewCount})` : ""}</span>
+                      <span>{distanceLabel(l)}</span>
+                    </div>
                   </div>
                   <PriceTag price={l.price} size="sm" />
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.navy, fontWeight: 700 }}>
-                  <span>★ {l.rating} <span style={{ fontWeight: 500, opacity: 0.7 }}>({l.reviewCount})</span></span>
-                  <span style={{ fontWeight: 500, opacity: 0.8 }}>{Number.isFinite(l.distMiles) ? `${l.distMiles.toFixed(1)} mi` : "Distance unavailable"}</span>
+                <div className="ps-browse-listing-actions">
+                  <button type="button" onClick={e => { e.stopPropagation(); setMapHovered(l); openNavigation(l); }}>↗ Preview route</button>
+                  <button type="button" onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
                 </div>
               </div>
             ))}
@@ -1677,13 +1717,14 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
 
         {/* Map column */}
         {view !== "list" && (
-          <div style={{ flex: 1, padding: 6 }}>
+          <div className="ps-browse-map-column" style={{ flex: 1, padding: 6 }}>
             <div style={{ height: "100%", borderRadius: 10, overflow: "hidden", border: "1px solid "+C.concrete }}>
               <ListingsMap
                 listings={filtered}
                 selected={mapHovered}
                 onSelect={setMapHovered}
                 onViewListing={setSelected}
+                onPreviewRoute={openNavigation}
                 userLoc={userLoc}
               />
             </div>
@@ -3100,24 +3141,6 @@ function ListDrivewayView({ user }) {
   );
 }
 
-// Opens the renter's own Maps app for real turn-by-turn navigation — true
-// in-app turn-by-turn (voice guidance, live rerouting) requires a native
-// mobile SDK that doesn't exist for web apps, so handing off to the
-// device's own Maps app is the standard, reliable approach every major app
-// in this space (Uber, Airbnb, DoorDash) actually uses. Apple Maps on iOS
-// (the OS default), Google Maps everywhere else (opens the native app on
-// Android, falls back to Google Maps in the browser on desktop). Prefers
-// exact coordinates when the listing has them, falls back to the street
-// address otherwise.
-function buildNavigationUrl(address, lat, lng) {
-  const hasCoords = typeof lat === "number" && typeof lng === "number";
-  const dest = hasCoords ? `${lat},${lng}` : encodeURIComponent(address || "");
-  const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  return isIOS
-    ? `https://maps.apple.com/?daddr=${dest}&dirflg=d`
-    : `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
-}
-
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function clientBookingWindow(booking) {
   let start;
@@ -3220,6 +3243,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
               img: row.listings?.img || "🏠",
               lat: row.listings?.lat,
               lng: row.listings?.lng,
+              description: row.listings?.description || "",
               host: row.listings?.profiles?.name || "Host",
               hostImg: "🧑",
               bookingId: row.id,
@@ -3266,7 +3290,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
   };
 
   return (
-    <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
+    <div className="ps-driver-bookings" style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 680, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
       {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
       {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
@@ -3276,6 +3300,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
         return (
         <div
+          className="ps-driver-booking-card"
           key={b.id}
           ref={isHighlighted ? highlightRef : null}
           style={{
@@ -3288,14 +3313,14 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
           {b.status === "Completed" && (
             <img src={PARKER.success} alt="Parker celebrating a successful booking" style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }} />
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 5 }}>📍 {b.listing.address}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{b.date} · {b.time}</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {(b.status === "Upcoming" || b.status === "Active") && (
-                  <Btn small variant="amber" onClick={() => window.open(buildNavigationUrl(b.listing.address, b.listing.lat, b.listing.lng), "_blank", "noopener,noreferrer")}>🧭 Navigate</Btn>
+                  <Btn small variant="amber" onClick={() => openNavigation(b.listing)}>🧭 Navigate to parking</Btn>
                 )}
                 {b.active && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
@@ -3311,6 +3336,12 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
             </div>
           </div>
+          {(b.status === "Upcoming" || b.status === "Active") && (
+            <div className="ps-driver-arrival-instructions">
+              <strong>Arrival instructions</strong>
+              <span>{b.listing.description || "Review the listing details before you arrive."}</span>
+            </div>
+          )}
         </div>
         );
       })}
