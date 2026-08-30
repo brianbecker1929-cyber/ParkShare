@@ -1466,7 +1466,10 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
   const [mapHovered, setMapHovered] = useState(null);
-  const [view, setView] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 900px)").matches ? "split" : "map");
+  // Keep the map and listings together by default on every screen. Desktop
+  // presents the two panes side by side; the mobile stylesheet stacks the
+  // map above full-width listing cards so neither pane is squeezed or clipped.
+  const [view, setView] = useState("split");
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
