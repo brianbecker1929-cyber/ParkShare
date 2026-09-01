@@ -116,17 +116,13 @@ function PriceTag({ price, size = "md" }) {
 
 function WalkingTimeLabel({ label, className = "" }) {
   if (!label) return null;
-  const visibleLabel = label.replace(/^🚶\s*/, "");
-  const accessibleLabel = visibleLabel.replace("≈", "approximately");
+  const fullLabel = label.replace(/^🚶\s*/, "");
+  const visibleLabel = fullLabel.replace(" min walk", " min");
+  const accessibleLabel = fullLabel.replace("≈", "approximately");
 
   return (
     <span className={`ps-walking-time-label ${className}`.trim()} aria-label={`Walking time: ${accessibleLabel}`}>
-      <span className="ps-walking-time-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" role="presentation">
-          <circle cx="12" cy="4.25" r="2.15" />
-          <path d="M11 7.2 14.2 10l2.7 1.1M11 7.2l-2.1 5.2-3.2 2.1M9 12.1l3.3 3.1-1.2 5M12.3 15.2l3.8 4.4" />
-        </svg>
-      </span>
+      <span className="ps-walking-time-tag" aria-hidden="true">WALK</span>
       <span>{visibleLabel}</span>
     </span>
   );

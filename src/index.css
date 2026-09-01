@@ -221,7 +221,7 @@ button, input, select, textarea { font: inherit; }
 .ps-trust-icon {
   width: 34px;
   height: 34px;
-  border-radius: 50%;
+  border-radius: 999px;
   background: #FFC107;
   display: flex;
   align-items: center;
@@ -3264,31 +3264,19 @@ button, input, select, textarea { font: inherit; }
   white-space: nowrap;
 }
 
-.ps-walking-time-icon {
+.ps-walking-time-tag {
   display: inline-flex;
-  width: 19px;
   height: 19px;
-  flex: 0 0 19px;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
+  padding: 0 6px;
   border-radius: 50%;
   background: #0E1B2E;
   color: #fff;
-}
-
-.ps-walking-time-icon svg {
-  width: 13px;
-  height: 13px;
-  overflow: visible;
-}
-
-.ps-walking-time-icon circle { fill: currentColor; }
-.ps-walking-time-icon path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .08em;
 }
 
 .ps-browse-card-walk-time { font-size: 9.5px; }
