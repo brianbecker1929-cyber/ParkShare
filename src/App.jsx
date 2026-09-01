@@ -114,6 +114,24 @@ function PriceTag({ price, size = "md" }) {
   );
 }
 
+function WalkingTimeLabel({ label, className = "" }) {
+  if (!label) return null;
+  const visibleLabel = label.replace(/^🚶\s*/, "");
+  const accessibleLabel = visibleLabel.replace("≈", "approximately");
+
+  return (
+    <span className={`ps-walking-time-label ${className}`.trim()} aria-label={`Walking time: ${accessibleLabel}`}>
+      <span className="ps-walking-time-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="presentation">
+          <circle cx="12" cy="4.25" r="2.15" />
+          <path d="M11 7.2 14.2 10l2.7 1.1M11 7.2l-2.1 5.2-3.2 2.1M9 12.1l3.3 3.1-1.2 5M12.3 15.2l3.8 4.4" />
+        </svg>
+      </span>
+      <span>{visibleLabel}</span>
+    </span>
+  );
+}
+
 function Stars({ rating, size = 13 }) {
   return (
     <span style={{ color: C.amber, fontWeight: 700, fontSize: size }}>
@@ -256,8 +274,8 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing, onPreviewRo
             </div>
           </div>
           {listing.walkLabel && (
-            <div style={{ marginTop: 6, color: C.navy, fontSize: 9, fontWeight: 700 }}>
-              {listing.walkLabel}
+            <div className="ps-map-pin-walk-time">
+              <WalkingTimeLabel label={listing.walkLabel} />
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 7 }}>
@@ -458,7 +476,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
                 <b>{money(activeSelected.price)}<small>/hr</small></b>
                 <span>★ {activeSelected.rating || "New"}{activeSelected.reviewCount ? ` (${activeSelected.reviewCount})` : ""}</span>
               </div>
-              {activeSelected.walkLabel && <span className="ps-mobile-map-walk-time">{activeSelected.walkLabel}</span>}
+              {activeSelected.walkLabel && <WalkingTimeLabel label={activeSelected.walkLabel} className="ps-mobile-map-walk-time" />}
             </div>
           </div>
           <div className="ps-mobile-map-listing-actions">
@@ -1188,7 +1206,8 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, margin: 0, flex: 1 }}>{listing.title}</h2>
         <PriceTag price={listing.price} size="lg" />
       </div>
-      <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>📍 {listing.address} · {listing.walkLabel || listing.distance}</p>
+      <p style={{ color: C.muted, fontSize: 12, marginBottom: listing.walkLabel ? 7 : 10 }}>📍 {listing.address}{listing.walkLabel ? "" : ` · ${listing.distance}`}</p>
+      {listing.walkLabel && <WalkingTimeLabel label={listing.walkLabel} className="ps-listing-detail-walk-time" />}
 
       <div style={{ marginBottom: 14 }}>
         <Btn small variant="outline" onClick={() => openNavigation(listing)}>↗ Preview route</Btn>
@@ -1777,7 +1796,9 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
                     <span>{l.address}</span>
                     <div className="ps-browse-listing-meta">
                       <span>★ {l.rating || "New"}{l.reviewCount ? ` (${l.reviewCount})` : ""}</span>
-                      <span>{distanceLabel(l)}</span>
+                      {l.walkLabel
+                        ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
+                        : <span>{distanceLabel(l)}</span>}
                     </div>
                   </div>
                   <PriceTag price={l.price} size="sm" />
