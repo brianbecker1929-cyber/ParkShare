@@ -3178,6 +3178,14 @@ button, input, select, textarea { font: inherit; }
   font-weight: 800;
 }
 
+.ps-walking-route-warning {
+  margin: 6px 2px 0;
+  color: #71695A;
+  font-family: 'Poppins', sans-serif;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 .ps-browse-listing-card {
   margin: 8px 10px;
   padding: 12px;
@@ -3394,6 +3402,12 @@ button, input, select, textarea { font: inherit; }
   .ps-mobile-map-listing-copy b { font-size: 15px; }
   .ps-mobile-map-listing-copy b small { font-size: 9px; }
   .ps-mobile-map-listing-copy > div > span { color: #71695A; font-size: 10px; font-weight: 600; }
+  .ps-mobile-map-listing-copy > .ps-mobile-map-walk-time {
+    margin-top: 5px;
+    color: #0E1B2E;
+    font-size: 10px;
+    font-weight: 700;
+  }
 
   .ps-driver-booking-summary { gap: 12px; }
   .ps-driver-booking-actions > button:first-child { width: 100% !important; }

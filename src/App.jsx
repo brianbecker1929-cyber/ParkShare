@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, Component } from "react";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 import { openNavigation } from "./lib/navigation";
+import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -254,6 +255,11 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing, onPreviewRo
               </div>
             </div>
           </div>
+          {listing.walkLabel && (
+            <div style={{ marginTop: 6, color: C.navy, fontSize: 9, fontWeight: 700 }}>
+              {listing.walkLabel}
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 7 }}>
             <button
               type="button"
@@ -332,6 +338,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   const mapRef = useRef(null);
 
   const withCoords = listings.filter(l => typeof l.lat === "number" && typeof l.lng === "number");
+  const activeSelected = selected ? listings.find(l => l.id === selected.id) || selected : null;
 
   // A searched destination (or device location) is the map's anchor. Centre it
   // immediately instead of fitting every marketplace pin into one wide view;
@@ -358,15 +365,15 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   // On narrow mobile maps, center the chosen spot and leave vertical room
   // above its pin so the compact preview cannot be clipped by the toolbar.
   useEffect(() => {
-    if (!selected || !mapRef.current || typeof window === "undefined") return;
+    if (!activeSelected || !mapRef.current || typeof window === "undefined") return;
     if (!window.matchMedia("(max-width: 700px)").matches) return;
-    if (typeof selected.lat !== "number" || typeof selected.lng !== "number") return;
+    if (typeof activeSelected.lat !== "number" || typeof activeSelected.lng !== "number") return;
 
     const map = mapRef.current;
-    map.panTo({ lat: selected.lat, lng: selected.lng });
+    map.panTo({ lat: activeSelected.lat, lng: activeSelected.lng });
     const frame = window.requestAnimationFrame(() => map.panBy(0, -105));
     return () => window.cancelAnimationFrame(frame);
-  }, [selected?.id]);
+  }, [activeSelected?.id]);
 
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 }}>Map unavailable — missing Google Maps API key</div>;
@@ -433,7 +440,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
         })}
       </GoogleMap>
       {selected && (
-        <div className="ps-mobile-map-listing-preview" role="dialog" aria-label={`Preview of ${selected.title || "parking spot"}`}>
+        <div className="ps-mobile-map-listing-preview" role="dialog" aria-label={`Preview of ${activeSelected.title || "parking spot"}`}>
           <button
             type="button"
             className="ps-mobile-map-listing-close"
@@ -443,19 +450,20 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
             ×
           </button>
           <div className="ps-mobile-map-listing-summary">
-            <div className="ps-mobile-map-listing-thumb"><ListingThumb listing={selected} fontSize={28} /></div>
+            <div className="ps-mobile-map-listing-thumb"><ListingThumb listing={activeSelected} fontSize={28} /></div>
             <div className="ps-mobile-map-listing-copy">
-              <strong>{selected.title || "Parking spot"}</strong>
-              <span>{selected.address}</span>
+              <strong>{activeSelected.title || "Parking spot"}</strong>
+              <span>{activeSelected.address}</span>
               <div>
-                <b>{money(selected.price)}<small>/hr</small></b>
-                <span>★ {selected.rating || "New"}{selected.reviewCount ? ` (${selected.reviewCount})` : ""}</span>
+                <b>{money(activeSelected.price)}<small>/hr</small></b>
+                <span>★ {activeSelected.rating || "New"}{activeSelected.reviewCount ? ` (${activeSelected.reviewCount})` : ""}</span>
               </div>
+              {activeSelected.walkLabel && <span className="ps-mobile-map-walk-time">{activeSelected.walkLabel}</span>}
             </div>
           </div>
           <div className="ps-mobile-map-listing-actions">
-            <button type="button" onClick={() => onPreviewRoute(selected)}>↗ Preview route</button>
-            <button type="button" onClick={() => onViewListing(selected)}>View parking</button>
+            <button type="button" onClick={() => onPreviewRoute(activeSelected)}>↗ Preview route</button>
+            <button type="button" onClick={() => onViewListing(activeSelected)}>View parking</button>
           </div>
         </div>
       )}
@@ -1180,7 +1188,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, margin: 0, flex: 1 }}>{listing.title}</h2>
         <PriceTag price={listing.price} size="lg" />
       </div>
-      <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>📍 {listing.address} · {listing.distance}</p>
+      <p style={{ color: C.muted, fontSize: 12, marginBottom: 10 }}>📍 {listing.address} · {listing.walkLabel || listing.distance}</p>
 
       <div style={{ marginBottom: 14 }}>
         <Btn small variant="outline" onClick={() => openNavigation(listing)}>↗ Preview route</Btn>
@@ -1481,10 +1489,15 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
+  const [walkingRoutes, setWalkingRoutes] = useState({});
+  const [walkingRoutesLoading, setWalkingRoutesLoading] = useState(false);
   const debounceRef = useRef(null);
   const searchInputRef = useRef(null);
   const autocompleteTokenRef = useRef(null);
   const suggestionRequestRef = useRef(0);
+  const walkingRouteInputKey = allListings
+    .map(listing => `${listing.id}:${listing.lat ?? ""}:${listing.lng ?? ""}`)
+    .join("|");
 
   // If Google Places can't be reached, fall back to matching against our own
   // listing addresses and titles so the search field still stays useful.
@@ -1604,16 +1617,63 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Calculate every visible driveway-to-destination walk in one route-matrix
+  // request. If Routes is not enabled for the existing Maps key, the listing
+  // still shows a clearly marked straight-line estimate instead of going blank.
+  useEffect(() => {
+    let cancelled = false;
+    if (!locatedSearch || !userLoc || !placesLoaded) {
+      setWalkingRoutes({});
+      setWalkingRoutesLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    setWalkingRoutes({});
+    setWalkingRoutesLoading(true);
+    computeWalkingRoutes(allListings, userLoc)
+      .then(routes => {
+        if (!cancelled) setWalkingRoutes(routes);
+      })
+      .catch(() => {
+        if (!cancelled) setWalkingRoutes({});
+      })
+      .finally(() => {
+        if (!cancelled) setWalkingRoutesLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
+
   const filtered = allListings
     .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
-    .map(l => ({ ...l, distMiles: userLoc && typeof l.lat === "number" && typeof l.lng === "number" ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng) : null }))
+    .map(l => {
+      const distMiles = userLoc && typeof l.lat === "number" && typeof l.lng === "number"
+        ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng)
+        : null;
+      return {
+        ...l,
+        distMiles,
+        walkLabel: buildWalkingLabel({
+          destinationSelected: locatedSearch,
+          loading: walkingRoutesLoading,
+          route: walkingRoutes[String(l.id)],
+          distanceMiles: distMiles,
+        }),
+      };
+    })
     .sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
 
-  const distanceLabel = (listing) => Number.isFinite(listing.distMiles)
+  const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
     ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
-    : "Preview route for travel details";
+    : "Select a destination for walking time");
 
-  if (selected) return <ListingDetail listing={selected} onBack={() => setSelected(null)} onMessage={onMessage} user={user} />;
+  // Keep the detail view in sync when a route-matrix response arrives after
+  // the Driver has already opened the listing.
+  const selectedListing = selected
+    ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
+    : null;
+
+  if (selectedListing) return <ListingDetail listing={selectedListing} onBack={() => setSelected(null)} onMessage={onMessage} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -1674,6 +1734,11 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
             ))}
           </div>
         </div>
+        {locatedSearch && (
+          <div className="ps-walking-route-warning">
+            Walking times are estimates. Pedestrian routes may not include every sidewalk or walking path.
+          </div>
+        )}
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
