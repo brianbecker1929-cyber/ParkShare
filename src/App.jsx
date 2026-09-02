@@ -6114,14 +6114,23 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
   const searching = q.length > 0;
 
   const searchResults = searching
-    ? HELP_DATA.flatMap(cat =>
-        cat.groups.flatMap((grp, gi) =>
-          grp.items
-            .map((item, ii) => ({ ...item, key: cat.id + "-" + gi + "-" + ii, catTitle: cat.title, catIcon: cat.icon }))
-            .filter(item => item.q.toLowerCase().includes(q) || item.a.toLowerCase().includes(q))
-        )
-      )
+    ? HELP_DATA.map(cat => ({
+        ...cat,
+        groups: cat.groups
+          .map((grp, gi) => ({
+            ...grp,
+            items: grp.items
+              .map((item, ii) => ({ ...item, key: cat.id + "-" + gi + "-" + ii }))
+              .filter(item => item.q.toLowerCase().includes(q) || item.a.toLowerCase().includes(q)),
+          }))
+          .filter(grp => grp.items.length > 0),
+      })).filter(cat => cat.groups.length > 0)
     : [];
+
+  const searchResultCount = searchResults.reduce(
+    (total, cat) => total + cat.groups.reduce((catTotal, grp) => catTotal + grp.items.length, 0),
+    0
+  );
 
   return (
     <div className="ps-help-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
@@ -6644,22 +6653,39 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         {searching ? (
           <div className="ps-help-search-results">
             <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
-              {searchResults.length} result{searchResults.length !== 1 ? "s" : ""} for "{query}"
+              {searchResultCount} result{searchResultCount !== 1 ? "s" : ""} for "{query}"
             </p>
-            {searchResults.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "30px 0" }}>
-                <p style={{ fontSize: 13.5, color: C.muted, marginBottom: 12 }}>Parker couldn't find an answer for that.</p>
-                <button onClick={onContactClick} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 10, padding: "10px 20px", fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}>Contact Support</button>
-              </div>
+            {searchResultCount === 0 ? (
+              <p style={{ fontSize: 13.5, color: C.muted, margin: "0 0 30px" }}>No matching help topics found. Try another search or contact ParkShare Support.</p>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {searchResults.map(item => (
-                  <div key={item.key}>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: C.amber, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4, marginLeft: 2 }}>{item.catIcon} {item.catTitle}</div>
-                    <HelpAccordionItem q={item.q} a={item.a} isOpen={openKeys.has(item.key)} onToggle={() => toggle(item.key)} />
+              searchResults.map(cat => (
+                <section key={cat.id} id={cat.id} className="ps-help-category">
+                  <div className="ps-help-category-head">
+                    <span className="icon">{cat.icon}</span>
+                    <h2>{cat.title}</h2>
                   </div>
-                ))}
-              </div>
+
+                  <div className="ps-help-group-grid">
+                    {cat.groups.map(grp => (
+                      <div key={grp.sub} className="ps-help-group">
+                        <div className="ps-help-group-title">{grp.sub}</div>
+                        <div className="ps-help-accordion-stack">
+                          {grp.items.map(item => (
+                            <HelpAccordionItem key={item.key} q={item.q} a={item.a} isOpen={openKeys.has(item.key)} onToggle={() => toggle(item.key)} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="ps-help-category-links">
+                    {cat.id === "trust" && (
+                      <button onClick={onTrustClick} className="ps-help-text-link">Learn More About Trust &amp; Safety →</button>
+                    )}
+                    <button onClick={() => { setQuery(""); window.setTimeout(() => scrollTo("help-topics"), 0); }} className="ps-help-text-link">Back to Help topics ↑</button>
+                  </div>
+                </section>
+              ))
             )}
           </div>
         ) : (
