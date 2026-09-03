@@ -3588,6 +3588,15 @@ function DriverProfileView({ user, onProfileUpdated }) {
         if (payload.errors) setErrors(payload.errors);
         throw new Error(payload.error || "Unable to save your profile.");
       }
+
+      // The server updates Supabase Auth metadata with the service-role
+      // client. Refresh the browser session so its persisted user object
+      // immediately receives those new values as well. Without this, an
+      // ordinary page refresh can temporarily restore the pre-save profile
+      // until the Driver signs out and back in.
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) console.warn("Unable to refresh profile session:", refreshError);
+
       const nextUser = {
         ...user,
         ...payload.profile,
@@ -7557,7 +7566,7 @@ export default function App() {
           {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
-          <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />
+          {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
