@@ -3,7 +3,8 @@ import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Mark
 import { supabase } from "./lib/supabaseClient";
 import { openNavigation } from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
-import { getDriverProfileCompletion, validateDriverProfile } from "./lib/driverProfile";
+import { getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
+import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -17,11 +18,14 @@ const C = {
 
 function buildAppUser(profile, authUser) {
   const metadata = authUser?.user_metadata || {};
-  const driverProfile = {
+  const driverProfile = normaliseDriverProfile({
     name: profile?.name || metadata.name || "ParkShare Driver",
     phone: metadata.phone || "",
     vehicleDetails: metadata.vehicle_details || "",
-  };
+    vehicleMake: metadata.vehicle_make || "",
+    vehicleModel: metadata.vehicle_model || "",
+    vehicleColour: metadata.vehicle_colour || "",
+  });
   return {
     id: profile?.id || authUser?.id,
     name: driverProfile.name,
@@ -29,6 +33,9 @@ function buildAppUser(profile, authUser) {
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
+    vehicleMake: driverProfile.vehicleMake,
+    vehicleModel: driverProfile.vehicleModel,
+    vehicleColour: driverProfile.vehicleColour,
     profileComplete: getDriverProfileCompletion(driverProfile).complete,
   };
 }
@@ -3542,7 +3549,9 @@ function DriverProfileView({ user, onProfileUpdated }) {
   const [form, setForm] = useState({
     name: user?.name || "",
     phone: user?.phone || "",
-    vehicleDetails: user?.vehicleDetails || "",
+    vehicleMake: user?.vehicleMake || "",
+    vehicleModel: user?.vehicleModel || "",
+    vehicleColour: user?.vehicleColour || "",
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -3554,13 +3563,21 @@ function DriverProfileView({ user, onProfileUpdated }) {
     setForm({
       name: user?.name || "",
       phone: user?.phone || "",
-      vehicleDetails: user?.vehicleDetails || "",
+      vehicleMake: user?.vehicleMake || "",
+      vehicleModel: user?.vehicleModel || "",
+      vehicleColour: user?.vehicleColour || "",
     });
-  }, [user?.id, user?.name, user?.phone, user?.vehicleDetails]);
+  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour]);
 
   const update = (field, value) => {
     setForm(current => ({ ...current, [field]: value }));
     setErrors(current => ({ ...current, [field]: "" }));
+    setSaved(false);
+  };
+
+  const updateVehicleMake = value => {
+    setForm(current => ({ ...current, vehicleMake: value, vehicleModel: "" }));
+    setErrors(current => ({ ...current, vehicleMake: "", vehicleModel: "" }));
     setSaved(false);
   };
 
@@ -3667,18 +3684,53 @@ function DriverProfileView({ user, onProfileUpdated }) {
           </div>
 
           <div className="ps-profile-field">
-            <label htmlFor="driver-profile-vehicle">Vehicle details <span>Recommended</span></label>
-            <input
-              id="driver-profile-vehicle"
-              name="vehicle"
-              autoComplete="off"
-              placeholder="Blue Honda Civic"
-              maxLength={120}
-              value={form.vehicleDetails}
-              onChange={event => update("vehicleDetails", event.target.value)}
-              aria-describedby="driver-profile-vehicle-help"
-            />
-            <em id="driver-profile-vehicle-help">Colour, make and model are enough—do not include private documents.</em>
+            <label htmlFor="driver-profile-vehicle-make">Vehicle make <span>Recommended</span></label>
+            <select
+              id="driver-profile-vehicle-make"
+              name="vehicleMake"
+              value={form.vehicleMake}
+              onChange={event => updateVehicleMake(event.target.value)}
+              aria-invalid={Boolean(errors.vehicleMake)}
+              aria-describedby={errors.vehicleMake ? "driver-profile-make-error" : undefined}
+            >
+              <option value="">Select make</option>
+              {VEHICLE_MAKES.map(make => <option key={make} value={make}>{make}</option>)}
+            </select>
+            {errors.vehicleMake && <small id="driver-profile-make-error" role="alert">{errors.vehicleMake}</small>}
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-vehicle-model">Vehicle model <span>Recommended</span></label>
+            <select
+              id="driver-profile-vehicle-model"
+              name="vehicleModel"
+              value={form.vehicleModel}
+              onChange={event => update("vehicleModel", event.target.value)}
+              disabled={!form.vehicleMake}
+              aria-invalid={Boolean(errors.vehicleModel)}
+              aria-describedby={errors.vehicleModel ? "driver-profile-model-error" : undefined}
+            >
+              <option value="">{form.vehicleMake ? "Select model" : "Select a make first"}</option>
+              {(VEHICLE_MODELS[form.vehicleMake] || []).map(model => <option key={model} value={model}>{model}</option>)}
+            </select>
+            {errors.vehicleModel && <small id="driver-profile-model-error" role="alert">{errors.vehicleModel}</small>}
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-vehicle-colour">Vehicle colour <span>Recommended</span></label>
+            <select
+              id="driver-profile-vehicle-colour"
+              name="vehicleColour"
+              value={form.vehicleColour}
+              onChange={event => update("vehicleColour", event.target.value)}
+              aria-invalid={Boolean(errors.vehicleColour)}
+              aria-describedby={errors.vehicleColour ? "driver-profile-colour-error" : "driver-profile-vehicle-help"}
+            >
+              <option value="">Select colour</option>
+              {VEHICLE_COLOURS.map(colour => <option key={colour} value={colour}>{colour}</option>)}
+            </select>
+            {errors.vehicleColour && <small id="driver-profile-colour-error" role="alert">{errors.vehicleColour}</small>}
+            <em id="driver-profile-vehicle-help">Choose the vehicle a Host should expect to see.</em>
           </div>
         </div>
 
