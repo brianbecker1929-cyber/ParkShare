@@ -3591,7 +3591,8 @@ button, input, select, textarea { font: inherit; }
   text-transform: uppercase;
   letter-spacing: .05em;
 }
-.ps-profile-field input {
+.ps-profile-field input,
+.ps-profile-field select {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
@@ -3601,9 +3602,17 @@ button, input, select, textarea { font: inherit; }
   color: #0E1B2E;
   outline: none;
 }
-.ps-profile-field input:focus { border-color: #0E1B2E; box-shadow: 0 0 0 3px rgba(255, 193, 7, .35); }
+.ps-profile-field select {
+  appearance: auto;
+  font-family: inherit;
+  font-size: 12px;
+}
+.ps-profile-field input:focus,
+.ps-profile-field select:focus { border-color: #0E1B2E; box-shadow: 0 0 0 3px rgba(255, 193, 7, .35); }
 .ps-profile-field input[readonly] { background: #FAF7F0; color: #71695A; }
-.ps-profile-field input[aria-invalid="true"] { border-color: #C53030; background: #FFF5F5; }
+.ps-profile-field input[aria-invalid="true"],
+.ps-profile-field select[aria-invalid="true"] { border-color: #C53030; background: #FFF5F5; }
+.ps-profile-field select:disabled { background: #FAF7F0; color: #71695A; cursor: not-allowed; }
 .ps-profile-field small,
 .ps-profile-field em {
   display: block;
