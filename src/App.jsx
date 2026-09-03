@@ -3,6 +3,8 @@ import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Mark
 import { supabase } from "./lib/supabaseClient";
 import { openNavigation } from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
+import { getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
+import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -13,6 +15,30 @@ const C = {
   amberLight: "#FFF8E1", muted: "#71695A", white: "#fff",
   red: "#C53030", redLight: "#FFF5F5", hazard: "#E2571C",
 };
+
+function buildAppUser(profile, authUser) {
+  const metadata = authUser?.user_metadata || {};
+  const driverProfile = normaliseDriverProfile({
+    name: profile?.name || metadata.name || "ParkShare Driver",
+    phone: metadata.phone || "",
+    vehicleDetails: metadata.vehicle_details || "",
+    vehicleMake: metadata.vehicle_make || "",
+    vehicleModel: metadata.vehicle_model || "",
+    vehicleColour: metadata.vehicle_colour || "",
+  });
+  return {
+    id: profile?.id || authUser?.id,
+    name: driverProfile.name,
+    email: authUser?.email || "",
+    role: profile?.role || metadata.role || "driver",
+    phone: driverProfile.phone,
+    vehicleDetails: driverProfile.vehicleDetails,
+    vehicleMake: driverProfile.vehicleMake,
+    vehicleModel: driverProfile.vehicleModel,
+    vehicleColour: driverProfile.vehicleColour,
+    profileComplete: getDriverProfileCompletion(driverProfile).complete,
+  };
+}
 
 // Guards the new satellite-map features (which depend on Google's Maps JS SDK
 // loading correctly) so that if anything in there throws, the person sees the
@@ -3518,6 +3544,217 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
   );
 }
 
+// ─── Driver Profile ──────────────────────────────────────────────────────────
+function DriverProfileView({ user, onProfileUpdated }) {
+  const [form, setForm] = useState({
+    name: user?.name || "",
+    phone: user?.phone || "",
+    vehicleMake: user?.vehicleMake || "",
+    vehicleModel: user?.vehicleModel || "",
+    vehicleColour: user?.vehicleColour || "",
+  });
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const completion = getDriverProfileCompletion(form);
+
+  useEffect(() => {
+    setForm({
+      name: user?.name || "",
+      phone: user?.phone || "",
+      vehicleMake: user?.vehicleMake || "",
+      vehicleModel: user?.vehicleModel || "",
+      vehicleColour: user?.vehicleColour || "",
+    });
+  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour]);
+
+  const update = (field, value) => {
+    setForm(current => ({ ...current, [field]: value }));
+    setErrors(current => ({ ...current, [field]: "" }));
+    setSaved(false);
+  };
+
+  const updateVehicleMake = value => {
+    setForm(current => ({ ...current, vehicleMake: value, vehicleModel: "" }));
+    setErrors(current => ({ ...current, vehicleMake: "", vehicleModel: "" }));
+    setSaved(false);
+  };
+
+  const save = async () => {
+    const validation = validateDriverProfile(form);
+    setErrors(validation.errors);
+    setSaveError("");
+    setSaved(false);
+    if (!validation.valid) return;
+
+    setSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Your session expired. Please sign in again.");
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(validation.normalised),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (payload.errors) setErrors(payload.errors);
+        throw new Error(payload.error || "Unable to save your profile.");
+      }
+
+      // The server updates Supabase Auth metadata with the service-role
+      // client. Refresh the browser session so its persisted user object
+      // immediately receives those new values as well. Without this, an
+      // ordinary page refresh can temporarily restore the pre-save profile
+      // until the Driver signs out and back in.
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) console.warn("Unable to refresh profile session:", refreshError);
+
+      const nextUser = {
+        ...user,
+        ...payload.profile,
+        profileComplete: payload.completion?.complete || false,
+      };
+      setForm(payload.profile);
+      onProfileUpdated(nextUser);
+      setSaved(true);
+    } catch (error) {
+      setSaveError(error.message || "Unable to save your profile right now.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <main className="ps-driver-profile-page">
+      <section className="ps-driver-profile-intro">
+        <div>
+          <div className="ps-profile-eyebrow">DRIVER PROFILE</div>
+          <h1>Your ParkShare profile</h1>
+          <p>Keep your contact and vehicle details ready so future bookings are easier to manage.</p>
+        </div>
+        <div className={`ps-profile-completion-card${completion.complete ? " is-complete" : ""}`} aria-label={`Profile ${completion.percentage}% complete`}>
+          <strong>{completion.complete ? "Profile complete" : `${completion.completed} of ${completion.total} complete`}</strong>
+          <span>{completion.percentage}%</span>
+          <div><i style={{ width: `${completion.percentage}%` }} /></div>
+        </div>
+      </section>
+
+      <section className="ps-driver-profile-card">
+        <div className="ps-driver-profile-fields">
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-name">Full name <span>Required</span></label>
+            <input
+              id="driver-profile-name"
+              name="name"
+              autoComplete="name"
+              value={form.name}
+              onChange={event => update("name", event.target.value)}
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? "driver-profile-name-error" : undefined}
+            />
+            {errors.name && <small id="driver-profile-name-error" role="alert">{errors.name}</small>}
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-email">Email</label>
+            <input id="driver-profile-email" type="email" value={user?.email || ""} readOnly aria-readonly="true" />
+            <em>Your sign-in email cannot be changed here.</em>
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-phone">Phone number <span>Recommended</span></label>
+            <input
+              id="driver-profile-phone"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="416-555-0100"
+              value={form.phone}
+              onChange={event => update("phone", event.target.value)}
+              aria-invalid={Boolean(errors.phone)}
+              aria-describedby={errors.phone ? "driver-profile-phone-error" : undefined}
+            />
+            {errors.phone && <small id="driver-profile-phone-error" role="alert">{errors.phone}</small>}
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-vehicle-make">Vehicle make <span>Recommended</span></label>
+            <select
+              id="driver-profile-vehicle-make"
+              name="vehicleMake"
+              value={form.vehicleMake}
+              onChange={event => updateVehicleMake(event.target.value)}
+              aria-invalid={Boolean(errors.vehicleMake)}
+              aria-describedby={errors.vehicleMake ? "driver-profile-make-error" : undefined}
+            >
+              <option value="">Select make</option>
+              {VEHICLE_MAKES.map(make => <option key={make} value={make}>{make}</option>)}
+            </select>
+            {errors.vehicleMake && <small id="driver-profile-make-error" role="alert">{errors.vehicleMake}</small>}
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-vehicle-model">Vehicle model <span>Recommended</span></label>
+            <select
+              id="driver-profile-vehicle-model"
+              name="vehicleModel"
+              value={form.vehicleModel}
+              onChange={event => update("vehicleModel", event.target.value)}
+              disabled={!form.vehicleMake}
+              aria-invalid={Boolean(errors.vehicleModel)}
+              aria-describedby={errors.vehicleModel ? "driver-profile-model-error" : undefined}
+            >
+              <option value="">{form.vehicleMake ? "Select model" : "Select a make first"}</option>
+              {(VEHICLE_MODELS[form.vehicleMake] || []).map(model => <option key={model} value={model}>{model}</option>)}
+            </select>
+            {errors.vehicleModel && <small id="driver-profile-model-error" role="alert">{errors.vehicleModel}</small>}
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-vehicle-colour">Vehicle colour <span>Recommended</span></label>
+            <select
+              id="driver-profile-vehicle-colour"
+              name="vehicleColour"
+              value={form.vehicleColour}
+              onChange={event => update("vehicleColour", event.target.value)}
+              aria-invalid={Boolean(errors.vehicleColour)}
+              aria-describedby={errors.vehicleColour ? "driver-profile-colour-error" : "driver-profile-vehicle-help"}
+            >
+              <option value="">Select colour</option>
+              {VEHICLE_COLOURS.map(colour => <option key={colour} value={colour}>{colour}</option>)}
+            </select>
+            {errors.vehicleColour && <small id="driver-profile-colour-error" role="alert">{errors.vehicleColour}</small>}
+            <em id="driver-profile-vehicle-help">Choose the vehicle a Host should expect to see.</em>
+          </div>
+        </div>
+
+        <aside className="ps-profile-checklist" aria-label="Profile checklist">
+          <h2>Profile checklist</h2>
+          {completion.items.map(item => (
+            <div key={item.id} className={item.complete ? "is-complete" : ""}>
+              <span aria-hidden="true">{item.complete ? "✓" : "○"}</span>
+              {item.label}
+            </div>
+          ))}
+          <p>You can save now and return later. Recommended details improve readiness but do not block browsing.</p>
+        </aside>
+
+        {saveError && <div className="ps-profile-message is-error" role="alert">{saveError}</div>}
+        {saved && <div className="ps-profile-message is-success" role="status">✓ Profile saved successfully.</div>}
+        <div className="ps-profile-actions">
+          <button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
 function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
   const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
@@ -3569,7 +3806,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
         setAuthError("Signed in, but couldn't load your profile.");
         return;
       }
-      onAuth({ id: profile.id, name: profile.name, email: data.user.email, role: profile.role });
+      onAuth(buildAppUser(profile, data.user));
       onClose();
       return;
     }
@@ -3615,7 +3852,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
       setAuthError("Your account was created, but we couldn't load your profile. Please sign in again.");
       return;
     }
-    onAuth({ id: profile.id, name: profile.name, email: data.user.email, role: profile.role });
+    onAuth(buildAppUser(profile, data.user));
     onClose();
   };
 
@@ -3982,7 +4219,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
     ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
-    : ["Browse", "My Bookings", "Messages", "List Your Driveway", "Host Dashboard", "Transactions"];
+    : ["Browse", "My Bookings", "Messages", "Profile", "List Your Driveway", "Host Dashboard", "Transactions"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -4305,7 +4542,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             </div>
           )}
           {tabs.map(t => (
-            <button key={t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t}</button>
+            <button key={t} aria-label={t === "Profile" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && !user.profileComplete ? "Profile •" : t}</button>
           ))}
         </div>
       )}
@@ -7086,7 +7323,8 @@ export default function App() {
 
   const handleAuth = (u) => {
     setUser(u);
-    setTab(u.role === "host" ? "Host Dashboard" : "Browse");
+    setScreen("app");
+    setTab(u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
   };
 
   const handleSignOut = async () => {
@@ -7111,7 +7349,7 @@ export default function App() {
         .eq("id", session.user.id)
         .single();
       if (profile && active) {
-        setUser({ id: profile.id, name: profile.name, email: session.user.email, role: profile.role });
+        setUser(buildAppUser(profile, session.user));
       }
     });
 
@@ -7198,6 +7436,7 @@ export default function App() {
   const handleHostGetStarted = () => { if (user) enterApp("List Your Driveway"); else setShowAuth(true); };
   // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
   const handleFindParking = () => { setBrowseAutoFocus(false); setBrowseAutoLocate(false); enterApp("Browse"); };
+  const driverProfileCompletion = user?.role === "driver" ? getDriverProfileCompletion(user) : null;
 
   return (
     <>
@@ -7332,6 +7571,12 @@ export default function App() {
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
           <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
           <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} />
+          {driverProfileCompletion && !driverProfileCompletion.complete && tab !== "Profile" && (
+            <div className="ps-profile-reminder" role="status">
+              <span><strong>Complete your Driver profile</strong> · {driverProfileCompletion.completed} of {driverProfileCompletion.total} details ready</span>
+              <button type="button" onClick={() => changeTab("Profile")}>Complete profile →</button>
+            </div>
+          )}
           {checkoutBanner === "success" && (
             <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
               <span>🎉 Payment received — your booking is confirmed! It'll show up below in a moment.</span>
@@ -7367,12 +7612,13 @@ export default function App() {
           )}
           {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
+          {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
-          <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />
+          {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
