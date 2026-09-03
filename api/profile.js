@@ -26,6 +26,9 @@ export default async function handler(req, res) {
       name: normalised.name,
       phone: normalised.phone,
       vehicle_details: normalised.vehicleDetails,
+      vehicle_make: normalised.vehicleMake,
+      vehicle_model: normalised.vehicleModel,
+      vehicle_colour: normalised.vehicleColour,
       profile_completed_at: completion.complete
         ? user.user_metadata?.profile_completed_at || new Date().toISOString()
         : null,
@@ -40,6 +43,9 @@ export default async function handler(req, res) {
         name: normalised.name,
         phone: normalised.phone,
         vehicleDetails: normalised.vehicleDetails,
+        vehicleMake: normalised.vehicleMake,
+        vehicleModel: normalised.vehicleModel,
+        vehicleColour: normalised.vehicleColour,
       },
       completion,
     });
