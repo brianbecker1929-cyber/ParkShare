@@ -3466,3 +3466,216 @@ button, input, select, textarea { font: inherit; }
   .ps-driver-booking-summary { flex-direction: column; }
   .ps-driver-booking-summary > div:last-child { text-align: left !important; }
 }
+
+/* Driver profile and first-login completion */
+.ps-profile-reminder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #E3DDC9;
+  background: #FFF8E1;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+}
+
+.ps-profile-reminder button {
+  border: 0;
+  background: transparent;
+  color: #0E1B2E;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ps-driver-profile-page {
+  width: min(920px, calc(100% - 36px));
+  margin: 0 auto;
+  padding: 42px 0 72px;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+}
+
+.ps-driver-profile-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  align-items: end;
+  gap: 32px;
+  margin-bottom: 22px;
+}
+
+.ps-profile-eyebrow {
+  margin-bottom: 6px;
+  color: #A77D00;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.ps-driver-profile-intro h1 {
+  margin: 0;
+  font-size: clamp(27px, 4vw, 38px);
+  line-height: 1.12;
+}
+
+.ps-driver-profile-intro p {
+  max-width: 620px;
+  margin: 9px 0 0;
+  color: #71695A;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ps-profile-completion-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px 14px;
+  padding: 15px 17px;
+  border: 1px solid #E3DDC9;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(14, 27, 46, .07);
+  font-size: 12px;
+}
+
+.ps-profile-completion-card > span { font-weight: 800; }
+.ps-profile-completion-card > div {
+  grid-column: 1 / -1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #E3DDC9;
+}
+.ps-profile-completion-card i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #FFC107;
+  transition: width .2s ease;
+}
+.ps-profile-completion-card.is-complete i { background: #3F7A5E; }
+
+.ps-driver-profile-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 28px;
+  padding: 26px;
+  border: 1px solid #E3DDC9;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 34px rgba(14, 27, 46, .08);
+}
+
+.ps-driver-profile-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.ps-profile-field { min-width: 0; }
+.ps-profile-field label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.ps-profile-field label span {
+  color: #71695A;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+.ps-profile-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 10px;
+  background: #fff;
+  color: #0E1B2E;
+  outline: none;
+}
+.ps-profile-field input:focus { border-color: #0E1B2E; box-shadow: 0 0 0 3px rgba(255, 193, 7, .35); }
+.ps-profile-field input[readonly] { background: #FAF7F0; color: #71695A; }
+.ps-profile-field input[aria-invalid="true"] { border-color: #C53030; background: #FFF5F5; }
+.ps-profile-field small,
+.ps-profile-field em {
+  display: block;
+  margin-top: 5px;
+  color: #71695A;
+  font-size: 9.5px;
+  font-style: normal;
+  line-height: 1.4;
+}
+.ps-profile-field small { color: #C53030; font-weight: 600; }
+
+.ps-profile-checklist {
+  padding: 18px;
+  border-radius: 14px;
+  background: #FAF7F0;
+}
+.ps-profile-checklist h2 { margin: 0 0 14px; font-size: 15px; }
+.ps-profile-checklist > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 10px 0;
+  color: #71695A;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ps-profile-checklist > div span {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #E3DDC9;
+  border-radius: 50%;
+  background: #fff;
+  font-weight: 800;
+}
+.ps-profile-checklist > div.is-complete { color: #3F7A5E; }
+.ps-profile-checklist > div.is-complete span { border-color: #3F7A5E; background: #E9F2ED; }
+.ps-profile-checklist p { margin: 16px 0 0; color: #71695A; font-size: 10px; line-height: 1.55; }
+
+.ps-profile-message,
+.ps-profile-actions { grid-column: 1 / -1; }
+.ps-profile-message {
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.ps-profile-message.is-error { background: #FFF5F5; color: #C53030; }
+.ps-profile-message.is-success { background: #E9F2ED; color: #3F7A5E; }
+.ps-profile-actions { display: flex; justify-content: flex-end; }
+.ps-profile-actions button {
+  min-width: 150px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 11px;
+  background: #FFC107;
+  color: #0E1B2E;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ps-profile-actions button:disabled { opacity: .65; cursor: wait; }
+
+@media (max-width: 760px) {
+  .ps-profile-reminder { align-items: flex-start; justify-content: space-between; font-size: 10px; }
+  .ps-profile-reminder button { flex: 0 0 auto; font-size: 10px; }
+  .ps-driver-profile-page { width: min(100% - 24px, 620px); padding: 28px 0 54px; }
+  .ps-driver-profile-intro { grid-template-columns: 1fr; gap: 16px; }
+  .ps-driver-profile-card { grid-template-columns: 1fr; gap: 22px; padding: 18px; }
+  .ps-driver-profile-fields { grid-template-columns: 1fr; gap: 17px; }
+  .ps-profile-checklist { grid-row: 1; }
+  .ps-profile-actions button { width: 100%; }
+}
