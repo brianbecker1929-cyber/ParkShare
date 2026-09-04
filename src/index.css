@@ -3722,16 +3722,16 @@ button, input, select, textarea { font: inherit; }
   filter: var(--vehicle-image-filter, none) drop-shadow(0 2px 2px rgba(14, 27, 46, .2));
   transform: translateY(1px) scale(.96);
 }
-.ps-vehicle-badge[data-vehicle-colour="Black"] { --vehicle-image-filter: grayscale(1) brightness(.78) contrast(.9); }
-.ps-vehicle-badge[data-vehicle-colour="White"] { --vehicle-image-filter: grayscale(1) brightness(3.1) contrast(.78); }
-.ps-vehicle-badge[data-vehicle-colour="Silver"] { --vehicle-image-filter: grayscale(1) brightness(2.05) contrast(.84) sepia(.06) hue-rotate(160deg) saturate(.8); }
-.ps-vehicle-badge[data-vehicle-colour="Grey"] { --vehicle-image-filter: grayscale(1) brightness(1.45) contrast(.85); }
+.ps-vehicle-badge[data-vehicle-colour="Black"] { --vehicle-image-filter: grayscale(1) brightness(.54) contrast(1.08); }
+.ps-vehicle-badge[data-vehicle-colour="White"] { --vehicle-image-filter: grayscale(1) brightness(1.72) contrast(.68); }
+.ps-vehicle-badge[data-vehicle-colour="Silver"] { --vehicle-image-filter: grayscale(1) brightness(1.19) contrast(.82); }
+.ps-vehicle-badge[data-vehicle-colour="Grey"] { --vehicle-image-filter: grayscale(1) brightness(.72) contrast(.95); }
 .ps-vehicle-badge[data-vehicle-colour="Blue"] { --vehicle-image-filter: hue-rotate(205deg) saturate(.9) brightness(.9); }
 .ps-vehicle-badge[data-vehicle-colour="Green"] { --vehicle-image-filter: hue-rotate(98deg) saturate(.72) brightness(.78); }
 .ps-vehicle-badge[data-vehicle-colour="Brown"] { --vehicle-image-filter: hue-rotate(18deg) saturate(.62) brightness(.62); }
 .ps-vehicle-badge[data-vehicle-colour="Beige"] { --vehicle-image-filter: grayscale(.45) sepia(.55) saturate(.65) brightness(1.23); }
-.ps-vehicle-badge[data-vehicle-colour="Gold"] { --vehicle-image-filter: hue-rotate(56deg) saturate(.86) brightness(1.08); }
-.ps-vehicle-badge[data-vehicle-colour="Yellow"] { --vehicle-image-filter: hue-rotate(72deg) saturate(1.52) brightness(1.22); }
+.ps-vehicle-badge[data-vehicle-colour="Gold"] { --vehicle-image-filter: hue-rotate(36deg) saturate(1.12) brightness(.9); }
+.ps-vehicle-badge[data-vehicle-colour="Yellow"] { --vehicle-image-filter: hue-rotate(46deg) saturate(1.3) brightness(1.12); }
 .ps-vehicle-badge[data-vehicle-colour="Orange"] { --vehicle-image-filter: hue-rotate(18deg) saturate(1.08) brightness(1.04); }
 .ps-vehicle-badge[data-vehicle-colour="Purple"] { --vehicle-image-filter: hue-rotate(250deg) saturate(.82) brightness(.72); }
 .ps-vehicle-badge[data-vehicle-colour="Burgundy"] { --vehicle-image-filter: hue-rotate(338deg) saturate(.88) brightness(.55); }
