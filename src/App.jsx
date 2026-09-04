@@ -3,7 +3,7 @@ import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Mark
 import { supabase } from "./lib/supabaseClient";
 import { openNavigation } from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
-import { getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
+import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
@@ -26,6 +26,7 @@ function buildAppUser(profile, authUser) {
     vehicleModel: metadata.vehicle_model || "",
     vehicleColour: metadata.vehicle_colour || "",
     licensePlate: metadata.license_plate || "",
+    guestVehicles: metadata.guest_vehicles || [],
   });
   return {
     id: profile?.id || authUser?.id,
@@ -38,6 +39,7 @@ function buildAppUser(profile, authUser) {
     vehicleModel: driverProfile.vehicleModel,
     vehicleColour: driverProfile.vehicleColour,
     licensePlate: driverProfile.licensePlate,
+    guestVehicles: driverProfile.guestVehicles,
     profileComplete: getDriverProfileCompletion(driverProfile).complete,
   };
 }
@@ -628,6 +630,9 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, on
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const bookableVehicles = getBookableVehicles(user || {});
+  const [selectedVehicleId, setSelectedVehicleId] = useState(() => bookableVehicles[0]?.id || "");
+  const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const spotLabel = (i) => String.fromCharCode(65 + i);
 
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
@@ -649,6 +654,11 @@ const subtotal = listing.price * hours;
 
     if (!isRealListing) {
       setStripeError("This parking listing is not available for Stripe checkout.");
+      return;
+    }
+
+    if (!selectedVehicle) {
+      setStripeError("Add or complete a vehicle in your Driver Profile before booking.");
       return;
     }
 
@@ -690,6 +700,7 @@ const subtotal = listing.price * hours;
             : undefined,
           startHour,
           endHour,
+          vehicleId: selectedVehicle.id,
         }),
       });
 
@@ -806,7 +817,7 @@ const subtotal = listing.price * hours;
             </div>
           </div>
 
-{chosenSpot !== null && chosenSpot !== undefined && (
+          {chosenSpot !== null && chosenSpot !== undefined && (
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
               <div>
@@ -815,10 +826,25 @@ const subtotal = listing.price * hours;
               </div>
             </div>
           )}
+          <div className="ps-booking-vehicle-picker">
+            <label htmlFor="booking-vehicle">Vehicle you are parking</label>
+            {bookableVehicles.length > 0 ? (
+              <>
+                <select id="booking-vehicle" value={selectedVehicleId} onChange={event => setSelectedVehicleId(event.target.value)}>
+                  {bookableVehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id}>{vehicle.label} — {formatVehicleLabel(vehicle)}</option>
+                  ))}
+                </select>
+                {selectedVehicle && <small>{formatVehicleLabel(selectedVehicle)}</small>}
+              </>
+            ) : (
+              <div className="ps-booking-vehicle-missing" role="alert">Complete a Primary or Guest vehicle in your Driver Profile before booking.</div>
+            )}
+          </div>
           {stripeError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
           {isRealListing ? (
             <>
-              <Btn onClick={payWithStripe} full disabled={redirecting}>
+              <Btn onClick={payWithStripe} full disabled={redirecting || !selectedVehicle}>
                 {redirecting ? "Redirecting to secure checkout…" : "Pay with Stripe →"}
               </Btn>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 11, color: C.muted, marginTop: 10 }}>
@@ -826,7 +852,7 @@ const subtotal = listing.price * hours;
               </div>
             </>
           ) : (
-            <Btn onClick={() => setStep(2)} full>Continue to payment →</Btn>
+            <Btn onClick={() => setStep(2)} full disabled={!selectedVehicle}>Continue to payment →</Btn>
           )}
         </div>
       )}
@@ -2286,6 +2312,7 @@ function HostDashboard({ user, setTab }) {
                   rawId: row.id,
                   listing: row.listings?.title || "Listing",
                   driver: row.profiles?.name || "Renter",
+                  vehicle: formatVehicleLabel(row),
                   time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
@@ -2422,6 +2449,7 @@ function HostDashboard({ user, setTab }) {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
                   <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing} · {b.time}</div>
+                  {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
                   <div>
@@ -3372,6 +3400,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
             date: window.start.toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             total: row.total,
+            vehicle: formatVehicleLabel(row),
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
@@ -3439,6 +3468,7 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 5 }}>📍 {b.listing.address}</div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{b.date} · {b.time}</div>
+              {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {(b.status === "Upcoming" || b.status === "Active") && (
                   <Btn small variant="amber" onClick={() => openNavigation(b.listing)}>🧭 Navigate to parking</Btn>
@@ -3547,6 +3577,79 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 }
 
 // ─── Driver Profile ──────────────────────────────────────────────────────────
+function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText }) {
+  const errorFor = field => errors[errorPrefix ? `${errorPrefix}.${field}` : field];
+  const errorId = field => `${idPrefix}-${field}-error`;
+  const describedBy = field => errorFor(field) ? errorId(field) : undefined;
+
+  return (
+    <div className="ps-profile-vehicle-fields">
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>Recommended</span></label>
+        <select
+          id={`${idPrefix}-make`}
+          value={vehicle.vehicleMake || ""}
+          onChange={event => onMakeChange(event.target.value)}
+          aria-invalid={Boolean(errorFor("vehicleMake"))}
+          aria-describedby={describedBy("vehicleMake")}
+        >
+          <option value="">Select make</option>
+          {VEHICLE_MAKES.map(make => <option key={make} value={make}>{make}</option>)}
+        </select>
+        {errorFor("vehicleMake") && <small id={errorId("vehicleMake")} role="alert">{errorFor("vehicleMake")}</small>}
+      </div>
+
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-model`}>Vehicle model <span>Recommended</span></label>
+        <select
+          id={`${idPrefix}-model`}
+          value={vehicle.vehicleModel || ""}
+          onChange={event => onUpdate("vehicleModel", event.target.value)}
+          disabled={!vehicle.vehicleMake}
+          aria-invalid={Boolean(errorFor("vehicleModel"))}
+          aria-describedby={describedBy("vehicleModel")}
+        >
+          <option value="">{vehicle.vehicleMake ? "Select model" : "Select a make first"}</option>
+          {(VEHICLE_MODELS[vehicle.vehicleMake] || []).map(model => <option key={model} value={model}>{model}</option>)}
+        </select>
+        {errorFor("vehicleModel") && <small id={errorId("vehicleModel")} role="alert">{errorFor("vehicleModel")}</small>}
+      </div>
+
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-colour`}>Vehicle colour <span>Recommended</span></label>
+        <select
+          id={`${idPrefix}-colour`}
+          value={vehicle.vehicleColour || ""}
+          onChange={event => onUpdate("vehicleColour", event.target.value)}
+          aria-invalid={Boolean(errorFor("vehicleColour"))}
+          aria-describedby={describedBy("vehicleColour")}
+        >
+          <option value="">Select colour</option>
+          {VEHICLE_COLOURS.map(colour => <option key={colour} value={colour}>{colour}</option>)}
+        </select>
+        {errorFor("vehicleColour") && <small id={errorId("vehicleColour")} role="alert">{errorFor("vehicleColour")}</small>}
+      </div>
+
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-license-plate`}>License plate number <span>Recommended</span></label>
+        <input
+          id={`${idPrefix}-license-plate`}
+          autoCapitalize="characters"
+          autoComplete="off"
+          maxLength={15}
+          placeholder="ABCD 123"
+          value={vehicle.licensePlate || ""}
+          onChange={event => onUpdate("licensePlate", event.target.value.toUpperCase())}
+          aria-invalid={Boolean(errorFor("licensePlate"))}
+          aria-describedby={errorFor("licensePlate") ? errorId("licensePlate") : `${idPrefix}-help`}
+        />
+        {errorFor("licensePlate") && <small id={errorId("licensePlate")} role="alert">{errorFor("licensePlate")}</small>}
+        {helpText && <em id={`${idPrefix}-help`}>{helpText}</em>}
+      </div>
+    </div>
+  );
+}
+
 function DriverProfileView({ user, onProfileUpdated }) {
   const [form, setForm] = useState({
     name: user?.name || "",
@@ -3555,11 +3658,15 @@ function DriverProfileView({ user, onProfileUpdated }) {
     vehicleModel: user?.vehicleModel || "",
     vehicleColour: user?.vehicleColour || "",
     licensePlate: user?.licensePlate || "",
+    guestVehicles: Array.isArray(user?.guestVehicles) ? user.guestVehicles : [],
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [primaryOpen, setPrimaryOpen] = useState(false);
+  const [guestSectionOpen, setGuestSectionOpen] = useState(false);
+  const [openGuestIds, setOpenGuestIds] = useState({});
   const completion = getDriverProfileCompletion(form);
 
   useEffect(() => {
@@ -3570,8 +3677,9 @@ function DriverProfileView({ user, onProfileUpdated }) {
       vehicleModel: user?.vehicleModel || "",
       vehicleColour: user?.vehicleColour || "",
       licensePlate: user?.licensePlate || "",
+      guestVehicles: Array.isArray(user?.guestVehicles) ? user.guestVehicles : [],
     });
-  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate]);
+  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
 
   const update = (field, value) => {
     setForm(current => ({ ...current, [field]: value }));
@@ -3585,12 +3693,73 @@ function DriverProfileView({ user, onProfileUpdated }) {
     setSaved(false);
   };
 
+  const updateGuestVehicle = (index, field, value) => {
+    setForm(current => ({
+      ...current,
+      guestVehicles: current.guestVehicles.map((vehicle, vehicleIndex) =>
+        vehicleIndex === index ? { ...vehicle, [field]: value } : vehicle
+      ),
+    }));
+    setErrors(current => ({ ...current, [`guestVehicles.${index}.${field}`]: "" }));
+    setSaved(false);
+  };
+
+  const updateGuestVehicleMake = (index, value) => {
+    setForm(current => ({
+      ...current,
+      guestVehicles: current.guestVehicles.map((vehicle, vehicleIndex) =>
+        vehicleIndex === index ? { ...vehicle, vehicleMake: value, vehicleModel: "" } : vehicle
+      ),
+    }));
+    setErrors(current => ({
+      ...current,
+      [`guestVehicles.${index}.vehicleMake`]: "",
+      [`guestVehicles.${index}.vehicleModel`]: "",
+    }));
+    setSaved(false);
+  };
+
+  const addGuestVehicle = () => {
+    if (form.guestVehicles.length >= MAX_GUEST_VEHICLES) return;
+    const id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    setForm(current => ({
+      ...current,
+      guestVehicles: [...current.guestVehicles, { id, vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
+    }));
+    setGuestSectionOpen(true);
+    setOpenGuestIds(current => ({ ...current, [id]: true }));
+    setErrors(current => ({ ...current, guestVehicles: "" }));
+    setSaved(false);
+  };
+
+  const removeGuestVehicle = index => {
+    setForm(current => ({ ...current, guestVehicles: current.guestVehicles.filter((_, vehicleIndex) => vehicleIndex !== index) }));
+    setErrors({});
+    setSaved(false);
+  };
+
   const save = async () => {
     const validation = validateDriverProfile(form);
     setErrors(validation.errors);
     setSaveError("");
     setSaved(false);
-    if (!validation.valid) return;
+    if (!validation.valid) {
+      if (["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
+        setPrimaryOpen(true);
+      }
+      const guestIndexes = Object.keys(validation.errors)
+        .map(key => key.match(/^guestVehicles\.(\d+)\./)?.[1])
+        .filter(index => index !== undefined)
+        .map(Number);
+      if (guestIndexes.length) {
+        setGuestSectionOpen(true);
+        setOpenGuestIds(current => ({
+          ...current,
+          ...Object.fromEntries(guestIndexes.map(index => [form.guestVehicles[index]?.id, true]).filter(([id]) => id)),
+        }));
+      }
+      return;
+    }
 
     setSaving(true);
     try {
@@ -3687,71 +3856,72 @@ function DriverProfileView({ user, onProfileUpdated }) {
             {errors.phone && <small id="driver-profile-phone-error" role="alert">{errors.phone}</small>}
           </div>
 
-          <div className="ps-profile-field">
-            <label htmlFor="driver-profile-vehicle-make">Vehicle make <span>Recommended</span></label>
-            <select
-              id="driver-profile-vehicle-make"
-              name="vehicleMake"
-              value={form.vehicleMake}
-              onChange={event => updateVehicleMake(event.target.value)}
-              aria-invalid={Boolean(errors.vehicleMake)}
-              aria-describedby={errors.vehicleMake ? "driver-profile-make-error" : undefined}
-            >
-              <option value="">Select make</option>
-              {VEHICLE_MAKES.map(make => <option key={make} value={make}>{make}</option>)}
-            </select>
-            {errors.vehicleMake && <small id="driver-profile-make-error" role="alert">{errors.vehicleMake}</small>}
+          <div className="ps-vehicle-accordion">
+            <button type="button" className="ps-vehicle-accordion-toggle" onClick={() => setPrimaryOpen(open => !open)} aria-expanded={primaryOpen} aria-controls="primary-vehicle-fields">
+              <span>
+                <strong>Primary vehicle</strong>
+                <small>{formatVehicleLabel(form) || "Add your main vehicle"}</small>
+              </span>
+              <i aria-hidden="true">{primaryOpen ? "−" : "+"}</i>
+            </button>
+            {primaryOpen && (
+              <div id="primary-vehicle-fields" className="ps-vehicle-accordion-body">
+                <VehicleProfileFields
+                  vehicle={form}
+                  idPrefix="driver-profile-primary"
+                  errors={errors}
+                  onUpdate={update}
+                  onMakeChange={updateVehicleMake}
+                  helpText="This is the vehicle ParkShare will select by default when you book."
+                />
+              </div>
+            )}
           </div>
 
-          <div className="ps-profile-field">
-            <label htmlFor="driver-profile-vehicle-model">Vehicle model <span>Recommended</span></label>
-            <select
-              id="driver-profile-vehicle-model"
-              name="vehicleModel"
-              value={form.vehicleModel}
-              onChange={event => update("vehicleModel", event.target.value)}
-              disabled={!form.vehicleMake}
-              aria-invalid={Boolean(errors.vehicleModel)}
-              aria-describedby={errors.vehicleModel ? "driver-profile-model-error" : undefined}
-            >
-              <option value="">{form.vehicleMake ? "Select model" : "Select a make first"}</option>
-              {(VEHICLE_MODELS[form.vehicleMake] || []).map(model => <option key={model} value={model}>{model}</option>)}
-            </select>
-            {errors.vehicleModel && <small id="driver-profile-model-error" role="alert">{errors.vehicleModel}</small>}
-          </div>
-
-          <div className="ps-profile-field">
-            <label htmlFor="driver-profile-vehicle-colour">Vehicle colour <span>Recommended</span></label>
-            <select
-              id="driver-profile-vehicle-colour"
-              name="vehicleColour"
-              value={form.vehicleColour}
-              onChange={event => update("vehicleColour", event.target.value)}
-              aria-invalid={Boolean(errors.vehicleColour)}
-              aria-describedby={errors.vehicleColour ? "driver-profile-colour-error" : "driver-profile-vehicle-help"}
-            >
-              <option value="">Select colour</option>
-              {VEHICLE_COLOURS.map(colour => <option key={colour} value={colour}>{colour}</option>)}
-            </select>
-            {errors.vehicleColour && <small id="driver-profile-colour-error" role="alert">{errors.vehicleColour}</small>}
-          </div>
-
-          <div className="ps-profile-field">
-            <label htmlFor="driver-profile-license-plate">License plate number <span>Recommended</span></label>
-            <input
-              id="driver-profile-license-plate"
-              name="licensePlate"
-              autoCapitalize="characters"
-              autoComplete="off"
-              maxLength={15}
-              placeholder="ABCD 123"
-              value={form.licensePlate}
-              onChange={event => update("licensePlate", event.target.value.toUpperCase())}
-              aria-invalid={Boolean(errors.licensePlate)}
-              aria-describedby={errors.licensePlate ? "driver-profile-license-plate-error" : "driver-profile-vehicle-help"}
-            />
-            {errors.licensePlate && <small id="driver-profile-license-plate-error" role="alert">{errors.licensePlate}</small>}
-            <em id="driver-profile-vehicle-help">Enter the plate the Host should expect to see.</em>
+          <div className="ps-vehicle-accordion">
+            <button type="button" className="ps-vehicle-accordion-toggle" onClick={() => setGuestSectionOpen(open => !open)} aria-expanded={guestSectionOpen} aria-controls="guest-vehicle-fields">
+              <span>
+                <strong>Guest vehicles</strong>
+                <small>{form.guestVehicles.length ? `${form.guestVehicles.length} saved` : "Add a friend's or borrowed vehicle"}</small>
+              </span>
+              <i aria-hidden="true">{guestSectionOpen ? "−" : "+"}</i>
+            </button>
+            {guestSectionOpen && (
+              <div id="guest-vehicle-fields" className="ps-vehicle-accordion-body ps-guest-vehicle-list">
+                {form.guestVehicles.map((vehicle, index) => {
+                  const isOpen = Boolean(openGuestIds[vehicle.id]);
+                  return (
+                    <div className="ps-guest-vehicle" key={vehicle.id}>
+                      <button type="button" className="ps-guest-vehicle-toggle" onClick={() => setOpenGuestIds(current => ({ ...current, [vehicle.id]: !current[vehicle.id] }))} aria-expanded={isOpen} aria-controls={`guest-vehicle-${vehicle.id}`}>
+                        <span>
+                          <strong>Guest vehicle {index + 1}</strong>
+                          <small>{formatVehicleLabel(vehicle) || "Add vehicle details"}</small>
+                        </span>
+                        <i aria-hidden="true">{isOpen ? "−" : "+"}</i>
+                      </button>
+                      {isOpen && (
+                        <div id={`guest-vehicle-${vehicle.id}`} className="ps-guest-vehicle-body">
+                          <VehicleProfileFields
+                            vehicle={vehicle}
+                            idPrefix={`driver-profile-guest-${index}`}
+                            errorPrefix={`guestVehicles.${index}`}
+                            errors={errors}
+                            onUpdate={(field, value) => updateGuestVehicle(index, field, value)}
+                            onMakeChange={value => updateGuestVehicleMake(index, value)}
+                            helpText="Only the Host for a booking using this vehicle will see these details."
+                          />
+                          <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)}>Remove guest vehicle</button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {errors.guestVehicles && <small className="ps-guest-vehicle-error" role="alert">{errors.guestVehicles}</small>}
+                <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
+                  + Add guest vehicle{form.guestVehicles.length >= MAX_GUEST_VEHICLES ? ` (maximum ${MAX_GUEST_VEHICLES})` : ""}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -5027,7 +5197,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalCallout>We do not sell your personal information to third parties.</LegalCallout>
 
             <LegalH2>3. How We Share Your Information</LegalH2>
-            <LegalP><strong>Between Hosts and Drivers:</strong> limited info (name, listing address, access instructions, messages) is shared to facilitate a booking.</LegalP>
+            <LegalP><strong>Between Hosts and Drivers:</strong> limited information needed to fulfil a reservation—including name, listing address, access instructions, messages, and the vehicle details and license plate selected for that booking—is shared to facilitate the booking.</LegalP>
             <LegalP><strong>Service providers:</strong> Stripe (payments), Supabase (authentication/database), Vercel (hosting), Google Maps / OpenStreetMap (mapping).</LegalP>
             <LegalP><strong>Legal requirements:</strong> we may disclose information if required by law or to protect rights, property, or safety.</LegalP>
 
