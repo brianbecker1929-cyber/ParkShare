@@ -5,7 +5,7 @@ import { openNavigation } from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
-import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName } from "./lib/vehicleVisuals";
+import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -20,6 +20,7 @@ const C = {
 function VehicleBadge({ vehicle, compact = false }) {
   const bodyType = getVehicleBodyType(vehicle);
   const colour = getVehicleColourName(vehicle);
+  const hasDedicatedColourAsset = hasDedicatedVehicleColourAsset(vehicle);
   const label = formatVehicleVisualSummary(vehicle) || "Vehicle";
 
   return (
@@ -27,6 +28,7 @@ function VehicleBadge({ vehicle, compact = false }) {
       className={`ps-vehicle-badge${compact ? " is-compact" : ""}`}
       data-vehicle-body={bodyType}
       data-vehicle-colour={colour}
+      data-vehicle-artwork={hasDedicatedColourAsset ? "dedicated" : "filtered"}
       role="img"
       aria-label={`${label} vehicle icon`}
     >

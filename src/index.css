@@ -3737,6 +3737,7 @@ button, input, select, textarea { font: inherit; }
 .ps-vehicle-badge[data-vehicle-colour="Purple"] { --vehicle-image-filter: hue-rotate(250deg) saturate(.82) brightness(.72); }
 .ps-vehicle-badge[data-vehicle-colour="Burgundy"] { --vehicle-image-filter: hue-rotate(338deg) saturate(.88) brightness(.55); }
 .ps-vehicle-badge[data-vehicle-colour="Other"] { --vehicle-image-filter: grayscale(.5) hue-rotate(145deg) saturate(.45) brightness(.83); }
+.ps-vehicle-badge[data-vehicle-artwork="dedicated"] { --vehicle-image-filter: brightness(1) contrast(1); }
 .ps-vehicle-accordion-body {
   padding: 17px;
   border-top: 1px solid #E3DDC9;
