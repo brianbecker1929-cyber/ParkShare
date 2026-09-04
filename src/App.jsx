@@ -5,6 +5,7 @@ import { openNavigation } from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
+import { formatVehicleVisualSummary, getVehicleBodyType, getVehicleColourHex } from "./lib/vehicleVisuals";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -15,6 +16,39 @@ const C = {
   amberLight: "#FFF8E1", muted: "#71695A", white: "#fff",
   red: "#C53030", redLight: "#FFF5F5", hazard: "#E2571C",
 };
+
+function VehicleBadge({ vehicle, compact = false }) {
+  const bodyType = getVehicleBodyType(vehicle);
+  const colour = getVehicleColourHex(vehicle);
+  const label = formatVehicleVisualSummary(vehicle) || "Vehicle";
+  const common = (
+    <>
+      <circle className="ps-vehicle-wheel" cx="34" cy="54" r="8" />
+      <circle className="ps-vehicle-wheel-hub" cx="34" cy="54" r="3" />
+      <circle className="ps-vehicle-wheel" cx="86" cy="54" r="8" />
+      <circle className="ps-vehicle-wheel-hub" cx="86" cy="54" r="3" />
+      <path className="ps-vehicle-bumper" d="M12 49h8M100 49h8" />
+    </>
+  );
+
+  return (
+    <span
+      className={`ps-vehicle-badge${compact ? " is-compact" : ""}`}
+      style={{ "--vehicle-colour": colour }}
+      role="img"
+      aria-label={`${label} vehicle icon`}
+    >
+      <svg viewBox="0 0 120 72" aria-hidden="true" focusable="false">
+        {bodyType === "pickup" && <><path className="ps-vehicle-body" d="M10 50l5-18h44l13 8h36v14H10z" /><path className="ps-vehicle-window" d="M25 35h27l10 7H23z" /><path className="ps-vehicle-line" d="M70 41v11M75 44h27" />{common}</>}
+        {bodyType === "van" && <><path className="ps-vehicle-body" d="M10 51l4-27h71l22 18v12H10z" /><path className="ps-vehicle-window" d="M23 29h55l18 14H21z" /><path className="ps-vehicle-line" d="M54 29v23M82 35v17" />{common}</>}
+        {bodyType === "suv" && <><path className="ps-vehicle-body" d="M10 51l7-23h65l25 16v10H10z" /><path className="ps-vehicle-window" d="M28 32h48l18 12H22z" /><path className="ps-vehicle-line" d="M53 31v21M81 36v16" />{common}</>}
+        {bodyType === "hatchback" && <><path className="ps-vehicle-body" d="M10 51l10-20h54l29 15v8H10z" /><path className="ps-vehicle-window" d="M30 34h39l21 11H23z" /><path className="ps-vehicle-line" d="M58 34v18" />{common}</>}
+        {bodyType === "coupe" && <><path className="ps-vehicle-body" d="M10 51l14-17h50l27 12 7 8H10z" /><path className="ps-vehicle-window" d="M36 37h34l18 9H27z" /><path className="ps-vehicle-line" d="M61 37v15" />{common}</>}
+        {bodyType === "sedan" && <><path className="ps-vehicle-body" d="M10 51l12-18h54l18 12h13v9H10z" /><path className="ps-vehicle-window" d="M34 36h38l13 9H26z" /><path className="ps-vehicle-line" d="M57 36v16" />{common}</>}
+      </svg>
+    </span>
+  );
+}
 
 function buildAppUser(profile, authUser) {
   const metadata = authUser?.user_metadata || {};
@@ -827,16 +861,24 @@ const subtotal = listing.price * hours;
             </div>
           )}
           <div className="ps-booking-vehicle-picker">
-            <label htmlFor="booking-vehicle">Vehicle you are parking</label>
+            <div className="ps-booking-vehicle-picker-label" id="booking-vehicle-label">Vehicle you are parking</div>
             {bookableVehicles.length > 0 ? (
-              <>
-                <select id="booking-vehicle" value={selectedVehicleId} onChange={event => setSelectedVehicleId(event.target.value)}>
-                  {bookableVehicles.map(vehicle => (
-                    <option key={vehicle.id} value={vehicle.id}>{vehicle.label} — {formatVehicleLabel(vehicle)}</option>
-                  ))}
-                </select>
-                {selectedVehicle && <small>{formatVehicleLabel(selectedVehicle)}</small>}
-              </>
+              <div className="ps-booking-vehicle-options" role="radiogroup" aria-labelledby="booking-vehicle-label">
+                {bookableVehicles.map(vehicle => {
+                  const isSelected = vehicle.id === selectedVehicleId;
+                  return (
+                    <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio" aria-checked={isSelected} onClick={() => setSelectedVehicleId(vehicle.id)}>
+                      <VehicleBadge vehicle={vehicle} compact />
+                      <span>
+                        <strong>{vehicle.label}</strong>
+                        <small>{formatVehicleVisualSummary(vehicle)}</small>
+                        <em>{vehicle.licensePlate}</em>
+                      </span>
+                      <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
+                    </button>
+                  );
+                })}
+              </div>
             ) : (
               <div className="ps-booking-vehicle-missing" role="alert">Complete a Primary or Guest vehicle in your Driver Profile before booking.</div>
             )}
@@ -3664,8 +3706,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [primaryOpen, setPrimaryOpen] = useState(false);
-  const [guestSectionOpen, setGuestSectionOpen] = useState(false);
+  const [primaryOpen, setPrimaryOpen] = useState(true);
   const [openGuestIds, setOpenGuestIds] = useState({});
   const completion = getDriverProfileCompletion(form);
 
@@ -3726,7 +3767,6 @@ function DriverProfileView({ user, onProfileUpdated }) {
       ...current,
       guestVehicles: [...current.guestVehicles, { id, vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
     }));
-    setGuestSectionOpen(true);
     setOpenGuestIds(current => ({ ...current, [id]: true }));
     setErrors(current => ({ ...current, guestVehicles: "" }));
     setSaved(false);
@@ -3752,7 +3792,6 @@ function DriverProfileView({ user, onProfileUpdated }) {
         .filter(index => index !== undefined)
         .map(Number);
       if (guestIndexes.length) {
-        setGuestSectionOpen(true);
         setOpenGuestIds(current => ({
           ...current,
           ...Object.fromEntries(guestIndexes.map(index => [form.guestVehicles[index]?.id, true]).filter(([id]) => id)),
@@ -3858,9 +3897,13 @@ function DriverProfileView({ user, onProfileUpdated }) {
 
           <div className="ps-vehicle-accordion">
             <button type="button" className="ps-vehicle-accordion-toggle" onClick={() => setPrimaryOpen(open => !open)} aria-expanded={primaryOpen} aria-controls="primary-vehicle-fields">
-              <span>
-                <strong>Primary vehicle</strong>
-                <small>{formatVehicleLabel(form) || "Add your main vehicle"}</small>
+              <span className="ps-vehicle-toggle-main">
+                <VehicleBadge vehicle={form} />
+                <span className="ps-vehicle-toggle-copy">
+                  <span className="ps-vehicle-title-row"><strong>Primary vehicle</strong><em>Primary</em></span>
+                  <small>{formatVehicleVisualSummary(form) || "Add your main vehicle"}</small>
+                  {form.licensePlate && <b>{form.licensePlate}</b>}
+                </span>
               </span>
               <i aria-hidden="true">{primaryOpen ? "−" : "+"}</i>
             </button>
@@ -3878,50 +3921,35 @@ function DriverProfileView({ user, onProfileUpdated }) {
             )}
           </div>
 
-          <div className="ps-vehicle-accordion">
-            <button type="button" className="ps-vehicle-accordion-toggle" onClick={() => setGuestSectionOpen(open => !open)} aria-expanded={guestSectionOpen} aria-controls="guest-vehicle-fields">
-              <span>
-                <strong>Guest vehicles</strong>
-                <small>{form.guestVehicles.length ? `${form.guestVehicles.length} saved` : "Add a friend's or borrowed vehicle"}</small>
-              </span>
-              <i aria-hidden="true">{guestSectionOpen ? "−" : "+"}</i>
-            </button>
-            {guestSectionOpen && (
-              <div id="guest-vehicle-fields" className="ps-vehicle-accordion-body ps-guest-vehicle-list">
-                {form.guestVehicles.map((vehicle, index) => {
-                  const isOpen = Boolean(openGuestIds[vehicle.id]);
-                  return (
-                    <div className="ps-guest-vehicle" key={vehicle.id}>
-                      <button type="button" className="ps-guest-vehicle-toggle" onClick={() => setOpenGuestIds(current => ({ ...current, [vehicle.id]: !current[vehicle.id] }))} aria-expanded={isOpen} aria-controls={`guest-vehicle-${vehicle.id}`}>
-                        <span>
-                          <strong>Guest vehicle {index + 1}</strong>
-                          <small>{formatVehicleLabel(vehicle) || "Add vehicle details"}</small>
-                        </span>
-                        <i aria-hidden="true">{isOpen ? "−" : "+"}</i>
-                      </button>
-                      {isOpen && (
-                        <div id={`guest-vehicle-${vehicle.id}`} className="ps-guest-vehicle-body">
-                          <VehicleProfileFields
-                            vehicle={vehicle}
-                            idPrefix={`driver-profile-guest-${index}`}
-                            errorPrefix={`guestVehicles.${index}`}
-                            errors={errors}
-                            onUpdate={(field, value) => updateGuestVehicle(index, field, value)}
-                            onMakeChange={value => updateGuestVehicleMake(index, value)}
-                            helpText="Only the Host for a booking using this vehicle will see these details."
-                          />
-                          <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)}>Remove guest vehicle</button>
-                        </div>
-                      )}
+          <div className="ps-guest-vehicle-list">
+            {form.guestVehicles.map((vehicle, index) => {
+              const isOpen = Boolean(openGuestIds[vehicle.id]);
+              return (
+                <div className="ps-vehicle-accordion ps-guest-vehicle" key={vehicle.id}>
+                  <button type="button" className="ps-guest-vehicle-toggle" onClick={() => setOpenGuestIds(current => ({ ...current, [vehicle.id]: !current[vehicle.id] }))} aria-expanded={isOpen} aria-controls={`guest-vehicle-${vehicle.id}`}>
+                    <span className="ps-vehicle-toggle-main">
+                      <VehicleBadge vehicle={vehicle} />
+                      <span className="ps-vehicle-toggle-copy">
+                        <strong>Guest vehicle {index + 1}</strong>
+                        <small>{formatVehicleVisualSummary(vehicle) || "Add vehicle details"}</small>
+                        {vehicle.licensePlate && <b>{vehicle.licensePlate}</b>}
+                      </span>
+                    </span>
+                    <i aria-hidden="true">{isOpen ? "−" : "+"}</i>
+                  </button>
+                  {isOpen && (
+                    <div id={`guest-vehicle-${vehicle.id}`} className="ps-guest-vehicle-body">
+                      <VehicleProfileFields vehicle={vehicle} idPrefix={`driver-profile-guest-${index}`} errorPrefix={`guestVehicles.${index}`} errors={errors} onUpdate={(field, value) => updateGuestVehicle(index, field, value)} onMakeChange={value => updateGuestVehicleMake(index, value)} helpText="Only the Host for a booking using this vehicle will see these details." />
+                      <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)}>Remove guest vehicle</button>
                     </div>
-                  );
-                })}
-                {errors.guestVehicles && <small className="ps-guest-vehicle-error" role="alert">{errors.guestVehicles}</small>}
-                <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
-                  + Add guest vehicle{form.guestVehicles.length >= MAX_GUEST_VEHICLES ? ` (maximum ${MAX_GUEST_VEHICLES})` : ""}
-                </button>
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
+            {errors.guestVehicles && <small className="ps-guest-vehicle-error" role="alert">{errors.guestVehicles}</small>}
+            <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
+              + Add guest vehicle{form.guestVehicles.length >= MAX_GUEST_VEHICLES ? ` (maximum ${MAX_GUEST_VEHICLES})` : ""}
+            </button>
           </div>
         </div>
 

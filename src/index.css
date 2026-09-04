@@ -3646,9 +3646,14 @@ button, input, select, textarea { font: inherit; }
   text-align: left;
   cursor: pointer;
 }
-.ps-vehicle-accordion-toggle span,
-.ps-guest-vehicle-toggle span { min-width: 0; display: grid; gap: 3px; }
-.ps-vehicle-accordion-toggle strong { font-size: 14px; }
+.ps-vehicle-toggle-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+.ps-vehicle-toggle-copy { min-width: 0; display: grid; gap: 3px; }
+.ps-vehicle-toggle-copy strong { font-size: 14px; }
 .ps-vehicle-accordion-toggle small,
 .ps-guest-vehicle-toggle small {
   overflow: hidden;
@@ -3657,6 +3662,28 @@ button, input, select, textarea { font: inherit; }
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ps-vehicle-toggle-copy b {
+  color: #71695A;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+.ps-vehicle-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ps-vehicle-title-row em {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #FFC107;
+  color: #0E1B2E;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
 }
 .ps-vehicle-accordion-toggle i,
 .ps-guest-vehicle-toggle i {
@@ -3672,6 +3699,25 @@ button, input, select, textarea { font: inherit; }
   font-style: normal;
   font-weight: 600;
 }
+.ps-vehicle-badge {
+  width: 74px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #E0C98F;
+  border-radius: 50%;
+  background: #FFF8E1;
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .72);
+}
+.ps-vehicle-badge.is-compact { width: 56px; height: 48px; }
+.ps-vehicle-badge svg { width: 90%; height: auto; overflow: visible; }
+.ps-vehicle-body { fill: var(--vehicle-colour); stroke: #0E1B2E; stroke-width: 3; stroke-linejoin: round; }
+.ps-vehicle-window { fill: #DCEAF0; stroke: #0E1B2E; stroke-width: 2.4; stroke-linejoin: round; }
+.ps-vehicle-line { fill: none; stroke: #0E1B2E; stroke-width: 2; stroke-linecap: round; }
+.ps-vehicle-wheel { fill: #0E1B2E; }
+.ps-vehicle-wheel-hub { fill: #FFC107; }
+.ps-vehicle-bumper { fill: none; stroke: #0E1B2E; stroke-width: 3; stroke-linecap: round; }
 .ps-vehicle-accordion-body {
   padding: 17px;
   border-top: 1px solid #E3DDC9;
@@ -3682,16 +3728,15 @@ button, input, select, textarea { font: inherit; }
   grid-template-columns: 1fr 1fr;
   gap: 17px;
 }
-.ps-guest-vehicle-list { display: grid; gap: 12px; }
+.ps-guest-vehicle-list { grid-column: 1 / -1; display: grid; gap: 12px; }
 .ps-guest-vehicle {
   overflow: hidden;
-  border: 1px solid #E3DDC9;
-  border-radius: 12px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 14px;
   background: #FAF7F0;
 }
-.ps-guest-vehicle-toggle { padding: 12px 14px; }
-.ps-guest-vehicle-toggle strong { font-size: 12px; }
-.ps-guest-vehicle-toggle i { width: 24px; height: 24px; font-size: 16px; }
+.ps-guest-vehicle-toggle { padding: 13px 16px; }
+.ps-guest-vehicle-toggle strong { font-size: 14px; }
 .ps-guest-vehicle-body { padding: 15px; border-top: 1px solid #E3DDC9; background: #fff; }
 .ps-remove-guest-vehicle,
 .ps-add-guest-vehicle {
@@ -3705,7 +3750,7 @@ button, input, select, textarea { font: inherit; }
   cursor: pointer;
 }
 .ps-remove-guest-vehicle { border: 1px solid #C53030; background: #fff; color: #C53030; }
-.ps-add-guest-vehicle { width: 100%; border: 1.5px dashed #0E1B2E; background: #FFF8E1; color: #0E1B2E; }
+.ps-add-guest-vehicle { width: 100%; margin-top: 0; border: 1.5px solid #0E1B2E; background: #fff; color: #0E1B2E; }
 .ps-add-guest-vehicle:disabled { opacity: .55; cursor: not-allowed; }
 .ps-guest-vehicle-error { color: #C53030; font-size: 10px; font-weight: 600; }
 
@@ -3716,25 +3761,47 @@ button, input, select, textarea { font: inherit; }
   border-radius: 11px;
   background: #FFF8E1;
 }
-.ps-booking-vehicle-picker label {
+.ps-booking-vehicle-picker-label {
   display: block;
-  margin-bottom: 7px;
+  margin-bottom: 9px;
   color: #0E1B2E;
   font-size: 12px;
   font-weight: 700;
 }
-.ps-booking-vehicle-picker select {
+.ps-booking-vehicle-options { display: grid; gap: 8px; }
+.ps-booking-vehicle-options > button {
   width: 100%;
-  min-height: 44px;
-  padding: 9px 11px;
-  border: 1.5px solid #0E1B2E;
-  border-radius: 9px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 11px;
   background: #fff;
   color: #0E1B2E;
   font-family: inherit;
-  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
-.ps-booking-vehicle-picker small { display: block; margin-top: 6px; color: #71695A; font-size: 10px; }
+.ps-booking-vehicle-options > button.is-selected { border-color: #0E1B2E; box-shadow: 0 0 0 3px rgba(255, 193, 7, .35); }
+.ps-booking-vehicle-options > button > span { min-width: 0; display: grid; gap: 2px; }
+.ps-booking-vehicle-options strong { font-size: 11px; }
+.ps-booking-vehicle-options small { overflow: hidden; color: #71695A; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ps-booking-vehicle-options em { color: #71695A; font-size: 9px; font-style: normal; font-weight: 600; letter-spacing: .04em; }
+.ps-booking-vehicle-options > button > i {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 50%;
+  color: #0E1B2E;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+.ps-booking-vehicle-options > button.is-selected > i { border-color: #FFC107; background: #FFC107; }
 .ps-booking-vehicle-missing { color: #C53030; font-size: 11px; font-weight: 600; line-height: 1.45; }
 .ps-booking-vehicle-summary {
   display: inline-flex;
@@ -3811,4 +3878,8 @@ button, input, select, textarea { font: inherit; }
   .ps-profile-vehicle-fields { grid-template-columns: 1fr; }
   .ps-profile-checklist { grid-row: 1; }
   .ps-profile-actions button { width: 100%; }
+  .ps-vehicle-accordion-toggle,
+  .ps-guest-vehicle-toggle { padding: 12px; }
+  .ps-vehicle-badge { width: 64px; height: 56px; }
+  .ps-vehicle-toggle-main { gap: 10px; }
 }
