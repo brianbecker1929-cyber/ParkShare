@@ -3700,24 +3700,34 @@ button, input, select, textarea { font: inherit; }
   font-weight: 600;
 }
 .ps-vehicle-badge {
-  width: 74px;
-  height: 64px;
+  width: 88px;
+  height: 72px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1px solid #E0C98F;
+  border: 1.5px solid #E0C98F;
   border-radius: 50%;
   background: #FFF8E1;
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .72);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .76), 0 4px 12px rgba(14, 27, 46, .06);
 }
-.ps-vehicle-badge.is-compact { width: 56px; height: 48px; }
-.ps-vehicle-badge svg { width: 90%; height: auto; overflow: visible; }
-.ps-vehicle-body { fill: var(--vehicle-colour); stroke: #0E1B2E; stroke-width: 3; stroke-linejoin: round; }
-.ps-vehicle-window { fill: #DCEAF0; stroke: #0E1B2E; stroke-width: 2.4; stroke-linejoin: round; }
-.ps-vehicle-line { fill: none; stroke: #0E1B2E; stroke-width: 2; stroke-linecap: round; }
-.ps-vehicle-wheel { fill: #0E1B2E; }
-.ps-vehicle-wheel-hub { fill: #FFC107; }
-.ps-vehicle-bumper { fill: none; stroke: #0E1B2E; stroke-width: 3; stroke-linecap: round; }
+.ps-vehicle-badge.is-compact { width: 62px; height: 52px; }
+.ps-vehicle-badge svg { width: 94%; height: auto; overflow: visible; filter: drop-shadow(0 2px 1px rgba(14, 27, 46, .16)); }
+.ps-vehicle-shadow { fill: rgba(14, 27, 46, .17); }
+.ps-vehicle-body { fill: var(--vehicle-colour); stroke: #0E1B2E; stroke-width: 3.5; stroke-linejoin: round; }
+.ps-vehicle-body-shade { fill: color-mix(in srgb, var(--vehicle-colour) 74%, #0E1B2E); opacity: .72; }
+.ps-vehicle-window { fill: #BFD5DF; stroke: #0E1B2E; stroke-width: 3; stroke-linejoin: round; }
+.ps-vehicle-window-glint { fill: rgba(255, 255, 255, .62); }
+.ps-vehicle-line { fill: none; stroke: #0E1B2E; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: .78; }
+.ps-vehicle-highlight { fill: none; stroke: rgba(255, 255, 255, .67); stroke-width: 2.3; stroke-linecap: round; }
+.ps-vehicle-front-facet { fill: color-mix(in srgb, var(--vehicle-colour) 70%, #0E1B2E); stroke: #0E1B2E; stroke-width: 1.8; stroke-linejoin: round; }
+.ps-vehicle-headlight { fill: #FFE59A; stroke: #0E1B2E; stroke-width: 1.7; stroke-linejoin: round; }
+.ps-vehicle-tail-light { fill: #E2571C; stroke: #0E1B2E; stroke-width: 1.7; stroke-linejoin: round; }
+.ps-vehicle-grille { fill: none; stroke: #DDE5E9; stroke-width: 2; stroke-linecap: round; }
+.ps-vehicle-bumper { fill: none; stroke: #0E1B2E; stroke-width: 3.5; stroke-linecap: round; }
+.ps-vehicle-mirror { fill: var(--vehicle-colour); stroke: #0E1B2E; stroke-width: 2; }
+.ps-vehicle-wheel { fill: #111A26; stroke: #0E1B2E; stroke-width: 1.5; }
+.ps-vehicle-rim { fill: #F5F1E7; stroke: #FFC107; stroke-width: 3; }
+.ps-vehicle-wheel-hub { fill: #0E1B2E; }
 .ps-vehicle-accordion-body {
   padding: 17px;
   border-top: 1px solid #E3DDC9;
@@ -3880,6 +3890,7 @@ button, input, select, textarea { font: inherit; }
   .ps-profile-actions button { width: 100%; }
   .ps-vehicle-accordion-toggle,
   .ps-guest-vehicle-toggle { padding: 12px; }
-  .ps-vehicle-badge { width: 64px; height: 56px; }
+  .ps-vehicle-badge { width: 78px; height: 64px; }
+  .ps-vehicle-badge.is-compact { width: 58px; height: 49px; }
   .ps-vehicle-toggle-main { gap: 10px; }
 }
