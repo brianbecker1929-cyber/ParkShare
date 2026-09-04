@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   formatVehicleDetails,
+  getBookableVehicles,
   getDriverProfileCompletion,
   normaliseDriverProfile,
   parseLegacyVehicleDetails,
@@ -18,6 +19,7 @@ test("normalises Driver profile fields", () => {
       vehicleModel: "",
       vehicleColour: "",
       licensePlate: "",
+      guestVehicles: [],
       vehicleDetails: "Blue sedan",
     },
   );
@@ -90,4 +92,44 @@ test("validates name and an entered phone number", () => {
   });
   assert.equal(invalidPlate.valid, false);
   assert.match(invalidPlate.errors.licensePlate, /valid license plate/i);
+});
+
+test("normalises and validates saved guest vehicles", () => {
+  const result = validateDriverProfile({
+    name: "Test Driver",
+    guestVehicles: [{
+      id: "friends-car",
+      vehicleMake: "Toyota",
+      vehicleModel: "RAV4",
+      vehicleColour: "Red",
+      licensePlate: "guest 12",
+    }],
+  });
+  assert.equal(result.valid, true);
+  assert.equal(result.normalised.guestVehicles[0].licensePlate, "GUEST 12");
+
+  const incomplete = validateDriverProfile({
+    name: "Test Driver",
+    guestVehicles: [{ id: "guest-1", vehicleMake: "Honda" }],
+  });
+  assert.equal(incomplete.valid, false);
+  assert.match(incomplete.errors["guestVehicles.0.vehicleModel"], /select/i);
+  assert.match(incomplete.errors["guestVehicles.0.licensePlate"], /valid/i);
+});
+
+test("offers complete Primary and Guest vehicles for booking", () => {
+  const vehicles = getBookableVehicles({
+    vehicleMake: "Honda",
+    vehicleModel: "Civic",
+    vehicleColour: "Blue",
+    licensePlate: "MAIN 1",
+    guestVehicles: [
+      { id: "guest-ready", vehicleMake: "Toyota", vehicleModel: "RAV4", vehicleColour: "Red", licensePlate: "GUEST 2" },
+      { id: "guest-incomplete", vehicleMake: "Ford", vehicleModel: "Escape" },
+    ],
+  });
+
+  assert.deepEqual(vehicles.map(vehicle => vehicle.id), ["primary", "guest-ready"]);
+  assert.equal(vehicles[0].label, "Primary vehicle");
+  assert.equal(vehicles[1].label, "Guest vehicle 1");
 });
