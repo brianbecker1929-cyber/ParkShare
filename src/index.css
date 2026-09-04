@@ -3699,6 +3699,7 @@ button, input, select, textarea { font: inherit; }
   font-style: normal;
   font-weight: 600;
 }
+/* Vehicle badge calibration v3: light-colour contrast and navy/gold frame. */
 .ps-vehicle-badge {
   --vehicle-image-filter: brightness(1);
   width: 88px;
@@ -3706,10 +3707,10 @@ button, input, select, textarea { font: inherit; }
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: 1.5px solid #E0C98F;
+  border: 2px solid #0E1B2E;
   border-radius: 50%;
   background: #FFF8E1;
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .76), 0 4px 12px rgba(14, 27, 46, .06);
+  box-shadow: inset 0 0 0 3px rgba(255, 193, 7, .34), inset 0 0 0 6px rgba(255, 255, 255, .76), 0 4px 12px rgba(14, 27, 46, .08);
   overflow: hidden;
   isolation: isolate;
 }
@@ -3722,16 +3723,16 @@ button, input, select, textarea { font: inherit; }
   filter: var(--vehicle-image-filter, none) drop-shadow(0 2px 2px rgba(14, 27, 46, .2));
   transform: translateY(1px) scale(.96);
 }
-.ps-vehicle-badge[data-vehicle-colour="Black"] { --vehicle-image-filter: grayscale(1) brightness(.54) contrast(1.08); }
-.ps-vehicle-badge[data-vehicle-colour="White"] { --vehicle-image-filter: grayscale(1) brightness(1.72) contrast(.68); }
-.ps-vehicle-badge[data-vehicle-colour="Silver"] { --vehicle-image-filter: grayscale(1) brightness(1.19) contrast(.82); }
-.ps-vehicle-badge[data-vehicle-colour="Grey"] { --vehicle-image-filter: grayscale(1) brightness(.72) contrast(.95); }
+.ps-vehicle-badge[data-vehicle-colour="Black"] { --vehicle-image-filter: grayscale(1) brightness(.78) contrast(.9); }
+.ps-vehicle-badge[data-vehicle-colour="White"] { --vehicle-image-filter: grayscale(1) brightness(2.45) contrast(1.28); }
+.ps-vehicle-badge[data-vehicle-colour="Silver"] { --vehicle-image-filter: grayscale(1) brightness(1.8) contrast(1.18) sepia(.05) hue-rotate(155deg) saturate(.65); }
+.ps-vehicle-badge[data-vehicle-colour="Grey"] { --vehicle-image-filter: grayscale(1) brightness(1.45) contrast(.85); }
 .ps-vehicle-badge[data-vehicle-colour="Blue"] { --vehicle-image-filter: hue-rotate(205deg) saturate(.9) brightness(.9); }
 .ps-vehicle-badge[data-vehicle-colour="Green"] { --vehicle-image-filter: hue-rotate(98deg) saturate(.72) brightness(.78); }
 .ps-vehicle-badge[data-vehicle-colour="Brown"] { --vehicle-image-filter: hue-rotate(18deg) saturate(.62) brightness(.62); }
 .ps-vehicle-badge[data-vehicle-colour="Beige"] { --vehicle-image-filter: grayscale(.45) sepia(.55) saturate(.65) brightness(1.23); }
-.ps-vehicle-badge[data-vehicle-colour="Gold"] { --vehicle-image-filter: hue-rotate(36deg) saturate(1.12) brightness(.9); }
-.ps-vehicle-badge[data-vehicle-colour="Yellow"] { --vehicle-image-filter: hue-rotate(46deg) saturate(1.3) brightness(1.12); }
+.ps-vehicle-badge[data-vehicle-colour="Gold"] { --vehicle-image-filter: hue-rotate(56deg) saturate(.86) brightness(1.08); }
+.ps-vehicle-badge[data-vehicle-colour="Yellow"] { --vehicle-image-filter: grayscale(1) sepia(1) saturate(7) hue-rotate(12deg) brightness(1.28) contrast(1.1); }
 .ps-vehicle-badge[data-vehicle-colour="Orange"] { --vehicle-image-filter: hue-rotate(18deg) saturate(1.08) brightness(1.04); }
 .ps-vehicle-badge[data-vehicle-colour="Purple"] { --vehicle-image-filter: hue-rotate(250deg) saturate(.82) brightness(.72); }
 .ps-vehicle-badge[data-vehicle-colour="Burgundy"] { --vehicle-image-filter: hue-rotate(338deg) saturate(.88) brightness(.55); }
