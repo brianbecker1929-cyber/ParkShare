@@ -5,7 +5,7 @@ import { openNavigation } from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
-import { formatVehicleVisualSummary, getVehicleBodyType, getVehicleColourHex } from "./lib/vehicleVisuals";
+import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName } from "./lib/vehicleVisuals";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -17,80 +17,20 @@ const C = {
   red: "#C53030", redLight: "#FFF5F5", hazard: "#E2571C",
 };
 
-const VEHICLE_BADGE_SHAPES = {
-  sedan: {
-    body: "M13 67l7-13q3-7 13-9l18-4 13-18q4-6 13-6h31q9 0 15 7l17 20 10 3q8 2 9 10l2 11q1 7-7 8H20q-9 0-7-9z",
-    windows: "M59 41l11-15q3-4 9-4h9v20zm34-19h13q6 0 10 5l12 15H93z",
-    detail: "M52 45h79M91 23v46M118 47v20M63 55h14M105 55h13",
-    wheels: [43, 124],
-  },
-  suv: {
-    body: "M12 66l6-18q2-9 12-11l25-4 9-16q3-6 12-6h42q8 0 13 7l15 19 6 6q5 5 5 13v12q0 8-9 8H21q-10 0-9-10z",
-    windows: "M59 34l11-16q2-3 8-3h13v20zm37-19h19q7 0 11 6l11 16H96z",
-    detail: "M50 38h88M93 15v54M123 41v27M61 52h14M105 52h14",
-    wheels: [43, 127],
-  },
-  pickup: {
-    body: "M12 67l6-17q2-8 12-10l26-5 8-17q3-6 11-6h25q8 0 13 7l14 19h29v31q0 7-8 7H21q-10 0-9-9z",
-    windows: "M61 35l9-16q2-3 7-3h8v20zm29-19h8q6 0 10 6l10 16H90z",
-    detail: "M51 39h69M87 16v53M125 42v27M132 45h20M60 52h14M96 52h12",
-    wheels: [43, 130],
-  },
-  van: {
-    body: "M12 67l5-27q2-12 14-15l32-7h47q9 0 16 7l25 24q5 5 5 13v7q0 7-8 7H21q-10 0-9-9z",
-    windows: "M28 31l36-8h19v25H25zm60-8h20q7 0 12 5l19 20H88z",
-    detail: "M84 22v47M122 34v34M56 51v18M35 56h14M96 56h14",
-    wheels: [43, 128],
-  },
-  hatchback: {
-    body: "M13 67l7-15q3-7 13-9l20-4 12-17q4-6 13-6h24q9 0 15 7l25 23 7 4q7 4 7 12v7q0 7-8 7H20q-9 0-7-9z",
-    windows: "M58 39l13-16q3-3 8-3h9v20zm35-19h7q7 0 12 5l19 18H93z",
-    detail: "M52 43h81M90 20v49M117 47v21M61 54h14M100 54h13",
-    wheels: [43, 124],
-  },
-  coupe: {
-    body: "M13 67l10-14q4-6 13-8l21-4 15-16q5-5 13-5h20q9 0 16 6l20 18 9 4q7 3 8 11l1 10q0 7-8 7H20q-9 0-7-9z",
-    windows: "M63 40l14-13q4-3 9-3h6v16zm34-16h7q6 0 11 4l14 13H97z",
-    detail: "M56 44h75M94 24v45M116 48v20M65 54h14M101 54h12",
-    wheels: [43, 124],
-  },
-};
-
 function VehicleBadge({ vehicle, compact = false }) {
   const bodyType = getVehicleBodyType(vehicle);
-  const shape = VEHICLE_BADGE_SHAPES[bodyType] || VEHICLE_BADGE_SHAPES.sedan;
-  const colour = getVehicleColourHex(vehicle);
+  const colour = getVehicleColourName(vehicle);
   const label = formatVehicleVisualSummary(vehicle) || "Vehicle";
 
   return (
     <span
       className={`ps-vehicle-badge${compact ? " is-compact" : ""}`}
-      style={{ "--vehicle-colour": colour }}
+      data-vehicle-body={bodyType}
+      data-vehicle-colour={colour}
       role="img"
       aria-label={`${label} vehicle icon`}
     >
-      <svg viewBox="0 0 168 96" aria-hidden="true" focusable="false">
-        <ellipse className="ps-vehicle-shadow" cx="84" cy="81" rx="66" ry="8" />
-        <path className="ps-vehicle-body" d={shape.body} />
-        <path className="ps-vehicle-body-shade" d="M13 64q12 5 31 5h105v7H20q-8 0-7-12z" />
-        <path className="ps-vehicle-window" d={shape.windows} />
-        <path className="ps-vehicle-window-glint" d="M68 27l-9 12h8l10-14zm36-7 19 18h7l-16-18z" />
-        <path className="ps-vehicle-line" d={shape.detail} />
-        <path className="ps-vehicle-highlight" d="M24 51q17-9 38-9h67" />
-        <path className="ps-vehicle-front-facet" d="M13 64l8-11 20-5-4 22H18z" />
-        <path className="ps-vehicle-headlight" d="M21 53l15-4-1 7-15 4z" />
-        <path className="ps-vehicle-tail-light" d="M147 47l7 5 1 8-7-1z" />
-        <path className="ps-vehicle-grille" d="M16 62h19m-20 4h18" />
-        <path className="ps-vehicle-bumper" d="M12 72h17m116 0h13" />
-        <circle className="ps-vehicle-mirror" cx="55" cy="42" r="4" />
-        {shape.wheels.map(wheelX => (
-          <g key={wheelX}>
-            <circle className="ps-vehicle-wheel" cx={wheelX} cy="73" r="13" />
-            <circle className="ps-vehicle-rim" cx={wheelX} cy="73" r="8" />
-            <circle className="ps-vehicle-wheel-hub" cx={wheelX} cy="73" r="3" />
-          </g>
-        ))}
-      </svg>
+      <img src={getVehicleAssetPath(vehicle)} alt="" aria-hidden="true" loading="lazy" decoding="async" />
     </span>
   );
 }

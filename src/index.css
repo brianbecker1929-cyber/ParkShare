@@ -3700,6 +3700,7 @@ button, input, select, textarea { font: inherit; }
   font-weight: 600;
 }
 .ps-vehicle-badge {
+  --vehicle-image-filter: brightness(1);
   width: 88px;
   height: 72px;
   display: grid;
@@ -3709,25 +3710,32 @@ button, input, select, textarea { font: inherit; }
   border-radius: 50%;
   background: #FFF8E1;
   box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .76), 0 4px 12px rgba(14, 27, 46, .06);
+  overflow: hidden;
+  isolation: isolate;
 }
 .ps-vehicle-badge.is-compact { width: 62px; height: 52px; }
-.ps-vehicle-badge svg { width: 94%; height: auto; overflow: visible; filter: drop-shadow(0 2px 1px rgba(14, 27, 46, .16)); }
-.ps-vehicle-shadow { fill: rgba(14, 27, 46, .17); }
-.ps-vehicle-body { fill: var(--vehicle-colour); stroke: #0E1B2E; stroke-width: 3.5; stroke-linejoin: round; }
-.ps-vehicle-body-shade { fill: color-mix(in srgb, var(--vehicle-colour) 74%, #0E1B2E); opacity: .72; }
-.ps-vehicle-window { fill: #BFD5DF; stroke: #0E1B2E; stroke-width: 3; stroke-linejoin: round; }
-.ps-vehicle-window-glint { fill: rgba(255, 255, 255, .62); }
-.ps-vehicle-line { fill: none; stroke: #0E1B2E; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: .78; }
-.ps-vehicle-highlight { fill: none; stroke: rgba(255, 255, 255, .67); stroke-width: 2.3; stroke-linecap: round; }
-.ps-vehicle-front-facet { fill: color-mix(in srgb, var(--vehicle-colour) 70%, #0E1B2E); stroke: #0E1B2E; stroke-width: 1.8; stroke-linejoin: round; }
-.ps-vehicle-headlight { fill: #FFE59A; stroke: #0E1B2E; stroke-width: 1.7; stroke-linejoin: round; }
-.ps-vehicle-tail-light { fill: #E2571C; stroke: #0E1B2E; stroke-width: 1.7; stroke-linejoin: round; }
-.ps-vehicle-grille { fill: none; stroke: #DDE5E9; stroke-width: 2; stroke-linecap: round; }
-.ps-vehicle-bumper { fill: none; stroke: #0E1B2E; stroke-width: 3.5; stroke-linecap: round; }
-.ps-vehicle-mirror { fill: var(--vehicle-colour); stroke: #0E1B2E; stroke-width: 2; }
-.ps-vehicle-wheel { fill: #111A26; stroke: #0E1B2E; stroke-width: 1.5; }
-.ps-vehicle-rim { fill: #F5F1E7; stroke: #FFC107; stroke-width: 3; }
-.ps-vehicle-wheel-hub { fill: #0E1B2E; }
+.ps-vehicle-badge img {
+  width: 113%;
+  max-width: none;
+  height: 113%;
+  object-fit: contain;
+  filter: var(--vehicle-image-filter, none) drop-shadow(0 2px 2px rgba(14, 27, 46, .2));
+  transform: translateY(1px) scale(1.08);
+}
+.ps-vehicle-badge[data-vehicle-colour="Black"] { --vehicle-image-filter: grayscale(1) brightness(.28) contrast(1.32); }
+.ps-vehicle-badge[data-vehicle-colour="White"] { --vehicle-image-filter: grayscale(1) brightness(1.72) contrast(.68); }
+.ps-vehicle-badge[data-vehicle-colour="Silver"] { --vehicle-image-filter: grayscale(1) brightness(1.19) contrast(.82); }
+.ps-vehicle-badge[data-vehicle-colour="Grey"] { --vehicle-image-filter: grayscale(1) brightness(.72) contrast(.95); }
+.ps-vehicle-badge[data-vehicle-colour="Blue"] { --vehicle-image-filter: hue-rotate(205deg) saturate(.9) brightness(.9); }
+.ps-vehicle-badge[data-vehicle-colour="Green"] { --vehicle-image-filter: hue-rotate(98deg) saturate(.72) brightness(.78); }
+.ps-vehicle-badge[data-vehicle-colour="Brown"] { --vehicle-image-filter: hue-rotate(330deg) saturate(.58) brightness(.58); }
+.ps-vehicle-badge[data-vehicle-colour="Beige"] { --vehicle-image-filter: grayscale(.45) sepia(.55) saturate(.65) brightness(1.23); }
+.ps-vehicle-badge[data-vehicle-colour="Gold"] { --vehicle-image-filter: hue-rotate(36deg) saturate(1.12) brightness(.9); }
+.ps-vehicle-badge[data-vehicle-colour="Yellow"] { --vehicle-image-filter: hue-rotate(46deg) saturate(1.3) brightness(1.12); }
+.ps-vehicle-badge[data-vehicle-colour="Orange"] { --vehicle-image-filter: hue-rotate(18deg) saturate(1.08) brightness(1.04); }
+.ps-vehicle-badge[data-vehicle-colour="Purple"] { --vehicle-image-filter: hue-rotate(250deg) saturate(.82) brightness(.72); }
+.ps-vehicle-badge[data-vehicle-colour="Burgundy"] { --vehicle-image-filter: hue-rotate(338deg) saturate(.88) brightness(.55); }
+.ps-vehicle-badge[data-vehicle-colour="Other"] { --vehicle-image-filter: grayscale(.5) hue-rotate(145deg) saturate(.45) brightness(.83); }
 .ps-vehicle-accordion-body {
   padding: 17px;
   border-top: 1px solid #E3DDC9;
