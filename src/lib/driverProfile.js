@@ -1,6 +1,48 @@
 import { VEHICLE_COLOURS, VEHICLE_MODELS } from "./vehicleOptions.js";
 
 const PHONE_DIGIT_MINIMUM = 10;
+export const MAX_GUEST_VEHICLES = 5;
+
+function vehicleFields(vehicle = {}) {
+  return {
+    vehicleMake: String(vehicle.vehicleMake || vehicle.vehicle_make || "").trim(),
+    vehicleModel: String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim(),
+    vehicleColour: String(vehicle.vehicleColour || vehicle.vehicle_colour || "").trim(),
+    licensePlate: String(vehicle.licensePlate || vehicle.license_plate || "").trim().toUpperCase(),
+  };
+}
+
+function guestVehicleArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function normaliseGuestVehicles(value = []) {
+  return guestVehicleArray(value)
+    .slice(0, MAX_GUEST_VEHICLES)
+    .map((vehicle, index) => ({
+      id: String(vehicle?.id || `guest-${index + 1}`).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || `guest-${index + 1}`,
+      ...vehicleFields(vehicle),
+    }))
+    .filter(vehicle => vehicle.vehicleMake || vehicle.vehicleModel || vehicle.vehicleColour || vehicle.licensePlate);
+}
+
+export function isVehicleComplete(vehicle = {}) {
+  const normalised = vehicleFields(vehicle);
+  return Boolean(normalised.vehicleMake && normalised.vehicleModel && normalised.vehicleColour && normalised.licensePlate);
+}
+
+export function formatVehicleLabel(vehicle = {}) {
+  const normalised = vehicleFields(vehicle);
+  const description = [normalised.vehicleColour, normalised.vehicleMake, normalised.vehicleModel].filter(Boolean).join(" ");
+  return [description, normalised.licensePlate].filter(Boolean).join(" · ");
+}
 
 export function parseLegacyVehicleDetails(value = "") {
   const original = String(value || "").trim();
@@ -42,6 +84,7 @@ export function normaliseDriverProfile(profile = {}) {
   const vehicleColour = String(profile.vehicleColour || profile.vehicle_colour || migrated.vehicleColour || "").trim();
   const licensePlate = String(profile.licensePlate || profile.license_plate || "").trim().toUpperCase();
   const structuredDetails = formatVehicleDetails({ vehicleMake, vehicleModel, vehicleColour });
+  const guestVehicles = normaliseGuestVehicles(profile.guestVehicles || profile.guest_vehicles || []);
 
   return {
     name: String(profile.name || "").trim(),
@@ -50,8 +93,28 @@ export function normaliseDriverProfile(profile = {}) {
     vehicleModel,
     vehicleColour,
     licensePlate,
+    guestVehicles,
     vehicleDetails: structuredDetails || legacyDetails,
   };
+}
+
+export function getBookableVehicles(profile = {}) {
+  const normalised = normaliseDriverProfile(profile);
+  const primary = {
+    id: "primary",
+    type: "primary",
+    label: "Primary vehicle",
+    vehicleMake: normalised.vehicleMake,
+    vehicleModel: normalised.vehicleModel,
+    vehicleColour: normalised.vehicleColour,
+    licensePlate: normalised.licensePlate,
+  };
+  const guests = normalised.guestVehicles.map((vehicle, index) => ({
+    ...vehicle,
+    type: "guest",
+    label: `Guest vehicle ${index + 1}`,
+  }));
+  return [primary, ...guests].filter(isVehicleComplete);
 }
 
 export function getDriverProfileCompletion(profile = {}) {
@@ -104,6 +167,23 @@ export function validateDriverProfile(profile = {}) {
     errors.licensePlate = "Enter a valid license plate number using letters and numbers.";
   }
   if (normalised.vehicleDetails.length > 120) errors.vehicleDetails = "Keep vehicle details under 120 characters.";
+
+  const rawGuests = guestVehicleArray(profile.guestVehicles || profile.guest_vehicles || []);
+  if (rawGuests.length > MAX_GUEST_VEHICLES) errors.guestVehicles = `Save up to ${MAX_GUEST_VEHICLES} guest vehicles.`;
+  rawGuests.slice(0, MAX_GUEST_VEHICLES).forEach((rawVehicle, index) => {
+    const vehicle = vehicleFields(rawVehicle);
+    if (!vehicle.vehicleMake && !vehicle.vehicleModel && !vehicle.vehicleColour && !vehicle.licensePlate) return;
+    const prefix = `guestVehicles.${index}`;
+    if (!VEHICLE_MODELS[vehicle.vehicleMake]) errors[`${prefix}.vehicleMake`] = "Select the guest vehicle make.";
+    if (!vehicle.vehicleModel) errors[`${prefix}.vehicleModel`] = "Select the guest vehicle model.";
+    if (VEHICLE_MODELS[vehicle.vehicleMake] && !VEHICLE_MODELS[vehicle.vehicleMake].includes(vehicle.vehicleModel)) {
+      errors[`${prefix}.vehicleModel`] = "Select a model for the chosen make.";
+    }
+    if (!VEHICLE_COLOURS.includes(vehicle.vehicleColour)) errors[`${prefix}.vehicleColour`] = "Select the guest vehicle colour.";
+    if (!/^[A-Z0-9 -]{2,15}$/.test(vehicle.licensePlate)) {
+      errors[`${prefix}.licensePlate`] = "Enter a valid guest license plate number.";
+    }
+  });
 
   return { normalised, errors, valid: Object.keys(errors).length === 0 };
 }
