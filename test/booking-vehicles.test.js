@@ -9,8 +9,11 @@ const migration = await readFile(new URL("../supabase-migration-007-booking-vehi
 
 test("booking review requires a saved vehicle selection", () => {
   assert.match(app, /Vehicle you are parking/);
+  assert.match(app, /ps-booking-vehicle-options/);
+  assert.match(app, /role="radiogroup"/);
   assert.match(app, /vehicleId: selectedVehicle\.id/);
   assert.match(app, /disabled=\{redirecting \|\| !selectedVehicle\}/);
+  assert.match(app, /getVehicleAssetPath\(vehicle\)/);
 });
 
 test("checkout resolves the selected vehicle from authenticated profile metadata", () => {
@@ -30,4 +33,3 @@ test("booking vehicle migration preserves existing rows and adds private snapsho
   assert.match(migration, /add column if not exists license_plate text/i);
   assert.match(migration, /vehicle_type in \('primary', 'guest'\)/i);
 });
-
