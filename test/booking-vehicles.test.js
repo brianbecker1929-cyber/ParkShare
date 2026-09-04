@@ -13,6 +13,7 @@ test("booking review requires a saved vehicle selection", () => {
   assert.match(app, /role="radiogroup"/);
   assert.match(app, /vehicleId: selectedVehicle\.id/);
   assert.match(app, /disabled=\{redirecting \|\| !selectedVehicle\}/);
+  assert.match(app, /getVehicleAssetPath\(vehicle\)/);
 });
 
 test("checkout resolves the selected vehicle from authenticated profile metadata", () => {
