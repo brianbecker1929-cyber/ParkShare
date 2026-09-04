@@ -6,6 +6,7 @@ import {
   getVehicleBodyType,
   getVehicleColourHex,
   getVehicleColourName,
+  hasDedicatedVehicleColourAsset,
 } from "../src/lib/vehicleVisuals.js";
 
 test("maps familiar models to a matching generic body style", () => {
@@ -30,6 +31,16 @@ test("uses the selected colour and a safe neutral fallback", () => {
 test("resolves optimized artwork from the mapped body style", () => {
   assert.equal(getVehicleAssetPath({ vehicleModel: "RAV4" }), "/vehicles/vehicle-suv.webp");
   assert.equal(getVehicleAssetPath({ vehicleModel: "Accord" }), "/vehicles/vehicle-sedan.webp");
+  assert.equal(
+    getVehicleAssetPath({ vehicleModel: "RAV4", vehicleColour: "White" }),
+    "/vehicles/vehicle-suv-white.webp",
+  );
+  assert.equal(
+    getVehicleAssetPath({ vehicleModel: "F-150", vehicleColour: "Yellow" }),
+    "/vehicles/vehicle-pickup-yellow.webp",
+  );
+  assert.equal(hasDedicatedVehicleColourAsset({ vehicleColour: "Gold" }), true);
+  assert.equal(hasDedicatedVehicleColourAsset({ vehicleColour: "Grey" }), false);
 });
 
 test("formats the compact visual summary without repeating the plate", () => {
