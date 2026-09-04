@@ -10,7 +10,7 @@ const BODY_MODEL_GROUPS = {
     "Express", "Uplander", "Grand Caravan", "Pacifica", "Town & Country", "Voyager",
     "Caravan", "E-Series", "Transit", "Transit Connect", "Savana", "Odyssey", "Entourage",
     "Carnival", "Sedona", "Sprinter", "NV", "ProMaster", "ProMaster City", "Sienna",
-    "ID. Buzz", "Monterey", "Montana", "Relay", "Rondo", "Mazda5",
+    "ID. Buzz", "Monterey", "Montana", "Relay", "Rondo", "Mazda5", "Silhouette",
   ],
   suv: [
     "MDX", "RDX", "ZDX", "Stelvio", "Tonale", "Bentayga", "iX", "Enclave", "Encore",
@@ -33,6 +33,10 @@ const BODY_MODEL_GROUPS = {
     "Corolla Cross", "FJ Cruiser", "Grand Highlander", "Highlander", "Land Cruiser", "RAV4",
     "Sequoia", "Venza", "Atlas", "Atlas Cross Sport", "ID.4", "Taos", "Tiguan", "Touareg",
     "C40 Recharge", "EX30", "EX40", "EX90", "XC40", "XC60", "XC70", "XC90",
+    "Bolt EUV", "Orlando", "Nitro", "500X", "Flex", "EX", "FX", "JX",
+    "CX-3", "CX-30", "CX-5", "CX-50", "CX-7", "CX-70", "CX-9", "CX-90",
+    "MX-30", "Tribute", "G-Class", "GL", "GLK", "M-Class", "Mariner", "Mountaineer",
+    "Countryman", "Paceman", "Aztek", "Torrent",
   ],
   coupe: [
     "4C", "R8", "TT", "Continental GT", "i8", "Cascada", "ELR", "Camaro", "Corvette",
@@ -42,12 +46,14 @@ const BODY_MODEL_GROUPS = {
     "GranCabrio", "GranTurismo", "MC20", "MX-5 Miata", "RX-8", "AMG GT", "CLE", "CLK", "SL",
     "SLC", "SLK", "Convertible", "Coupe", "Roadster", "350Z", "370Z", "GT-R", "Z", "Solstice",
     "718 Boxster", "718 Cayman", "911", "BRZ", "FR-S", "tC", "Sky", "GR86", "Supra",
+    "CL", "NSX", "RSX", "CR-Z", "Prelude", "Eclipse", "Celica", "Solara", "Eos", "Z4",
   ],
   hatchback: [
     "Aveo", "Bolt EV", "HHR", "Sonic", "Spark", "Caliber", "500", "500e", "C-Max", "Fiesta",
     "Focus", "Fit", "Insight", "Accent", "Ioniq", "LEAF", "Micra", "Versa", "i3", "Clubman",
     "Cooper", "Hardtop", "Mirage", "Cube", "Astra", "iM", "iQ", "xA", "xB", "xD", "fortwo",
     "Impreza", "Swift", "Prius", "Yaris", "Beetle", "Golf", "Golf GTI", "Golf R", "Rabbit", "C30",
+    "PT Cruiser", "GTC4Lusso", "500L", "Q30", "9-2X", "SX4", "Vibe", "Matrix",
   ],
 };
 
@@ -58,6 +64,8 @@ const COLOUR_HEX = {
   Purple: "#7451A6", Burgundy: "#7B2431", Other: "#87939C",
 };
 
+const VEHICLE_ASSET_ROOT = "/vehicles";
+
 export function getVehicleBodyType(vehicle = {}) {
   const model = String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim();
   const make = String(vehicle.vehicleMake || vehicle.vehicle_make || "").trim();
@@ -66,14 +74,23 @@ export function getVehicleBodyType(vehicle = {}) {
     if (models.includes(model)) return bodyType;
   }
 
+  if (make === "Polestar" && /^(3|4)$/.test(model)) return "suv";
   if (/^(Q[3-8]|X[1-7]|GL[A-S]|EQ[AB]|GV\d|GX|LX|NX|RX|RZ|TX|UX|QX\d|XT\d)$/.test(model)) return "suv";
   if (make === "Jeep" || make === "Hummer" || make === "Land Rover") return "suv";
   return "sedan";
 }
 
 export function getVehicleColourHex(vehicle = {}) {
+  return COLOUR_HEX[getVehicleColourName(vehicle)];
+}
+
+export function getVehicleColourName(vehicle = {}) {
   const colour = String(vehicle.vehicleColour || vehicle.vehicle_colour || "").trim();
-  return COLOUR_HEX[colour] || COLOUR_HEX.Other;
+  return Object.hasOwn(COLOUR_HEX, colour) ? colour : "Other";
+}
+
+export function getVehicleAssetPath(vehicle = {}) {
+  return `${VEHICLE_ASSET_ROOT}/vehicle-${getVehicleBodyType(vehicle)}.webp`;
 }
 
 export function formatVehicleVisualSummary(vehicle = {}) {
