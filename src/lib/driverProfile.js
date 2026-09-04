@@ -40,6 +40,7 @@ export function normaliseDriverProfile(profile = {}) {
   const vehicleMake = String(profile.vehicleMake || profile.vehicle_make || migrated.vehicleMake || "").trim();
   const vehicleModel = String(profile.vehicleModel || profile.vehicle_model || migrated.vehicleModel || "").trim();
   const vehicleColour = String(profile.vehicleColour || profile.vehicle_colour || migrated.vehicleColour || "").trim();
+  const licensePlate = String(profile.licensePlate || profile.license_plate || "").trim().toUpperCase();
   const structuredDetails = formatVehicleDetails({ vehicleMake, vehicleModel, vehicleColour });
 
   return {
@@ -48,13 +49,14 @@ export function normaliseDriverProfile(profile = {}) {
     vehicleMake,
     vehicleModel,
     vehicleColour,
+    licensePlate,
     vehicleDetails: structuredDetails || legacyDetails,
   };
 }
 
 export function getDriverProfileCompletion(profile = {}) {
   const normalised = normaliseDriverProfile(profile);
-  const hasStructuredVehicle = Boolean(normalised.vehicleMake || normalised.vehicleModel || normalised.vehicleColour);
+  const hasStructuredVehicle = Boolean(normalised.vehicleMake || normalised.vehicleModel || normalised.vehicleColour || normalised.licensePlate);
   const items = [
     { id: "name", label: "Full name", complete: normalised.name.length >= 2 },
     { id: "phone", label: "Phone number", complete: normalised.phone.replace(/\D/g, "").length >= PHONE_DIGIT_MINIMUM },
@@ -62,7 +64,7 @@ export function getDriverProfileCompletion(profile = {}) {
       id: "vehicleDetails",
       label: "Vehicle details",
       complete: hasStructuredVehicle
-        ? Boolean(normalised.vehicleMake && normalised.vehicleModel && normalised.vehicleColour)
+        ? Boolean(normalised.vehicleMake && normalised.vehicleModel && normalised.vehicleColour && normalised.licensePlate)
         : normalised.vehicleDetails.length >= 3,
     },
   ];
@@ -89,7 +91,7 @@ export function validateDriverProfile(profile = {}) {
   }
   if (normalised.phone.length > 30) errors.phone = "Keep your phone number under 30 characters.";
 
-  const hasStructuredVehicle = Boolean(normalised.vehicleMake || normalised.vehicleModel || normalised.vehicleColour);
+  const hasStructuredVehicle = Boolean(normalised.vehicleMake || normalised.vehicleModel || normalised.vehicleColour || normalised.licensePlate);
   if (hasStructuredVehicle) {
     if (!VEHICLE_MODELS[normalised.vehicleMake]) errors.vehicleMake = "Select your vehicle make.";
     if (!normalised.vehicleModel) errors.vehicleModel = "Select your vehicle model.";
@@ -97,6 +99,9 @@ export function validateDriverProfile(profile = {}) {
       errors.vehicleModel = "Select a model for the chosen make.";
     }
     if (!VEHICLE_COLOURS.includes(normalised.vehicleColour)) errors.vehicleColour = "Select your vehicle colour.";
+  }
+  if (normalised.licensePlate && !/^[A-Z0-9 -]{2,15}$/.test(normalised.licensePlate)) {
+    errors.licensePlate = "Enter a valid license plate number using letters and numbers.";
   }
   if (normalised.vehicleDetails.length > 120) errors.vehicleDetails = "Keep vehicle details under 120 characters.";
 

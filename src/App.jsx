@@ -25,6 +25,7 @@ function buildAppUser(profile, authUser) {
     vehicleMake: metadata.vehicle_make || "",
     vehicleModel: metadata.vehicle_model || "",
     vehicleColour: metadata.vehicle_colour || "",
+    licensePlate: metadata.license_plate || "",
   });
   return {
     id: profile?.id || authUser?.id,
@@ -36,6 +37,7 @@ function buildAppUser(profile, authUser) {
     vehicleMake: driverProfile.vehicleMake,
     vehicleModel: driverProfile.vehicleModel,
     vehicleColour: driverProfile.vehicleColour,
+    licensePlate: driverProfile.licensePlate,
     profileComplete: getDriverProfileCompletion(driverProfile).complete,
   };
 }
@@ -3552,6 +3554,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
     vehicleMake: user?.vehicleMake || "",
     vehicleModel: user?.vehicleModel || "",
     vehicleColour: user?.vehicleColour || "",
+    licensePlate: user?.licensePlate || "",
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -3566,8 +3569,9 @@ function DriverProfileView({ user, onProfileUpdated }) {
       vehicleMake: user?.vehicleMake || "",
       vehicleModel: user?.vehicleModel || "",
       vehicleColour: user?.vehicleColour || "",
+      licensePlate: user?.licensePlate || "",
     });
-  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour]);
+  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate]);
 
   const update = (field, value) => {
     setForm(current => ({ ...current, [field]: value }));
@@ -3730,7 +3734,24 @@ function DriverProfileView({ user, onProfileUpdated }) {
               {VEHICLE_COLOURS.map(colour => <option key={colour} value={colour}>{colour}</option>)}
             </select>
             {errors.vehicleColour && <small id="driver-profile-colour-error" role="alert">{errors.vehicleColour}</small>}
-            <em id="driver-profile-vehicle-help">Choose the vehicle a Host should expect to see.</em>
+          </div>
+
+          <div className="ps-profile-field">
+            <label htmlFor="driver-profile-license-plate">License plate number <span>Recommended</span></label>
+            <input
+              id="driver-profile-license-plate"
+              name="licensePlate"
+              autoCapitalize="characters"
+              autoComplete="off"
+              maxLength={15}
+              placeholder="ABCD 123"
+              value={form.licensePlate}
+              onChange={event => update("licensePlate", event.target.value.toUpperCase())}
+              aria-invalid={Boolean(errors.licensePlate)}
+              aria-describedby={errors.licensePlate ? "driver-profile-license-plate-error" : "driver-profile-vehicle-help"}
+            />
+            {errors.licensePlate && <small id="driver-profile-license-plate-error" role="alert">{errors.licensePlate}</small>}
+            <em id="driver-profile-vehicle-help">Enter the plate the Host should expect to see.</em>
           </div>
         </div>
 
