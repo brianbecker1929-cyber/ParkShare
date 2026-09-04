@@ -137,6 +137,12 @@ alter table bookings add column if not exists spot_label text;
 alter table bookings add column if not exists booking_date text;
 alter table bookings add column if not exists start_hour numeric;
 alter table bookings add column if not exists end_hour numeric;
+alter table bookings add column if not exists vehicle_profile_id text;
+alter table bookings add column if not exists vehicle_type text;
+alter table bookings add column if not exists vehicle_make text;
+alter table bookings add column if not exists vehicle_model text;
+alter table bookings add column if not exists vehicle_colour text;
+alter table bookings add column if not exists license_plate text;
 alter table bookings add column if not exists paid_at timestamptz;
 alter table bookings add column if not exists cancellation_requested_at timestamptz;
 alter table bookings add column if not exists cancelled_at timestamptz;
@@ -157,6 +163,10 @@ alter table bookings add constraint bookings_refund_status_check check (
 alter table bookings drop constraint if exists bookings_refund_amount_check;
 alter table bookings add constraint bookings_refund_amount_check check (
   refund_amount is null or refund_amount >= 0
+);
+alter table bookings drop constraint if exists bookings_vehicle_type_check;
+alter table bookings add constraint bookings_vehicle_type_check check (
+  vehicle_type is null or vehicle_type in ('primary', 'guest')
 );
 create unique index if not exists bookings_stripe_refund_id_idx
   on bookings (stripe_refund_id) where stripe_refund_id is not null;

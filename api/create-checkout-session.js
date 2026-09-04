@@ -4,6 +4,7 @@
 
 import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { calculateBookingAmounts, isRentableSpot, isValidBookingDuration } from "./_booking-rules.js";
+import { getBookableVehicles } from "../src/lib/driverProfile.js";
 
 const SERVICE_FEE_RATE = 0.15;
 
@@ -20,9 +21,22 @@ export default async function handler(req, res) {
     const bookingDate = req.body?.bookingDate ? String(req.body.bookingDate).slice(0, 40) : "";
     const startHour = Number.isFinite(Number(req.body?.startHour)) ? Number(req.body.startHour) : null;
     const endHour = Number.isFinite(Number(req.body?.endHour)) ? Number(req.body.endHour) : null;
+    const vehicleId = String(req.body?.vehicleId || "").slice(0, 64);
 
     if (!Number.isInteger(listingId) || !isValidBookingDuration(hours, { scheduled: Boolean(bookingDate) })) {
       return res.status(400).json({ error: "Invalid listing or booking duration." });
+    }
+
+    const userMetadata = user.user_metadata || {};
+    const bookingVehicle = getBookableVehicles({
+      vehicle_make: userMetadata.vehicle_make,
+      vehicle_model: userMetadata.vehicle_model,
+      vehicle_colour: userMetadata.vehicle_colour,
+      license_plate: userMetadata.license_plate,
+      guest_vehicles: userMetadata.guest_vehicles,
+    }).find(vehicle => vehicle.id === vehicleId);
+    if (!bookingVehicle) {
+      return res.status(400).json({ error: "Select a complete vehicle from your Driver Profile before checkout." });
     }
 
     const { data: listing, error: listingError } = await supabaseAdmin
@@ -99,6 +113,12 @@ export default async function handler(req, res) {
       start_hour: startHour === null ? "" : String(startHour),
       end_hour: endHour === null ? "" : String(endHour),
       hold_id: String(holdId),
+      vehicle_id: bookingVehicle.id,
+      vehicle_type: bookingVehicle.type,
+      vehicle_make: bookingVehicle.vehicleMake,
+      vehicle_model: bookingVehicle.vehicleModel,
+      vehicle_colour: bookingVehicle.vehicleColour,
+      license_plate: bookingVehicle.licensePlate,
     };
 
     let session;

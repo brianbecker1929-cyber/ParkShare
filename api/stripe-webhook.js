@@ -83,6 +83,12 @@ async function confirmBooking(session, connectedAccountId) {
     booking_date: metadata.booking_date || null,
     start_hour: metadata.start_hour === "" ? null : Number(metadata.start_hour),
     end_hour: metadata.end_hour === "" ? null : Number(metadata.end_hour),
+    vehicle_profile_id: metadata.vehicle_id || null,
+    vehicle_type: metadata.vehicle_type || null,
+    vehicle_make: metadata.vehicle_make || null,
+    vehicle_model: metadata.vehicle_model || null,
+    vehicle_colour: metadata.vehicle_colour || null,
+    license_plate: metadata.license_plate || null,
     paid_at: new Date().toISOString(),
   };
 
@@ -93,7 +99,7 @@ async function confirmBooking(session, connectedAccountId) {
   const { data: inserted, error } = await supabaseAdmin
     .from("bookings")
     .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
-    .select("id, listing_id, renter_id, hours, total, spot_label, paid_at, booking_date, start_hour");
+    .select("id, listing_id, renter_id, hours, total, spot_label, paid_at, booking_date, start_hour, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate");
   if (error) {
     // A hold should make this exceptionally rare, but a payment can complete
     // at the exact expiry boundary. Never leave that customer charged without
