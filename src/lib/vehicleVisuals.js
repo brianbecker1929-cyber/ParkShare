@@ -65,6 +65,7 @@ const COLOUR_HEX = {
 };
 
 const VEHICLE_ASSET_ROOT = "/vehicles";
+const DEDICATED_COLOUR_ASSETS = new Set(["White", "Silver", "Gold", "Yellow"]);
 
 export function getVehicleBodyType(vehicle = {}) {
   const model = String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim();
@@ -89,8 +90,17 @@ export function getVehicleColourName(vehicle = {}) {
   return Object.hasOwn(COLOUR_HEX, colour) ? colour : "Other";
 }
 
+export function hasDedicatedVehicleColourAsset(vehicle = {}) {
+  return DEDICATED_COLOUR_ASSETS.has(getVehicleColourName(vehicle));
+}
+
 export function getVehicleAssetPath(vehicle = {}) {
-  return `${VEHICLE_ASSET_ROOT}/vehicle-${getVehicleBodyType(vehicle)}.webp`;
+  const bodyType = getVehicleBodyType(vehicle);
+  const colour = getVehicleColourName(vehicle);
+  if (DEDICATED_COLOUR_ASSETS.has(colour)) {
+    return `${VEHICLE_ASSET_ROOT}/vehicle-${bodyType}-${colour.toLowerCase()}.webp`;
+  }
+  return `${VEHICLE_ASSET_ROOT}/vehicle-${bodyType}.webp`;
 }
 
 export function formatVehicleVisualSummary(vehicle = {}) {
