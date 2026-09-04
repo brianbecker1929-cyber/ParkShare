@@ -17,6 +17,7 @@ test("normalises Driver profile fields", () => {
       vehicleMake: "",
       vehicleModel: "",
       vehicleColour: "",
+      licensePlate: "",
       vehicleDetails: "Blue sedan",
     },
   );
@@ -46,6 +47,7 @@ test("marks a Driver complete after phone and vehicle details are supplied", () 
     vehicleMake: "Honda",
     vehicleModel: "Civic",
     vehicleColour: "Blue",
+    licensePlate: "ABCD 123",
   });
   assert.equal(result.completed, 3);
   assert.equal(result.percentage, 100);
@@ -74,6 +76,18 @@ test("validates name and an entered phone number", () => {
     vehicleMake: "Honda",
     vehicleModel: "Accord",
     vehicleColour: "Blue",
+    licensePlate: "abcd 123",
   });
   assert.equal(completeVehicle.valid, true);
+  assert.equal(completeVehicle.normalised.licensePlate, "ABCD 123");
+
+  const invalidPlate = validateDriverProfile({
+    name: "Test Driver",
+    vehicleMake: "Honda",
+    vehicleModel: "Accord",
+    vehicleColour: "Blue",
+    licensePlate: "ABC@123",
+  });
+  assert.equal(invalidPlate.valid, false);
+  assert.match(invalidPlate.errors.licensePlate, /valid license plate/i);
 });
