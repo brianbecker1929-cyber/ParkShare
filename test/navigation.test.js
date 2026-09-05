@@ -37,9 +37,16 @@ test("an explicit Google Maps choice is respected on iOS", () => {
   );
 });
 
-test("Waze route links prefer exact listing coordinates", () => {
+test("Waze route links include the ParkShare address and exact listing coordinates", () => {
   assert.equal(
     buildNavigationUrl("24 Horwood Crescent", 43.6532, -79.3832, "Mozilla/5.0 (Linux; Android 16)", "waze"),
+    "https://waze.com/ul?q=24%20Horwood%20Crescent&ll=43.6532%2C-79.3832&navigate=yes&utm_source=parkshare",
+  );
+});
+
+test("Waze route links use exact coordinates when an address is unavailable", () => {
+  assert.equal(
+    buildNavigationUrl("", 43.6532, -79.3832, "Mozilla/5.0 (Linux; Android 16)", "waze"),
     "https://waze.com/ul?ll=43.6532%2C-79.3832&navigate=yes&utm_source=parkshare",
   );
 });
