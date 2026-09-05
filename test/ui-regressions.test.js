@@ -56,3 +56,24 @@ test("mobile parking previews include a dismiss control", () => {
   assert.match(listingsMap, /aria-label="Close parking preview"/);
   assert.match(listingsMap, /onClick=\{\(\) => onSelect\(null\)\}/);
 });
+
+test("route previews use the shared navigation chooser", () => {
+  const chooser = functionSource("NavigationChooser", "milesBetween");
+  const browseView = functionSource("BrowseView", "EditListingModal");
+
+  assert.match(chooser, /getAvailableNavigationProviders\(\)/);
+  assert.match(chooser, /Waze|provider\.label/);
+  assert.match(chooser, /Last used/);
+  assert.match(browseView, /onPreviewRoute\(l\)/);
+  assert.doesNotMatch(browseView, /openNavigation\(l\)/);
+});
+
+test("confirmed and upcoming bookings can change the saved navigation app", () => {
+  const listingDetail = functionSource("ListingDetail", "useAllListings");
+  const bookings = functionSource("MyBookingsView", "ReviewModal");
+
+  assert.match(listingDetail, /onNavigateToParking\(listing\)/);
+  assert.match(listingDetail, /onChangeNavigationApp\(listing\)/);
+  assert.match(bookings, /onNavigateToParking\(b\.listing\)/);
+  assert.match(bookings, /onChangeNavigationApp\(b\.listing\)/);
+});
