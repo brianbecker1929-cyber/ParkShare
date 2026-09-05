@@ -63,6 +63,7 @@ test("route previews use the shared navigation chooser", () => {
 
   assert.match(chooser, /getAvailableNavigationProviders\(\)/);
   assert.match(chooser, /Waze|provider\.label/);
+  assert.match(chooser, /\/navigation\/waze-icon\.webp/);
   assert.match(chooser, /Last used/);
   assert.match(browseView, /onPreviewRoute\(l\)/);
   assert.doesNotMatch(browseView, /openNavigation\(l\)/);
