@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, Component } from "react";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
-import { openNavigation } from "./lib/navigation";
+import {
+  getAvailableNavigationProviders,
+  getPreferredNavigationProvider,
+  openNavigation,
+  savePreferredNavigationProvider,
+} from "./lib/navigation";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
@@ -232,14 +237,67 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
 function Modal({ children, onClose, title }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-      <div style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
         <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>{title}</div>
-          <button onClick={onClose} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
+          <button onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ padding: "20px 22px" }}>{children}</div>
       </div>
     </div>
+  );
+}
+
+function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
+  if (!request?.listing) return null;
+
+  const providers = getAvailableNavigationProviders();
+  const isPreview = request.mode === "preview";
+  const descriptions = {
+    waze: "Live traffic, road reports, and driving guidance",
+    google: "Driving directions in Google Maps",
+    apple: "Driving directions in Apple Maps",
+  };
+
+  return (
+    <Modal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
+      <div className="ps-navigation-chooser">
+        <p>
+          {isPreview
+            ? `Choose an app to preview driving directions to ${request.listing.title || "this parking space"}.`
+            : "Choose your preferred navigation app. Your parking location is ready to open."}
+        </p>
+        <div className="ps-navigation-destination">
+          <span aria-hidden="true">📍</span>
+          <div>
+            <strong>{request.listing.title || "Parking space"}</strong>
+            <small>{request.listing.address || "Exact parking location"}</small>
+          </div>
+        </div>
+        <div className="ps-navigation-provider-list">
+          {providers.map(provider => (
+            <button
+              key={provider.id}
+              type="button"
+              className={`ps-navigation-provider is-${provider.id}`}
+              onClick={() => onChoose(provider.id)}
+            >
+              <span className="ps-navigation-provider-icon" aria-hidden="true">{provider.shortLabel}</span>
+              <span className="ps-navigation-provider-copy">
+                <strong>{provider.label}</strong>
+                <small>{descriptions[provider.id]}</small>
+              </span>
+              {preferredProvider === provider.id && <span className="ps-navigation-last-used">Last used</span>}
+              <span className="ps-navigation-provider-arrow" aria-hidden="true">↗</span>
+            </button>
+          ))}
+        </div>
+        <p className="ps-navigation-remember-note">
+          ParkShare remembers your selection for future <strong>Navigate to parking</strong> buttons. You can change it anytime.
+        </p>
+        <button type="button" className="ps-navigation-cancel" onClick={onClose}>Cancel</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -1183,7 +1241,7 @@ const formatHour = (h) => {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return h12 + ":00 " + period;
 };
-function ListingDetail({ listing, onBack, onMessage, user }) {
+function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1289,7 +1347,7 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
       {listing.walkLabel && <WalkingTimeLabel label={listing.walkLabel} className="ps-listing-detail-walk-time" />}
 
       <div style={{ marginBottom: 14 }}>
-        <Btn small variant="outline" onClick={() => openNavigation(listing)}>↗ Preview route</Btn>
+        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview route</Btn>
       </div>
 
       {liveAvailability && (
@@ -1337,7 +1395,8 @@ function ListingDetail({ listing, onBack, onMessage, user }) {
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
-          <Btn small variant="amber" onClick={() => openNavigation(listing)}>🧭 Navigate to parking</Btn>
+          <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
+          <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change navigation app</button>
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -1566,7 +1625,7 @@ function useAllListings() {
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocation, initialQuery }) {
+function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, autoFocusSearch, autoLocate, initialLocation, initialQuery }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1771,7 +1830,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} onBack={() => setSelected(null)} onMessage={onMessage} user={user} />;
+  if (selectedListing) return <ListingDetail listing={selectedListing} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -1883,7 +1942,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
                   <PriceTag price={l.price} size="sm" />
                 </div>
                 <div className="ps-browse-listing-actions">
-                  <button type="button" onClick={e => { e.stopPropagation(); setMapHovered(l); openNavigation(l); }}>↗ Preview route</button>
+                  <button type="button" onClick={e => { e.stopPropagation(); setMapHovered(l); onPreviewRoute(l); }}>↗ Preview route</button>
                   <button type="button" onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
                 </div>
               </div>
@@ -1900,7 +1959,7 @@ function BrowseView({ onMessage, user, autoFocusSearch, autoLocate, initialLocat
                 selected={mapHovered}
                 onSelect={setMapHovered}
                 onViewListing={setSelected}
-                onPreviewRoute={openNavigation}
+                onPreviewRoute={onPreviewRoute}
                 userLoc={userLoc}
               />
             </div>
@@ -3376,7 +3435,7 @@ function CancellationModal({ title, actor, busy, error, onClose, onConfirm }) {
   );
 }
 
-function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
+function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavigationApp, user, highlightBookingId }) {
   const [dbBookings, setDbBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -3500,7 +3559,10 @@ function MyBookingsView({ onMessage, onExtend, user, highlightBookingId }) {
               {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {(b.status === "Upcoming" || b.status === "Active") && (
-                  <Btn small variant="amber" onClick={() => openNavigation(b.listing)}>🧭 Navigate to parking</Btn>
+                  <Btn small variant="amber" onClick={() => onNavigateToParking(b.listing)}>🧭 Navigate to parking</Btn>
+                )}
+                {(b.status === "Upcoming" || b.status === "Active") && (
+                  <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(b.listing)}>Change navigation app</button>
                 )}
                 {b.active && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
@@ -7450,7 +7512,35 @@ export default function App() {
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
   const [browseInitialLocation, setBrowseInitialLocation] = useState(null);
   const [browseInitialQuery, setBrowseInitialQuery] = useState("");
+  const [navigationRequest, setNavigationRequest] = useState(null);
+  const [preferredNavigationProvider, setPreferredNavigationProvider] = useState(() => getPreferredNavigationProvider());
   const navigationAnchorRef = useRef(null);
+
+  const previewParkingRoute = (listing) => {
+    if (listing) setNavigationRequest({ listing, mode: "preview" });
+  };
+
+  const navigateToParking = (listing) => {
+    if (!listing) return;
+    const availableProviders = getAvailableNavigationProviders().map(provider => provider.id);
+    if (preferredNavigationProvider && availableProviders.includes(preferredNavigationProvider)) {
+      openNavigation(listing, preferredNavigationProvider);
+      return;
+    }
+    setNavigationRequest({ listing, mode: "navigate" });
+  };
+
+  const changeNavigationApp = (listing) => {
+    if (listing) setNavigationRequest({ listing, mode: "navigate" });
+  };
+
+  const chooseNavigationProvider = (provider) => {
+    if (!navigationRequest?.listing) return;
+    savePreferredNavigationProvider(provider);
+    setPreferredNavigationProvider(provider);
+    openNavigation(navigationRequest.listing, provider);
+    setNavigationRequest(null);
+  };
 
   // This is a single-page app, so changing screens does not trigger the
   // browser's normal new-page scroll reset. Restore that expected behaviour
@@ -7816,11 +7906,11 @@ export default function App() {
               <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
-          {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
+          {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
-          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
+          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
@@ -7829,6 +7919,14 @@ export default function App() {
         </div>
       )}
       {showAuth && <SignInModal initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
+      {navigationRequest && (
+        <NavigationChooser
+          request={navigationRequest}
+          preferredProvider={preferredNavigationProvider}
+          onChoose={chooseNavigationProvider}
+          onClose={() => setNavigationRequest(null)}
+        />
+      )}
       {extendBookingId && (
         user ? (
           <ExtendSessionModal bookingId={extendBookingId} onClose={() => setExtendBookingId(null)} />

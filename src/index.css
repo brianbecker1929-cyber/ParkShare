@@ -3170,6 +3170,159 @@ button, input, select, textarea { font: inherit; }
 }
 
 /* Driver route preview and confirmed-booking navigation -------------------- */
+.ps-navigation-chooser > p {
+  margin: 0 0 14px;
+  color: #71695A;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.ps-navigation-destination {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid #E3DDC9;
+  border-radius: 11px;
+  background: #FAF7F0;
+  color: #0E1B2E;
+}
+
+.ps-navigation-destination > span { margin-top: 1px; }
+.ps-navigation-destination div { min-width: 0; }
+.ps-navigation-destination strong,
+.ps-navigation-destination small { display: block; }
+.ps-navigation-destination strong { font-size: 12px; }
+.ps-navigation-destination small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #71695A;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-navigation-provider-list {
+  display: grid;
+  gap: 9px;
+}
+
+.ps-navigation-provider {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 62px;
+  padding: 9px 12px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 12px;
+  background: #fff;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.ps-navigation-provider:hover {
+  border-color: #0E1B2E;
+  box-shadow: 0 5px 15px rgba(14, 27, 46, .1);
+  transform: translateY(-1px);
+}
+
+.ps-navigation-provider:focus-visible,
+.ps-navigation-cancel:focus-visible,
+.ps-change-navigation-app:focus-visible {
+  outline: 3px solid rgba(255, 193, 7, .58);
+  outline-offset: 2px;
+}
+
+.ps-navigation-provider-icon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #0E1B2E;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.ps-navigation-provider.is-waze .ps-navigation-provider-icon {
+  background: #33CCFF;
+  color: #0E1B2E;
+}
+
+.ps-navigation-provider.is-google .ps-navigation-provider-icon {
+  border: 1px solid #E3DDC9;
+  background: #fff;
+  color: #1A73E8;
+}
+
+.ps-navigation-provider.is-apple .ps-navigation-provider-icon { background: #111; }
+.ps-navigation-provider-copy { min-width: 0; }
+.ps-navigation-provider-copy strong,
+.ps-navigation-provider-copy small { display: block; }
+.ps-navigation-provider-copy strong { font-size: 12.5px; }
+.ps-navigation-provider-copy small {
+  margin-top: 2px;
+  color: #71695A;
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.ps-navigation-last-used {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #FFF8E1;
+  color: #0E1B2E;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ps-navigation-provider-arrow { color: #71695A; font-size: 15px; font-weight: 800; }
+
+.ps-navigation-chooser .ps-navigation-remember-note {
+  margin: 13px 0 10px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.ps-navigation-cancel {
+  display: block;
+  margin: 0 auto;
+  padding: 7px 14px;
+  border: 0;
+  background: transparent;
+  color: #71695A;
+  font-family: 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ps-change-navigation-app {
+  padding: 7px 5px;
+  border: 0;
+  background: transparent;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .ps-browse-listing-heading {
   padding: 16px 14px 6px;
   color: #0E1B2E;
@@ -3450,6 +3603,16 @@ button, input, select, textarea { font: inherit; }
 }
 
 @media (max-width: 430px) {
+  .ps-navigation-provider {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 9px;
+    min-height: 60px;
+    padding: 8px 10px;
+  }
+
+  .ps-navigation-provider-icon { width: 40px; height: 40px; }
+  .ps-navigation-last-used { display: none; }
+
   .ps-browse-card-walk-time {
     font-size: clamp(8.5px, 2.6vw, 10px);
   }
