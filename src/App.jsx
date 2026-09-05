@@ -284,7 +284,7 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
             >
               <span className="ps-navigation-provider-icon" aria-hidden="true">
                 {provider.id === "waze"
-                  ? <img src="/navigation/waze-icon.webp" alt="" />
+                  ? <img src="/waze-icon.webp" alt="" />
                   : provider.shortLabel}
               </span>
               <span className="ps-navigation-provider-copy">
