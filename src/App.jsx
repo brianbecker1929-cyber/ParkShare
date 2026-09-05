@@ -285,6 +285,8 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
               <span className="ps-navigation-provider-icon" aria-hidden="true">
                 {provider.id === "waze"
                   ? <img src="/waze-icon.webp" alt="" />
+                  : provider.id === "google"
+                    ? <img src="/google-maps-icon.webp" alt="" />
                   : provider.shortLabel}
               </span>
               <span className="ps-navigation-provider-copy">
