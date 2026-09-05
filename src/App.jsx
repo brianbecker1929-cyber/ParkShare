@@ -282,7 +282,11 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
               className={`ps-navigation-provider is-${provider.id}`}
               onClick={() => onChoose(provider.id)}
             >
-              <span className="ps-navigation-provider-icon" aria-hidden="true">{provider.shortLabel}</span>
+              <span className="ps-navigation-provider-icon" aria-hidden="true">
+                {provider.id === "waze"
+                  ? <img src="/navigation/waze-icon.webp" alt="" />
+                  : provider.shortLabel}
+              </span>
               <span className="ps-navigation-provider-copy">
                 <strong>{provider.label}</strong>
                 <small>{descriptions[provider.id]}</small>
