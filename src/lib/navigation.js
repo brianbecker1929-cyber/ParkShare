@@ -39,13 +39,19 @@ export function savePreferredNavigationProvider(provider, storage) {
 
 export function buildNavigationUrl(address, lat, lng, userAgent = globalThis.navigator?.userAgent || "", provider) {
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-  const destination = hasCoords ? `${lat},${lng}` : String(address || "");
+  const cleanAddress = String(address || "").trim();
+  const hasAddress = cleanAddress.length > 0;
+  const destination = hasCoords ? `${lat},${lng}` : cleanAddress;
   const encodedDestination = encodeURIComponent(destination);
   const selectedProvider = provider || (isAppleMapsSupported(userAgent) ? "apple" : "google");
 
   if (selectedProvider === "waze") {
-    const destinationParam = hasCoords ? "ll" : "q";
-    return `https://waze.com/ul?${destinationParam}=${encodedDestination}&navigate=yes&utm_source=parkshare`;
+    const locationParams = [];
+    // Waze supports q and ll together: q preserves the human-readable
+    // ParkShare address while ll keeps the destination pin exact.
+    if (hasAddress) locationParams.push(`q=${encodeURIComponent(cleanAddress)}`);
+    if (hasCoords) locationParams.push(`ll=${encodedDestination}`);
+    return `https://waze.com/ul?${locationParams.join("&")}&navigate=yes&utm_source=parkshare`;
   }
 
   if (selectedProvider === "apple") {
