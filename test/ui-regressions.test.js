@@ -105,8 +105,11 @@ test("confirmed, upcoming, and active bookings offer rideshare pickup", () => {
 
 test("booking cards show start times and collapse completed or cancelled bookings", () => {
   const bookings = functionSource("MyBookingsView", "ReviewModal");
+  const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
 
   assert.match(bookings, /Starts \{b\.startTime\}/);
+  assert.match(bookingDisplay, /hour12:\s*true/);
+  assert.match(bookingDisplay, /toLocaleTimeString\("en-CA", timeOptions\)/);
   assert.match(bookings, /displayStatus === "Completed" \|\| displayStatus === "Cancelled"/);
   assert.match(bookings, /className="ps-past-booking-toggle"/);
   assert.match(bookings, /aria-expanded=\{isExpanded\}/);
@@ -117,7 +120,10 @@ test("booking cards show start times and collapse completed or cancelled booking
 
 test("Host upcoming bookings show the reservation start time", () => {
   const hostDashboard = functionSource("HostDashboard", "MessagesView");
+  const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
 
   assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled\)/);
   assert.match(hostDashboard, /display\.date \+ " · Starts " \+ display\.startTime/);
+  assert.match(bookingDisplay, /hour12:\s*true/);
+  assert.match(bookingDisplay, /toLocaleTimeString\("en-CA", timeOptions\)/);
 });
