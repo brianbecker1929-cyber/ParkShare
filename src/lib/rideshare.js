@@ -52,18 +52,20 @@ export function buildRideshareUrl(provider, listing, options = {}) {
 }
 
 export function getSuggestedPickupDate(bookingStart, bufferMinutes = RIDESHARE_PICKUP_BUFFER_MINUTES) {
+  if (bookingStart === null || bookingStart === undefined || bookingStart === "") return null;
   const start = bookingStart instanceof Date ? bookingStart : new Date(bookingStart);
   if (Number.isNaN(start.getTime())) return null;
   return new Date(start.getTime() + Number(bufferMinutes || 0) * 60 * 1000);
 }
 
-export function formatSuggestedPickupTime(bookingStart, locale = "en-CA") {
+export function formatSuggestedPickupTime(bookingStart, locale = "en-CA", options = {}) {
   const pickup = getSuggestedPickupDate(bookingStart);
   if (!pickup) return "";
-  return new Intl.DateTimeFormat(locale, {
+  const formatOptions = {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "UTC",
-  }).format(pickup);
+  };
+  if (options.timeZone) formatOptions.timeZone = options.timeZone;
+  return new Intl.DateTimeFormat(locale, formatOptions).format(pickup);
 }
