@@ -40,13 +40,13 @@ test("ride links fall back to the provider when coordinates are unavailable", ()
   assert.equal(buildRideshareUrl("uber", { ...listing, lat: null, lng: null }), "https://m.uber.com/looking");
 });
 
-test("suggested pickup is five minutes after parking begins", () => {
+test("suggested pickup is five minutes after estimated arrival", () => {
   assert.equal(RIDESHARE_PICKUP_BUFFER_MINUTES, 5);
   assert.equal(getSuggestedPickupDate("2026-09-12T18:00:00Z").toISOString(), "2026-09-12T18:05:00.000Z");
   assert.match(formatSuggestedPickupTime("2026-09-12T18:00:00Z", "en-CA", { timeZone: "UTC" }), /6:05/);
 });
 
-test("Book Now pickup displays in the Driver's local timezone", () => {
+test("arrival-based pickup displays in the Driver's local timezone", () => {
   const displayed = formatSuggestedPickupTime(
     "2026-09-06T03:36:00Z",
     "en-CA",
@@ -57,7 +57,7 @@ test("Book Now pickup displays in the Driver's local timezone", () => {
   assert.doesNotMatch(displayed, /3:41/);
 });
 
-test("scheduled pickup retains the wall-clock time selected by the Driver", () => {
+test("pickup times can still be formatted in an explicit timezone", () => {
   const displayed = formatSuggestedPickupTime(
     "2026-09-12T09:00:00Z",
     "en-CA",

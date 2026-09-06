@@ -7,7 +7,8 @@ import {
   openNavigation,
   savePreferredNavigationProvider,
 } from "./lib/navigation";
-import { buildRideshareUrl, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
+import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
+import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
@@ -308,17 +309,15 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
   );
 }
 
-function RidesharePickupCard({ listing, bookingStart, scheduled = false }) {
+function RidesharePickupCard({ listing }) {
+  const { isLoaded: routesLoaded, loadError: routesLoadError } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+  const [routeEstimate, setRouteEstimate] = useState(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [estimateError, setEstimateError] = useState("");
   if (!listing) return null;
-
-  // Book Now timestamps are real instants and should display in the Driver's
-  // local timezone. Scheduled reservations are stored as a timezone-free wall
-  // clock value represented in UTC, so retain that selected clock time.
-  const suggestedPickupTime = formatSuggestedPickupTime(
-    bookingStart,
-    "en-CA",
-    scheduled ? { timeZone: "UTC" } : undefined,
-  );
   const uberUrl = buildRideshareUrl("uber", listing, {
     uberClientId: import.meta.env.VITE_UBER_CLIENT_ID,
   });
@@ -326,6 +325,46 @@ function RidesharePickupCard({ listing, bookingStart, scheduled = false }) {
     lyftClientId: import.meta.env.VITE_LYFT_CLIENT_ID,
   });
   const pickupAddress = listing.address || "Your confirmed ParkShare parking spot";
+  const estimatedArrivalTime = routeEstimate ? formatRideshareTime(routeEstimate.arrival) : "";
+  const suggestedPickupTime = routeEstimate ? formatSuggestedPickupTime(routeEstimate.arrival) : "";
+
+  const estimatePickupTime = () => {
+    if (estimateLoading) return;
+    if (!routesLoaded || routesLoadError) {
+      setEstimateError("The traffic estimate is not available right now.");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setEstimateError("Current location is not available on this device.");
+      return;
+    }
+
+    setEstimateLoading(true);
+    setEstimateError("");
+    navigator.geolocation.getCurrentPosition(
+      async position => {
+        try {
+          const calculatedAt = new Date();
+          const route = await computeDrivingRoute(
+            { lat: position.coords.latitude, lng: position.coords.longitude },
+            listing,
+          );
+          const arrival = getEstimatedArrivalDate(calculatedAt, route.minutes);
+          if (!arrival) throw new Error("The estimated arrival time is unavailable");
+          setRouteEstimate({ ...route, arrival, calculatedAt });
+        } catch {
+          setEstimateError("We couldn't calculate the drive from your current location.");
+        } finally {
+          setEstimateLoading(false);
+        }
+      },
+      () => {
+        setEstimateLoading(false);
+        setEstimateError("Allow location access to calculate your pickup time.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
 
   return (
     <section className="ps-rideshare-card" aria-labelledby={`rideshare-title-${listing.id || "booking"}`}>
@@ -345,13 +384,27 @@ function RidesharePickupCard({ listing, bookingStart, scheduled = false }) {
         </div>
       </div>
 
-      {suggestedPickupTime && (
+      {routeEstimate ? (
         <div className="ps-rideshare-time">
-          <div>
+          <div className="ps-rideshare-time-row">
+            <strong>Estimated arrival</strong>
+            <span>{estimatedArrivalTime}</span>
+          </div>
+          <div className="ps-rideshare-time-row is-pickup">
             <strong>Suggested pickup</strong>
             <span>{suggestedPickupTime}</span>
           </div>
-          <small>{RIDESHARE_PICKUP_BUFFER_MINUTES} minutes after your parking reservation begins</small>
+          <small>Approximately {RIDESHARE_PICKUP_BUFFER_MINUTES} minutes after arrival · based on current Google traffic</small>
+          <button type="button" className="ps-rideshare-recalculate" onClick={estimatePickupTime}>Recalculate</button>
+        </div>
+      ) : (
+        <div className="ps-rideshare-estimate-prompt">
+          <strong>Suggested pickup</strong>
+          <button type="button" onClick={estimatePickupTime} disabled={estimateLoading || !routesLoaded}>
+            {estimateLoading ? "Calculating drive…" : "Use my location"}
+          </button>
+          <small>Uses your current location and Google traffic to estimate arrival, then adds {RIDESHARE_PICKUP_BUFFER_MINUTES} minutes.</small>
+          {estimateError && <span role="alert">{estimateError}</span>}
         </div>
       )}
 
@@ -1351,7 +1404,6 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
 
   const [showPayment, setShowPayment] = useState(false);
   const [booked, setBooked] = useState(false);
-  const [bookedAt, setBookedAt] = useState(null);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
@@ -1411,13 +1463,8 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
     // the browser navigates away to Stripe's checkout page for those.
     setBookingError("");
     setShowPayment(false);
-    setBookedAt(new Date().toISOString());
     setBooked(true);
   };
-
-  const confirmedBookingStart = bookingMode === "advance"
-    ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), startHour)).toISOString()
-    : bookedAt;
 
   return (
     <div style={{ padding: 24, fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
@@ -1487,7 +1534,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
             <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
             <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
           </div>
-          <RidesharePickupCard listing={listing} bookingStart={confirmedBookingStart} scheduled={bookingMode === "advance"} />
+          <RidesharePickupCard listing={listing} />
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -3485,6 +3532,20 @@ function clientBookingWindow(booking) {
   return { start, end };
 }
 
+function clientBookingDisplay(start, scheduled) {
+  const timeZone = scheduled ? "UTC" : undefined;
+  const dateOptions = { year: "numeric", month: "short", day: "numeric" };
+  const timeOptions = { hour: "numeric", minute: "2-digit" };
+  if (timeZone) {
+    dateOptions.timeZone = timeZone;
+    timeOptions.timeZone = timeZone;
+  }
+  return {
+    date: start.toLocaleDateString(undefined, dateOptions),
+    startTime: start.toLocaleTimeString(undefined, timeOptions),
+  };
+}
+
 async function requestBookingCancellation(bookingId, reason) {
   let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   let session = sessionData?.session;
@@ -3534,7 +3595,14 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const [cancelNotice, setCancelNotice] = useState("");
+  const [expandedPastBookings, setExpandedPastBookings] = useState({});
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const highlightRef = useRef(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -3558,6 +3626,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
             const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
+            const display = clientBookingDisplay(window.start, scheduled);
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
@@ -3576,9 +3645,11 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               hostImg: "🧑",
               bookingId: row.id,
             },
-            date: window.start.toLocaleDateString(),
-            time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+            date: display.date,
+            startTime: display.startTime,
+            duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             bookingStart: window.start.toISOString(),
+            bookingEnd: window.end.toISOString(),
             bookingIsScheduled: scheduled,
             total: row.total,
             vehicle: formatVehicleLabel(row),
@@ -3629,9 +3700,17 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
       {!loading && !loadError && bookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
       {bookings.map(b => {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
+        const hasEnded = Number.isFinite(new Date(b.bookingEnd).getTime()) && new Date(b.bookingEnd).getTime() <= currentTime;
+        const displayStatus = hasEnded && (b.status === "Upcoming" || b.status === "Active") ? "Completed" : b.status;
+        const isPast = displayStatus === "Completed" || displayStatus === "Cancelled";
+        const isExpanded = !isPast || isHighlighted || Boolean(expandedPastBookings[b.id]);
+        const isRideshareEligible = !hasEnded && (displayStatus === "Upcoming" || displayStatus === "Active");
+        const isActive = displayStatus === "Active" && !hasEnded;
+        const canReview = displayStatus === "Completed";
+        const detailsId = `booking-details-${b.rawId}`;
         return (
         <div
-          className="ps-driver-booking-card"
+          className={`ps-driver-booking-card${isPast ? " is-past" : ""}${isExpanded ? " is-expanded" : " is-collapsed"}`}
           key={b.id}
           ref={isHighlighted ? highlightRef : null}
           style={{
@@ -3641,43 +3720,57 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             borderRadius: 12, padding: "16px 18px", marginBottom: 12, position: "relative", overflow: "hidden",
           }}
         >
-          {b.status === "Completed" && (
+          {displayStatus === "Completed" && isExpanded && (
             <img src={PARKER.success} alt="Parker celebrating a successful booking" style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }} />
           )}
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
+            <div className="ps-driver-booking-summary-copy">
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 5 }}>📍 {b.listing.address}</div>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>{b.date} · {b.time}</div>
+              <div className="ps-driver-booking-start">{b.date} · Starts {b.startTime} · {b.duration}</div>
+            </div>
+            <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
+              <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
+              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
+              {isPast && (
+                <button
+                  type="button"
+                  className="ps-past-booking-toggle"
+                  aria-expanded={isExpanded}
+                  aria-controls={detailsId}
+                  aria-label={`${isExpanded ? "Collapse" : "Expand"} ${b.listing.title} booking`}
+                  onClick={() => setExpandedPastBookings(open => ({ ...open, [b.id]: !isExpanded }))}
+                >
+                  <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+                </button>
+              )}
+            </div>
+          </div>
+          {isExpanded && (
+            <div id={detailsId} className="ps-driver-booking-details">
+              <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {(b.status === "Upcoming" || b.status === "Active") && (
+                {isRideshareEligible && (
                   <div className="ps-booking-navigation-group">
                     <Btn small variant="amber" onClick={() => onNavigateToParking(b.listing)}>🧭 Navigate to parking</Btn>
                     <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(b.listing)}>Change app</button>
                   </div>
                 )}
-                {b.active && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
+                {isActive && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
-                {b.canCancel && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
-                {b.canReview && !reviewed[b.id] && (
+                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
+                {canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
                 )}
                 {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
               </div>
-            </div>
-            <div style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
-              <Badge color={b.status === "Upcoming" || b.status === "Active" ? C.moss : C.navy}>{b.status}</Badge>
-              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
-            </div>
-          </div>
-          {(b.status === "Upcoming" || b.status === "Active") && (
-            <RidesharePickupCard listing={b.listing} bookingStart={b.bookingStart} scheduled={b.bookingIsScheduled} />
-          )}
-          {(b.status === "Upcoming" || b.status === "Active") && (
-            <div className="ps-driver-arrival-instructions">
-              <strong>Arrival instructions</strong>
-              <span>{b.listing.description || "Review the listing details before you arrive."}</span>
+              {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
+              {isRideshareEligible && (
+                <div className="ps-driver-arrival-instructions">
+                  <strong>Arrival instructions</strong>
+                  <span>{b.listing.description || "Review the listing details before you arrive."}</span>
+                </div>
+              )}
             </div>
           )}
         </div>

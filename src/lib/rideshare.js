@@ -51,21 +51,26 @@ export function buildRideshareUrl(provider, listing, options = {}) {
   return query ? `${baseUrl}?${query}` : baseUrl;
 }
 
-export function getSuggestedPickupDate(bookingStart, bufferMinutes = RIDESHARE_PICKUP_BUFFER_MINUTES) {
-  if (bookingStart === null || bookingStart === undefined || bookingStart === "") return null;
-  const start = bookingStart instanceof Date ? bookingStart : new Date(bookingStart);
+export function getSuggestedPickupDate(estimatedArrival, bufferMinutes = RIDESHARE_PICKUP_BUFFER_MINUTES) {
+  if (estimatedArrival === null || estimatedArrival === undefined || estimatedArrival === "") return null;
+  const start = estimatedArrival instanceof Date ? estimatedArrival : new Date(estimatedArrival);
   if (Number.isNaN(start.getTime())) return null;
   return new Date(start.getTime() + Number(bufferMinutes || 0) * 60 * 1000);
 }
 
-export function formatSuggestedPickupTime(bookingStart, locale = "en-CA", options = {}) {
-  const pickup = getSuggestedPickupDate(bookingStart);
-  if (!pickup) return "";
+export function formatRideshareTime(value, locale = "en-CA", options = {}) {
+  const time = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(time.getTime())) return "";
   const formatOptions = {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   };
   if (options.timeZone) formatOptions.timeZone = options.timeZone;
-  return new Intl.DateTimeFormat(locale, formatOptions).format(pickup);
+  return new Intl.DateTimeFormat(locale, formatOptions).format(time);
+}
+
+export function formatSuggestedPickupTime(estimatedArrival, locale = "en-CA", options = {}) {
+  const pickup = getSuggestedPickupDate(estimatedArrival);
+  return pickup ? formatRideshareTime(pickup, locale, options) : "";
 }

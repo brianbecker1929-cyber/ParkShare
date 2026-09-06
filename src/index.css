@@ -3501,6 +3501,36 @@ button, input, select, textarea { font: inherit; }
 .ps-driver-arrival-instructions strong { font-size: 11.5px; }
 .ps-driver-arrival-instructions span { color: #71695A; font-size: 11px; line-height: 1.45; }
 
+.ps-driver-booking-summary-copy { min-width: 0; }
+.ps-driver-booking-start { color: #71695A; font-size: 12px; line-height: 1.45; }
+.ps-driver-booking-details { margin-top: 10px; }
+.ps-driver-booking-address { margin-bottom: 9px; color: #71695A; font-size: 12px; line-height: 1.45; }
+.ps-driver-booking-card.is-collapsed { padding-top: 13px !important; padding-bottom: 13px !important; }
+
+.ps-past-booking-toggle {
+  display: inline-flex;
+  width: 31px;
+  height: 31px;
+  margin-top: 9px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #0E1B2E;
+  border-radius: 50%;
+  background: #fff;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ps-past-booking-toggle:focus-visible {
+  outline: 3px solid rgba(255, 193, 7, .58);
+  outline-offset: 2px;
+}
+
 /* Confirmed-booking rideshare pickup --------------------------------------- */
 .ps-rideshare-card {
   margin-top: 16px;
@@ -3559,16 +3589,66 @@ button, input, select, textarea { font: inherit; }
   padding: 0 2px;
 }
 
-.ps-rideshare-time > div {
+.ps-rideshare-time-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
 }
 
+.ps-rideshare-time-row.is-pickup { margin-top: 5px; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, .12); }
 .ps-rideshare-time strong { font-size: 11px; }
-.ps-rideshare-time span { color: #FFC107; font-size: 17px; font-weight: 800; }
+.ps-rideshare-time-row span { color: rgba(255, 255, 255, .88); font-size: 13px; font-weight: 700; }
+.ps-rideshare-time-row.is-pickup span { color: #FFC107; font-size: 17px; font-weight: 800; }
 .ps-rideshare-time small { display: block; margin-top: 1px; color: rgba(255, 255, 255, .64); font-size: 9.5px; }
+
+.ps-rideshare-estimate-prompt {
+  margin-top: 11px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .06);
+}
+
+.ps-rideshare-estimate-prompt strong,
+.ps-rideshare-estimate-prompt small,
+.ps-rideshare-estimate-prompt > span { display: block; }
+.ps-rideshare-estimate-prompt strong { margin-bottom: 7px; font-size: 11px; }
+.ps-rideshare-estimate-prompt button {
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 8px;
+  background: #FFC107;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ps-rideshare-estimate-prompt button:disabled { opacity: .58; cursor: default; }
+.ps-rideshare-estimate-prompt small { margin-top: 7px; color: rgba(255, 255, 255, .66); font-size: 9.5px; line-height: 1.45; }
+.ps-rideshare-estimate-prompt > span { margin-top: 6px; color: #FFD86B; font-size: 9.5px; line-height: 1.4; }
+
+.ps-rideshare-recalculate {
+  margin-top: 5px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, .76);
+  font-family: 'Poppins', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ps-rideshare-estimate-prompt button:focus-visible,
+.ps-rideshare-recalculate:focus-visible {
+  outline: 3px solid rgba(255, 193, 7, .72);
+  outline-offset: 3px;
+}
 
 .ps-rideshare-provider-list {
   display: grid;
@@ -3757,6 +3837,8 @@ button, input, select, textarea { font: inherit; }
   .ps-browse-listing-card .ps-browse-listing-main > span { align-self: flex-start; }
   .ps-driver-booking-summary { flex-direction: column; }
   .ps-driver-booking-summary > div:last-child { text-align: left !important; }
+  .ps-driver-booking-card.is-past .ps-driver-booking-summary { flex-direction: row; }
+  .ps-driver-booking-card.is-past .ps-driver-booking-status { text-align: right !important; }
 }
 
 @media (max-width: 350px) {
