@@ -135,3 +135,27 @@ test("Host upcoming bookings show the reservation start time", () => {
   assert.match(styles, /\.ps-booking-schedule-cell\.is-remaining\s*{[\s\S]*?background:\s*#FFC107/);
   assert.match(styles, /@media \(max-width: 520px\)[\s\S]*?\.ps-booking-schedule-cell\.is-start[\s\S]*?\.ps-booking-schedule-cell\.is-end/);
 });
+
+test("Host and Driver booking details show the property and assigned parking space", () => {
+  const hostDashboard = functionSource("HostDashboard", "MessagesView");
+  const bookings = functionSource("MyBookingsView", "ReviewModal");
+  const parkingDetails = functionSource("BookingParkingDetails", "DrivewaySpotMap");
+  const bookedSpotDiagram = functionSource("BookedSpotDiagram", "BookingParkingDetails");
+
+  assert.match(hostDashboard, /\.select\("\*, listings\(\*\), profiles\(name\)"\)/);
+  assert.match(hostDashboard, /listingDetails:[\s\S]*?photos: row\.listings\?\.photos[\s\S]*?spots: row\.listings\?\.spots/);
+  assert.match(hostDashboard, /spotLabel: row\.spot_label/);
+  assert.match(hostDashboard, /<BookingParkingDetails listing=\{b\.listingDetails\} spotLabel=\{b\.spotLabel\}/);
+  assert.match(bookings, /photos: row\.listings\?\.photos/);
+  assert.match(bookings, /spots: row\.listings\?\.spots/);
+  assert.match(bookings, /spotLabel: row\.spot_label/);
+  assert.match(bookings, /<BookingParkingDetails listing=\{b\.listing\} spotLabel=\{b\.spotLabel\}/);
+  assert.match(parkingDetails, />Property photo</);
+  assert.match(parkingDetails, />Reserved parking space</);
+  assert.match(parkingDetails, /<ListingSatelliteView[\s\S]*?chosen=\{selectedIndex\}[\s\S]*?chosenColor=\{C\.amber\}/);
+  assert.match(parkingDetails, /<BookedSpotDiagram listing=\{listing\}/);
+  assert.match(bookedSpotDiagram, /is-selected/);
+  assert.match(bookedSpotDiagram, /"RESERVED"/);
+  assert.match(styles, /\.ps-booking-parking-details\s*{[\s\S]*?grid-template-columns:\s*repeat\(2/);
+  assert.match(styles, /\.ps-booked-spot\.is-selected\s*{[\s\S]*?border:\s*4px solid #FFC107/);
+});
