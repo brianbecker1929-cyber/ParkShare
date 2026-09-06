@@ -60,7 +60,13 @@ function BookingVehicleVisual({ vehicle }) {
   return (
     <div className="ps-booking-vehicle-visual" aria-label={`${label}${plate ? `, licence plate ${plate}` : ""}`}>
       <VehicleBadge vehicle={vehicle} compact />
-      {plate && <strong>{plate}</strong>}
+      {plate && (
+        <div className="ps-booking-license-plate" aria-hidden="true">
+          <span className="ps-booking-license-plate-top">PARKSHARE</span>
+          <strong>{plate}</strong>
+          <span className="ps-booking-license-plate-bottom">RESERVED VEHICLE</span>
+        </div>
+      )}
     </div>
   );
 }
