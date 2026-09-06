@@ -2553,6 +2553,8 @@ function HostDashboard({ user, setTab }) {
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
                 const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
+                const display = clientBookingDisplay(window.start, scheduled);
                 return {
                   id: "db-" + row.id,
                   rawId: row.id,
@@ -2564,7 +2566,7 @@ function HostDashboard({ user, setTab }) {
                     vehicleColour: row.vehicle_colour || "",
                     licensePlate: row.license_plate || "",
                   },
-                  time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+                  time: display.date + " · Starts " + display.startTime + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
                   canCancel: !refundPending && !cancelled && !completed && window.start.getTime() > now,
