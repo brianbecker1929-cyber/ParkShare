@@ -32,6 +32,23 @@ test("mobile browse defaults to map and listings together", () => {
   assert.match(browseView, /const \[view, setView\] = useState\("split"\)/);
 });
 
+test("browse connects Google Places restaurant discovery to nearby parking", () => {
+  const browseView = functionSource("BrowseView", "EditListingModal");
+  const listingsMap = functionSource("ListingsMap", "MessagingPanel");
+
+  assert.match(browseView, /Place\.searchByText/);
+  assert.match(browseView, /includedType:\s*restaurantCuisine \|\| "restaurant"/);
+  assert.match(browseView, /useStrictTypeFiltering:\s*Boolean\(restaurantCuisine\)/);
+  assert.match(browseView, /RESTAURANT_CUISINES\.map/);
+  assert.match(browseView, /Find a restaurant, then park nearby/);
+  assert.match(browseView, /setUserLoc\(\{ lat: restaurant\.lat, lng: restaurant\.lng \}\)/);
+  assert.match(browseView, /setSort\("distance"\)/);
+  assert.match(browseView, /restaurants=\{restaurants\}/);
+  assert.match(listingsMap, /<RestaurantMapPin/);
+  assert.match(styles, /\.ps-map-restaurant-pin[\s\S]*?background:\s*#0E1B2E/);
+  assert.match(styles, /\.ps-restaurant-search-form[\s\S]*?grid-template-columns/);
+});
+
 test("mobile browse stacks the map before full-width listings", () => {
   assert.match(styles, /\.ps-browse-content\s*{\s*flex-direction:\s*column !important;/);
   assert.match(styles, /\.ps-browse-map-column\s*{\s*order:\s*1;/);
