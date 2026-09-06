@@ -108,8 +108,8 @@ test("booking cards show start times and collapse completed or cancelled booking
   const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
   const bookingSchedule = functionSource("BookingSchedule", "buildAppUser");
 
-  assert.match(bookings, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?duration=\{b\.duration\}/);
-  assert.match(bookingSchedule, />Date<[\s\S]*?>Starts<[\s\S]*?>Duration</);
+  assert.match(bookings, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
+  assert.match(bookingSchedule, />Date<[\s\S]*?>Starts<[\s\S]*?>Ends<[\s\S]*?>Duration</);
   assert.match(bookingSchedule, />Time remaining</);
   assert.match(bookingSchedule, /formatBookingTimeRemaining\(bookingEnd, currentTime\)/);
   assert.match(bookingDisplay, /hour12:\s*true/);
@@ -126,11 +126,12 @@ test("Host upcoming bookings show the reservation start time", () => {
   const hostDashboard = functionSource("HostDashboard", "MessagesView");
   const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
 
-  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled\)/);
-  assert.match(hostDashboard, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?duration=\{b\.duration\}/);
+  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end\)/);
+  assert.match(hostDashboard, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
   assert.match(hostDashboard, /isActive=\{b\.displayStatus === "Active"\}/);
   assert.match(bookingDisplay, /hour12:\s*true/);
   assert.match(bookingDisplay, /toLocaleTimeString\("en-CA", timeOptions\)/);
   assert.match(styles, /\.ps-booking-schedule\s*{[\s\S]*?background:\s*#0E1B2E/);
   assert.match(styles, /\.ps-booking-schedule-cell\.is-remaining\s*{[\s\S]*?background:\s*#FFC107/);
+  assert.match(styles, /@media \(max-width: 520px\)[\s\S]*?\.ps-booking-schedule-cell\.is-start[\s\S]*?\.ps-booking-schedule-cell\.is-end/);
 });
