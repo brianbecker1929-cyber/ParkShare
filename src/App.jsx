@@ -1319,7 +1319,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220 }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1356,9 +1356,9 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
               key={s.id}
               bounds={s.bounds}
               options={{
-                fillColor: isChosen ? C.hazard : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                fillColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 fillOpacity: isChosen ? 0.55 : 0.35,
-                strokeColor: isChosen ? C.hazard : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                strokeColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 strokeWeight: isChosen ? 3 : 2,
                 clickable: interactive && isRent,
               }}
@@ -2577,7 +2577,7 @@ function HostDashboard({ user, setTab }) {
 
         supabase
           .from("bookings")
-          .select("*, listings(title), profiles(name)")
+          .select("*, listings(*), profiles(name)")
           .in("listing_id", listingIds)
           .order("created_at", { ascending: false })
           .then(({ data: bookingRows, error: bookingErr }) => {
@@ -2596,6 +2596,18 @@ function HostDashboard({ user, setTab }) {
                   id: "db-" + row.id,
                   rawId: row.id,
                   listing: row.listings?.title || "Listing",
+                  listingDetails: {
+                    id: "db-" + row.listing_id,
+                    title: row.listings?.title || "Driveway",
+                    address: row.listings?.address || "",
+                    img: row.listings?.img || "🏠",
+                    photos: row.listings?.photos || [],
+                    lat: row.listings?.lat,
+                    lng: row.listings?.lng,
+                    spots: row.listings?.spots || [],
+                    spaces: row.listings?.spaces || 1,
+                  },
+                  spotLabel: row.spot_label || "",
                   driver: row.profiles?.name || "Renter",
                   vehicle: {
                     vehicleMake: row.vehicle_make || "",
@@ -2777,6 +2789,7 @@ function HostDashboard({ user, setTab }) {
                   isActive={b.displayStatus === "Active"}
                   currentTime={currentTime}
                 />
+                <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} />
                 <div className="host-dashboard-booking-vehicle">
                   <BookingVehicleVisual vehicle={b.vehicle} />
                 </div>
@@ -3071,6 +3084,91 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }
         })}
       </div>
     </DrivewayFrame>
+  );
+}
+
+// Read-only booking view shared by Drivers and Hosts. It pairs the listing's
+// property photo with the exact space saved on the booking so both people see
+// the same arrival reference and parking assignment.
+function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
+  const configuredSpots = Array.isArray(listing?.spots) ? listing.spots : [];
+  const total = Math.min(8, Math.max(Number(listing?.spaces) || 1, configuredSpots.length, selectedIndex + 1));
+  const labels = Array.from({ length: total }, (_, index) => String.fromCharCode(65 + index));
+  const columns = total === 1 ? 1 : 2;
+  const rows = Math.ceil(total / columns);
+
+  return (
+    <DrivewayFrame>
+      <div className="ps-booked-spot-grid" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
+        {labels.map((label, index) => {
+          const isSelected = index === selectedIndex;
+          const isRentable = configuredSpots.length ? configuredSpots[index]?.forRent !== false : index < (Number(listing?.spaces) || 1);
+          return (
+            <div key={label} className={`ps-booked-spot${isSelected ? " is-selected" : ""}${!isRentable ? " is-private" : ""}`}>
+              <strong>Spot {label}</strong>
+              {isSelected ? <img src="/car-icon.png" alt="" aria-hidden="true" /> : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
+              <small>{isSelected ? "RESERVED" : isRentable ? "" : "NOT FOR RENT"}</small>
+            </div>
+          );
+        })}
+      </div>
+      <span className="ps-booked-spot-screenreader">Reserved parking space: Spot {selectedLabel}</span>
+    </DrivewayFrame>
+  );
+}
+
+function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
+  if (!listing) return null;
+  const photos = Array.isArray(listing.photos) ? listing.photos : [];
+  const propertyPhoto = [listing.img, ...photos].find(photo => typeof photo === "string" && /^(data:image\/|https?:\/\/|\/)/i.test(photo));
+  const selectedLabel = String(bookedSpotLabel || "").trim().toUpperCase();
+  const selectedIndex = /^[A-Z]$/.test(selectedLabel) ? selectedLabel.charCodeAt(0) - 65 : -1;
+  const configuredSpots = Array.isArray(listing.spots) ? listing.spots : [];
+  const selectedSpot = selectedIndex >= 0 ? configuredSpots[selectedIndex] : null;
+  const hasSatelliteSpot = Boolean(
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    && Number.isFinite(Number(listing.lat))
+    && Number.isFinite(Number(listing.lng))
+    && selectedSpot?.bounds
+    && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(selectedSpot.bounds[key]))),
+  );
+
+  return (
+    <section className="ps-booking-parking-details" aria-label="Property and reserved parking space">
+      <div className="ps-booking-parking-panel">
+        <div className="ps-booking-parking-heading">
+          <span>Property photo</span>
+          <small>Match this property when you arrive</small>
+        </div>
+        {propertyPhoto ? (
+          <img className="ps-booking-property-photo" src={propertyPhoto} alt={`Property at ${listing.address || listing.title || "your parking reservation"}`} loading="lazy" decoding="async" />
+        ) : (
+          <div className="ps-booking-property-placeholder" role="img" aria-label="Property photo unavailable">🏠<span>Property photo unavailable</span></div>
+        )}
+      </div>
+      <div className="ps-booking-parking-panel">
+        <div className="ps-booking-parking-heading">
+          <span>Reserved parking space</span>
+          <strong>{selectedIndex >= 0 ? `Spot ${selectedLabel}` : "See arrival instructions"}</strong>
+        </div>
+        {selectedIndex >= 0 ? (
+          hasSatelliteSpot ? (
+            <ListingSatelliteView
+              lat={Number(listing.lat)}
+              lng={Number(listing.lng)}
+              spots={configuredSpots}
+              chosen={selectedIndex}
+              chosenColor={C.amber}
+              height={260}
+            />
+          ) : (
+            <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} />
+          )
+        ) : (
+          <div className="ps-booking-property-placeholder"><span>No parking-space label is saved for this booking.</span></div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -3726,8 +3824,11 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               title: row.listings?.title || "Driveway",
               address: row.listings?.address || "",
               img: row.listings?.img || "🏠",
+              photos: row.listings?.photos || [],
               lat: row.listings?.lat,
               lng: row.listings?.lng,
+              spots: row.listings?.spots || [],
+              spaces: row.listings?.spaces || 1,
               description: row.listings?.description || "",
               host: row.listings?.profiles?.name || "Host",
               hostImg: "🧑",
@@ -3740,6 +3841,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
             bookingIsScheduled: scheduled,
+            spotLabel: row.spot_label || "",
             total: row.total,
             vehicle: {
               vehicleMake: row.vehicle_make || "",
@@ -3850,6 +3952,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
+              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} />
               <BookingVehicleVisual vehicle={b.vehicle} />
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isRideshareEligible && (
