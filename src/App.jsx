@@ -10,7 +10,7 @@ import {
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
-import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
+import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
 
@@ -41,6 +41,26 @@ function VehicleBadge({ vehicle, compact = false }) {
     >
       <img src={getVehicleAssetPath(vehicle)} alt="" aria-hidden="true" loading="lazy" decoding="async" />
     </span>
+  );
+}
+
+function BookingVehicleVisual({ vehicle }) {
+  if (!vehicle) return null;
+  const plate = String(vehicle.licensePlate || vehicle.license_plate || "").trim().toUpperCase();
+  const label = formatVehicleVisualSummary(vehicle) || "Booked vehicle";
+  const hasVehicleSnapshot = Boolean(
+    plate
+    || vehicle.vehicleMake || vehicle.vehicle_make
+    || vehicle.vehicleModel || vehicle.vehicle_model
+    || vehicle.vehicleColour || vehicle.vehicle_colour,
+  );
+  if (!hasVehicleSnapshot) return null;
+
+  return (
+    <div className="ps-booking-vehicle-visual" aria-label={`${label}${plate ? `, licence plate ${plate}` : ""}`}>
+      <VehicleBadge vehicle={vehicle} compact />
+      {plate && <strong>{plate}</strong>}
+    </div>
   );
 }
 
@@ -2538,7 +2558,12 @@ function HostDashboard({ user, setTab }) {
                   rawId: row.id,
                   listing: row.listings?.title || "Listing",
                   driver: row.profiles?.name || "Renter",
-                  vehicle: formatVehicleLabel(row),
+                  vehicle: {
+                    vehicleMake: row.vehicle_make || "",
+                    vehicleModel: row.vehicle_model || "",
+                    vehicleColour: row.vehicle_colour || "",
+                    licensePlate: row.license_plate || "",
+                  },
                   time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
@@ -2675,7 +2700,7 @@ function HostDashboard({ user, setTab }) {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
                   <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing} · {b.time}</div>
-                  {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
+                  <BookingVehicleVisual vehicle={b.vehicle} />
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
                   <div>
@@ -3652,7 +3677,12 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             bookingEnd: window.end.toISOString(),
             bookingIsScheduled: scheduled,
             total: row.total,
-            vehicle: formatVehicleLabel(row),
+            vehicle: {
+              vehicleMake: row.vehicle_make || "",
+              vehicleModel: row.vehicle_model || "",
+              vehicleColour: row.vehicle_colour || "",
+              licensePlate: row.license_plate || "",
+            },
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
@@ -3748,7 +3778,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
-              {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
+              <BookingVehicleVisual vehicle={b.vehicle} />
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isRideshareEligible && (
                   <div className="ps-booking-navigation-group">

@@ -33,3 +33,14 @@ test("booking vehicle migration preserves existing rows and adds private snapsho
   assert.match(migration, /add column if not exists license_plate text/i);
   assert.match(migration, /vehicle_type in \('primary', 'guest'\)/i);
 });
+
+test("Driver and Host booking cards use the booked vehicle artwork instead of a text description", () => {
+  assert.match(app, /function BookingVehicleVisual\(\{ vehicle \}\)/);
+  assert.match(app, /<VehicleBadge vehicle=\{vehicle\} compact \/>/);
+  assert.match(app, /vehicleMake: row\.vehicle_make/);
+  assert.match(app, /vehicleModel: row\.vehicle_model/);
+  assert.match(app, /vehicleColour: row\.vehicle_colour/);
+  assert.match(app, /licensePlate: row\.license_plate/);
+  assert.equal((app.match(/<BookingVehicleVisual vehicle=\{b\.vehicle\} \/>/g) || []).length, 2);
+  assert.doesNotMatch(app, /formatVehicleLabel\(row\)/);
+});
