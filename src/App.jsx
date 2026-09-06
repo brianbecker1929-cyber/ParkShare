@@ -2786,6 +2786,9 @@ function HostDashboard({ user, setTab }) {
                     )}
                   </div>
                 </div>
+                <div className="host-dashboard-booking-vehicle">
+                  <BookingVehicleVisual vehicle={b.vehicle} />
+                </div>
                 <BookingSchedule
                   date={b.date}
                   startTime={b.startTime}
@@ -2796,9 +2799,6 @@ function HostDashboard({ user, setTab }) {
                   currentTime={currentTime}
                 />
                 <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} />
-                <div className="host-dashboard-booking-vehicle">
-                  <BookingVehicleVisual vehicle={b.vehicle} />
-                </div>
               </div>
             ))}
           </div>
