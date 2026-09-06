@@ -7,6 +7,7 @@ import {
   openNavigation,
   savePreferredNavigationProvider,
 } from "./lib/navigation";
+import { buildRideshareUrl, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
@@ -304,6 +305,81 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
         <button type="button" className="ps-navigation-cancel" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
+  );
+}
+
+function RidesharePickupCard({ listing, bookingStart, scheduled = false }) {
+  if (!listing) return null;
+
+  // Book Now timestamps are real instants and should display in the Driver's
+  // local timezone. Scheduled reservations are stored as a timezone-free wall
+  // clock value represented in UTC, so retain that selected clock time.
+  const suggestedPickupTime = formatSuggestedPickupTime(
+    bookingStart,
+    "en-CA",
+    scheduled ? { timeZone: "UTC" } : undefined,
+  );
+  const uberUrl = buildRideshareUrl("uber", listing, {
+    uberClientId: import.meta.env.VITE_UBER_CLIENT_ID,
+  });
+  const lyftUrl = buildRideshareUrl("lyft", listing, {
+    lyftClientId: import.meta.env.VITE_LYFT_CLIENT_ID,
+  });
+  const pickupAddress = listing.address || "Your confirmed ParkShare parking spot";
+
+  return (
+    <section className="ps-rideshare-card" aria-labelledby={`rideshare-title-${listing.id || "booking"}`}>
+      <div className="ps-rideshare-heading">
+        <span className="ps-rideshare-icon" aria-hidden="true">🚕</span>
+        <div>
+          <h3 id={`rideshare-title-${listing.id || "booking"}`}>Continue your trip</h3>
+          <p>Get picked up from your ParkShare parking spot.</p>
+        </div>
+      </div>
+
+      <div className="ps-rideshare-pickup">
+        <span aria-hidden="true">📍</span>
+        <div>
+          <strong>Pickup location</strong>
+          <span>{pickupAddress}</span>
+        </div>
+      </div>
+
+      {suggestedPickupTime && (
+        <div className="ps-rideshare-time">
+          <div>
+            <strong>Suggested pickup</strong>
+            <span>{suggestedPickupTime}</span>
+          </div>
+          <small>{RIDESHARE_PICKUP_BUFFER_MINUTES} minutes after your parking reservation begins</small>
+        </div>
+      )}
+
+      <div className="ps-rideshare-provider-list" aria-label="Choose a rideshare provider">
+        <a
+          href={uberUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ps-rideshare-provider is-uber"
+          aria-label={`Open Uber with ${pickupAddress} as your pickup location`}
+        >
+          <img src="/rideshare/uber-logo.png" alt="Uber" loading="lazy" decoding="async" />
+        </a>
+        <a
+          href={lyftUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ps-rideshare-provider is-lyft"
+          aria-label={`Open Lyft with ${pickupAddress} as your pickup location`}
+        >
+          <img src="/rideshare/lyft-logo.png" alt="Lyft" loading="lazy" decoding="async" />
+        </a>
+      </div>
+
+      <p className="ps-rideshare-note">
+        Confirm the pickup time, ride, fare, and payment directly with Uber or Lyft.
+      </p>
+    </section>
   );
 }
 
@@ -1275,6 +1351,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
 
   const [showPayment, setShowPayment] = useState(false);
   const [booked, setBooked] = useState(false);
+  const [bookedAt, setBookedAt] = useState(null);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
@@ -1334,8 +1411,13 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
     // the browser navigates away to Stripe's checkout page for those.
     setBookingError("");
     setShowPayment(false);
+    setBookedAt(new Date().toISOString());
     setBooked(true);
   };
+
+  const confirmedBookingStart = bookingMode === "advance"
+    ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), startHour)).toISOString()
+    : bookedAt;
 
   return (
     <div style={{ padding: 24, fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
@@ -1401,8 +1483,11 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
-          <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
-          <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change navigation app</button>
+          <div className="ps-booking-navigation-group">
+            <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
+            <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
+          </div>
+          <RidesharePickupCard listing={listing} bookingStart={confirmedBookingStart} scheduled={bookingMode === "advance"} />
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -3493,6 +3578,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             },
             date: window.start.toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+            bookingStart: window.start.toISOString(),
+            bookingIsScheduled: scheduled,
             total: row.total,
             vehicle: formatVehicleLabel(row),
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
@@ -3565,10 +3652,10 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               {b.vehicle && <div className="ps-booking-vehicle-summary">🚗 {b.vehicle}</div>}
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {(b.status === "Upcoming" || b.status === "Active") && (
-                  <Btn small variant="amber" onClick={() => onNavigateToParking(b.listing)}>🧭 Navigate to parking</Btn>
-                )}
-                {(b.status === "Upcoming" || b.status === "Active") && (
-                  <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(b.listing)}>Change navigation app</button>
+                  <div className="ps-booking-navigation-group">
+                    <Btn small variant="amber" onClick={() => onNavigateToParking(b.listing)}>🧭 Navigate to parking</Btn>
+                    <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(b.listing)}>Change app</button>
+                  </div>
                 )}
                 {b.active && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
@@ -3584,6 +3671,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
             </div>
           </div>
+          {(b.status === "Upcoming" || b.status === "Active") && (
+            <RidesharePickupCard listing={b.listing} bookingStart={b.bookingStart} scheduled={b.bookingIsScheduled} />
+          )}
           {(b.status === "Upcoming" || b.status === "Active") && (
             <div className="ps-driver-arrival-instructions">
               <strong>Arrival instructions</strong>
