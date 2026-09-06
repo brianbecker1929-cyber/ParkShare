@@ -76,6 +76,26 @@ test("confirmed and upcoming bookings can change the saved navigation app", () =
 
   assert.match(listingDetail, /onNavigateToParking\(listing\)/);
   assert.match(listingDetail, /onChangeNavigationApp\(listing\)/);
+  assert.match(listingDetail, /ps-booking-navigation-group[\s\S]*?Navigate to parking[\s\S]*?Change app/);
   assert.match(bookings, /onNavigateToParking\(b\.listing\)/);
   assert.match(bookings, /onChangeNavigationApp\(b\.listing\)/);
+  assert.match(bookings, /ps-booking-navigation-group[\s\S]*?Navigate to parking[\s\S]*?Change app/);
+  assert.doesNotMatch(listingDetail, />Change navigation app</);
+  assert.doesNotMatch(bookings, />Change navigation app</);
+  assert.match(styles, /\.ps-booking-navigation-group\s*{[\s\S]*?flex-direction:\s*column;/);
+});
+
+test("confirmed, upcoming, and active bookings offer rideshare pickup", () => {
+  const listingDetail = functionSource("ListingDetail", "useAllListings");
+  const bookings = functionSource("MyBookingsView", "ReviewModal");
+  const rideshare = functionSource("RidesharePickupCard", "milesBetween");
+
+  assert.match(listingDetail, /<RidesharePickupCard listing=\{listing\}/);
+  assert.match(bookings, /<RidesharePickupCard listing=\{b\.listing\}/);
+  assert.match(bookings, /b\.status === "Upcoming" \|\| b\.status === "Active"/);
+  assert.match(rideshare, /\/rideshare\/uber-logo\.png/);
+  assert.match(rideshare, /\/rideshare\/lyft-logo\.png/);
+  assert.match(rideshare, /Confirm the pickup time, ride, fare, and payment/);
+  assert.match(styles, /\.ps-rideshare-provider\.is-uber img\s*\{[^}]*width:\s*112px/);
+  assert.match(styles, /\.ps-rideshare-provider\.is-lyft img\s*\{[^}]*height:\s*39px/);
 });
