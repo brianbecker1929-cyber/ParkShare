@@ -4201,15 +4201,22 @@ button, input, select, textarea { font: inherit; }
 }
 .ps-booking-vehicle-options > button.is-selected > i { border-color: #FFC107; background: #FFC107; }
 .ps-booking-vehicle-missing { color: #C53030; font-size: 11px; font-weight: 600; line-height: 1.45; }
-.ps-booking-vehicle-summary {
+.ps-booking-vehicle-visual {
   display: inline-flex;
-  margin: 5px 0 9px;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 0 10px;
+}
+.ps-booking-vehicle-visual > strong {
   padding: 4px 8px;
+  border: 1px solid #E3DDC9;
   border-radius: 7px;
   background: #FFF8E1;
   color: #0E1B2E;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: .035em;
+  white-space: nowrap;
 }
 
 .ps-profile-checklist {
