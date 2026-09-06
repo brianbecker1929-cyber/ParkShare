@@ -95,7 +95,22 @@ test("confirmed, upcoming, and active bookings offer rideshare pickup", () => {
   assert.match(bookings, /b\.status === "Upcoming" \|\| b\.status === "Active"/);
   assert.match(rideshare, /\/rideshare\/uber-logo\.png/);
   assert.match(rideshare, /\/rideshare\/lyft-logo\.png/);
+  assert.match(rideshare, /computeDrivingRoute/);
+  assert.match(rideshare, /Estimated arrival/);
+  assert.match(rideshare, /Approximately \{RIDESHARE_PICKUP_BUFFER_MINUTES\} minutes after arrival/);
   assert.match(rideshare, /Confirm the pickup time, ride, fare, and payment/);
   assert.match(styles, /\.ps-rideshare-provider\.is-uber img\s*\{[^}]*width:\s*112px/);
   assert.match(styles, /\.ps-rideshare-provider\.is-lyft img\s*\{[^}]*height:\s*39px/);
+});
+
+test("booking cards show start times and collapse completed or cancelled bookings", () => {
+  const bookings = functionSource("MyBookingsView", "ReviewModal");
+
+  assert.match(bookings, /Starts \{b\.startTime\}/);
+  assert.match(bookings, /displayStatus === "Completed" \|\| displayStatus === "Cancelled"/);
+  assert.match(bookings, /className="ps-past-booking-toggle"/);
+  assert.match(bookings, /aria-expanded=\{isExpanded\}/);
+  assert.match(bookings, /isRideshareEligible = !hasEnded/);
+  assert.match(bookings, /\{isRideshareEligible && <RidesharePickupCard/);
+  assert.match(styles, /\.ps-driver-booking-card\.is-collapsed/);
 });
