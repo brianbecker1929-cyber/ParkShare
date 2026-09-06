@@ -114,3 +114,10 @@ test("booking cards show start times and collapse completed or cancelled booking
   assert.match(bookings, /\{isRideshareEligible && <RidesharePickupCard/);
   assert.match(styles, /\.ps-driver-booking-card\.is-collapsed/);
 });
+
+test("Host upcoming bookings show the reservation start time", () => {
+  const hostDashboard = functionSource("HostDashboard", "MessagesView");
+
+  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled\)/);
+  assert.match(hostDashboard, /display\.date \+ " · Starts " \+ display\.startTime/);
+});
