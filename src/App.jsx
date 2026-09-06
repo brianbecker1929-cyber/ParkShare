@@ -65,19 +65,23 @@ function BookingVehicleVisual({ vehicle }) {
   );
 }
 
-function BookingSchedule({ date, startTime, duration, bookingEnd, isActive, currentTime }) {
+function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime }) {
   const timeRemaining = isActive ? formatBookingTimeRemaining(bookingEnd, currentTime) : "";
   return (
-    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, duration ${duration}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
-      <div className="ps-booking-schedule-cell">
+    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
+      <div className="ps-booking-schedule-cell is-date">
         <span>Date</span>
         <strong>{date}</strong>
       </div>
-      <div className="ps-booking-schedule-cell">
+      <div className="ps-booking-schedule-cell is-start">
         <span>Starts</span>
         <strong>{startTime}</strong>
       </div>
-      <div className="ps-booking-schedule-cell">
+      <div className="ps-booking-schedule-cell is-end">
+        <span>Ends</span>
+        <strong>{endTime}</strong>
+      </div>
+      <div className="ps-booking-schedule-cell is-duration">
         <span>Duration</span>
         <strong>{duration}</strong>
       </div>
@@ -2587,7 +2591,7 @@ function HostDashboard({ user, setTab }) {
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
                 const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-                const display = clientBookingDisplay(window.start, scheduled);
+                const display = clientBookingDisplay(window.start, scheduled, window.end);
                 return {
                   id: "db-" + row.id,
                   rawId: row.id,
@@ -2601,6 +2605,7 @@ function HostDashboard({ user, setTab }) {
                   },
                   date: display.date,
                   startTime: display.startTime,
+                  endTime: display.endTime,
                   duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   bookingStart: window.start.toISOString(),
                   bookingEnd: window.end.toISOString(),
@@ -2766,6 +2771,7 @@ function HostDashboard({ user, setTab }) {
                 <BookingSchedule
                   date={b.date}
                   startTime={b.startTime}
+                  endTime={b.endTime}
                   duration={b.duration}
                   bookingEnd={b.bookingEnd}
                   isActive={b.displayStatus === "Active"}
@@ -3613,7 +3619,7 @@ function clientBookingWindow(booking) {
   return { start, end };
 }
 
-function clientBookingDisplay(start, scheduled) {
+function clientBookingDisplay(start, scheduled, end = start) {
   const timeZone = scheduled ? "UTC" : undefined;
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
   const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
@@ -3624,6 +3630,7 @@ function clientBookingDisplay(start, scheduled) {
   return {
     date: start.toLocaleDateString("en-CA", dateOptions),
     startTime: start.toLocaleTimeString("en-CA", timeOptions),
+    endTime: end.toLocaleTimeString("en-CA", timeOptions),
   };
 }
 
@@ -3707,7 +3714,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
             const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-            const display = clientBookingDisplay(window.start, scheduled);
+            const display = clientBookingDisplay(window.start, scheduled, window.end);
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
@@ -3728,6 +3735,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             },
             date: display.date,
             startTime: display.startTime,
+            endTime: display.endTime,
             duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
@@ -3833,6 +3841,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           <BookingSchedule
             date={b.date}
             startTime={b.startTime}
+            endTime={b.endTime}
             duration={b.duration}
             bookingEnd={b.bookingEnd}
             isActive={displayStatus === "Active"}
