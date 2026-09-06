@@ -60,7 +60,13 @@ function BookingVehicleVisual({ vehicle }) {
   return (
     <div className="ps-booking-vehicle-visual" aria-label={`${label}${plate ? `, licence plate ${plate}` : ""}`}>
       <VehicleBadge vehicle={vehicle} compact />
-      {plate && <strong>{plate}</strong>}
+      {plate && (
+        <div className="ps-booking-license-plate" aria-hidden="true">
+          <span className="ps-booking-license-plate-top">PARKSHARE</span>
+          <strong>{plate}</strong>
+          <span className="ps-booking-license-plate-bottom">RESERVED VEHICLE</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -2780,6 +2786,9 @@ function HostDashboard({ user, setTab }) {
                     )}
                   </div>
                 </div>
+                <div className="host-dashboard-booking-vehicle">
+                  <BookingVehicleVisual vehicle={b.vehicle} />
+                </div>
                 <BookingSchedule
                   date={b.date}
                   startTime={b.startTime}
@@ -2790,9 +2799,6 @@ function HostDashboard({ user, setTab }) {
                   currentTime={currentTime}
                 />
                 <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} />
-                <div className="host-dashboard-booking-vehicle">
-                  <BookingVehicleVisual vehicle={b.vehicle} />
-                </div>
               </div>
             ))}
           </div>

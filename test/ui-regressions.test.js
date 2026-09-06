@@ -128,6 +128,7 @@ test("Host upcoming bookings show the reservation start time", () => {
 
   assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end\)/);
   assert.match(hostDashboard, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
+  assert.match(hostDashboard, /host-dashboard-booking-vehicle[\s\S]*?<BookingVehicleVisual vehicle=\{b\.vehicle\}[\s\S]*?<BookingSchedule/);
   assert.match(hostDashboard, /isActive=\{b\.displayStatus === "Active"\}/);
   assert.match(bookingDisplay, /hour12:\s*true/);
   assert.match(bookingDisplay, /toLocaleTimeString\("en-CA", timeOptions\)/);
