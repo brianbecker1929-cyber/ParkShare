@@ -43,9 +43,16 @@ test("browse connects Google Places restaurant discovery to nearby parking", () 
   assert.match(browseView, /Find a restaurant, then park nearby/);
   assert.match(browseView, /setUserLoc\(\{ lat: restaurant\.lat, lng: restaurant\.lng \}\)/);
   assert.match(browseView, /setSort\("distance"\)/);
-  assert.match(browseView, /restaurants=\{restaurants\}/);
+  assert.match(browseView, /setRestaurantFinderOpen\(false\)/);
+  assert.match(browseView, /ps-selected-restaurant-card/);
+  assert.match(browseView, /Change restaurant/);
+  assert.match(browseView, /No ParkShare spaces within a 15-minute walk yet/);
+  assert.match(browseView, /restaurants=\{selectedRestaurant \? \[selectedRestaurant\] : restaurants\}/);
   assert.match(listingsMap, /<RestaurantMapPin/);
+  assert.doesNotMatch(listingsMap, /onRestaurantSelect\?\.\(null\)/);
   assert.match(styles, /\.ps-map-restaurant-pin[\s\S]*?background:\s*#0E1B2E/);
+  assert.match(styles, /\.ps-map-restaurant-pin\s*{[\s\S]*?width:\s*26px;[\s\S]*?height:\s*26px;/);
+  assert.match(styles, /\.ps-selected-restaurant-card\s*{[\s\S]*?background:\s*#0E1B2E/);
   assert.match(styles, /\.ps-restaurant-search-form[\s\S]*?grid-template-columns/);
 });
 
