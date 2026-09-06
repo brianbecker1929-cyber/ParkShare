@@ -3346,6 +3346,236 @@ button, input, select, textarea { font: inherit; }
   font-weight: 800;
 }
 
+.ps-browse-discovery-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.ps-browse-location-button,
+.ps-restaurant-finder-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: #E3DDC9;
+  color: #71695A;
+  font-family: 'Poppins', sans-serif;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ps-browse-location-button[data-active="true"] {
+  background: #3F7A5E;
+  color: #fff;
+}
+
+.ps-restaurant-finder-toggle {
+  border: 1.5px solid #0E1B2E;
+  background: #fff;
+  color: #0E1B2E;
+}
+
+.ps-restaurant-finder-toggle.is-active {
+  border-color: #FFC107;
+  background: #0E1B2E;
+  color: #fff;
+}
+
+.ps-restaurant-finder {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 13px;
+  background: #FAF7F0;
+  box-shadow: 0 4px 14px rgba(14, 27, 46, .08);
+}
+
+.ps-restaurant-finder-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  color: #0E1B2E;
+}
+
+.ps-restaurant-finder-heading strong,
+.ps-restaurant-finder-heading span { display: block; }
+.ps-restaurant-finder-heading strong { font-size: 12px; }
+.ps-restaurant-finder-heading span { margin-top: 1px; color: #71695A; font-size: 9.5px; }
+.ps-restaurant-finder-heading > button {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #E3DDC9;
+  color: #0E1B2E;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ps-restaurant-search-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.5fr) minmax(130px, .8fr) auto;
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.ps-restaurant-search-form input,
+.ps-restaurant-search-form select,
+.ps-restaurant-search-form button {
+  min-width: 0;
+  min-height: 34px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 10.5px;
+}
+
+.ps-restaurant-search-form input,
+.ps-restaurant-search-form select {
+  border: 1.5px solid #E3DDC9;
+  background: #fff;
+  color: #0E1B2E;
+  padding: 6px 9px;
+  outline: none;
+}
+
+.ps-restaurant-search-form input:focus,
+.ps-restaurant-search-form select:focus { border-color: #FFC107; box-shadow: 0 0 0 2px rgba(255, 193, 7, .2); }
+
+.ps-restaurant-search-form button {
+  min-width: 84px;
+  padding: 6px 13px;
+  border: 1.5px solid #0E1B2E;
+  background: #FFC107;
+  color: #0E1B2E;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ps-restaurant-search-form button:disabled { cursor: wait; opacity: .66; }
+.ps-restaurant-search-error { margin-top: 7px; color: #C53030; font-size: 9.5px; font-weight: 600; }
+
+.ps-restaurant-results {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 1px 1px 5px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+}
+
+.ps-restaurant-results > button {
+  display: flex;
+  width: 225px;
+  min-width: 225px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  scroll-snap-align: start;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 10px;
+  background: #fff;
+  color: #0E1B2E;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ps-restaurant-results > button:hover,
+.ps-restaurant-results > button.is-selected { border-color: #FFC107; box-shadow: inset 0 0 0 1px #FFC107; }
+.ps-restaurant-result-icon {
+  display: inline-flex;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #0E1B2E;
+  font-size: 15px;
+}
+.ps-restaurant-results > button > span:last-child { min-width: 0; }
+.ps-restaurant-results strong,
+.ps-restaurant-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-restaurant-results strong { font-size: 10.5px; }
+.ps-restaurant-results small { margin-top: 2px; color: #71695A; font-size: 8.5px; }
+
+.ps-selected-restaurant {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  color: #0E1B2E;
+  font-size: 9.5px;
+}
+.ps-selected-restaurant > span {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #FFC107;
+  font-weight: 900;
+}
+
+.ps-map-restaurant-pin {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  transform: translate(-50%, -100%);
+  z-index: 3;
+  font-family: 'Poppins', sans-serif;
+}
+
+.ps-map-restaurant-pin > button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 3px solid #FFC107;
+  border-radius: 50% 50% 50% 8px;
+  background: #0E1B2E;
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(14, 27, 46, .3);
+  transform: rotate(-45deg);
+  cursor: pointer;
+}
+
+.ps-map-restaurant-pin > button > span { display: block; transform: rotate(45deg); font-size: 15px; }
+.ps-map-restaurant-pin.is-selected > button { border-color: #fff; outline: 3px solid #FFC107; }
+
+.ps-map-restaurant-popover {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 47px;
+  width: 215px;
+  padding: 9px 10px;
+  border: 2px solid #0E1B2E;
+  border-radius: 11px;
+  background: #fff;
+  color: #0E1B2E;
+  box-shadow: 0 5px 16px rgba(14, 27, 46, .24);
+  transform: translateX(-50%);
+}
+.ps-map-restaurant-popover strong,
+.ps-map-restaurant-popover span,
+.ps-map-restaurant-popover small { display: block; }
+.ps-map-restaurant-popover strong { font-size: 11px; }
+.ps-map-restaurant-popover span { margin-top: 2px; color: #71695A; font-size: 8.5px; line-height: 1.35; }
+.ps-map-restaurant-popover small { margin-top: 5px; color: #0E1B2E; font-size: 8px; font-weight: 700; }
+
 .ps-walking-route-warning {
   margin: 6px 2px 0;
   color: #71695A;
@@ -3974,6 +4204,14 @@ button, input, select, textarea { font: inherit; }
   .ps-driver-booking-summary { gap: 12px; }
   .ps-driver-booking-actions > .ps-booking-navigation-group { width: 100%; }
   .ps-driver-booking-actions > .ps-booking-navigation-group > button:first-child { width: 100% !important; }
+}
+
+@media (max-width: 520px) {
+  .ps-restaurant-search-form { grid-template-columns: minmax(0, 1fr) auto; }
+  .ps-restaurant-search-form input { grid-column: 1 / -1; }
+  .ps-restaurant-search-form button { min-width: 78px; }
+  .ps-restaurant-results > button { width: 205px; min-width: 205px; }
+  .ps-map-restaurant-popover { display: none; }
 }
 
 @media (max-width: 430px) {
