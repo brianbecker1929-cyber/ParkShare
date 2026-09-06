@@ -10,7 +10,7 @@ import {
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
-import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
+import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, normalizeRestaurantPlace } from "./lib/restaurants";
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
@@ -767,7 +767,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
         center={center}
         zoom={13}
         onLoad={(map) => { mapRef.current = map; }}
-        onClick={() => { onSelect(null); onRestaurantSelect?.(null); }}
+        onClick={() => onSelect(null)}
         options={{
           styles: MAP_STYLE,
           disableDefaultUI: true,
@@ -2051,6 +2051,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     setUserLoc({ lat: restaurant.lat, lng: restaurant.lng });
     setLocatedSearch(true);
     setSort("distance");
+    setRestaurantFinderOpen(false);
   };
 
   // Arriving from the landing page: honor whichever action the person picked there.
@@ -2123,6 +2124,20 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
     ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
     : "Select a destination for walking time");
+
+  const parkingWalkMinutes = selectedRestaurant
+    ? filtered.map(listing => {
+      const routeMinutes = walkingRoutes[String(listing.id)]?.minutes;
+      return Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
+    }).filter(Number.isFinite)
+    : [];
+  const nearestParkingWalkMinutes = parkingWalkMinutes.length ? Math.min(...parkingWalkMinutes) : null;
+  const showLongWalkNotice = Boolean(
+    selectedRestaurant
+    && !walkingRoutesLoading
+    && Number.isFinite(nearestParkingWalkMinutes)
+    && nearestParkingWalkMinutes > 15,
+  );
 
   // Keep the detail view in sync when a route-matrix response arrives after
   // the Driver has already opened the listing.
@@ -2241,10 +2256,20 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                 ))}
               </div>
             )}
-            {selectedRestaurant && (
-              <div className="ps-selected-restaurant">
-                <span aria-hidden="true">✓</span>
-                Parking below is sorted nearest to <strong>{selectedRestaurant.name}</strong>.
+          </div>
+        )}
+        {selectedRestaurant && !restaurantFinderOpen && (
+          <div className="ps-selected-restaurant-card">
+            <span className="ps-selected-restaurant-icon" aria-hidden="true">🍴</span>
+            <div className="ps-selected-restaurant-copy">
+              <span>Selected restaurant</span>
+              <strong>{selectedRestaurant.name}</strong>
+              <small>{selectedRestaurant.address}</small>
+            </div>
+            <button type="button" onClick={() => setRestaurantFinderOpen(true)}>Change restaurant</button>
+            {showLongWalkNotice && (
+              <div className="ps-selected-restaurant-distance-note">
+                No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.
               </div>
             )}
           </div>
@@ -2319,7 +2344,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                 onViewListing={setSelected}
                 onPreviewRoute={onPreviewRoute}
                 userLoc={userLoc}
-                restaurants={restaurants}
+                restaurants={selectedRestaurant ? [selectedRestaurant] : restaurants}
                 selectedRestaurant={selectedRestaurant}
                 onRestaurantSelect={chooseRestaurant}
               />

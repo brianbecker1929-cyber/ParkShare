@@ -3511,40 +3511,98 @@ button, input, select, textarea { font: inherit; }
 .ps-restaurant-results strong { font-size: 10.5px; }
 .ps-restaurant-results small { margin-top: 2px; color: #71695A; font-size: 8.5px; }
 
-.ps-selected-restaurant {
-  display: flex;
+.ps-selected-restaurant-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 5px;
-  margin-top: 7px;
-  color: #0E1B2E;
-  font-size: 9.5px;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1.5px solid #FFC107;
+  border-radius: 12px;
+  background: #0E1B2E;
+  color: #fff;
+  box-shadow: 0 4px 13px rgba(14, 27, 46, .14);
 }
-.ps-selected-restaurant > span {
+
+.ps-selected-restaurant-icon {
   display: inline-flex;
-  width: 18px;
-  height: 18px;
+  width: 34px;
+  height: 34px;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   background: #FFC107;
-  font-weight: 900;
+  color: #0E1B2E;
+  font-size: 16px;
+}
+
+.ps-selected-restaurant-copy { min-width: 0; }
+.ps-selected-restaurant-copy > span,
+.ps-selected-restaurant-copy > strong,
+.ps-selected-restaurant-copy > small { display: block; }
+.ps-selected-restaurant-copy > span {
+  color: #FFC107;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.ps-selected-restaurant-copy > strong {
+  margin-top: 1px;
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ps-selected-restaurant-copy > small {
+  margin-top: 1px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, .72);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-selected-restaurant-card > button {
+  padding: 6px 9px;
+  border: 1px solid #FFC107;
+  border-radius: 8px;
+  background: transparent;
+  color: #FFC107;
+  font-family: 'Poppins', sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ps-selected-restaurant-distance-note {
+  grid-column: 1 / -1;
+  padding-top: 7px;
+  border-top: 1px solid rgba(255, 193, 7, .34);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .ps-map-restaurant-pin {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   transform: translate(-50%, -100%);
   z-index: 3;
   font-family: 'Poppins', sans-serif;
 }
 
 .ps-map-restaurant-pin > button {
-  width: 34px;
-  height: 34px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 3px solid #FFC107;
-  border-radius: 50% 50% 50% 8px;
+  border: 2px solid #FFC107;
+  border-radius: 50% 50% 50% 6px;
   background: #0E1B2E;
   color: #fff;
   box-shadow: 0 3px 8px rgba(14, 27, 46, .3);
@@ -3552,14 +3610,22 @@ button, input, select, textarea { font: inherit; }
   cursor: pointer;
 }
 
-.ps-map-restaurant-pin > button > span { display: block; transform: rotate(45deg); font-size: 15px; }
-.ps-map-restaurant-pin.is-selected > button { border-color: #fff; outline: 3px solid #FFC107; }
+.ps-map-restaurant-pin > button > span { display: block; transform: rotate(45deg); font-size: 11px; }
+.ps-map-restaurant-pin.is-selected { width: 32px; height: 32px; z-index: 5; }
+.ps-map-restaurant-pin.is-selected > button {
+  width: 32px;
+  height: 32px;
+  border-color: #fff;
+  border-radius: 50% 50% 50% 8px;
+  outline: 3px solid #FFC107;
+}
+.ps-map-restaurant-pin.is-selected > button > span { font-size: 14px; }
 
 .ps-map-restaurant-popover {
   position: absolute;
   z-index: 4;
   left: 50%;
-  bottom: 47px;
+  bottom: 43px;
   width: 215px;
   padding: 9px 10px;
   border: 2px solid #0E1B2E;
