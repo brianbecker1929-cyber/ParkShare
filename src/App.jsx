@@ -9,6 +9,7 @@ import {
 } from "./lib/navigation";
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
+import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
@@ -60,6 +61,36 @@ function BookingVehicleVisual({ vehicle }) {
     <div className="ps-booking-vehicle-visual" aria-label={`${label}${plate ? `, licence plate ${plate}` : ""}`}>
       <VehicleBadge vehicle={vehicle} compact />
       {plate && <strong>{plate}</strong>}
+    </div>
+  );
+}
+
+function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime }) {
+  const timeRemaining = isActive ? formatBookingTimeRemaining(bookingEnd, currentTime) : "";
+  return (
+    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
+      <div className="ps-booking-schedule-cell is-date">
+        <span>Date</span>
+        <strong>{date}</strong>
+      </div>
+      <div className="ps-booking-schedule-cell is-start">
+        <span>Starts</span>
+        <strong>{startTime}</strong>
+      </div>
+      <div className="ps-booking-schedule-cell is-end">
+        <span>Ends</span>
+        <strong>{endTime}</strong>
+      </div>
+      <div className="ps-booking-schedule-cell is-duration">
+        <span>Duration</span>
+        <strong>{duration}</strong>
+      </div>
+      {isActive && (
+        <div className="ps-booking-schedule-cell is-remaining">
+          <span>Time remaining</span>
+          <strong role="timer">{timeRemaining}</strong>
+        </div>
+      )}
     </div>
   );
 }
@@ -2400,6 +2431,7 @@ function TransactionsView({ user }) {
 function HostDashboard({ user, setTab }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [hostReviews, setHostReviews] = useState([]);
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -2413,6 +2445,11 @@ function HostDashboard({ user, setTab }) {
   const [stripeStatus, setStripeStatus] = useState({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
   const [connectError, setConnectError] = useState("");
   const [connecting, setConnecting] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const refreshStripeStatus = async () => {
     if (!user) return;
@@ -2553,6 +2590,8 @@ function HostDashboard({ user, setTab }) {
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
                 const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
+                const display = clientBookingDisplay(window.start, scheduled, window.end);
                 return {
                   id: "db-" + row.id,
                   rawId: row.id,
@@ -2564,7 +2603,12 @@ function HostDashboard({ user, setTab }) {
                     vehicleColour: row.vehicle_colour || "",
                     licensePlate: row.license_plate || "",
                   },
-                  time: window.start.toLocaleDateString() + " · " + row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+                  date: display.date,
+                  startTime: display.startTime,
+                  endTime: display.endTime,
+                  duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+                  bookingStart: window.start.toISOString(),
+                  bookingEnd: window.end.toISOString(),
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
                   canCancel: !refundPending && !cancelled && !completed && window.start.getTime() > now,
@@ -2584,7 +2628,12 @@ function HostDashboard({ user, setTab }) {
   // Only future and currently active reservations belong in this card.
   // Completed/cancelled bookings remain included in lifetime statistics and
   // transactions, but must never be presented to the host as upcoming work.
-  const upcomingBookings = dbBookings.filter(b => b.status === "Upcoming" || b.status === "Active" || b.status === "Cancellation pending");
+  const upcomingBookings = dbBookings
+    .map(booking => ({
+      ...booking,
+      displayStatus: getBookingDisplayStatus(booking.status, booking.bookingStart, booking.bookingEnd, currentTime),
+    }))
+    .filter(booking => booking.displayStatus === "Upcoming" || booking.displayStatus === "Active" || booking.displayStatus === "Cancellation pending");
   const [deletingId, setDeletingId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
@@ -2696,27 +2745,40 @@ function HostDashboard({ user, setTab }) {
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No upcoming bookings.</div>
             )}
             {upcomingBookings.slice(0, showAllBookings ? upcomingBookings.length : 3).map(b => (
-              <div key={b.id} className="host-dashboard-booking-row" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 12, padding: "13px 15px", borderBottom: "1px solid "+C.concrete }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
-                  <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing} · {b.time}</div>
-                  <BookingVehicleVisual vehicle={b.vehicle} />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
-                  <div>
-                    <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.status}</div>
-                    <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)}</div>
+              <div key={b.id} className="host-dashboard-booking-row" style={{ padding: "13px 15px", borderBottom: "1px solid "+C.concrete }}>
+                <div className="host-dashboard-booking-heading">
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing}</div>
                   </div>
-                  {b.canCancel && (
-                    <div style={{ position: "relative" }}>
-                      <button aria-label={`Actions for ${b.driver}'s booking`} aria-expanded={bookingActionId === b.id} onClick={() => setBookingActionId(id => id === b.id ? null : b.id)} className="host-dashboard-more-button">•••</button>
-                      {bookingActionId === b.id && (
-                        <div className="host-dashboard-action-menu">
-                          <button onClick={() => { setBookingActionId(null); setCancelError(""); setCancelTarget(b); }}>Cancel booking</button>
-                        </div>
-                      )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
+                    <div>
+                      <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.displayStatus}</div>
+                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)}</div>
                     </div>
-                  )}
+                    {b.canCancel && b.displayStatus === "Upcoming" && (
+                      <div style={{ position: "relative" }}>
+                        <button aria-label={`Actions for ${b.driver}'s booking`} aria-expanded={bookingActionId === b.id} onClick={() => setBookingActionId(id => id === b.id ? null : b.id)} className="host-dashboard-more-button">•••</button>
+                        {bookingActionId === b.id && (
+                          <div className="host-dashboard-action-menu">
+                            <button onClick={() => { setBookingActionId(null); setCancelError(""); setCancelTarget(b); }}>Cancel booking</button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <BookingSchedule
+                  date={b.date}
+                  startTime={b.startTime}
+                  endTime={b.endTime}
+                  duration={b.duration}
+                  bookingEnd={b.bookingEnd}
+                  isActive={b.displayStatus === "Active"}
+                  currentTime={currentTime}
+                />
+                <div className="host-dashboard-booking-vehicle">
+                  <BookingVehicleVisual vehicle={b.vehicle} />
                 </div>
               </div>
             ))}
@@ -3557,17 +3619,18 @@ function clientBookingWindow(booking) {
   return { start, end };
 }
 
-function clientBookingDisplay(start, scheduled) {
+function clientBookingDisplay(start, scheduled, end = start) {
   const timeZone = scheduled ? "UTC" : undefined;
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
-  const timeOptions = { hour: "numeric", minute: "2-digit" };
+  const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
     dateOptions.timeZone = timeZone;
     timeOptions.timeZone = timeZone;
   }
   return {
-    date: start.toLocaleDateString(undefined, dateOptions),
-    startTime: start.toLocaleTimeString(undefined, timeOptions),
+    date: start.toLocaleDateString("en-CA", dateOptions),
+    startTime: start.toLocaleTimeString("en-CA", timeOptions),
+    endTime: end.toLocaleTimeString("en-CA", timeOptions),
   };
 }
 
@@ -3625,7 +3688,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const highlightRef = useRef(null);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(Date.now()), 30000);
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -3651,7 +3714,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
             const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-            const display = clientBookingDisplay(window.start, scheduled);
+            const display = clientBookingDisplay(window.start, scheduled, window.end);
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
@@ -3672,6 +3735,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             },
             date: display.date,
             startTime: display.startTime,
+            endTime: display.endTime,
             duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
@@ -3730,8 +3794,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
       {!loading && !loadError && bookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
       {bookings.map(b => {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
-        const hasEnded = Number.isFinite(new Date(b.bookingEnd).getTime()) && new Date(b.bookingEnd).getTime() <= currentTime;
-        const displayStatus = hasEnded && (b.status === "Upcoming" || b.status === "Active") ? "Completed" : b.status;
+        const displayStatus = getBookingDisplayStatus(b.status, b.bookingStart, b.bookingEnd, currentTime);
+        const hasEnded = displayStatus === "Completed";
         const isPast = displayStatus === "Completed" || displayStatus === "Cancelled";
         const isExpanded = !isPast || isHighlighted || Boolean(expandedPastBookings[b.id]);
         const isRideshareEligible = !hasEnded && (displayStatus === "Upcoming" || displayStatus === "Active");
@@ -3756,7 +3820,6 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
-              <div className="ps-driver-booking-start">{b.date} · Starts {b.startTime} · {b.duration}</div>
             </div>
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
@@ -3775,6 +3838,15 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               )}
             </div>
           </div>
+          <BookingSchedule
+            date={b.date}
+            startTime={b.startTime}
+            endTime={b.endTime}
+            duration={b.duration}
+            bookingEnd={b.bookingEnd}
+            isActive={displayStatus === "Active"}
+            currentTime={currentTime}
+          />
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>

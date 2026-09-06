@@ -92,7 +92,7 @@ test("confirmed, upcoming, and active bookings offer rideshare pickup", () => {
 
   assert.match(listingDetail, /<RidesharePickupCard listing=\{listing\}/);
   assert.match(bookings, /<RidesharePickupCard listing=\{b\.listing\}/);
-  assert.match(bookings, /b\.status === "Upcoming" \|\| b\.status === "Active"/);
+  assert.match(bookings, /displayStatus === "Upcoming" \|\| displayStatus === "Active"/);
   assert.match(rideshare, /\/rideshare\/uber-logo\.png/);
   assert.match(rideshare, /\/rideshare\/lyft-logo\.png/);
   assert.match(rideshare, /computeDrivingRoute/);
@@ -105,12 +105,33 @@ test("confirmed, upcoming, and active bookings offer rideshare pickup", () => {
 
 test("booking cards show start times and collapse completed or cancelled bookings", () => {
   const bookings = functionSource("MyBookingsView", "ReviewModal");
+  const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
+  const bookingSchedule = functionSource("BookingSchedule", "buildAppUser");
 
-  assert.match(bookings, /Starts \{b\.startTime\}/);
+  assert.match(bookings, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
+  assert.match(bookingSchedule, />Date<[\s\S]*?>Starts<[\s\S]*?>Ends<[\s\S]*?>Duration</);
+  assert.match(bookingSchedule, />Time remaining</);
+  assert.match(bookingSchedule, /formatBookingTimeRemaining\(bookingEnd, currentTime\)/);
+  assert.match(bookingDisplay, /hour12:\s*true/);
+  assert.match(bookingDisplay, /toLocaleTimeString\("en-CA", timeOptions\)/);
   assert.match(bookings, /displayStatus === "Completed" \|\| displayStatus === "Cancelled"/);
   assert.match(bookings, /className="ps-past-booking-toggle"/);
   assert.match(bookings, /aria-expanded=\{isExpanded\}/);
   assert.match(bookings, /isRideshareEligible = !hasEnded/);
   assert.match(bookings, /\{isRideshareEligible && <RidesharePickupCard/);
   assert.match(styles, /\.ps-driver-booking-card\.is-collapsed/);
+});
+
+test("Host upcoming bookings show the reservation start time", () => {
+  const hostDashboard = functionSource("HostDashboard", "MessagesView");
+  const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
+
+  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end\)/);
+  assert.match(hostDashboard, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
+  assert.match(hostDashboard, /isActive=\{b\.displayStatus === "Active"\}/);
+  assert.match(bookingDisplay, /hour12:\s*true/);
+  assert.match(bookingDisplay, /toLocaleTimeString\("en-CA", timeOptions\)/);
+  assert.match(styles, /\.ps-booking-schedule\s*{[\s\S]*?background:\s*#0E1B2E/);
+  assert.match(styles, /\.ps-booking-schedule-cell\.is-remaining\s*{[\s\S]*?background:\s*#FFC107/);
+  assert.match(styles, /@media \(max-width: 520px\)[\s\S]*?\.ps-booking-schedule-cell\.is-start[\s\S]*?\.ps-booking-schedule-cell\.is-end/);
 });

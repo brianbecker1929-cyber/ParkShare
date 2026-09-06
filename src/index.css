@@ -3503,9 +3503,69 @@ button, input, select, textarea { font: inherit; }
 
 .ps-driver-booking-summary-copy { min-width: 0; }
 .ps-driver-booking-start { color: #71695A; font-size: 12px; line-height: 1.45; }
+.ps-booking-schedule {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1fr .75fr;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #0E1B2E;
+}
+.ps-booking-schedule.has-countdown { grid-template-columns: 1.25fr 1fr 1fr .75fr 1.2fr; }
+.ps-booking-schedule-cell {
+  min-width: 0;
+  padding: 9px 8px;
+  color: #fff;
+}
+.ps-booking-schedule-cell + .ps-booking-schedule-cell { border-left: 1px solid rgba(255, 255, 255, .24); }
+.ps-booking-schedule-cell > span {
+  display: block;
+  margin-bottom: 2px;
+  color: #FFC107;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.ps-booking-schedule-cell > strong {
+  display: block;
+  overflow: hidden;
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ps-booking-schedule-cell.is-remaining {
+  background: #FFC107;
+  color: #0E1B2E;
+}
+.ps-booking-schedule-cell.is-remaining > span,
+.ps-booking-schedule-cell.is-remaining > strong { color: #0E1B2E; }
+.host-dashboard-booking-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.host-dashboard-booking-vehicle { min-height: 50px; }
 .ps-driver-booking-details { margin-top: 10px; }
 .ps-driver-booking-address { margin-bottom: 9px; color: #71695A; font-size: 12px; line-height: 1.45; }
 .ps-driver-booking-card.is-collapsed { padding-top: 13px !important; padding-bottom: 13px !important; }
+
+@media (max-width: 520px) {
+  .ps-booking-schedule,
+  .ps-booking-schedule.has-countdown { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .ps-booking-schedule-cell { padding: 8px 7px; }
+  .ps-booking-schedule-cell.is-date { grid-column: 1 / 4; grid-row: 1; border-left: 0; }
+  .ps-booking-schedule-cell.is-duration { grid-column: 4 / 7; grid-row: 1; }
+  .ps-booking-schedule-cell.is-start { grid-column: 1 / 4; grid-row: 2; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .24); }
+  .ps-booking-schedule-cell.is-end { grid-column: 4 / 7; grid-row: 2; border-top: 1px solid rgba(255, 255, 255, .24); }
+  .ps-booking-schedule.has-countdown .ps-booking-schedule-cell.is-start { grid-column: 1 / 3; }
+  .ps-booking-schedule.has-countdown .ps-booking-schedule-cell.is-end { grid-column: 3 / 5; }
+  .ps-booking-schedule.has-countdown .ps-booking-schedule-cell.is-remaining { grid-column: 5 / 7; grid-row: 2; border-top: 1px solid rgba(14, 27, 46, .18); }
+}
 
 .ps-past-booking-toggle {
   display: inline-flex;
