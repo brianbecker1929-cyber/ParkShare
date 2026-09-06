@@ -3494,6 +3494,119 @@ button, input, select, textarea { font: inherit; }
 .ps-driver-arrival-instructions strong { font-size: 11.5px; }
 .ps-driver-arrival-instructions span { color: #71695A; font-size: 11px; line-height: 1.45; }
 
+/* Confirmed-booking rideshare pickup --------------------------------------- */
+.ps-rideshare-card {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #0E1B2E, #263A52);
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  text-align: left;
+  box-shadow: 0 10px 24px rgba(14, 27, 46, .16);
+}
+
+.ps-rideshare-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+
+.ps-rideshare-icon {
+  display: inline-flex;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: #FFC107;
+  font-size: 19px;
+}
+
+.ps-rideshare-heading h3,
+.ps-rideshare-heading p,
+.ps-rideshare-note { margin: 0; }
+.ps-rideshare-heading h3 { font-size: 15px; line-height: 1.3; }
+.ps-rideshare-heading p { margin-top: 3px; color: rgba(255, 255, 255, .78); font-size: 11px; line-height: 1.45; }
+
+.ps-rideshare-pickup {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 13px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .08);
+}
+
+.ps-rideshare-pickup div { min-width: 0; }
+.ps-rideshare-pickup strong,
+.ps-rideshare-pickup span { display: block; }
+.ps-rideshare-pickup strong { font-size: 10.5px; }
+.ps-rideshare-pickup div > span { margin-top: 2px; color: rgba(255, 255, 255, .76); font-size: 10.5px; line-height: 1.4; }
+
+.ps-rideshare-time {
+  margin-top: 11px;
+  padding: 0 2px;
+}
+
+.ps-rideshare-time > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ps-rideshare-time strong { font-size: 11px; }
+.ps-rideshare-time span { color: #FFC107; font-size: 17px; font-weight: 800; }
+.ps-rideshare-time small { display: block; margin-top: 1px; color: rgba(255, 255, 255, .64); font-size: 9.5px; }
+
+.ps-rideshare-provider-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.ps-rideshare-provider {
+  display: flex;
+  min-width: 0;
+  min-height: 60px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: 2px solid rgba(255, 255, 255, .72);
+  border-radius: 12px;
+  background: #fff;
+  box-sizing: border-box;
+  text-decoration: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.ps-rideshare-provider:hover {
+  border-color: #FFC107;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .2);
+  transform: translateY(-1px);
+}
+
+.ps-rideshare-provider:focus-visible {
+  outline: 3px solid rgba(255, 193, 7, .72);
+  outline-offset: 3px;
+}
+
+.ps-rideshare-provider img { display: block; max-width: 100%; object-fit: contain; }
+.ps-rideshare-provider.is-uber img { width: 112px; height: auto; max-height: 34px; }
+.ps-rideshare-provider.is-lyft img { width: auto; height: 39px; max-width: 104px; }
+
+.ps-rideshare-note {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, .62);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 @media (min-width: 900px) {
   .ps-browse-toolbar { padding: 12px 20px !important; }
   .ps-browse-listing-column { max-width: 570px; background: #FAF7F0; }
@@ -3636,6 +3749,10 @@ button, input, select, textarea { font: inherit; }
   .ps-browse-listing-card .ps-browse-listing-main > span { align-self: flex-start; }
   .ps-driver-booking-summary { flex-direction: column; }
   .ps-driver-booking-summary > div:last-child { text-align: left !important; }
+}
+
+@media (max-width: 350px) {
+  .ps-rideshare-provider-list { grid-template-columns: 1fr; }
 }
 
 /* Driver profile and first-login completion */

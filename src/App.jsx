@@ -7,6 +7,7 @@ import {
   openNavigation,
   savePreferredNavigationProvider,
 } from "./lib/navigation";
+import { buildRideshareUrl, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { buildWalkingLabel, computeWalkingRoutes } from "./lib/walkingTime";
 import { MAX_GUEST_VEHICLES, formatVehicleLabel, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
@@ -304,6 +305,74 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
         <button type="button" className="ps-navigation-cancel" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
+  );
+}
+
+function RidesharePickupCard({ listing, bookingStart }) {
+  if (!listing) return null;
+
+  const suggestedPickupTime = formatSuggestedPickupTime(bookingStart);
+  const uberUrl = buildRideshareUrl("uber", listing, {
+    uberClientId: import.meta.env.VITE_UBER_CLIENT_ID,
+  });
+  const lyftUrl = buildRideshareUrl("lyft", listing, {
+    lyftClientId: import.meta.env.VITE_LYFT_CLIENT_ID,
+  });
+  const pickupAddress = listing.address || "Your confirmed ParkShare parking spot";
+
+  return (
+    <section className="ps-rideshare-card" aria-labelledby={`rideshare-title-${listing.id || "booking"}`}>
+      <div className="ps-rideshare-heading">
+        <span className="ps-rideshare-icon" aria-hidden="true">🚕</span>
+        <div>
+          <h3 id={`rideshare-title-${listing.id || "booking"}`}>Continue your trip</h3>
+          <p>Get picked up from your ParkShare parking spot.</p>
+        </div>
+      </div>
+
+      <div className="ps-rideshare-pickup">
+        <span aria-hidden="true">📍</span>
+        <div>
+          <strong>Pickup location</strong>
+          <span>{pickupAddress}</span>
+        </div>
+      </div>
+
+      {suggestedPickupTime && (
+        <div className="ps-rideshare-time">
+          <div>
+            <strong>Suggested pickup</strong>
+            <span>{suggestedPickupTime}</span>
+          </div>
+          <small>{RIDESHARE_PICKUP_BUFFER_MINUTES} minutes after your parking reservation begins</small>
+        </div>
+      )}
+
+      <div className="ps-rideshare-provider-list" aria-label="Choose a rideshare provider">
+        <a
+          href={uberUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ps-rideshare-provider is-uber"
+          aria-label={`Open Uber with ${pickupAddress} as your pickup location`}
+        >
+          <img src="/rideshare/uber-logo.png" alt="Uber" loading="lazy" decoding="async" />
+        </a>
+        <a
+          href={lyftUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ps-rideshare-provider is-lyft"
+          aria-label={`Open Lyft with ${pickupAddress} as your pickup location`}
+        >
+          <img src="/rideshare/lyft-logo.png" alt="Lyft" loading="lazy" decoding="async" />
+        </a>
+      </div>
+
+      <p className="ps-rideshare-note">
+        Confirm the pickup time, ride, fare, and payment directly with Uber or Lyft.
+      </p>
+    </section>
   );
 }
 
@@ -1275,6 +1344,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
 
   const [showPayment, setShowPayment] = useState(false);
   const [booked, setBooked] = useState(false);
+  const [bookedAt, setBookedAt] = useState(null);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
@@ -1334,8 +1404,13 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
     // the browser navigates away to Stripe's checkout page for those.
     setBookingError("");
     setShowPayment(false);
+    setBookedAt(new Date().toISOString());
     setBooked(true);
   };
+
+  const confirmedBookingStart = bookingMode === "advance"
+    ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), startHour)).toISOString()
+    : bookedAt;
 
   return (
     <div style={{ padding: 24, fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
@@ -1403,6 +1478,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
           <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
           <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change navigation app</button>
+          <RidesharePickupCard listing={listing} bookingStart={confirmedBookingStart} />
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -3493,6 +3569,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             },
             date: window.start.toLocaleDateString(),
             time: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
+            bookingStart: window.start.toISOString(),
             total: row.total,
             vehicle: formatVehicleLabel(row),
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
@@ -3584,6 +3661,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
             </div>
           </div>
+          {(b.status === "Upcoming" || b.status === "Active") && (
+            <RidesharePickupCard listing={b.listing} bookingStart={b.bookingStart} />
+          )}
           {(b.status === "Upcoming" || b.status === "Active") && (
             <div className="ps-driver-arrival-instructions">
               <strong>Arrival instructions</strong>
