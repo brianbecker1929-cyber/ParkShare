@@ -3319,16 +3319,23 @@ button, input, select, textarea { font: inherit; }
 }
 
 .ps-change-navigation-app {
-  padding: 7px 5px;
+  padding: 3px 5px;
   border: 0;
   background: transparent;
-  color: #0E1B2E;
+  color: #71695A;
   font-family: 'Poppins', sans-serif;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
+}
+
+.ps-booking-navigation-group {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
 }
 
 .ps-browse-listing-heading {
@@ -3720,7 +3727,8 @@ button, input, select, textarea { font: inherit; }
   }
 
   .ps-driver-booking-summary { gap: 12px; }
-  .ps-driver-booking-actions > button:first-child { width: 100% !important; }
+  .ps-driver-booking-actions > .ps-booking-navigation-group { width: 100%; }
+  .ps-driver-booking-actions > .ps-booking-navigation-group > button:first-child { width: 100% !important; }
 }
 
 @media (max-width: 430px) {
