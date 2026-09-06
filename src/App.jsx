@@ -3562,14 +3562,14 @@ function clientBookingWindow(booking) {
 function clientBookingDisplay(start, scheduled) {
   const timeZone = scheduled ? "UTC" : undefined;
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
-  const timeOptions = { hour: "numeric", minute: "2-digit" };
+  const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
     dateOptions.timeZone = timeZone;
     timeOptions.timeZone = timeZone;
   }
   return {
-    date: start.toLocaleDateString(undefined, dateOptions),
-    startTime: start.toLocaleTimeString(undefined, timeOptions),
+    date: start.toLocaleDateString("en-CA", dateOptions),
+    startTime: start.toLocaleTimeString("en-CA", timeOptions),
   };
 }
 
