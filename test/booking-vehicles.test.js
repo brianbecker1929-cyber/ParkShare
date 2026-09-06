@@ -44,3 +44,10 @@ test("Driver and Host booking cards use the booked vehicle artwork instead of a 
   assert.equal((app.match(/<BookingVehicleVisual vehicle=\{b\.vehicle\} \/>/g) || []).length, 2);
   assert.doesNotMatch(app, /formatVehicleLabel\(row\)/);
 });
+
+test("Driver and Host booking cards render the selected navy-and-amber license plate", () => {
+  assert.match(app, /className="ps-booking-license-plate"/);
+  assert.match(app, /ps-booking-license-plate-top">PARKSHARE/);
+  assert.match(app, /ps-booking-license-plate-bottom">RESERVED VEHICLE/);
+  assert.match(app, /<strong>\{plate\}<\/strong>/);
+});
