@@ -1921,10 +1921,10 @@ function EventSubmissionForm({ onClose }) {
     setSubmitting(true);
     setError("");
     try {
-      const response = await fetch("/api/submit-event", {
+      const response = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, requestType: "event-submission" }),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Your event could not be submitted. Please try again.");
