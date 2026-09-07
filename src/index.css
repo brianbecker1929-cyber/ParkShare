@@ -5164,3 +5164,272 @@ button, input, select, textarea { font: inherit; }
   .ps-vehicle-badge.is-compact { width: 58px; height: 49px; }
   .ps-vehicle-toggle-main { gap: 10px; }
 }
+
+/* ========================================================================== */
+/* ParkShare Discover — destination discovery stays separate from the map     */
+/* ========================================================================== */
+.ps-discover-view {
+  width: min(1080px, calc(100% - 32px));
+  min-height: 70vh;
+  margin: 0 auto;
+  padding: 48px 0 72px;
+  box-sizing: border-box;
+  color: #0E1B2E;
+  font-family: 'Poppins', sans-serif;
+}
+
+.ps-discover-hero {
+  max-width: 760px;
+  margin: 0 auto 30px;
+  text-align: center;
+}
+.ps-discover-kicker,
+.ps-discover-panel-heading small {
+  color: #A67C00;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+.ps-discover-hero h1 {
+  margin: 8px 0 10px;
+  color: #0E1B2E;
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.13;
+}
+.ps-discover-hero p {
+  margin: 0;
+  color: #71695A;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.ps-discover-hub {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.ps-discover-choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  min-height: 220px;
+  padding: 28px;
+  border: 2px solid #E3DDC9;
+  border-radius: 22px;
+  background: #fff;
+  color: #0E1B2E;
+  box-shadow: 0 10px 28px rgba(14, 27, 46, .08);
+  text-align: left;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.ps-discover-choice:hover,
+.ps-discover-choice:focus-visible {
+  border-color: #FFC107;
+  box-shadow: 0 14px 34px rgba(14, 27, 46, .14);
+  transform: translateY(-2px);
+}
+.ps-discover-choice-icon {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border-radius: 18px;
+  background: #0E1B2E;
+  font-size: 28px;
+}
+.ps-discover-choice small,
+.ps-discover-choice strong,
+.ps-discover-choice em { display: block; }
+.ps-discover-choice small { color: #A67C00; font-size: 10px; font-weight: 900; letter-spacing: .1em; }
+.ps-discover-choice strong { margin-top: 4px; font-size: 24px; line-height: 1.2; }
+.ps-discover-choice em { margin-top: 8px; color: #71695A; font-size: 13px; font-style: normal; line-height: 1.55; }
+.ps-discover-choice b {
+  grid-column: 1 / -1;
+  align-self: end;
+  color: #0E1B2E;
+  font-size: 13px;
+}
+.ps-discover-direct {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #71695A;
+  font-size: 13px;
+}
+.ps-discover-direct button,
+.ps-discover-back {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0E1B2E;
+  font: 800 13px 'Poppins', sans-serif;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.ps-discover-panel {
+  padding: 26px;
+  border: 2px solid #E3DDC9;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(14, 27, 46, .08);
+}
+.ps-discover-back { margin-bottom: 22px; }
+.ps-discover-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #E3DDC9;
+}
+.ps-discover-panel-heading > span {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 16px;
+  background: #0E1B2E;
+  font-size: 25px;
+}
+.ps-discover-panel-heading h2 { margin: 2px 0 2px; font-size: 25px; }
+.ps-discover-panel-heading p { margin: 0; color: #71695A; font-size: 12px; }
+
+.ps-discover-search-form {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.4fr) minmax(170px, .8fr) auto;
+  gap: 10px;
+  margin: 22px 0;
+}
+.ps-discover-search-form.is-events { grid-template-columns: minmax(220px, 1.35fr) minmax(155px, .75fr) minmax(150px, .65fr) auto; }
+.ps-discover-search-form input,
+.ps-discover-search-form select,
+.ps-discover-search-form button {
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  font-family: 'Poppins', sans-serif;
+}
+.ps-discover-search-form input,
+.ps-discover-search-form select {
+  padding: 10px 13px;
+  border: 1.5px solid #E3DDC9;
+  background: #FAF7F0;
+  color: #0E1B2E;
+  font-size: 13px;
+}
+.ps-discover-search-form input:focus,
+.ps-discover-search-form select:focus { border-color: #FFC107; outline: 3px solid rgba(255, 193, 7, .2); }
+.ps-discover-search-form button {
+  padding: 10px 18px;
+  border: 2px solid #0E1B2E;
+  background: #FFC107;
+  color: #0E1B2E;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.ps-discover-search-form button:disabled { opacity: .6; cursor: wait; }
+.ps-discover-error { margin: -10px 0 18px; color: #C53030; font-size: 12px; font-weight: 700; }
+.ps-discover-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.ps-discover-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+  border: 1.5px solid #E3DDC9;
+  border-radius: 15px;
+  background: #FAF7F0;
+}
+.ps-discover-result-icon {
+  display: grid;
+  width: 45px;
+  height: 45px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #0E1B2E;
+  font-size: 20px;
+}
+.ps-discover-result-icon img { width: 100%; height: 100%; object-fit: cover; }
+.ps-discover-result strong,
+.ps-discover-result small,
+.ps-discover-result p { display: block; }
+.ps-discover-result strong { font-size: 14px; line-height: 1.35; }
+.ps-discover-result small { margin-top: 3px; color: #A67C00; font-size: 10px; font-weight: 800; }
+.ps-discover-result p { margin: 4px 0 0; color: #71695A; font-size: 10px; line-height: 1.45; }
+.ps-discover-result > button {
+  grid-column: 2;
+  justify-self: start;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 9px;
+  background: #0E1B2E;
+  color: #fff;
+  font: 800 10.5px 'Poppins', sans-serif;
+  cursor: pointer;
+}
+
+.ps-browse-destination-context {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1.5px solid #FFC107;
+  border-radius: 11px;
+  background: #0E1B2E;
+  color: #fff;
+}
+.ps-browse-destination-context > span { font-size: 18px; }
+.ps-browse-destination-context small,
+.ps-browse-destination-context strong,
+.ps-browse-destination-context em { display: block; }
+.ps-browse-destination-context small { color: #FFC107; font-size: 8px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.ps-browse-destination-context strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.ps-browse-destination-context em { overflow: hidden; color: rgba(255,255,255,.7); font-size: 8.5px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.ps-browse-destination-context > button {
+  padding: 5px 8px;
+  border: 1px solid #FFC107;
+  border-radius: 7px;
+  background: transparent;
+  color: #FFC107;
+  font: 800 8.5px 'Poppins', sans-serif;
+  cursor: pointer;
+}
+.ps-browse-destination-context > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255,193,7,.28);
+  font-size: 8.5px;
+}
+
+@media (max-width: 760px) {
+  .ps-discover-view { width: min(100% - 28px, 620px); padding: 30px 0 56px; }
+  .ps-discover-hero { margin-bottom: 22px; }
+  .ps-discover-hero h1 { font-size: 28px; }
+  .ps-discover-hero p { font-size: 13px; }
+  .ps-discover-hub,
+  .ps-discover-results { grid-template-columns: 1fr; }
+  .ps-discover-choice { min-height: 176px; padding: 21px; }
+  .ps-discover-choice-icon { width: 52px; height: 52px; border-radius: 15px; font-size: 23px; }
+  .ps-discover-choice strong { font-size: 20px; }
+  .ps-discover-direct { flex-direction: column; gap: 5px; }
+  .ps-discover-panel { padding: 18px 15px; border-radius: 18px; }
+  .ps-discover-panel-heading h2 { font-size: 20px; }
+  .ps-discover-search-form,
+  .ps-discover-search-form.is-events { grid-template-columns: 1fr; }
+  .ps-discover-search-form button { width: 100%; }
+}
+
+@media (max-width: 430px) {
+  .ps-browse-destination-context { grid-template-columns: auto minmax(0, 1fr); }
+  .ps-browse-destination-context > button { grid-column: 2; justify-self: start; }
+}
