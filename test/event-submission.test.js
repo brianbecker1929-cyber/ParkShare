@@ -35,12 +35,13 @@ test("rejects unapproved, past, and unsafe-link submissions", () => {
 });
 
 test("event submissions enter a private review queue instead of publishing directly", () => {
-  const endpoint = readFileSync(new URL("../api/submit-event.js", import.meta.url), "utf8");
+  const endpoint = readFileSync(new URL("../api/_event-submission.js", import.meta.url), "utf8");
+  const contactEndpoint = readFileSync(new URL("../api/contact.js", import.meta.url), "utf8");
   const migration = readFileSync(new URL("../supabase-migration-009-event-submissions.sql", import.meta.url), "utf8");
   assert.match(endpoint, /from\("event_submissions"\)/);
   assert.match(endpoint, /status: "pending"/);
   assert.doesNotMatch(endpoint, /from\("events"\).*insert/s);
   assert.match(migration, /enable row level security/i);
   assert.doesNotMatch(migration, /create policy/i);
+  assert.match(contactEndpoint, /requestType === "event-submission"/);
 });
-
