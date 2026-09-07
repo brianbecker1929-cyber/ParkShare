@@ -1,4 +1,5 @@
 import { sendEmail } from "./_email.js";
+import { handleEventSubmission } from "./_event-submission.js";
 
 const SUPPORT_EMAIL = "info@myparkshare.ca";
 const HELP_TYPES = new Set(["Driver", "Host", "Booking", "Payment or Account", "Trust & Safety", "General"]);
@@ -17,6 +18,10 @@ export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed." });
+  }
+
+  if (req.body?.requestType === "event-submission") {
+    return handleEventSubmission(req, res);
   }
 
   const { name, email, helpType, reservationNumber, message, website } = req.body || {};

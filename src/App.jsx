@@ -11,7 +11,7 @@ import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDE
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
-import { RESTAURANT_CUISINES, buildRestaurantSearchText, normalizeRestaurantPlace } from "./lib/restaurants";
+import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
   EVENT_ARRIVAL_BUFFER_MINUTES,
   EVENT_CATEGORIES,
@@ -1892,6 +1892,102 @@ function useAllListings() {
   return { listings: dbListings, loading, error, refresh };
 }
 
+function EventSubmissionForm({ onClose }) {
+  const [form, setForm] = useState({
+    organizerName: "",
+    organizerEmail: "",
+    organizerPhone: "",
+    eventName: "",
+    category: "community",
+    venueName: "",
+    address: "",
+    eventDate: "",
+    startTime: "",
+    endTime: "",
+    description: "",
+    ticketUrl: "",
+    eventUrl: "",
+    accessNotes: "",
+    authorized: false,
+    website: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [reference, setReference] = useState("");
+  const update = (field, value) => setForm(current => ({ ...current, [field]: value }));
+
+  const submit = async submitEvent => {
+    submitEvent.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, requestType: "event-submission" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Your event could not be submitted. Please try again.");
+      setReference(result.reference || "Submitted");
+    } catch (submitError) {
+      setError(submitError.message || "Your event could not be submitted. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (reference) return (
+    <div className="ps-event-submission-success">
+      <span aria-hidden="true">✓</span>
+      <h3>Event submitted for review</h3>
+      <p>Thank you. ParkShare will verify the event details before anything is published.</p>
+      <small>Reference: {reference}</small>
+      <button type="button" onClick={onClose}>Done</button>
+    </div>
+  );
+
+  return (
+    <form className="ps-event-submission-form" onSubmit={submit}>
+      <p className="ps-event-submission-intro">Tell us about your upcoming event. Submissions are reviewed before appearing on ParkShare.</p>
+      <fieldset>
+        <legend>Organizer contact</legend>
+        <label>Organizer or organization name *<input value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required /></label>
+        <label>Email address *<input type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required /></label>
+        <label>Phone number<input type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} /></label>
+      </fieldset>
+      <fieldset>
+        <legend>Event details</legend>
+        <label className="is-wide">Event name *<input value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required /></label>
+        <label>Category *
+          <select value={form.category} onChange={event => update("category", event.target.value)} required>
+            {EVENT_CATEGORIES.filter(option => option.value).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <label>Venue name *<input value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required /></label>
+        <label className="is-wide">Full event address *<input value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required /></label>
+        <label>Date *<input type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required /></label>
+        <label>Start time *<input type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required /></label>
+        <label>End time<input type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} /></label>
+        <div className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
+        <label className="is-wide">Description *<textarea value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required /></label>
+        <label className="is-wide">Ticket purchase link<input type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
+        <label className="is-wide">Official event link<input type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
+        <label className="is-wide">Parking, accessibility, or street-closure notes<textarea value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} /></label>
+      </fieldset>
+      <label className="ps-event-submission-consent">
+        <input type="checkbox" checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
+        <span>I confirm that I am authorized to submit this event information and that it is accurate.</span>
+      </label>
+      <label className="ps-event-submission-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={event => update("website", event.target.value)} /></label>
+      {error && <div className="ps-discover-error" role="alert">⚠️ {error}</div>}
+      <div className="ps-event-submission-actions">
+        <button type="button" onClick={onClose}>Cancel</button>
+        <button type="submit" disabled={submitting}>{submitting ? "Submitting…" : "Submit event for review"}</button>
+      </div>
+    </form>
+  );
+}
+
 // ─── Discover View ────────────────────────────────────────────────────────────
 // Restaurants and events deliberately live outside Browse. Discover helps a
 // Driver choose where they are going; Browse then does one job well: parking.
@@ -1912,9 +2008,10 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventSearchError, setEventSearchError] = useState("");
+  const [restaurantAction, setRestaurantAction] = useState("");
+  const [eventSubmissionOpen, setEventSubmissionOpen] = useState(false);
 
-  const findRestaurants = async (submitEvent) => {
-    submitEvent?.preventDefault();
+  const loadRestaurants = async () => {
     setRestaurantsLoading(true);
     setRestaurantSearchError("");
     try {
@@ -1932,13 +2029,31 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
       });
       const nextRestaurants = (places || []).map(normalizeRestaurantPlace).filter(Boolean);
       setRestaurants(nextRestaurants);
-      if (nextRestaurants.length === 0) setRestaurantSearchError("No matching restaurants were found. Try another name, area, or cuisine.");
+      return nextRestaurants;
     } catch (error) {
       setRestaurants([]);
       setRestaurantSearchError(error?.message || "Restaurants could not be loaded. Please try again.");
+      return [];
     } finally {
       setRestaurantsLoading(false);
     }
+  };
+
+  const findRestaurants = async (submitEvent) => {
+    submitEvent?.preventDefault();
+    setRestaurantAction("search");
+    const nextRestaurants = await loadRestaurants();
+    if (nextRestaurants.length === 0) setRestaurantSearchError(current => current || "No matching restaurants were found. Try another name, area, or cuisine.");
+    setRestaurantAction("");
+  };
+
+  const beAdventurous = async () => {
+    setRestaurantAction("adventure");
+    const nextRestaurants = await loadRestaurants();
+    const restaurant = chooseRandomRestaurant(nextRestaurants);
+    if (restaurant) chooseRestaurant(restaurant);
+    else setRestaurantSearchError(current => current || "No restaurants were available for this adventure. Try another area or cuisine.");
+    setRestaurantAction("");
   };
 
   const findEvents = async (submitEvent) => {
@@ -2036,7 +2151,12 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
                 <select value={restaurantCuisine} onChange={event => setRestaurantCuisine(event.target.value)} aria-label="Cuisine">
                   {RESTAURANT_CUISINES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
                 </select>
-                <button type="submit" disabled={restaurantsLoading}>{restaurantsLoading ? "Searching…" : "Search restaurants"}</button>
+                <div className="ps-discover-search-actions">
+                  <button type="submit" disabled={restaurantsLoading}>{restaurantAction === "search" ? "Searching…" : "Search restaurants"}</button>
+                  <button type="button" className="is-secondary" onClick={beAdventurous} disabled={restaurantsLoading}>
+                    {restaurantAction === "adventure" ? "Choosing…" : "🎲 Be Adventurous"}
+                  </button>
+                </div>
               </form>
               {restaurantSearchError && <div className="ps-discover-error" role="alert">⚠️ {restaurantSearchError}</div>}
               <div className="ps-discover-results">
@@ -2061,7 +2181,10 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
                   {EVENT_CATEGORIES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
                 </select>
                 <input type="date" value={eventDate} onChange={event => setEventDate(event.target.value)} aria-label="Event date" />
-                <button type="submit" disabled={eventsLoading}>{eventsLoading ? "Searching…" : "Search events"}</button>
+                <div className="ps-discover-search-actions">
+                  <button type="submit" disabled={eventsLoading}>{eventsLoading ? "Searching…" : "Search events"}</button>
+                  <button type="button" className="is-secondary" onClick={() => setEventSubmissionOpen(true)}>📣 Add your event</button>
+                </div>
               </form>
               {eventSearchError && <div className="ps-discover-error" role="alert">⚠️ {eventSearchError}</div>}
               <div className="ps-discover-results">
@@ -2085,6 +2208,11 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
             </>
           )}
         </section>
+      )}
+      {eventSubmissionOpen && (
+        <Modal title="Submit an upcoming event" onClose={() => setEventSubmissionOpen(false)}>
+          <EventSubmissionForm onClose={() => setEventSubmissionOpen(false)} />
+        </Modal>
       )}
     </main>
   );

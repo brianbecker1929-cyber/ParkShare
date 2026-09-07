@@ -39,3 +39,11 @@ export function normalizeRestaurantPlace(place) {
     lng,
   };
 }
+
+export function chooseRandomRestaurant(restaurants, random = Math.random) {
+  const choices = Array.isArray(restaurants) ? restaurants.filter(Boolean) : [];
+  if (choices.length === 0) return null;
+  const sample = Number(random());
+  const safeSample = Number.isFinite(sample) ? Math.min(Math.max(sample, 0), 0.999999999) : 0;
+  return choices[Math.floor(safeSample * choices.length)];
+}

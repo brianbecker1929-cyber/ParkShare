@@ -44,6 +44,8 @@ test("Discover connects Google Places restaurants to a clean parking handoff", (
   assert.match(discoverView, /Find a restaurant/);
   assert.match(discoverView, /type: "restaurant"/);
   assert.match(discoverView, /Find parking nearby/);
+  assert.match(discoverView, /chooseRandomRestaurant\(nextRestaurants\)/);
+  assert.match(discoverView, /Be Adventurous/);
   assert.match(browseView, /useState\(initialRestaurant\)/);
   assert.match(browseView, /ps-browse-destination-context/);
   assert.match(browseView, /Choose another/);
@@ -65,6 +67,8 @@ test("Discover connects events to Browse without adding event markers to the map
   assert.match(discoverView, /Find an event or festival/);
   assert.match(discoverView, /type: "event"/);
   assert.match(discoverView, /Find parking nearby/);
+  assert.match(discoverView, /Add your event/);
+  assert.match(discoverView, /EventSubmissionForm/);
   assert.match(browseView, /initialEvent \? normalizeEventRow\(initialEvent\) : null/);
   assert.match(browseView, /Parking near \$\{selectedEvent\.name\}/);
   assert.match(browseView, /from\("event_listing_access"\)/);
