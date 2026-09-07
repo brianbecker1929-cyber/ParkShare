@@ -12,6 +12,16 @@ import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime"
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, normalizeRestaurantPlace } from "./lib/restaurants";
+import {
+  EVENT_ARRIVAL_BUFFER_MINUTES,
+  EVENT_CATEGORIES,
+  EVENT_DEPARTURE_BUFFER_MINUTES,
+  bookingEventFromRow,
+  filterEvents,
+  formatEventSchedule,
+  getEventParkingSuggestion,
+  normalizeEventRow,
+} from "./lib/events";
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
@@ -99,6 +109,36 @@ function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isAct
         </div>
       )}
     </div>
+  );
+}
+
+function EventDestinationSummary({ event, booking = false }) {
+  if (!event) return null;
+  const schedule = formatEventSchedule(event);
+  return (
+    <section className={`ps-event-destination-summary${booking ? " is-booking" : ""}`} aria-label={`Event: ${event.name}`}>
+      <div className="ps-event-destination-icon" aria-hidden="true">
+        {event.imageUrl ? <img src={event.imageUrl} alt="" loading="lazy" decoding="async" /> : "🎟️"}
+      </div>
+      <div className="ps-event-destination-copy">
+        <span>{booking ? "Parking for" : "Selected event"}</span>
+        <strong>{event.name}</strong>
+        <small>{schedule.full}</small>
+        <small>{event.venueName ? `${event.venueName} · ` : ""}{event.address}</small>
+      </div>
+      {event.sourceUrl ? (
+        <a href={event.sourceUrl} target="_blank" rel="noreferrer">Event details ↗</a>
+      ) : event.source ? (
+        <em>Source: {event.source}</em>
+      ) : null}
+      {(event.closureNotice || event.accessNotes) && (
+        <div className="ps-event-access-warning">
+          <strong>{event.closureNotice ? "⚠️ Event-day access" : "Arrival note"}</strong>
+          <span>{event.closureNotice || event.accessNotes}</span>
+          {event.closureNotice && event.accessNotes && <small>{event.accessNotes}</small>}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -669,7 +709,31 @@ function RestaurantMapPin({ restaurant, selected, onSelect }) {
   );
 }
 
-function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc, restaurants = [], selectedRestaurant, onRestaurantSelect }) {
+function EventMapPin({ event, selected, onSelect }) {
+  const schedule = formatEventSchedule(event);
+  return (
+    <div className={`ps-map-event-pin${selected ? " is-selected" : ""}`}>
+      {selected && (
+        <div className="ps-map-event-popover" role="dialog" aria-label={`${event.name} event selected`}>
+          <strong>{event.name}</strong>
+          <span>{schedule.full}</span>
+          <small>{event.venueName || event.address}</small>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={clickEvent => { clickEvent.stopPropagation(); onSelect(event); }}
+        aria-label={`${event.name}, ${schedule.full}`}
+        aria-pressed={selected}
+        title={`${event.name} · ${schedule.full}`}
+      >
+        <span aria-hidden="true">🎟️</span>
+      </button>
+    </div>
+  );
+}
+
+function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc, restaurants = [], selectedRestaurant, onRestaurantSelect, events = [], selectedEvent, onEventSelect }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -684,16 +748,17 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   // without a location search, keep the useful overview of all listing pins.
   useEffect(() => {
     if (!mapRef.current || !window.google) return;
-    if (selectedRestaurant && userLoc) {
+    if ((selectedRestaurant || selectedEvent) && userLoc) {
       mapRef.current.panTo({ lat: userLoc.lat, lng: userLoc.lng });
       mapRef.current.setZoom(14);
       return;
     }
-    if (!userLoc && restaurants.length > 0) {
-      const restaurantBounds = new window.google.maps.LatLngBounds();
-      restaurants.forEach(restaurant => restaurantBounds.extend({ lat: restaurant.lat, lng: restaurant.lng }));
-      mapRef.current.fitBounds(restaurantBounds, 64);
-      if (restaurants.length === 1) mapRef.current.setZoom(14);
+    const discoveryDestinations = [...restaurants, ...events];
+    if (!userLoc && discoveryDestinations.length > 0) {
+      const discoveryBounds = new window.google.maps.LatLngBounds();
+      discoveryDestinations.forEach(destination => discoveryBounds.extend({ lat: destination.lat, lng: destination.lng }));
+      mapRef.current.fitBounds(discoveryBounds, 64);
+      if (discoveryDestinations.length === 1) mapRef.current.setZoom(14);
       return;
     }
     if (userLoc) {
@@ -711,7 +776,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
     const bounds = new window.google.maps.LatLngBounds();
     pts.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
     mapRef.current.fitBounds(bounds, 48);
-  }, [isLoaded, withCoords.map(l => l.id).join(","), restaurants.map(restaurant => restaurant.id).join(","), selectedRestaurant?.id, userLoc?.lat, userLoc?.lng]);
+  }, [isLoaded, withCoords.map(l => l.id).join(","), restaurants.map(restaurant => restaurant.id).join(","), events.map(event => event.id).join(","), selectedRestaurant?.id, selectedEvent?.id, userLoc?.lat, userLoc?.lng]);
 
   // On narrow mobile maps, center the chosen spot and leave vertical room
   // above its pin so the compact preview cannot be clipped by the toolbar.
@@ -775,7 +840,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
           clickableIcons: false,
         }}
       >
-        {userLoc && !selectedRestaurant && (
+        {userLoc && !selectedRestaurant && !selectedEvent && (
           <OverlayView position={{ lat: userLoc.lat, lng: userLoc.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
             <div title="You are here" style={{ width: 16, height: 16, borderRadius: "50%", background: C.hazard, border: "3px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)", transform: "translate(-50%,-50%)" }} />
           </OverlayView>
@@ -787,6 +852,16 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
               restaurant={restaurant}
               selected={selectedRestaurant?.id === restaurant.id}
               onSelect={onRestaurantSelect}
+            />
+          </OverlayView>
+        ))}
+
+        {events.map(event => (
+          <OverlayView key={`event-${event.id}`} position={{ lat: event.lat, lng: event.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+            <EventMapPin
+              event={event}
+              selected={selectedEvent?.id === event.id}
+              onSelect={onEventSelect}
             />
           </OverlayView>
         ))}
@@ -941,7 +1016,7 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, onClose, onSuccess, user }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
@@ -1018,6 +1093,7 @@ const subtotal = listing.price * hours;
           startHour,
           endHour,
           vehicleId: selectedVehicle.id,
+          eventId: selectedEvent?.id || undefined,
         }),
       });
 
@@ -1121,6 +1197,7 @@ const subtotal = listing.price * hours;
                 {timeLabel && <div style={{ marginTop: 2 }}>🕐 {timeLabel} ({hours} hr{hours > 1 ? "s" : ""})</div>}
               </div>
             )}
+            {selectedEvent && <EventDestinationSummary event={selectedEvent} booking />}
             {[
               [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
               ["Service fee (15%)", money(serviceFee)],
@@ -1473,13 +1550,17 @@ function MiniCalendar({ selected, onSelect }) {
     </div>
   );
 }
-const HOUR_OPTIONS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am–11pm
+const HOUR_OPTIONS = Array.from({ length: 96 }, (_, i) => i / 4); // every 15 minutes
+const END_HOUR_OPTIONS = Array.from({ length: 191 }, (_, i) => (i + 1) / 4); // supports an end on the following day
 const formatHour = (h) => {
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return h12 + ":00 " + period;
+  const normalized = ((Number(h) % 24) + 24) % 24;
+  const wholeHour = Math.floor(normalized);
+  const minutes = Math.round((normalized - wholeHour) * 60);
+  const period = wholeHour >= 12 ? "PM" : "AM";
+  const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
+  return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1500,6 +1581,16 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
   const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [showCalendar, setShowCalendar] = useState(false);
+
+  useEffect(() => {
+    const suggestion = getEventParkingSuggestion(selectedEvent);
+    if (!suggestion) return;
+    const [year, month, day] = suggestion.date.split("-").map(Number);
+    setBookingMode("advance");
+    setDate(new Date(year, month - 1, day));
+    setStartHour(suggestion.startHour);
+    setEndHour(suggestion.endHour);
+  }, [selectedEvent?.id]);
 
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
@@ -1606,6 +1697,14 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
         <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px" }}>{listing.description}</p>
       )}
 
+      {selectedEvent && <EventDestinationSummary event={selectedEvent} />}
+      {selectedEvent && listing.eventAccessStatus === "warning" && (
+        <div className="ps-listing-event-access-warning" role="note">
+          <strong>⚠️ Confirm driveway access for this event</strong>
+          <span>{listing.eventAccessNote || "Event-day traffic or road restrictions may affect the final approach to this parking space."}</span>
+        </div>
+      )}
+
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
@@ -1642,6 +1741,13 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, color: C.navy, marginBottom: 12 }}>Book this spot</div>
+
+          {selectedEvent && (
+            <div className="ps-event-booking-guidance">
+              <strong>Suggested for your event</strong>
+              <span>Arrival is set {EVENT_ARRIVAL_BUFFER_MINUTES} minutes before the event{selectedEvent.endsAt ? ` and departure ${EVENT_DEPARTURE_BUFFER_MINUTES} minutes after it ends.` : ". The event has no confirmed end time, so please choose your departure time."}</span>
+            </div>
+          )}
 
           {/* Mode toggle — two genuinely different flows, not one flow with
               a confusing default. Switching modes clears the stale
@@ -1712,7 +1818,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
                   </select>
                   <span style={{ color: C.muted, fontSize: 13 }}>to</span>
                   <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
-                    {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+                    {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                 </div>
                 <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
@@ -1803,6 +1909,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
           date={bookingMode === "advance" ? date : undefined}
           startHour={bookingMode === "advance" ? startHour : undefined}
           endHour={bookingMode === "advance" ? endHour : undefined}
+          selectedEvent={selectedEvent}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
@@ -1896,6 +2003,15 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [restaurantsLoading, setRestaurantsLoading] = useState(false);
   const [restaurantSearchError, setRestaurantSearchError] = useState("");
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [eventFinderOpen, setEventFinderOpen] = useState(false);
+  const [eventQuery, setEventQuery] = useState("");
+  const [eventCategory, setEventCategory] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventSearchError, setEventSearchError] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [eventListingAccess, setEventListingAccess] = useState({});
   const debounceRef = useRef(null);
   const searchInputRef = useRef(null);
   const autocompleteTokenRef = useRef(null);
@@ -1920,6 +2036,9 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     setSelectedRestaurant(null);
     setRestaurants([]);
     setRestaurantSearchError("");
+    setSelectedEvent(null);
+    setEvents([]);
+    setEventSearchError("");
     setLocatedSearch(false);
     setSuggestions([]);
     setSugError(false);
@@ -1995,6 +2114,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const getLocation = () => {
     setSelectedRestaurant(null);
     setRestaurants([]);
+    setSelectedEvent(null);
+    setEvents([]);
     if (userLoc) { setUserLoc(null); setLocatedSearch(false); return; }
     if (!navigator.geolocation) { setLocationError("Location isn't available on this device."); return; }
     setLocating(true);
@@ -2031,6 +2152,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       const nextRestaurants = (places || []).map(normalizeRestaurantPlace).filter(Boolean);
       setRestaurants(nextRestaurants);
       setSelectedRestaurant(null);
+      setEvents([]);
+      setSelectedEvent(null);
       setUserLoc(null);
       setLocatedSearch(false);
       setMapHovered(null);
@@ -2045,12 +2168,65 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
 
   const chooseRestaurant = (restaurant) => {
     setSelectedRestaurant(restaurant);
+    setSelectedEvent(null);
+    setEvents([]);
     setMapHovered(null);
     if (!restaurant) return;
     setQuery(restaurant.name);
     setUserLoc({ lat: restaurant.lat, lng: restaurant.lng });
     setLocatedSearch(true);
     setSort("distance");
+    setRestaurantFinderOpen(false);
+    setEventFinderOpen(false);
+  };
+
+  const findEvents = async (submitEvent) => {
+    submitEvent?.preventDefault();
+    setEventsLoading(true);
+    setEventSearchError("");
+    try {
+      const earliest = new Date(Date.now() - 6 * 3600000).toISOString();
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("status", "published")
+        .gte("starts_at", earliest)
+        .order("starts_at", { ascending: true })
+        .limit(100);
+      if (error) throw error;
+      const nextEvents = filterEvents(data || [], { query: eventQuery, category: eventCategory, date: eventDate });
+      setEvents(nextEvents);
+      setSelectedEvent(null);
+      setRestaurants([]);
+      setSelectedRestaurant(null);
+      setUserLoc(null);
+      setLocatedSearch(false);
+      setMapHovered(null);
+      if (nextEvents.length === 0) setEventSearchError("No matching events were found. Try another date, category, or area.");
+    } catch (error) {
+      setEvents([]);
+      const missingTable = String(error?.message || "").toLowerCase().includes("events");
+      setEventSearchError(missingTable
+        ? "Event search needs the ParkShare events database update before it can load events."
+        : "Events could not be loaded. Please try again.");
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const chooseEvent = (event) => {
+    const normalized = normalizeEventRow(event);
+    if (!normalized) return;
+    setSelectedEvent(normalized);
+    setEventListingAccess({});
+    setSelectedRestaurant(null);
+    setRestaurants([]);
+    setMapHovered(null);
+    setQuery(normalized.name);
+    setUserLoc({ lat: normalized.lat, lng: normalized.lng });
+    setLocatedSearch(true);
+    setSort("distance");
+    setEventFinderOpen(false);
     setRestaurantFinderOpen(false);
   };
 
@@ -2074,6 +2250,26 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedEvent?.id) {
+      setEventListingAccess({});
+      return () => { cancelled = true; };
+    }
+    supabase
+      .from("event_listing_access")
+      .select("listing_id, access_status, notes")
+      .eq("event_id", selectedEvent.id)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setEventListingAccess(Object.fromEntries((data || []).map(row => [String(row.listing_id), {
+          status: row.access_status,
+          notes: row.notes || "",
+        }])));
+      });
+    return () => { cancelled = true; };
+  }, [selectedEvent?.id]);
 
   // Calculate every visible driveway-to-destination walk in one route-matrix
   // request. If Routes is not enabled for the existing Maps key, the listing
@@ -2103,7 +2299,12 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
 
   const filtered = allListings
-    .filter(l => restaurants.length > 0 || locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
+    .filter(l => restaurants.length > 0 || events.length > 0 || locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
+    .filter(l => {
+      if (!selectedEvent) return true;
+      const rawListingId = String(l.id).replace(/^db-/, "");
+      return eventListingAccess[rawListingId]?.status !== "blocked";
+    })
     .map(l => {
       const distMiles = userLoc && typeof l.lat === "number" && typeof l.lng === "number"
         ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng)
@@ -2111,6 +2312,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       return {
         ...l,
         distMiles,
+        eventAccessStatus: eventListingAccess[String(l.id).replace(/^db-/, "")]?.status || "available",
+        eventAccessNote: eventListingAccess[String(l.id).replace(/^db-/, "")]?.notes || "",
         walkLabel: buildWalkingLabel({
           destinationSelected: locatedSearch,
           loading: walkingRoutesLoading,
@@ -2125,7 +2328,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
     : "Select a destination for walking time");
 
-  const parkingWalkMinutes = selectedRestaurant
+  const selectedDiscoveryDestination = selectedEvent || selectedRestaurant;
+  const parkingWalkMinutes = selectedDiscoveryDestination
     ? filtered.map(listing => {
       const routeMinutes = walkingRoutes[String(listing.id)]?.minutes;
       return Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
@@ -2133,7 +2337,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     : [];
   const nearestParkingWalkMinutes = parkingWalkMinutes.length ? Math.min(...parkingWalkMinutes) : null;
   const showLongWalkNotice = Boolean(
-    selectedRestaurant
+    selectedDiscoveryDestination
     && !walkingRoutesLoading
     && Number.isFinite(nearestParkingWalkMinutes)
     && nearestParkingWalkMinutes > 15,
@@ -2145,7 +2349,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
+  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -2205,9 +2409,23 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
               type="button"
               className={`ps-restaurant-finder-toggle${restaurantFinderOpen ? " is-active" : ""}`}
               aria-expanded={restaurantFinderOpen}
-              onClick={() => setRestaurantFinderOpen(open => !open)}
+              onClick={() => {
+                setRestaurantFinderOpen(open => !open);
+                setEventFinderOpen(false);
+              }}
             >
               <span aria-hidden="true">🍽️</span> Restaurants
+            </button>
+            <button
+              type="button"
+              className={`ps-event-finder-toggle${eventFinderOpen ? " is-active" : ""}`}
+              aria-expanded={eventFinderOpen}
+              onClick={() => {
+                setEventFinderOpen(open => !open);
+                setRestaurantFinderOpen(false);
+              }}
+            >
+              <span aria-hidden="true">🎟️</span> Events
             </button>
           </div>
           <div style={{ display: "flex", flexShrink: 0 }}>
@@ -2258,6 +2476,57 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
             )}
           </div>
         )}
+        {eventFinderOpen && (
+          <div className="ps-event-finder">
+            <div className="ps-event-finder-heading">
+              <div>
+                <strong>Find an event, then park nearby</strong>
+                <span>Search by event or area and narrow the results by date and category.</span>
+              </div>
+              <button type="button" aria-label="Close event finder" onClick={() => setEventFinderOpen(false)}>×</button>
+            </div>
+            <form className="ps-event-search-form" onSubmit={findEvents}>
+              <input
+                value={eventQuery}
+                onChange={changeEvent => setEventQuery(changeEvent.target.value)}
+                placeholder="Event name, venue, or area"
+                aria-label="Event name, venue, or area"
+              />
+              <select value={eventCategory} onChange={changeEvent => setEventCategory(changeEvent.target.value)} aria-label="Event category">
+                {EVENT_CATEGORIES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
+              </select>
+              <input type="date" value={eventDate} onChange={changeEvent => setEventDate(changeEvent.target.value)} aria-label="Event date" />
+              <button type="submit" disabled={eventsLoading}>{eventsLoading ? "Searching…" : "Search"}</button>
+            </form>
+            {eventSearchError && <div className="ps-event-search-error" role="alert">⚠️ {eventSearchError}</div>}
+            {events.length > 0 && (
+              <div className="ps-event-results" aria-label="Event results">
+                {events.map(event => {
+                  const schedule = formatEventSchedule(event);
+                  return (
+                    <button
+                      type="button"
+                      key={event.id}
+                      className={selectedEvent?.id === event.id ? "is-selected" : ""}
+                      onClick={() => chooseEvent(event)}
+                    >
+                      <span className="ps-event-result-icon" aria-hidden="true">
+                        {event.imageUrl ? <img src={event.imageUrl} alt="" loading="lazy" decoding="async" /> : "🎟️"}
+                      </span>
+                      <span>
+                        <strong>{event.name}</strong>
+                        <small>{schedule.full}</small>
+                        <small>{event.venueName || event.address}</small>
+                        <small>Source: {event.source}</small>
+                      </span>
+                      <em>Find parking</em>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         {selectedRestaurant && !restaurantFinderOpen && (
           <div className="ps-selected-restaurant-card">
             <span className="ps-selected-restaurant-icon" aria-hidden="true">🍴</span>
@@ -2269,6 +2538,32 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
             <button type="button" onClick={() => setRestaurantFinderOpen(true)}>Change restaurant</button>
             {showLongWalkNotice && (
               <div className="ps-selected-restaurant-distance-note">
+                No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.
+              </div>
+            )}
+          </div>
+        )}
+        {selectedEvent && !eventFinderOpen && (
+          <div className="ps-selected-event-card">
+            <span className="ps-selected-event-icon" aria-hidden="true">
+              {selectedEvent.imageUrl ? <img src={selectedEvent.imageUrl} alt="" loading="lazy" decoding="async" /> : "🎟️"}
+            </span>
+            <div className="ps-selected-event-copy">
+              <span>Selected event</span>
+              <strong>{selectedEvent.name}</strong>
+              <small>{formatEventSchedule(selectedEvent).full}</small>
+              <small>{selectedEvent.venueName || selectedEvent.address}</small>
+              <small>Source: {selectedEvent.source}</small>
+            </div>
+            <button type="button" onClick={() => setEventFinderOpen(true)}>Change event</button>
+            {(selectedEvent.closureNotice || selectedEvent.accessNotes) && (
+              <div className="ps-selected-event-access">
+                <strong>⚠️ Review event-day access</strong>
+                <span>{selectedEvent.closureNotice || selectedEvent.accessNotes}</span>
+              </div>
+            )}
+            {showLongWalkNotice && (
+              <div className="ps-selected-event-distance-note">
                 No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.
               </div>
             )}
@@ -2302,7 +2597,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {/* Listing column */}
         {view !== "map" && (
           <div className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
-            <div className="ps-browse-listing-heading">{selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
+            <div className="ps-browse-listing-heading">{selectedEvent ? `Parking near ${selectedEvent.name}` : selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
             {filtered.map(l => (
               <div
                 key={l.id}
@@ -2321,6 +2616,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                         ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
                         : <span>{distanceLabel(l)}</span>}
                     </div>
+                    {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
                 </div>
@@ -2347,6 +2643,9 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                 restaurants={selectedRestaurant ? [selectedRestaurant] : restaurants}
                 selectedRestaurant={selectedRestaurant}
                 onRestaurantSelect={chooseRestaurant}
+                events={selectedEvent ? [selectedEvent] : events}
+                selectedEvent={selectedEvent}
+                onEventSelect={chooseEvent}
               />
             </div>
           </div>
@@ -2812,6 +3111,7 @@ function HostDashboard({ user, setTab }) {
                     vehicleColour: row.vehicle_colour || "",
                     licensePlate: row.license_plate || "",
                   },
+                  event: bookingEventFromRow(row),
                   date: display.date,
                   startTime: display.startTime,
                   endTime: display.endTime,
@@ -2980,6 +3280,7 @@ function HostDashboard({ user, setTab }) {
                 <div className="host-dashboard-booking-vehicle">
                   <BookingVehicleVisual vehicle={b.vehicle} />
                 </div>
+                {b.event && <EventDestinationSummary event={b.event} booking />}
                 <BookingSchedule
                   date={b.date}
                   startTime={b.startTime}
@@ -4046,6 +4347,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               vehicleColour: row.vehicle_colour || "",
               licensePlate: row.license_plate || "",
             },
+            event: bookingEventFromRow(row),
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
@@ -4149,6 +4451,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
+              {b.event && <EventDestinationSummary event={b.event} booking />}
               <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} />
               <BookingVehicleVisual vehicle={b.vehicle} />
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
