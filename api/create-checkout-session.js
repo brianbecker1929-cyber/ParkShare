@@ -22,9 +22,15 @@ export default async function handler(req, res) {
     const startHour = Number.isFinite(Number(req.body?.startHour)) ? Number(req.body.startHour) : null;
     const endHour = Number.isFinite(Number(req.body?.endHour)) ? Number(req.body.endHour) : null;
     const vehicleId = String(req.body?.vehicleId || "").slice(0, 64);
+    const eventId = req.body?.eventId === undefined || req.body?.eventId === null || req.body?.eventId === ""
+      ? null
+      : Number(req.body.eventId);
 
     if (!Number.isInteger(listingId) || !isValidBookingDuration(hours, { scheduled: Boolean(bookingDate) })) {
       return res.status(400).json({ error: "Invalid listing or booking duration." });
+    }
+    if (eventId !== null && !Number.isInteger(eventId)) {
+      return res.status(400).json({ error: "Invalid event selection." });
     }
 
     const userMetadata = user.user_metadata || {};
@@ -49,6 +55,18 @@ export default async function handler(req, res) {
     if (listing.host_id === user.id) return res.status(400).json({ error: "Hosts can't book their own listing." });
     if (!isRentableSpot(listing, spotLabel)) {
       return res.status(400).json({ error: "Please select a valid parking spot before checkout." });
+    }
+
+    let bookingEvent = null;
+    if (eventId !== null) {
+      const { data: eventRow, error: eventError } = await supabaseAdmin
+        .from("events")
+        .select("id, source, name, category, venue_name, address, lat, lng, starts_at, ends_at, timezone, status, source_url, access_notes, closure_notice")
+        .eq("id", eventId)
+        .eq("status", "published")
+        .single();
+      if (eventError || !eventRow) return res.status(404).json({ error: "This event is no longer available for parking search." });
+      bookingEvent = eventRow;
     }
 
     // Build the exact requested window. The atomic hold is acquired below,
@@ -119,6 +137,22 @@ export default async function handler(req, res) {
       vehicle_model: bookingVehicle.vehicleModel,
       vehicle_colour: bookingVehicle.vehicleColour,
       license_plate: bookingVehicle.licensePlate,
+      ...(bookingEvent ? {
+        event_id: String(bookingEvent.id),
+        event_name: String(bookingEvent.name || "").slice(0, 300),
+        event_category: String(bookingEvent.category || "community").slice(0, 40),
+        event_venue_name: String(bookingEvent.venue_name || "").slice(0, 300),
+        event_address: String(bookingEvent.address || "").slice(0, 400),
+        event_lat: String(bookingEvent.lat),
+        event_lng: String(bookingEvent.lng),
+        event_starts_at: String(bookingEvent.starts_at || ""),
+        event_ends_at: String(bookingEvent.ends_at || ""),
+        event_timezone: String(bookingEvent.timezone || "America/Toronto").slice(0, 100),
+        event_source: String(bookingEvent.source || "ParkShare").slice(0, 100),
+        event_source_url: String(bookingEvent.source_url || "").slice(0, 500),
+        event_access_notes: String(bookingEvent.access_notes || "").slice(0, 500),
+        event_closure_notice: String(bookingEvent.closure_notice || "").slice(0, 500),
+      } : {}),
     };
 
     let session;
@@ -135,7 +169,7 @@ export default async function handler(req, res) {
               unit_amount: subtotalCents,
               product_data: {
                 name: listing.title || "ParkShare parking booking",
-                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}`,
+                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}${bookingEvent ? ` · ${bookingEvent.name}` : ""}`.slice(0, 500),
               },
             },
             quantity: 1,

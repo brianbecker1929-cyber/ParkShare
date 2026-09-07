@@ -89,6 +89,22 @@ async function confirmBooking(session, connectedAccountId) {
     vehicle_model: metadata.vehicle_model || null,
     vehicle_colour: metadata.vehicle_colour || null,
     license_plate: metadata.license_plate || null,
+    ...(metadata.event_id ? {
+      event_id: Number(metadata.event_id),
+      event_name: metadata.event_name || null,
+      event_category: metadata.event_category || null,
+      event_venue_name: metadata.event_venue_name || null,
+      event_address: metadata.event_address || null,
+      event_lat: metadata.event_lat === "" ? null : Number(metadata.event_lat),
+      event_lng: metadata.event_lng === "" ? null : Number(metadata.event_lng),
+      event_starts_at: metadata.event_starts_at || null,
+      event_ends_at: metadata.event_ends_at || null,
+      event_timezone: metadata.event_timezone || "America/Toronto",
+      event_source: metadata.event_source || null,
+      event_source_url: metadata.event_source_url || null,
+      event_access_notes: metadata.event_access_notes || null,
+      event_closure_notice: metadata.event_closure_notice || null,
+    } : {}),
     paid_at: new Date().toISOString(),
   };
 
