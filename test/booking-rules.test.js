@@ -22,7 +22,9 @@ test("booking durations enforce a one-hour minimum and valid increments", () => 
   assert.equal(isValidBookingDuration(745), false);
 
   assert.equal(isValidBookingDuration(1, { scheduled: true }), true);
-  assert.equal(isValidBookingDuration(1.25, { scheduled: true }), false);
+  assert.equal(isValidBookingDuration(1.25, { scheduled: true }), true);
+  assert.equal(isValidBookingDuration(3.75, { scheduled: true }), true);
+  assert.equal(isValidBookingDuration(3.7, { scheduled: true }), false);
   assert.equal(isValidBookingDuration(2, { scheduled: true }), true);
 });
 

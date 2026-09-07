@@ -32,28 +32,49 @@ test("mobile browse defaults to map and listings together", () => {
   assert.match(browseView, /const \[view, setView\] = useState\("split"\)/);
 });
 
-test("browse connects Google Places restaurant discovery to nearby parking", () => {
+test("Discover connects Google Places restaurants to a clean parking handoff", () => {
+  const discoverView = functionSource("DiscoverView", "BrowseView");
   const browseView = functionSource("BrowseView", "EditListingModal");
   const listingsMap = functionSource("ListingsMap", "MessagingPanel");
 
-  assert.match(browseView, /Place\.searchByText/);
-  assert.match(browseView, /includedType:\s*restaurantCuisine \|\| "restaurant"/);
-  assert.match(browseView, /useStrictTypeFiltering:\s*Boolean\(restaurantCuisine\)/);
-  assert.match(browseView, /RESTAURANT_CUISINES\.map/);
-  assert.match(browseView, /Find a restaurant, then park nearby/);
-  assert.match(browseView, /setUserLoc\(\{ lat: restaurant\.lat, lng: restaurant\.lng \}\)/);
-  assert.match(browseView, /setSort\("distance"\)/);
-  assert.match(browseView, /setRestaurantFinderOpen\(false\)/);
-  assert.match(browseView, /ps-selected-restaurant-card/);
-  assert.match(browseView, /Change restaurant/);
+  assert.match(discoverView, /Place\.searchByText/);
+  assert.match(discoverView, /includedType:\s*restaurantCuisine \|\| "restaurant"/);
+  assert.match(discoverView, /useStrictTypeFiltering:\s*Boolean\(restaurantCuisine\)/);
+  assert.match(discoverView, /RESTAURANT_CUISINES\.map/);
+  assert.match(discoverView, /Find a restaurant/);
+  assert.match(discoverView, /type: "restaurant"/);
+  assert.match(discoverView, /Find parking nearby/);
+  assert.match(browseView, /useState\(initialRestaurant\)/);
+  assert.match(browseView, /ps-browse-destination-context/);
+  assert.match(browseView, /Choose another/);
   assert.match(browseView, /No ParkShare spaces within a 15-minute walk yet/);
-  assert.match(browseView, /restaurants=\{selectedRestaurant \? \[selectedRestaurant\] : restaurants\}/);
-  assert.match(listingsMap, /<RestaurantMapPin/);
-  assert.doesNotMatch(listingsMap, /onRestaurantSelect\?\.\(null\)/);
-  assert.match(styles, /\.ps-map-restaurant-pin[\s\S]*?background:\s*#0E1B2E/);
-  assert.match(styles, /\.ps-map-restaurant-pin\s*{[\s\S]*?width:\s*26px;[\s\S]*?height:\s*26px;/);
-  assert.match(styles, /\.ps-selected-restaurant-card\s*{[\s\S]*?background:\s*#0E1B2E/);
-  assert.match(styles, /\.ps-restaurant-search-form[\s\S]*?grid-template-columns/);
+  assert.doesNotMatch(listingsMap, /RestaurantMapPin|restaurant/);
+  assert.match(styles, /\.ps-discover-view[\s\S]*?font-family:\s*'Poppins'/);
+  assert.match(styles, /\.ps-discover-choice[\s\S]*?background:\s*#fff/);
+  assert.match(styles, /\.ps-browse-destination-context[\s\S]*?background:\s*#0E1B2E/);
+});
+
+test("Discover connects events to Browse without adding event markers to the map", () => {
+  const discoverView = functionSource("DiscoverView", "BrowseView");
+  const browseView = functionSource("BrowseView", "EditListingModal");
+  const listingsMap = functionSource("ListingsMap", "MessagingPanel");
+  const listingDetail = functionSource("ListingDetail", "useAllListings");
+
+  assert.match(discoverView, /from\("events"\)/);
+  assert.match(discoverView, /EVENT_CATEGORIES\.map/);
+  assert.match(discoverView, /Find an event or festival/);
+  assert.match(discoverView, /type: "event"/);
+  assert.match(discoverView, /Find parking nearby/);
+  assert.match(browseView, /initialEvent \? normalizeEventRow\(initialEvent\) : null/);
+  assert.match(browseView, /Parking near \$\{selectedEvent\.name\}/);
+  assert.match(browseView, /from\("event_listing_access"\)/);
+  assert.match(browseView, /status !== "blocked"/);
+  assert.match(browseView, /Review event-day access/);
+  assert.doesNotMatch(listingsMap, /EventMapPin|event/);
+  assert.match(listingDetail, /getEventParkingSuggestion\(selectedEvent\)/);
+  assert.match(listingDetail, /Suggested for your event/);
+  assert.match(listingDetail, /selectedEvent=\{selectedEvent\}/);
+  assert.match(styles, /\.ps-discover-search-form\.is-events[\s\S]*?grid-template-columns/);
 });
 
 test("mobile browse stacks the map before full-width listings", () => {
@@ -183,4 +204,17 @@ test("Host and Driver booking details show the property and assigned parking spa
   assert.match(bookedSpotDiagram, /"RESERVED"/);
   assert.match(styles, /\.ps-booking-parking-details\s*{[\s\S]*?grid-template-columns:\s*repeat\(2/);
   assert.match(styles, /\.ps-booked-spot\.is-selected\s*{[\s\S]*?border:\s*4px solid #FFC107/);
+});
+
+test("Host and Driver reservations show their linked event", () => {
+  const hostDashboard = functionSource("HostDashboard", "MessagesView");
+  const bookings = functionSource("MyBookingsView", "ReviewModal");
+  const eventSummary = functionSource("EventDestinationSummary", "buildAppUser");
+
+  assert.match(hostDashboard, /event: bookingEventFromRow\(row\)/);
+  assert.match(hostDashboard, /b\.event && <EventDestinationSummary event=\{b\.event\} booking/);
+  assert.match(bookings, /event: bookingEventFromRow\(row\)/);
+  assert.match(bookings, /b\.event && <EventDestinationSummary event=\{b\.event\} booking/);
+  assert.match(eventSummary, /Parking for/);
+  assert.match(eventSummary, /Event-day access/);
 });

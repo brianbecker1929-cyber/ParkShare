@@ -12,6 +12,16 @@ import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime"
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, normalizeRestaurantPlace } from "./lib/restaurants";
+import {
+  EVENT_ARRIVAL_BUFFER_MINUTES,
+  EVENT_CATEGORIES,
+  EVENT_DEPARTURE_BUFFER_MINUTES,
+  bookingEventFromRow,
+  filterEvents,
+  formatEventSchedule,
+  getEventParkingSuggestion,
+  normalizeEventRow,
+} from "./lib/events";
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
@@ -99,6 +109,36 @@ function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isAct
         </div>
       )}
     </div>
+  );
+}
+
+function EventDestinationSummary({ event, booking = false }) {
+  if (!event) return null;
+  const schedule = formatEventSchedule(event);
+  return (
+    <section className={`ps-event-destination-summary${booking ? " is-booking" : ""}`} aria-label={`Event: ${event.name}`}>
+      <div className="ps-event-destination-icon" aria-hidden="true">
+        {event.imageUrl ? <img src={event.imageUrl} alt="" loading="lazy" decoding="async" /> : "🎟️"}
+      </div>
+      <div className="ps-event-destination-copy">
+        <span>{booking ? "Parking for" : "Selected event"}</span>
+        <strong>{event.name}</strong>
+        <small>{schedule.full}</small>
+        <small>{event.venueName ? `${event.venueName} · ` : ""}{event.address}</small>
+      </div>
+      {event.sourceUrl ? (
+        <a href={event.sourceUrl} target="_blank" rel="noreferrer">Event details ↗</a>
+      ) : event.source ? (
+        <em>Source: {event.source}</em>
+      ) : null}
+      {(event.closureNotice || event.accessNotes) && (
+        <div className="ps-event-access-warning">
+          <strong>{event.closureNotice ? "⚠️ Event-day access" : "Arrival note"}</strong>
+          <span>{event.closureNotice || event.accessNotes}</span>
+          {event.closureNotice && event.accessNotes && <small>{event.accessNotes}</small>}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -646,30 +686,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing, onPreviewRo
   );
 }
 
-function RestaurantMapPin({ restaurant, selected, onSelect }) {
-  return (
-    <div className={`ps-map-restaurant-pin${selected ? " is-selected" : ""}`}>
-      {selected && (
-        <div className="ps-map-restaurant-popover" role="dialog" aria-label={`${restaurant.name} restaurant selected`}>
-          <strong>{restaurant.name}</strong>
-          <span>{restaurant.address}</span>
-          <small>ParkShare spaces are sorted nearest to this restaurant.</small>
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={event => { event.stopPropagation(); onSelect(restaurant); }}
-        aria-label={`${restaurant.name}, ${restaurant.cuisine}`}
-        aria-pressed={selected}
-        title={`${restaurant.name} · ${restaurant.cuisine}`}
-      >
-        <span aria-hidden="true">🍴</span>
-      </button>
-    </div>
-  );
-}
-
-function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc, restaurants = [], selectedRestaurant, onRestaurantSelect }) {
+function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -684,18 +701,6 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   // without a location search, keep the useful overview of all listing pins.
   useEffect(() => {
     if (!mapRef.current || !window.google) return;
-    if (selectedRestaurant && userLoc) {
-      mapRef.current.panTo({ lat: userLoc.lat, lng: userLoc.lng });
-      mapRef.current.setZoom(14);
-      return;
-    }
-    if (!userLoc && restaurants.length > 0) {
-      const restaurantBounds = new window.google.maps.LatLngBounds();
-      restaurants.forEach(restaurant => restaurantBounds.extend({ lat: restaurant.lat, lng: restaurant.lng }));
-      mapRef.current.fitBounds(restaurantBounds, 64);
-      if (restaurants.length === 1) mapRef.current.setZoom(14);
-      return;
-    }
     if (userLoc) {
       mapRef.current.panTo({ lat: userLoc.lat, lng: userLoc.lng });
       mapRef.current.setZoom(14);
@@ -711,7 +716,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
     const bounds = new window.google.maps.LatLngBounds();
     pts.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
     mapRef.current.fitBounds(bounds, 48);
-  }, [isLoaded, withCoords.map(l => l.id).join(","), restaurants.map(restaurant => restaurant.id).join(","), selectedRestaurant?.id, userLoc?.lat, userLoc?.lng]);
+  }, [isLoaded, withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
 
   // On narrow mobile maps, center the chosen spot and leave vertical room
   // above its pin so the compact preview cannot be clipped by the toolbar.
@@ -775,21 +780,11 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
           clickableIcons: false,
         }}
       >
-        {userLoc && !selectedRestaurant && (
+        {userLoc && (
           <OverlayView position={{ lat: userLoc.lat, lng: userLoc.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
             <div title="You are here" style={{ width: 16, height: 16, borderRadius: "50%", background: C.hazard, border: "3px solid #fff", boxShadow: "0 2px 8px rgba(0,0,0,0.3)", transform: "translate(-50%,-50%)" }} />
           </OverlayView>
         )}
-
-        {restaurants.map(restaurant => (
-          <OverlayView key={`restaurant-${restaurant.id}`} position={{ lat: restaurant.lat, lng: restaurant.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
-            <RestaurantMapPin
-              restaurant={restaurant}
-              selected={selectedRestaurant?.id === restaurant.id}
-              onSelect={onRestaurantSelect}
-            />
-          </OverlayView>
-        ))}
 
         {withCoords.map(l => {
           const on = selected?.id === l.id;
@@ -941,7 +936,7 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, onClose, onSuccess, user }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
@@ -1018,6 +1013,7 @@ const subtotal = listing.price * hours;
           startHour,
           endHour,
           vehicleId: selectedVehicle.id,
+          eventId: selectedEvent?.id || undefined,
         }),
       });
 
@@ -1121,6 +1117,7 @@ const subtotal = listing.price * hours;
                 {timeLabel && <div style={{ marginTop: 2 }}>🕐 {timeLabel} ({hours} hr{hours > 1 ? "s" : ""})</div>}
               </div>
             )}
+            {selectedEvent && <EventDestinationSummary event={selectedEvent} booking />}
             {[
               [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
               ["Service fee (15%)", money(serviceFee)],
@@ -1473,13 +1470,17 @@ function MiniCalendar({ selected, onSelect }) {
     </div>
   );
 }
-const HOUR_OPTIONS = Array.from({ length: 18 }, (_, i) => i + 6); // 6am–11pm
+const HOUR_OPTIONS = Array.from({ length: 96 }, (_, i) => i / 4); // every 15 minutes
+const END_HOUR_OPTIONS = Array.from({ length: 191 }, (_, i) => (i + 1) / 4); // supports an end on the following day
 const formatHour = (h) => {
-  const period = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return h12 + ":00 " + period;
+  const normalized = ((Number(h) % 24) + 24) % 24;
+  const wholeHour = Math.floor(normalized);
+  const minutes = Math.round((normalized - wholeHour) * 60);
+  const period = wholeHour >= 12 ? "PM" : "AM";
+  const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
+  return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1500,6 +1501,16 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
   const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [showCalendar, setShowCalendar] = useState(false);
+
+  useEffect(() => {
+    const suggestion = getEventParkingSuggestion(selectedEvent);
+    if (!suggestion) return;
+    const [year, month, day] = suggestion.date.split("-").map(Number);
+    setBookingMode("advance");
+    setDate(new Date(year, month - 1, day));
+    setStartHour(suggestion.startHour);
+    setEndHour(suggestion.endHour);
+  }, [selectedEvent?.id]);
 
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
@@ -1606,6 +1617,14 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
         <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px" }}>{listing.description}</p>
       )}
 
+      {selectedEvent && <EventDestinationSummary event={selectedEvent} />}
+      {selectedEvent && listing.eventAccessStatus === "warning" && (
+        <div className="ps-listing-event-access-warning" role="note">
+          <strong>⚠️ Confirm driveway access for this event</strong>
+          <span>{listing.eventAccessNote || "Event-day traffic or road restrictions may affect the final approach to this parking space."}</span>
+        </div>
+      )}
+
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
@@ -1642,6 +1661,13 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
           <div style={{ fontWeight: 700, color: C.navy, marginBottom: 12 }}>Book this spot</div>
+
+          {selectedEvent && (
+            <div className="ps-event-booking-guidance">
+              <strong>Suggested for your event</strong>
+              <span>Arrival is set {EVENT_ARRIVAL_BUFFER_MINUTES} minutes before the event{selectedEvent.endsAt ? ` and departure ${EVENT_DEPARTURE_BUFFER_MINUTES} minutes after it ends.` : ". The event has no confirmed end time, so please choose your departure time."}</span>
+            </div>
+          )}
 
           {/* Mode toggle — two genuinely different flows, not one flow with
               a confusing default. Switching modes clears the stale
@@ -1712,7 +1738,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
                   </select>
                   <span style={{ color: C.muted, fontSize: 13 }}>to</span>
                   <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
-                    {HOUR_OPTIONS.filter(h => h > startHour).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+                    {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                 </div>
                 <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
@@ -1803,6 +1829,7 @@ function ListingDetail({ listing, onBack, onMessage, onPreviewRoute, onNavigateT
           date={bookingMode === "advance" ? date : undefined}
           startHour={bookingMode === "advance" ? startHour : undefined}
           endHour={bookingMode === "advance" ? endHour : undefined}
+          selectedEvent={selectedEvent}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
@@ -1865,8 +1892,206 @@ function useAllListings() {
   return { listings: dbListings, loading, error, refresh };
 }
 
+// ─── Discover View ────────────────────────────────────────────────────────────
+// Restaurants and events deliberately live outside Browse. Discover helps a
+// Driver choose where they are going; Browse then does one job well: parking.
+function DiscoverView({ onFindParking, onBrowseParking }) {
+  const { isLoaded: placesLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+  const [mode, setMode] = useState(null);
+  const [restaurantQuery, setRestaurantQuery] = useState("");
+  const [restaurantCuisine, setRestaurantCuisine] = useState("");
+  const [restaurants, setRestaurants] = useState([]);
+  const [restaurantsLoading, setRestaurantsLoading] = useState(false);
+  const [restaurantSearchError, setRestaurantSearchError] = useState("");
+  const [eventQuery, setEventQuery] = useState("");
+  const [eventCategory, setEventCategory] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventSearchError, setEventSearchError] = useState("");
+
+  const findRestaurants = async (submitEvent) => {
+    submitEvent?.preventDefault();
+    setRestaurantsLoading(true);
+    setRestaurantSearchError("");
+    try {
+      if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Google Places is still loading. Please try again.");
+      const { Place } = await google.maps.importLibrary("places");
+      const { places } = await Place.searchByText({
+        textQuery: buildRestaurantSearchText(restaurantQuery, restaurantCuisine),
+        fields: ["id", "displayName", "formattedAddress", "location", "primaryType", "primaryTypeDisplayName"],
+        includedType: restaurantCuisine || "restaurant",
+        useStrictTypeFiltering: Boolean(restaurantCuisine),
+        locationBias: { lat: 43.8561, lng: -79.5085 },
+        language: "en-CA",
+        region: "ca",
+        maxResultCount: 12,
+      });
+      const nextRestaurants = (places || []).map(normalizeRestaurantPlace).filter(Boolean);
+      setRestaurants(nextRestaurants);
+      if (nextRestaurants.length === 0) setRestaurantSearchError("No matching restaurants were found. Try another name, area, or cuisine.");
+    } catch (error) {
+      setRestaurants([]);
+      setRestaurantSearchError(error?.message || "Restaurants could not be loaded. Please try again.");
+    } finally {
+      setRestaurantsLoading(false);
+    }
+  };
+
+  const findEvents = async (submitEvent) => {
+    submitEvent?.preventDefault();
+    setEventsLoading(true);
+    setEventSearchError("");
+    try {
+      const earliest = new Date(Date.now() - 6 * 3600000).toISOString();
+      const { data, error } = await supabase
+        .from("events")
+        .select("*")
+        .eq("status", "published")
+        .gte("starts_at", earliest)
+        .order("starts_at", { ascending: true })
+        .limit(100);
+      if (error) throw error;
+      const nextEvents = filterEvents(data || [], { query: eventQuery, category: eventCategory, date: eventDate });
+      setEvents(nextEvents);
+      if (nextEvents.length === 0) setEventSearchError("No matching events were found. Try another date, category, or area.");
+    } catch (error) {
+      setEvents([]);
+      setEventSearchError("Events could not be loaded. Please try again.");
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
+  const chooseRestaurant = restaurant => onFindParking({
+    type: "restaurant",
+    destination: restaurant,
+    location: { lat: restaurant.lat, lng: restaurant.lng },
+    query: restaurant.name,
+  });
+
+  const chooseEvent = eventRow => {
+    const event = normalizeEventRow(eventRow);
+    if (!event) return;
+    onFindParking({
+      type: "event",
+      destination: event,
+      location: { lat: event.lat, lng: event.lng },
+      query: event.name,
+    });
+  };
+
+  return (
+    <main className="ps-discover-view">
+      <section className="ps-discover-hero">
+        <span className="ps-discover-kicker">DISCOVER YOUR DESTINATION</span>
+        <h1>Choose where you're going.<br />We'll help you park nearby.</h1>
+        <p>Explore restaurants and events first, then continue to a clean ParkShare parking search.</p>
+      </section>
+
+      {!mode ? (
+        <section className="ps-discover-hub" aria-label="Discover destinations">
+          <button type="button" className="ps-discover-choice" onClick={() => setMode("restaurants")}>
+            <span className="ps-discover-choice-icon" aria-hidden="true">🍽️</span>
+            <span>
+              <small>DINING</small>
+              <strong>Restaurants</strong>
+              <em>Search by restaurant, area, or cuisine.</em>
+            </span>
+            <b>Explore restaurants →</b>
+          </button>
+          <button type="button" className="ps-discover-choice" onClick={() => setMode("events")}>
+            <span className="ps-discover-choice-icon" aria-hidden="true">🎟️</span>
+            <span>
+              <small>WHAT'S ON</small>
+              <strong>Events & festivals</strong>
+              <em>Search by event, venue, category, or date.</em>
+            </span>
+            <b>Explore events →</b>
+          </button>
+          <div className="ps-discover-direct">
+            <span>Already know where you're going?</span>
+            <button type="button" onClick={onBrowseParking}>Browse parking</button>
+          </div>
+        </section>
+      ) : (
+        <section className="ps-discover-panel">
+          <button type="button" className="ps-discover-back" onClick={() => setMode(null)}>← Back to Discover</button>
+          <div className="ps-discover-panel-heading">
+            <span aria-hidden="true">{mode === "restaurants" ? "🍽️" : "🎟️"}</span>
+            <div>
+              <small>{mode === "restaurants" ? "DINING" : "WHAT'S ON"}</small>
+              <h2>{mode === "restaurants" ? "Find a restaurant" : "Find an event or festival"}</h2>
+              <p>Select a destination to see ParkShare parking nearby.</p>
+            </div>
+          </div>
+
+          {mode === "restaurants" ? (
+            <>
+              <form className="ps-discover-search-form" onSubmit={findRestaurants}>
+                <input value={restaurantQuery} onChange={event => setRestaurantQuery(event.target.value)} placeholder="Restaurant name or area" aria-label="Restaurant name or area" />
+                <select value={restaurantCuisine} onChange={event => setRestaurantCuisine(event.target.value)} aria-label="Cuisine">
+                  {RESTAURANT_CUISINES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
+                </select>
+                <button type="submit" disabled={restaurantsLoading}>{restaurantsLoading ? "Searching…" : "Search restaurants"}</button>
+              </form>
+              {restaurantSearchError && <div className="ps-discover-error" role="alert">⚠️ {restaurantSearchError}</div>}
+              <div className="ps-discover-results">
+                {restaurants.map(restaurant => (
+                  <article className="ps-discover-result" key={restaurant.id}>
+                    <span className="ps-discover-result-icon" aria-hidden="true">🍴</span>
+                    <div>
+                      <strong>{restaurant.name}</strong>
+                      <small>{restaurant.cuisine}</small>
+                      <p>{restaurant.address}</p>
+                    </div>
+                    <button type="button" onClick={() => chooseRestaurant(restaurant)}>Find parking nearby</button>
+                  </article>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <form className="ps-discover-search-form is-events" onSubmit={findEvents}>
+                <input value={eventQuery} onChange={event => setEventQuery(event.target.value)} placeholder="Event name, venue, or area" aria-label="Event name, venue, or area" />
+                <select value={eventCategory} onChange={event => setEventCategory(event.target.value)} aria-label="Event category">
+                  {EVENT_CATEGORIES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
+                </select>
+                <input type="date" value={eventDate} onChange={event => setEventDate(event.target.value)} aria-label="Event date" />
+                <button type="submit" disabled={eventsLoading}>{eventsLoading ? "Searching…" : "Search events"}</button>
+              </form>
+              {eventSearchError && <div className="ps-discover-error" role="alert">⚠️ {eventSearchError}</div>}
+              <div className="ps-discover-results">
+                {events.map(event => {
+                  const schedule = formatEventSchedule(event);
+                  return (
+                    <article className="ps-discover-result" key={event.id}>
+                      <span className="ps-discover-result-icon" aria-hidden="true">
+                        {event.imageUrl ? <img src={event.imageUrl} alt="" loading="lazy" decoding="async" /> : "🎟️"}
+                      </span>
+                      <div>
+                        <strong>{event.name}</strong>
+                        <small>{schedule.full}</small>
+                        <p>{event.venueName || event.address}</p>
+                      </div>
+                      <button type="button" onClick={() => chooseEvent(event)}>Find parking nearby</button>
+                    </article>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}
+
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, autoFocusSearch, autoLocate, initialLocation, initialQuery }) {
+function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1889,13 +2114,9 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [locationError, setLocationError] = useState(null);
   const [walkingRoutes, setWalkingRoutes] = useState({});
   const [walkingRoutesLoading, setWalkingRoutesLoading] = useState(false);
-  const [restaurantFinderOpen, setRestaurantFinderOpen] = useState(false);
-  const [restaurantQuery, setRestaurantQuery] = useState("");
-  const [restaurantCuisine, setRestaurantCuisine] = useState("");
-  const [restaurants, setRestaurants] = useState([]);
-  const [restaurantsLoading, setRestaurantsLoading] = useState(false);
-  const [restaurantSearchError, setRestaurantSearchError] = useState("");
-  const [selectedRestaurant, setSelectedRestaurant] = useState(null);
+  const [selectedRestaurant, setSelectedRestaurant] = useState(initialRestaurant);
+  const [selectedEvent, setSelectedEvent] = useState(initialEvent ? normalizeEventRow(initialEvent) : null);
+  const [eventListingAccess, setEventListingAccess] = useState({});
   const debounceRef = useRef(null);
   const searchInputRef = useRef(null);
   const autocompleteTokenRef = useRef(null);
@@ -1918,8 +2139,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     const requestId = ++suggestionRequestRef.current;
     setQuery(val);
     setSelectedRestaurant(null);
-    setRestaurants([]);
-    setRestaurantSearchError("");
+    setSelectedEvent(null);
     setLocatedSearch(false);
     setSuggestions([]);
     setSugError(false);
@@ -1994,7 +2214,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
 
   const getLocation = () => {
     setSelectedRestaurant(null);
-    setRestaurants([]);
+    setSelectedEvent(null);
     if (userLoc) { setUserLoc(null); setLocatedSearch(false); return; }
     if (!navigator.geolocation) { setLocationError("Location isn't available on this device."); return; }
     setLocating(true);
@@ -2004,54 +2224,6 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       () => { setLocating(false); setLocationError("Couldn't get your location — check your browser/location permissions."); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
-  };
-
-  const findRestaurants = async (event) => {
-    event?.preventDefault();
-    setRestaurantsLoading(true);
-    setRestaurantSearchError("");
-    const fallbackLocation = allListings.find(listing => Number.isFinite(listing.lat) && Number.isFinite(listing.lng));
-    const locationBias = userLoc || (fallbackLocation
-      ? { lat: fallbackLocation.lat, lng: fallbackLocation.lng }
-      : { lat: 43.8561, lng: -79.5085 });
-
-    try {
-      if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Google Places is still loading. Please try again.");
-      const { Place } = await google.maps.importLibrary("places");
-      const { places } = await Place.searchByText({
-        textQuery: buildRestaurantSearchText(restaurantQuery, restaurantCuisine),
-        fields: ["id", "displayName", "formattedAddress", "location", "primaryType", "primaryTypeDisplayName"],
-        includedType: restaurantCuisine || "restaurant",
-        useStrictTypeFiltering: Boolean(restaurantCuisine),
-        locationBias,
-        language: "en-CA",
-        region: "ca",
-        maxResultCount: 12,
-      });
-      const nextRestaurants = (places || []).map(normalizeRestaurantPlace).filter(Boolean);
-      setRestaurants(nextRestaurants);
-      setSelectedRestaurant(null);
-      setUserLoc(null);
-      setLocatedSearch(false);
-      setMapHovered(null);
-      if (nextRestaurants.length === 0) setRestaurantSearchError("No matching restaurants were found. Try another name, area, or cuisine.");
-    } catch (error) {
-      setRestaurants([]);
-      setRestaurantSearchError(error?.message || "Restaurants could not be loaded. Please try again.");
-    } finally {
-      setRestaurantsLoading(false);
-    }
-  };
-
-  const chooseRestaurant = (restaurant) => {
-    setSelectedRestaurant(restaurant);
-    setMapHovered(null);
-    if (!restaurant) return;
-    setQuery(restaurant.name);
-    setUserLoc({ lat: restaurant.lat, lng: restaurant.lng });
-    setLocatedSearch(true);
-    setSort("distance");
-    setRestaurantFinderOpen(false);
   };
 
   // Arriving from the landing page: honor whichever action the person picked there.
@@ -2074,6 +2246,26 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedEvent?.id) {
+      setEventListingAccess({});
+      return () => { cancelled = true; };
+    }
+    supabase
+      .from("event_listing_access")
+      .select("listing_id, access_status, notes")
+      .eq("event_id", selectedEvent.id)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setEventListingAccess(Object.fromEntries((data || []).map(row => [String(row.listing_id), {
+          status: row.access_status,
+          notes: row.notes || "",
+        }])));
+      });
+    return () => { cancelled = true; };
+  }, [selectedEvent?.id]);
 
   // Calculate every visible driveway-to-destination walk in one route-matrix
   // request. If Routes is not enabled for the existing Maps key, the listing
@@ -2103,7 +2295,12 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
 
   const filtered = allListings
-    .filter(l => restaurants.length > 0 || locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
+    .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
+    .filter(l => {
+      if (!selectedEvent) return true;
+      const rawListingId = String(l.id).replace(/^db-/, "");
+      return eventListingAccess[rawListingId]?.status !== "blocked";
+    })
     .map(l => {
       const distMiles = userLoc && typeof l.lat === "number" && typeof l.lng === "number"
         ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng)
@@ -2111,6 +2308,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       return {
         ...l,
         distMiles,
+        eventAccessStatus: eventListingAccess[String(l.id).replace(/^db-/, "")]?.status || "available",
+        eventAccessNote: eventListingAccess[String(l.id).replace(/^db-/, "")]?.notes || "",
         walkLabel: buildWalkingLabel({
           destinationSelected: locatedSearch,
           loading: walkingRoutesLoading,
@@ -2125,7 +2324,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
     : "Select a destination for walking time");
 
-  const parkingWalkMinutes = selectedRestaurant
+  const selectedDiscoveryDestination = selectedEvent || selectedRestaurant;
+  const parkingWalkMinutes = selectedDiscoveryDestination
     ? filtered.map(listing => {
       const routeMinutes = walkingRoutes[String(listing.id)]?.minutes;
       return Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
@@ -2133,7 +2333,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     : [];
   const nearestParkingWalkMinutes = parkingWalkMinutes.length ? Math.min(...parkingWalkMinutes) : null;
   const showLongWalkNotice = Boolean(
-    selectedRestaurant
+    selectedDiscoveryDestination
     && !walkingRoutesLoading
     && Number.isFinite(nearestParkingWalkMinutes)
     && nearestParkingWalkMinutes > 15,
@@ -2145,7 +2345,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
+  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -2196,18 +2396,10 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         )}
         {/* Row 2: location button (left) and view toggles, positioned under the sort dropdown (right) */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-          <div className="ps-browse-discovery-actions">
+          <div>
             <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc)}>
               <span>{locating ? "⏳" : "📍"}</span>
               <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
-            </button>
-            <button
-              type="button"
-              className={`ps-restaurant-finder-toggle${restaurantFinderOpen ? " is-active" : ""}`}
-              aria-expanded={restaurantFinderOpen}
-              onClick={() => setRestaurantFinderOpen(open => !open)}
-            >
-              <span aria-hidden="true">🍽️</span> Restaurants
             </button>
           </div>
           <div style={{ display: "flex", flexShrink: 0 }}>
@@ -2216,62 +2408,16 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
             ))}
           </div>
         </div>
-        {restaurantFinderOpen && (
-          <div className="ps-restaurant-finder">
-            <div className="ps-restaurant-finder-heading">
-              <div>
-                <strong>Find a restaurant, then park nearby</strong>
-                <span>Search by name or area and narrow the results by cuisine.</span>
-              </div>
-              <button type="button" aria-label="Close restaurant finder" onClick={() => setRestaurantFinderOpen(false)}>×</button>
+        {(selectedRestaurant || selectedEvent) && (
+          <div className="ps-browse-destination-context">
+            <span aria-hidden="true">{selectedEvent ? "🎟️" : "🍽️"}</span>
+            <div>
+              <small>{selectedEvent ? "Parking near event" : "Parking near restaurant"}</small>
+              <strong>{selectedEvent?.name || selectedRestaurant?.name}</strong>
+              <em>{selectedEvent ? (selectedEvent.venueName || selectedEvent.address) : selectedRestaurant.address}</em>
             </div>
-            <form className="ps-restaurant-search-form" onSubmit={findRestaurants}>
-              <input
-                value={restaurantQuery}
-                onChange={event => setRestaurantQuery(event.target.value)}
-                placeholder="Restaurant name or area"
-                aria-label="Restaurant name or area"
-              />
-              <select value={restaurantCuisine} onChange={event => setRestaurantCuisine(event.target.value)} aria-label="Cuisine">
-                {RESTAURANT_CUISINES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
-              </select>
-              <button type="submit" disabled={restaurantsLoading}>{restaurantsLoading ? "Searching…" : "Search"}</button>
-            </form>
-            {restaurantSearchError && <div className="ps-restaurant-search-error" role="alert">⚠️ {restaurantSearchError}</div>}
-            {restaurants.length > 0 && (
-              <div className="ps-restaurant-results" aria-label="Restaurant results">
-                {restaurants.map(restaurant => (
-                  <button
-                    type="button"
-                    key={restaurant.id}
-                    className={selectedRestaurant?.id === restaurant.id ? "is-selected" : ""}
-                    onClick={() => chooseRestaurant(restaurant)}
-                  >
-                    <span className="ps-restaurant-result-icon" aria-hidden="true">🍴</span>
-                    <span>
-                      <strong>{restaurant.name}</strong>
-                      <small>{restaurant.cuisine} · {restaurant.address}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        {selectedRestaurant && !restaurantFinderOpen && (
-          <div className="ps-selected-restaurant-card">
-            <span className="ps-selected-restaurant-icon" aria-hidden="true">🍴</span>
-            <div className="ps-selected-restaurant-copy">
-              <span>Selected restaurant</span>
-              <strong>{selectedRestaurant.name}</strong>
-              <small>{selectedRestaurant.address}</small>
-            </div>
-            <button type="button" onClick={() => setRestaurantFinderOpen(true)}>Change restaurant</button>
-            {showLongWalkNotice && (
-              <div className="ps-selected-restaurant-distance-note">
-                No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.
-              </div>
-            )}
+            <button type="button" onClick={onOpenDiscover}>Choose another</button>
+            {showLongWalkNotice && <p>No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.</p>}
           </div>
         )}
         {locatedSearch && (
@@ -2302,7 +2448,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {/* Listing column */}
         {view !== "map" && (
           <div className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
-            <div className="ps-browse-listing-heading">{selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
+            <div className="ps-browse-listing-heading">{selectedEvent ? `Parking near ${selectedEvent.name}` : selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
             {filtered.map(l => (
               <div
                 key={l.id}
@@ -2321,6 +2467,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                         ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
                         : <span>{distanceLabel(l)}</span>}
                     </div>
+                    {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
                 </div>
@@ -2344,9 +2491,6 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                 onViewListing={setSelected}
                 onPreviewRoute={onPreviewRoute}
                 userLoc={userLoc}
-                restaurants={selectedRestaurant ? [selectedRestaurant] : restaurants}
-                selectedRestaurant={selectedRestaurant}
-                onRestaurantSelect={chooseRestaurant}
               />
             </div>
           </div>
@@ -2812,6 +2956,7 @@ function HostDashboard({ user, setTab }) {
                     vehicleColour: row.vehicle_colour || "",
                     licensePlate: row.license_plate || "",
                   },
+                  event: bookingEventFromRow(row),
                   date: display.date,
                   startTime: display.startTime,
                   endTime: display.endTime,
@@ -2980,6 +3125,7 @@ function HostDashboard({ user, setTab }) {
                 <div className="host-dashboard-booking-vehicle">
                   <BookingVehicleVisual vehicle={b.vehicle} />
                 </div>
+                {b.event && <EventDestinationSummary event={b.event} booking />}
                 <BookingSchedule
                   date={b.date}
                   startTime={b.startTime}
@@ -4046,6 +4192,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               vehicleColour: row.vehicle_colour || "",
               licensePlate: row.license_plate || "",
             },
+            event: bookingEventFromRow(row),
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
@@ -4149,6 +4296,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
+              {b.event && <EventDestinationSummary event={b.event} booking />}
               <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} />
               <BookingVehicleVisual vehicle={b.vehicle} />
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -5077,8 +5225,8 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
-    ? ["Browse", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
-    : ["Browse", "My Bookings", "Messages", "Profile", "List Your Driveway", "Host Dashboard", "Transactions"];
+    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
+    : ["Browse", "Discover", "My Bookings", "Messages", "Profile", "List Your Driveway", "Host Dashboard", "Transactions"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -5337,6 +5485,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
           >
             {[
               { label: "Find Parking", onClick: () => onTabChange("Browse"), show: true },
+              { label: "Discover", onClick: () => onTabChange("Discover"), show: true },
               { label: "Become a Host", onClick: onHostClick, show: !!onHostClick },
               { label: "About", onClick: onAboutClick, show: !!onAboutClick },
               { label: "Trust & Safety", onClick: onTrustClick, show: !!onTrustClick },
@@ -8103,6 +8252,8 @@ export default function App() {
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
   const [browseInitialLocation, setBrowseInitialLocation] = useState(null);
   const [browseInitialQuery, setBrowseInitialQuery] = useState("");
+  const [browseInitialEvent, setBrowseInitialEvent] = useState(null);
+  const [browseInitialRestaurant, setBrowseInitialRestaurant] = useState(null);
   const [navigationRequest, setNavigationRequest] = useState(null);
   const [preferredNavigationProvider, setPreferredNavigationProvider] = useState(() => getPreferredNavigationProvider());
   const navigationAnchorRef = useRef(null);
@@ -8303,6 +8454,8 @@ export default function App() {
   const enterApp = (nextTab) => { navigationAnchorRef.current = null; setScreen("app"); if (nextTab) setTab(nextTab); };
   const handleLandingSearch = (suggestion, typedQuery) => {
     setBrowseAutoLocate(false);
+    setBrowseInitialEvent(null);
+    setBrowseInitialRestaurant(null);
     if (suggestion) {
       // A specific address was picked from the landing page's autocomplete —
       // carry its exact coordinates into the Browse map.
@@ -8317,12 +8470,37 @@ export default function App() {
     }
     enterApp("Browse");
   };
-  const handleLandingLocation = () => { setBrowseAutoFocus(false); setBrowseAutoLocate(true); enterApp("Browse"); };
+  const handleLandingLocation = () => {
+    setBrowseAutoFocus(false);
+    setBrowseAutoLocate(true);
+    setBrowseInitialEvent(null);
+    setBrowseInitialRestaurant(null);
+    enterApp("Browse");
+  };
+  const handleDiscoverFindParking = ({ type, destination, location, query }) => {
+    setBrowseAutoFocus(false);
+    setBrowseAutoLocate(false);
+    setBrowseInitialLocation(location);
+    setBrowseInitialQuery(query || destination?.name || "");
+    setBrowseInitialEvent(type === "event" ? destination : null);
+    setBrowseInitialRestaurant(type === "restaurant" ? destination : null);
+    setBrowseKey(key => key + 1);
+    enterApp("Browse");
+  };
   // Host page CTA: straight into the listing flow if already signed in,
   // otherwise open sign-up first (role selection happens in that flow).
   const handleHostGetStarted = () => { if (user) enterApp("List Your Driveway"); else setShowAuth(true); };
   // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
-  const handleFindParking = () => { setBrowseAutoFocus(false); setBrowseAutoLocate(false); enterApp("Browse"); };
+  const handleFindParking = () => {
+    setBrowseAutoFocus(false);
+    setBrowseAutoLocate(false);
+    setBrowseInitialLocation(null);
+    setBrowseInitialQuery("");
+    setBrowseInitialEvent(null);
+    setBrowseInitialRestaurant(null);
+    setBrowseKey(key => key + 1);
+    enterApp("Browse");
+  };
   const driverProfileCompletion = user?.role === "driver" ? getDriverProfileCompletion(user) : null;
 
   return (
@@ -8457,7 +8635,7 @@ export default function App() {
       ) : (
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
           <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
-          <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} />
+          <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} onHostClick={openHost} onAboutClick={openAbout} onTrustClick={openTrust} onHelpClick={openHelp} />
           {driverProfileCompletion && !driverProfileCompletion.complete && tab !== "Profile" && (
             <div className="ps-profile-reminder" role="status">
               <span><strong>Complete your Driver profile</strong> · {driverProfileCompletion.completed} of {driverProfileCompletion.total} details ready</span>
@@ -8497,7 +8675,8 @@ export default function App() {
               <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
-          {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} />}
+          {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />}
+          {tab === "Discover" && <DiscoverView onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}

@@ -12,9 +12,9 @@ export function isValidBookingDuration(hours, { scheduled = false } = {}) {
     return false;
   }
 
-  // Scheduled bookings are selected as whole-hour windows in the UI. Book Now
-  // supports quarter-hour increments, but never less than the one-hour minimum.
-  if (scheduled) return Number.isInteger(value);
+  // Scheduled bookings also support quarter-hour increments. Event start and
+  // end times rarely land exactly on the hour, and the event flow pre-fills a
+  // parking window around those real times.
   const increments = value / BOOKING_DURATION_INCREMENT;
   return Math.abs(increments - Math.round(increments)) < 1e-9;
 }
