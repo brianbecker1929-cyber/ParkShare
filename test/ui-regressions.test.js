@@ -56,6 +56,29 @@ test("browse connects Google Places restaurant discovery to nearby parking", () 
   assert.match(styles, /\.ps-restaurant-search-form[\s\S]*?grid-template-columns/);
 });
 
+test("browse connects event discovery to nearby ParkShare parking", () => {
+  const browseView = functionSource("BrowseView", "EditListingModal");
+  const listingsMap = functionSource("ListingsMap", "MessagingPanel");
+  const listingDetail = functionSource("ListingDetail", "useAllListings");
+
+  assert.match(browseView, /from\("events"\)/);
+  assert.match(browseView, /EVENT_CATEGORIES\.map/);
+  assert.match(browseView, /Find an event, then park nearby/);
+  assert.match(browseView, /setUserLoc\(\{ lat: normalized\.lat, lng: normalized\.lng \}\)/);
+  assert.match(browseView, /Parking near \$\{selectedEvent\.name\}/);
+  assert.match(browseView, /events=\{selectedEvent \? \[selectedEvent\] : events\}/);
+  assert.match(browseView, /from\("event_listing_access"\)/);
+  assert.match(browseView, /status !== "blocked"/);
+  assert.match(browseView, /Review event-day access/);
+  assert.match(listingsMap, /<EventMapPin/);
+  assert.match(listingDetail, /getEventParkingSuggestion\(selectedEvent\)/);
+  assert.match(listingDetail, /Suggested for your event/);
+  assert.match(listingDetail, /selectedEvent=\{selectedEvent\}/);
+  assert.match(styles, /\.ps-event-finder-toggle\.is-active[\s\S]*?background:\s*#0E1B2E/);
+  assert.match(styles, /\.ps-map-event-pin > button[\s\S]*?background:\s*#FFC107/);
+  assert.match(styles, /\.ps-selected-event-card[\s\S]*?background:\s*#0E1B2E/);
+});
+
 test("mobile browse stacks the map before full-width listings", () => {
   assert.match(styles, /\.ps-browse-content\s*{\s*flex-direction:\s*column !important;/);
   assert.match(styles, /\.ps-browse-map-column\s*{\s*order:\s*1;/);
@@ -183,4 +206,17 @@ test("Host and Driver booking details show the property and assigned parking spa
   assert.match(bookedSpotDiagram, /"RESERVED"/);
   assert.match(styles, /\.ps-booking-parking-details\s*{[\s\S]*?grid-template-columns:\s*repeat\(2/);
   assert.match(styles, /\.ps-booked-spot\.is-selected\s*{[\s\S]*?border:\s*4px solid #FFC107/);
+});
+
+test("Host and Driver reservations show their linked event", () => {
+  const hostDashboard = functionSource("HostDashboard", "MessagesView");
+  const bookings = functionSource("MyBookingsView", "ReviewModal");
+  const eventSummary = functionSource("EventDestinationSummary", "buildAppUser");
+
+  assert.match(hostDashboard, /event: bookingEventFromRow\(row\)/);
+  assert.match(hostDashboard, /b\.event && <EventDestinationSummary event=\{b\.event\} booking/);
+  assert.match(bookings, /event: bookingEventFromRow\(row\)/);
+  assert.match(bookings, /b\.event && <EventDestinationSummary event=\{b\.event\} booking/);
+  assert.match(eventSummary, /Parking for/);
+  assert.match(eventSummary, /Event-day access/);
 });
