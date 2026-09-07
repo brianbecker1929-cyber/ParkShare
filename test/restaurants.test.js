@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { RESTAURANT_CUISINES, buildRestaurantSearchText, normalizeRestaurantPlace } from "../src/lib/restaurants.js";
+import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "../src/lib/restaurants.js";
 
 test("builds restaurant searches from a name or area and selected cuisine", () => {
   assert.equal(buildRestaurantSearchText("Vaughan", "italian_restaurant"), "Vaughan Italian");
@@ -37,4 +37,12 @@ test("normalizes Google Place restaurant fields for ParkShare", () => {
 
 test("ignores places without a usable map location", () => {
   assert.equal(normalizeRestaurantPlace({ id: "no-location" }), null);
+});
+
+test("Be Adventurous chooses one restaurant from the current search results", () => {
+  const restaurants = [{ id: "first" }, { id: "middle" }, { id: "last" }];
+  assert.equal(chooseRandomRestaurant(restaurants, () => 0).id, "first");
+  assert.equal(chooseRandomRestaurant(restaurants, () => 0.5).id, "middle");
+  assert.equal(chooseRandomRestaurant(restaurants, () => 0.999).id, "last");
+  assert.equal(chooseRandomRestaurant([], () => 0.5), null);
 });
