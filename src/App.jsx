@@ -25,6 +25,7 @@ import {
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
+import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -8365,8 +8366,10 @@ function ExtendSessionModal({ bookingId, onClose }) {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("landing"); // "landing" | "app" — landing shows first on every fresh visit
-  const [tab, setTab] = useState("Browse");
+  const initialRouteRef = useRef(getRouteFromPath(window.location.pathname));
+  const [screen, setScreen] = useState(initialRouteRef.current.screen);
+  const [tab, setTab] = useState(initialRouteRef.current.tab || "Browse");
+  const [legalSection, setLegalSection] = useState(initialRouteRef.current.anchor || "terms");
   const [messageThread, setMessageThread] = useState(null);
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
@@ -8384,7 +8387,19 @@ export default function App() {
   const [browseInitialRestaurant, setBrowseInitialRestaurant] = useState(null);
   const [navigationRequest, setNavigationRequest] = useState(null);
   const [preferredNavigationProvider, setPreferredNavigationProvider] = useState(() => getPreferredNavigationProvider());
-  const navigationAnchorRef = useRef(null);
+  const navigationAnchorRef = useRef(initialRouteRef.current.anchor || null);
+
+  const moveToRoute = (nextScreen, nextTab = tab, anchor = null, { replace = false } = {}) => {
+    const route = getRouteForState(nextScreen, nextTab, anchor);
+    const method = replace ? "replaceState" : "pushState";
+    if (window.location.pathname !== route.path || replace) {
+      window.history[method]({ parkShareRoute: true }, "", route.path);
+    }
+    navigationAnchorRef.current = route.anchor || anchor;
+    setScreen(route.screen);
+    setTab(route.tab || nextTab || "Browse");
+    if (route.screen === "legal") setLegalSection(route.anchor || "terms");
+  };
 
   const previewParkingRoute = (listing) => {
     if (listing) setNavigationRequest({ listing, mode: "preview" });
@@ -8412,6 +8427,28 @@ export default function App() {
     setNavigationRequest(null);
   };
 
+  // Restore the selected ParkShare page when the browser Back/Forward buttons
+  // are used. The URL is the source of truth for these history transitions.
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = getRouteFromPath(window.location.pathname);
+      navigationAnchorRef.current = route.anchor || null;
+      setScreen(route.screen);
+      setTab(route.tab || "Browse");
+      setLegalSection(route.anchor || "terms");
+      setMessageThread(null);
+      setNavigationRequest(null);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  // Keep titles, descriptions, canonical URLs and indexing rules aligned with
+  // the visible page. Authenticated account screens must never be indexed.
+  useEffect(() => {
+    updateRouteMetadata(getRouteForState(screen, tab, legalSection));
+  }, [screen, tab, legalSection]);
+
   // This is a single-page app, so changing screens does not trigger the
   // browser's normal new-page scroll reset. Restore that expected behaviour
   // after every screen/tab transition, while still supporting deliberate
@@ -8427,30 +8464,38 @@ export default function App() {
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [screen, tab]);
+  }, [screen, tab, legalSection]);
 
   // Detect returning from Stripe's hosted checkout page and show a banner,
   // then strip the query params so refreshing doesn't re-show it.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("legal")) {
-      navigationAnchorRef.current = params.get("legal");
+      const section = params.get("legal") === "privacy" ? "privacy" : "terms";
+      navigationAnchorRef.current = section;
+      setLegalSection(section);
       setScreen("legal");
+      window.history.replaceState({ parkShareRoute: true }, "", getRouteForState("legal", "Browse", section).path);
     } else if (params.has("booking_success")) {
       setCheckoutBanner("success");
       setScreen("app");
       setTab("My Bookings");
+      window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.has("booking_cancelled")) {
       setCheckoutBanner("cancelled");
       setScreen("app");
+      setTab("Browse");
+      window.history.replaceState({ parkShareRoute: true }, "", "/parking");
     } else if (params.has("extension_success")) {
       setCheckoutBanner("extension-success");
       setScreen("app");
       setTab("My Bookings");
+      window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.has("extension_cancelled")) {
       setCheckoutBanner("extension-cancelled");
       setScreen("app");
       setTab("My Bookings");
+      window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.get("stripe_onboarding") === "return") {
       // Stripe's account_onboarding return_url (set in api/connect-onboarding.js)
       // — the account.updated webhook may take a few seconds to land, but
@@ -8459,18 +8504,21 @@ export default function App() {
       setConnectBanner("success");
       setScreen("app");
       setTab("Host Dashboard");
+      window.history.replaceState({ parkShareRoute: true }, "", "/host-dashboard");
     } else if (params.get("stripe_onboarding") === "refresh") {
       // Stripe's refresh_url — the onboarding link expired or was abandoned;
       // send them back to the dashboard so they can restart it.
       setConnectBanner("refresh");
       setScreen("app");
       setTab("Host Dashboard");
+      window.history.replaceState({ parkShareRoute: true }, "", "/host-dashboard");
     } else if (params.get("extend_booking")) {
       // Arrived via the "Add Additional Time" link in a reminder email
       // (see EXTEND_URL in send-reminders.js / _email.js). Opens the modal
       // directly rather than routing through "My Bookings," since the
       // renter is coming from a specific email about a specific booking.
       setExtendBookingId(params.get("extend_booking"));
+      window.history.replaceState({ parkShareRoute: true }, "", window.location.pathname);
     } else if (params.get("view_booking")) {
       // Arrived via "View My Reservation" (MANAGE_RESERVATION_URL) in a
       // confirmation/reminder email. Unlike extend_booking, there's no
@@ -8481,16 +8529,15 @@ export default function App() {
       setTab("My Bookings");
       setScreen("app");
       setViewBookingId(params.get("view_booking"));
-    }
-    if (params.has("legal") || params.has("booking_success") || params.has("booking_cancelled") || params.has("extension_success") || params.has("extension_cancelled") || params.has("stripe_onboarding") || params.has("extend_booking") || params.has("view_booking")) {
-      window.history.replaceState({}, "", window.location.pathname);
+      window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     }
   }, []);
 
   const handleAuth = (u) => {
     setUser(u);
-    setScreen("app");
-    setTab(u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
+    const requestedRoute = getRouteForState(screen, tab, legalSection);
+    if (screen === "app" && requestedRoute.private) return;
+    moveToRoute("app", u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
   };
 
   const handleSignOut = async () => {
@@ -8499,7 +8546,7 @@ export default function App() {
     setCheckoutBanner(null);
     setConnectBanner(null);
     setMessageThread(null);
-    setTab("Browse");
+    moveToRoute("app", "Browse");
   };
 
   // Restore session on page load / refresh, and react to future sign-outs
@@ -8534,22 +8581,21 @@ export default function App() {
   }, []);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
-    navigationAnchorRef.current = anchor;
-    if (screen === nextScreen) {
+    const nextRoute = getRouteForState(nextScreen, tab, anchor);
+    if (screen === nextScreen && window.location.pathname === nextRoute.path) {
       const target = anchor ? document.getElementById(anchor) : null;
       if (target) target.scrollIntoView({ block: "start" });
       else window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       navigationAnchorRef.current = null;
       return;
     }
-    setScreen(nextScreen);
+    moveToRoute(nextScreen, tab, anchor);
   };
 
   const goHome = () => {
     navigationAnchorRef.current = null;
     if (screen === "landing") window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    setScreen("landing");
-    setTab("Browse");
+    moveToRoute("landing", "Browse");
     setBrowseKey(k => k + 1);
   };
   const openLegal = (section = "terms") => navigateToScreen("legal", section);
@@ -8561,7 +8607,7 @@ export default function App() {
   const openHelp = () => navigateToScreen("help");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
-  const changeTab = (t) => { navigationAnchorRef.current = null; setScreen("app"); setTab(t); };
+  const changeTab = (t) => { navigationAnchorRef.current = null; moveToRoute("app", t); };
 
   const requireAuth = (content, msg) => {
     if (!user) return (
@@ -8579,7 +8625,7 @@ export default function App() {
 
   // Landing-page actions route straight into the real app logic —
   // no duplicated search/geolocation code, just a different entry point.
-  const enterApp = (nextTab) => { navigationAnchorRef.current = null; setScreen("app"); if (nextTab) setTab(nextTab); };
+  const enterApp = (nextTab) => { navigationAnchorRef.current = null; moveToRoute("app", nextTab || tab); };
   const handleLandingSearch = (suggestion, typedQuery) => {
     setBrowseAutoLocate(false);
     setBrowseInitialEvent(null);
@@ -8809,7 +8855,7 @@ export default function App() {
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={setTab} />, "Sign in to access your host dashboard.")}
+          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={changeTab} />, "Sign in to access your host dashboard.")}
           {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
