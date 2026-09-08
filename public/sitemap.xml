@@ -1,7 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://www.myparkshare.ca/</loc></url>
-  <url><loc>https://www.myparkshare.ca/?legal=terms</loc></url>
-  <url><loc>https://www.myparkshare.ca/?legal=privacy</loc></url>
-  <url><loc>https://www.myparkshare.ca/?legal=liability</loc></url>
+  <url><loc>https://www.myparkshare.ca/parking</loc></url>
+  <url><loc>https://www.myparkshare.ca/discover</loc></url>
+  <url><loc>https://www.myparkshare.ca/drivers</loc></url>
+  <url><loc>https://www.myparkshare.ca/hosts</loc></url>
+  <url><loc>https://www.myparkshare.ca/about</loc></url>
+  <url><loc>https://www.myparkshare.ca/trust-and-safety</loc></url>
+  <url><loc>https://www.myparkshare.ca/help</loc></url>
+  <url><loc>https://www.myparkshare.ca/contact</loc></url>
+  <url><loc>https://www.myparkshare.ca/terms</loc></url>
+  <url><loc>https://www.myparkshare.ca/privacy</loc></url>
 </urlset>
