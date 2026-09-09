@@ -3958,7 +3958,7 @@ function ListDrivewayView({ user }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ position: "relative" }}>
             <label style={labelStyle}>Street address</label>
-            <input style={inputStyle} placeholder="Start typing your address…" value={form.street} onChange={e => searchAddress(e.target.value)} />
+            <input style={inputStyle} placeholder="123 Maple Drive" value={form.street} onChange={e => searchAddress(e.target.value)} />
             {loadingSug && <span style={{ position: "absolute", right: 14, top: 38, fontSize: 12 }}>⏳</span>}
             {suggestions.length > 0 && (
               <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.white, border: "1.5px solid "+C.concrete, borderRadius: 10, boxShadow: "0 6px 20px rgba(0,0,0,0.14)", zIndex: 50, overflow: "hidden" }}>
@@ -3971,10 +3971,10 @@ function ListDrivewayView({ user }) {
             )}
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <div style={{ flex: 1 }}><label style={labelStyle}>City</label><input style={inputStyle} placeholder="e.g. Brooklyn" value={form.city} onChange={e => update("city", e.target.value)} /></div>
-            <div style={{ flex: 1 }}><label style={labelStyle}>State / Province</label><input style={inputStyle} placeholder="e.g. NY" value={form.region} onChange={e => update("region", e.target.value)} /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>City</label><input style={inputStyle} placeholder="Vaughan" value={form.city} onChange={e => update("city", e.target.value)} /></div>
+            <div style={{ flex: 1 }}><label style={labelStyle}>Province</label><input style={inputStyle} placeholder="Ontario" value={form.region} onChange={e => update("region", e.target.value)} /></div>
           </div>
-          <div><label style={labelStyle}>Postal / ZIP code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="e.g. 11201" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
+          <div><label style={labelStyle}>Postal code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
           {form.street && form.city && form.region && form.postal && suggestions.length === 0 && (
                 <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>✓ Address confirmed: {fullAddress}</div>
               )}
@@ -4147,7 +4147,7 @@ function ListDrivewayView({ user }) {
       {step === 6 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={labelStyle}>Hourly rate (USD)</label>
+            <label style={labelStyle}>Hourly rate (CAD)</label>
             <div style={{ position:"relative" }}>
               <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:C.muted }}>$</span>
               <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" placeholder="e.g. 12" value={form.price} onChange={e => update("price", e.target.value)} />
