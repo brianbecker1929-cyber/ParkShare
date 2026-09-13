@@ -6865,6 +6865,23 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
               </div>
             ))}
           </div>
+          <div className="ps-host-video-card">
+            <div className="ps-host-video-copy">
+              <div className="ps-host-video-eyebrow">Watch the Host walkthrough</div>
+              <h3>List your driveway in six simple steps.</h3>
+              <p>Watch this one-minute guide to see the complete ParkShare Host listing process.</p>
+            </div>
+            <div className="ps-host-video-frame">
+              <iframe
+                src="https://www.youtube-nocookie.com/embed/yT3ZIq2OeIo?rel=0&playsinline=1"
+                title="How to become a ParkShare Host and list your driveway"
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
           <P style={{ fontWeight: 700, color: C.navy, margin: "0 0 16px" }}>List. Set. Earn. That's ParkShare.</P>
           <button onClick={onGetStarted} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 13.5, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space →</button>
         </section>
