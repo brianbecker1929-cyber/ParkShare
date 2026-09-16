@@ -3938,6 +3938,7 @@ function ListDrivewayView({ user }) {
   );
   const previewIssues = [
     (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
+    form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 6 },
   ].filter(Boolean);
@@ -4091,29 +4092,128 @@ function ListDrivewayView({ user }) {
       {/* Step 3: Photos */}
       {step === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <label style={labelStyle}>Photos of your driveway ({form.photos.length}/6)</label>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+          <div>
+            <label style={{ ...labelStyle, marginBottom: 4 }}>Photos of your driveway ({form.photos.length}/6)</label>
+            <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, margin: 0 }}>
+              Help Drivers recognize the property and know exactly where to park before they arrive.
+            </p>
+          </div>
+
+          <div style={{ background: "#EEF6FF", border: "1px solid #C9DDF5", borderRadius: 14, padding: 14 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+              <span aria-hidden="true" style={{ fontSize: 23, lineHeight: 1 }}>📷</span>
+              <div>
+                <div style={{ color: C.navy, fontSize: 13, fontWeight: 800, marginBottom: 2 }}>Help Drivers recognize your driveway</div>
+                <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.5 }}>
+                  Your cover photo should show the house and driveway together from the street so Drivers can quickly confirm they are at the right property.
+                </div>
+              </div>
+            </div>
+
+            <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #BFCFE3", background: C.concrete }}>
+              <img
+                src="/parkshare-driveway-photo-example.webp"
+                alt="Example street-to-house driveway photo showing the house and full driveway"
+                style={{ width: "100%", height: 190, objectFit: "cover", display: "block" }}
+              />
+              <span style={{ position: "absolute", top: 10, right: 10, background: C.navy, color: C.white, borderRadius: 7, padding: "5px 8px", fontSize: 10, fontWeight: 800, boxShadow: "0 2px 8px rgba(14,27,46,0.2)" }}>House visible</span>
+              <span style={{ position: "absolute", left: 10, bottom: 10, background: C.amber, color: C.navy, borderRadius: 7, padding: "5px 8px", fontSize: 10, fontWeight: 800, boxShadow: "0 2px 8px rgba(14,27,46,0.2)" }}>Driveway entrance</span>
+              <span style={{ position: "absolute", right: 10, bottom: 10, background: C.moss, color: C.white, borderRadius: 7, padding: "5px 8px", fontSize: 10, fontWeight: 800, boxShadow: "0 2px 8px rgba(14,27,46,0.2)" }}>Full driveway</span>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Example: Street-to-house view</div>
+              <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.5, marginTop: 3 }}>
+                Stand across the street and photograph the entire property and driveway. Make sure the house and driveway entrance are both clearly visible.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
             {form.photos.map((p, i) => (
-              <div key={i} style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: "1.5px solid "+C.concrete, height: 90 }}>
-                <img src={p.url} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                <button onClick={() => removePhoto(i)} style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", background: "rgba(28,43,57,0.75)", color: C.white, border: "none", fontSize: 12, cursor: "pointer" }}>×</button>
+              <div key={`${p.name}-${i}`} style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: i === 0 ? "2px solid "+C.amber : "1.5px solid "+C.concrete, height: 118, background: C.concrete }}>
+                <img src={p.url} alt={i === 0 ? "Cover photo: " + p.name : p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                {i === 0 && (
+                  <span style={{ position: "absolute", left: 6, top: 6, background: C.amber, color: C.navy, borderRadius: 6, padding: "3px 7px", fontSize: 9, fontWeight: 800 }}>Cover photo</span>
+                )}
+                <button aria-label={`Remove ${i === 0 ? "cover photo" : `photo ${i + 1}`}`} onClick={() => removePhoto(i)} style={{ position: "absolute", top: 5, right: 5, width: 24, height: 24, borderRadius: "50%", background: "rgba(14,27,46,0.82)", color: C.white, border: "none", fontSize: 14, cursor: "pointer" }}>×</button>
               </div>
             ))}
             {form.photos.length < 6 && (
-              <label style={{ height: 90, borderRadius: 10, border: "1.5px dashed "+C.concrete, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer", color: C.muted, fontSize: 11, background: C.warmWhite }}>
-                <span style={{ fontSize: 22 }}>📷</span>Add photo
+              <label style={{ minHeight: 118, borderRadius: 12, border: form.photos.length === 0 ? "2px solid "+C.amber : "1.5px dashed "+C.concrete, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, cursor: "pointer", color: C.navy, fontSize: 11, fontWeight: 700, background: C.warmWhite, padding: 10, boxSizing: "border-box", textAlign: "center" }}>
+                <span style={{ fontSize: 24 }} aria-hidden="true">📷</span>
+                <span>{form.photos.length === 0 ? "Add cover photo" : "Add another photo"}</span>
+                {form.photos.length === 0 && <small style={{ color: C.muted, fontSize: 9, fontWeight: 600, lineHeight: 1.35 }}>Street-to-house view<br/><strong style={{ color: C.moss }}>(Required to publish)</strong></small>}
                 <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => addPhotos(e.target.files)} />
               </label>
             )}
           </div>
-          <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>Clear daytime photos of the driveway entrance and full length help renters trust your listing.</p>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+
+          {form.photos.length > 0 && (
+            <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "9px 11px", color: C.moss, fontSize: 11, lineHeight: 1.45, fontWeight: 700 }}>
+              ✓ Your first photo is the Cover Photo Drivers will see first in search results, listing cards and your listing preview.
+            </div>
+          )}
+
+          <details style={{ border: "1px solid #C9DDF5", background: "#F4F8FD", borderRadius: 12, overflow: "hidden" }}>
+            <summary style={{ cursor: "pointer", listStyle: "none", padding: "11px 13px", color: C.navy, fontSize: 12, fontWeight: 800 }}>
+              📋 View photo suggestions
+            </summary>
+            <div style={{ padding: "0 13px 13px", display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                ["1", "Street-to-house view", "Required", "Show the house, driveway entrance and surrounding property so Drivers know they have arrived at the right location."],
+                ["2", "Full driveway view", "Recommended", "Show the complete parking area and all available spaces."],
+                ["3", "Parking-space view", "Recommended", "Take a closer photo so Drivers can identify exactly where to park."],
+                ["4", "Driveway entrance", "Helpful", "Show curbs, narrow entrances, gates or anything Drivers should watch for when entering."],
+                ["5", "Important features", "Optional", "Show EV chargers, covered parking, gates, lighting, security cameras or other advertised features."],
+                ["6", "Special instructions", "Optional", "Photograph anything mentioned in your parking instructions, such as which side of the garage to use."],
+              ].map(([num, title, status, text]) => (
+                <div key={num} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
+                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: C.amber, color: C.navy, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{num}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: C.navy, fontSize: 11, fontWeight: 800 }}>{title} <span style={{ color: status === "Required" ? C.red : status === "Recommended" ? C.moss : C.muted }}>({status})</span></div>
+                    <div style={{ color: C.muted, fontSize: 10, lineHeight: 1.5, marginTop: 2 }}>{text}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <details open={form.photos.length === 0} style={{ border: "1px solid #C9DDF5", background: "#F4F8FD", borderRadius: 12, overflow: "hidden" }}>
+            <summary style={{ cursor: "pointer", listStyle: "none", padding: "11px 13px", color: C.navy, fontSize: 12, fontWeight: 800 }}>
+              💡 Photo tips
+            </summary>
+            <div style={{ padding: "0 13px 13px", display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "7px 10px" }}>
+              {[
+                "Take photos during daylight",
+                "Keep the full driveway visible",
+                "Include the house in your cover photo",
+                "Avoid blurry or dark photos",
+                "Make parking spaces easy to identify",
+                "Use recent photos that match the property today",
+              ].map(tip => (
+                <div key={tip} style={{ color: C.navy, fontSize: 10, lineHeight: 1.4, display: "flex", gap: 5, alignItems: "flex-start" }}>
+                  <span style={{ color: C.moss, fontWeight: 900 }}>✓</span><span>{tip}</span>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <div style={{ background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 10, padding: "10px 12px", color: C.muted, fontSize: 10, lineHeight: 1.5 }}>
+            <strong style={{ color: C.navy }}>Use your own recent photos whenever possible.</strong> Photos should accurately represent what Drivers will see when they arrive rather than relying on older third-party street imagery.
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <Btn variant="pill" onClick={() => setStep(2)}>← Back</Btn>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <button onClick={() => setStep(4)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
               <Btn onClick={() => setStep(4)} disabled={form.photos.length === 0}>Continue →</Btn>
             </div>
           </div>
+          {form.photos.length === 0 && (
+            <p style={{ fontSize: 10, color: C.muted, margin: "-7px 0 0", textAlign: "right" }}>
+              You can skip this step temporarily, but at least one photo is required before publishing.
+            </p>
+          )}
         </div>
       )}
 
