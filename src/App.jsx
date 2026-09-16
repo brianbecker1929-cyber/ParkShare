@@ -3676,6 +3676,42 @@ function DrivewaySpotMap({ total, selected, onToggle }) {
   );
 }
 
+// Read-only version used on the final Host Preview step. It deliberately uses
+// the same driveway artwork and spot language Drivers see, without letting the
+// Host accidentally change the configuration while reviewing it.
+function DrivewaySpotPreview({ total, selected }) {
+  const safeTotal = Math.max(1, Math.min(8, Number(total) || 1));
+  const labels = Array.from({ length: safeTotal }, (_, i) => String.fromCharCode(65 + i));
+  const cols = safeTotal <= 1 ? 1 : 2;
+  const rows = Math.ceil(safeTotal / cols);
+  return (
+    <DrivewayFrame>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
+        {labels.map((label, i) => {
+          const available = !!selected[i];
+          return (
+            <div key={label} style={{
+              position: "relative", borderRadius: 10, minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
+              background: available ? "#F7F3E7" : "#EAE6DA", border: "3px solid " + (available ? C.moss : "#B0AA9C"),
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
+              fontFamily: "'Poppins', sans-serif", boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+            }}>
+              <span style={{ fontWeight: 800, fontSize: 13, color: C.navy, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {label}</span>
+              {available ? (
+                <img src="/car-icon.png" alt="" aria-hidden="true" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
+              ) : (
+                <span aria-hidden="true" style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
+              )}
+              <span style={{ fontSize: 9, fontWeight: 800, color: available ? C.moss : C.muted, textAlign: "center", lineHeight: 1.15, flexShrink: 0 }}>{available ? "Available" : "Not for rent"}</span>
+            </div>
+          );
+        })}
+      </div>
+    </DrivewayFrame>
+  );
+}
+
+
 
 // ─── Driveway spot template — satellite view ───────────────────────────────────
 // Lets a host draw a box over their actual driveway (aerial imagery) for each
@@ -3875,24 +3911,48 @@ function ListDrivewayView({ user }) {
   const toggleSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.map(s => s.id === id ? { ...s, forRent: !s.forRent } : s)));
   const removeSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.filter(s => s.id !== id)));
 
+  const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
+  const accessLabel = form.access === "daytime"
+    ? "Daytime only (7am–9pm)"
+    : form.access === "weekends"
+      ? "Weekends only"
+      : "24 hours / 7 days";
+  const listingFeatures = [
+    form.covered && "Covered",
+    form.cctv && "CCTV",
+    form.lighting && "Well-lit",
+    form.snowRemoval && "Snow removal",
+    form.evCharging && "EV charging",
+    form.gated && "Gated",
+    form.access === "24hr" && "24hr Access",
+    form.access === "daytime" && "Daytime access (7am–9pm)",
+    form.access === "weekends" && "Weekends only",
+  ].filter(Boolean);
+  const hasPreviewSatelliteSpots = Boolean(
+    import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    && Number.isFinite(Number(form.lat))
+    && Number.isFinite(Number(form.lng))
+    && Array.isArray(form.spots)
+    && form.spots.length > 0
+    && form.spots.every(s => s?.bounds && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(s.bounds[key])))),
+  );
+  const previewIssues = [
+    (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
+    rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
+    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 6 },
+  ].filter(Boolean);
+
   const [submitted, setSubmitted] = useState(false);
 
   const publish = async () => {
-    if (!form.price) update("price", "12");
     setPublishError("");
     if (!user) {
       setPublishError("Please sign in as a host before publishing your listing.");
       return;
     }
     setPublishing(true);
-    const rentableSpots = form.selectedSpots.filter(Boolean).length || 1;
-    const features = [
-      form.covered && "Covered",
-      form.cctv && "CCTV",
-      form.lighting && "Well-lit",
-      form.gated && "Gated",
-      form.access === "24hr" && "24hr Access",
-    ].filter(Boolean);
+    const rentableSpots = rentableSpotCount || 1;
+    const features = listingFeatures;
     const { error } = await supabase.from("listings").insert({
       host_id: user.id,
       title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
@@ -3934,7 +3994,7 @@ function ListDrivewayView({ user }) {
     );
   }
 
-  const steps = [{ label: "Location", num: 1 }, { label: "Verify", num: 2 }, { label: "Photos", num: 3 }, { label: "Spots", num: 4 }, { label: "Details", num: 5 }, { label: "Pricing", num: 6 }];
+  const steps = [{ label: "Location", num: 1 }, { label: "Verify", num: 2 }, { label: "Photos", num: 3 }, { label: "Spots", num: 4 }, { label: "Details", num: 5 }, { label: "Pricing", num: 6 }, { label: "Preview", num: 7 }];
   const docTypes = [{ v: "tax", l: "Property tax bill" }, { v: "mortgage", l: "Mortgage statement" }, { v: "utility", l: "Utility bill" }, { v: "license", l: "Driver's license" }, { v: "bank", l: "Bank statement" }];
 
   return (
@@ -4159,13 +4219,154 @@ function ListDrivewayView({ user }) {
               This driveway could earn its owner over <strong>{money(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12)}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
             </ParkerTip>
           )}
-          {publishError && <div style={{ color: C.red, fontSize: 12.5, textAlign: "right" }}>{publishError}</div>}
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={publish} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-              <Btn variant="amber" onClick={publish} disabled={!form.price || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
+            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(7); }}>Preview listing →</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Step 7: Driver-facing listing preview */}
+      {step === 7 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div role="status" style={{ background: C.amberLight, border: "1.5px solid " + C.amber, borderRadius: 12, padding: "12px 14px", color: C.navy }}>
+            <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 3 }}>👀 Preview mode — your listing is not live yet</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: C.muted }}>Review the same listing details Drivers will use to decide whether to book. Nothing is published until you press <strong style={{ color: C.navy }}>Publish listing</strong>.</div>
+          </div>
+
+          {previewIssues.length > 0 && (
+            <div role="alert" style={{ background: C.redLight, border: "1px solid " + C.red, borderRadius: 12, padding: "12px 14px" }}>
+              <div style={{ color: C.red, fontWeight: 800, fontSize: 13, marginBottom: 8 }}>{previewIssues.length} item{previewIssues.length === 1 ? "" : "s"} need attention before you can publish</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {previewIssues.map(issue => (
+                  <button key={issue.label} onClick={() => setStep(issue.step)} style={{ border: 0, background: "transparent", padding: 0, color: C.navy, fontFamily: "'Poppins', sans-serif", fontSize: 12, fontWeight: 700, textAlign: "left", cursor: "pointer", textDecoration: "underline" }}>→ {issue.label}</button>
+                ))}
+              </div>
             </div>
+          )}
+
+          {/* The card below intentionally reuses ParkShare's Driver-facing visual primitives. */}
+          <div style={{ background: C.white, border: "1px solid " + C.concrete, borderRadius: 16, overflow: "hidden", boxShadow: "0 8px 24px rgba(14,27,46,0.10)" }}>
+            <div style={{ padding: "14px 16px", borderBottom: "1px solid " + C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 10, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Driver view</div>
+                <div style={{ color: C.navy, fontSize: 13, fontWeight: 800 }}>Your ParkShare listing</div>
+              </div>
+              <button onClick={() => setStep(1)} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, color: C.navy, borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Poppins', sans-serif" }}>Edit location</button>
+            </div>
+
+            <div style={{ padding: 16 }}>
+              {/* Photos */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Photos</div>
+                  <button onClick={() => setStep(3)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                </div>
+                {form.photos.length > 0 ? (
+                  <>
+                    <div style={{ borderRadius: 14, overflow: "hidden", height: 210, background: C.concrete, marginBottom: 8 }}>
+                      <img src={form.photos[0].url} alt={`Driveway at ${fullAddress || "your property"}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                    </div>
+                    {form.photos.length > 1 && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 7 }}>
+                        {form.photos.slice(1).map((photo, i) => (
+                          <div key={`${photo.name}-${i}`} style={{ borderRadius: 9, overflow: "hidden", height: 74, background: C.concrete }}>
+                            <img src={photo.url} alt={`Driveway photo ${i + 2}`} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div style={{ height: 150, borderRadius: 12, border: "1.5px dashed " + C.concrete, background: C.warmWhite, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: C.muted, gap: 6 }}>
+                    <span style={{ fontSize: 34 }} aria-hidden="true">🏠</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>No driveway photos uploaded</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Driver listing header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
+                <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, lineHeight: 1.3, margin: 0, flex: 1 }}>{form.street ? `Driveway at ${form.street}` : "New driveway listing"}</h3>
+                {Number(form.price) > 0 ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Rate not set</span>}
+              </div>
+              <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, margin: "0 0 12px" }}>📍 {fullAddress || "Address not completed"}</p>
+
+              <div style={{ background: C.mossLight, border: "1px solid " + C.moss, borderRadius: 9, padding: "8px 10px", marginBottom: 12, color: C.moss, fontSize: 11, fontWeight: 800 }}>
+                🟢 {rentableSpotCount} spot{rentableSpotCount === 1 ? "" : "s"} configured as available for rent
+              </div>
+
+              {/* Features */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Driveway features</div>
+                  <button onClick={() => setStep(5)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                </div>
+                {listingFeatures.length > 0 ? (
+                  <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{listingFeatures.map(feature => <Badge key={feature}>{feature}</Badge>)}</div>
+                ) : (
+                  <div style={{ fontSize: 12, color: C.muted }}>No optional driveway features selected.</div>
+                )}
+              </div>
+
+              <div style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: "11px 13px", marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Access</div>
+                <div style={{ color: C.navy, fontSize: 13, fontWeight: 700 }}>{accessLabel}</div>
+              </div>
+
+              {form.description ? (
+                <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, margin: "0 0 18px" }}>{form.description}</p>
+              ) : (
+                <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.6, margin: "0 0 18px", fontStyle: "italic" }}>No additional parking instructions or description provided.</p>
+              )}
+
+              {/* Spaces */}
+              <div style={{ borderTop: "1px solid " + C.concrete, paddingTop: 16, marginBottom: 18 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Available driveway spaces</div>
+                    <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginTop: 2 }}>{rentableSpotCount} of {form.totalSpots} spot{form.totalSpots === 1 ? "" : "s"} for rent</div>
+                  </div>
+                  <button onClick={() => setStep(4)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                </div>
+
+                {hasPreviewSatelliteSpots ? (
+                  <SpotMapBoundary fallback={<DrivewaySpotPreview total={form.totalSpots} selected={form.selectedSpots} />}>
+                    <ListingSatelliteView lat={Number(form.lat)} lng={Number(form.lng)} spots={form.spots} height={280} />
+                  </SpotMapBoundary>
+                ) : (
+                  <DrivewaySpotPreview total={form.totalSpots} selected={form.selectedSpots} />
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 7, marginTop: 10 }}>
+                  {Array.from({ length: form.totalSpots }, (_, i) => {
+                    const available = !!form.selectedSpots[i];
+                    const label = String.fromCharCode(65 + i);
+                    return (
+                      <div key={label} style={{ border: "1px solid " + (available ? C.moss : C.concrete), background: available ? C.mossLight : C.warmWhite, borderRadius: 8, padding: "7px 9px", fontSize: 11, color: available ? C.moss : C.muted, fontWeight: 800 }}>
+                        Spot {label} · {available ? "Available" : "Not for rent"}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Host card, using information already available to the app. */}
+              <div style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 38, height: 38, borderRadius: "50%", background: C.navy, color: C.white, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }} aria-hidden="true">🏠</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 13, color: C.navy }}>{user?.name || "ParkShare Host"}</div>
+                  <div style={{ fontSize: 11, color: C.muted }}>Host · {rentableSpotCount} space{rentableSpotCount === 1 ? "" : "s"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {publishError && <div role="alert" style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{publishError}</div>}
+
+          <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <Btn variant="pill" onClick={() => setStep(6)}>← Back to edit</Btn>
+            <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
           </div>
         </div>
       )}
