@@ -26,6 +26,7 @@ import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, no
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
+import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -1235,6 +1236,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState({ rating: 5, text: "" });
+
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1613,6 +1615,12 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         {listing.features.map(f => <Badge key={f}>{f}</Badge>)}
       </div>
+      {listing.availability && (
+        <div style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 9, padding: "8px 10px", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>Host availability</div>
+          <div style={{ marginTop: 2, color: C.navy, fontSize: 11, fontWeight: 700 }}>🗓 {formatAvailabilitySummary(listing.availability)}</div>
+        </div>
+      )}
 
       {listing.description && (
         <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, margin: "0 0 16px" }}>{listing.description}</p>
@@ -1764,7 +1772,9 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🔴</span>
                 <span style={{ fontSize: 10, color: C.navy, fontWeight: 700 }}>
-                  Full for that {bookingMode === "now" ? "time" : "slot"} — try a different {bookingMode === "now" ? "duration" : "time"}
+                  {selectedAvailability.reason === "host_schedule"
+                    ? `Host is not accepting bookings for that ${bookingMode === "now" ? "time" : "slot"} — choose another time`
+                    : `Full for that ${bookingMode === "now" ? "time" : "slot"} — try a different ${bookingMode === "now" ? "duration" : "time"}`}
                 </span>
               </div>
             )
@@ -1880,6 +1890,7 @@ function useAllListings() {
             lat: row.lat,
             lng: row.lng,
             spots: row.spots || [],
+            availability: row.availability || null,
             host: row.profiles?.name || "Host",
             hostImg: "🧑",
           }))
@@ -3844,7 +3855,8 @@ function ListDrivewayView({ user }) {
   const [form, setForm] = useState({
     street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false,
     photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
-    price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, access: "24hr", description: "",
+    price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "",
+    availability: createAvailabilityPreset("anytime"),
   });
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSug, setLoadingSug] = useState(false);
@@ -3911,12 +3923,126 @@ function ListDrivewayView({ user }) {
   const toggleSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.map(s => s.id === id ? { ...s, forRent: !s.forRent } : s)));
   const removeSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.filter(s => s.id !== id)));
 
+  const setAvailabilityPreset = (preset) => {
+    setForm(current => ({
+      ...current,
+      availability: preset === "custom"
+        ? { ...normalizeAvailability(current.availability), preset: "custom" }
+        : createAvailabilityPreset(preset, normalizeAvailability(current.availability).timezone),
+    }));
+  };
+  const updateAvailabilityDay = (dayKey, patch) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], ...patch },
+        },
+      },
+    };
+  });
+  const updateAvailabilityWindow = (dayKey, index, field, value) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const windows = [...availability.weekly[dayKey].windows];
+    windows[index] = { ...windows[index], [field]: value };
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], windows },
+        },
+      },
+    };
+  });
+  const addAvailabilityWindow = (dayKey) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const windows = [...availability.weekly[dayKey].windows, { start: "17:00", end: "21:00" }];
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], enabled: true, windows },
+        },
+      },
+    };
+  });
+  const removeAvailabilityWindow = (dayKey, index) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const windows = availability.weekly[dayKey].windows.filter((_, i) => i !== index);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], enabled: windows.length > 0, windows },
+        },
+      },
+    };
+  });
+  const copyMondayToWeekdays = () => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const monday = availability.weekly.mon;
+    const weekly = { ...availability.weekly };
+    ["tue", "wed", "thu", "fri"].forEach(day => {
+      weekly[day] = { enabled: monday.enabled, windows: monday.windows.map(window => ({ ...window })) };
+    });
+    return { ...current, availability: { ...availability, preset: "custom", weekly } };
+  });
+  const addAvailabilityException = () => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const today = new Date();
+    today.setDate(today.getDate() + 1);
+    const date = today.toISOString().slice(0, 10);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        exceptions: [...availability.exceptions, {
+          id: `exception-${Date.now()}`,
+          type: "unavailable",
+          startDate: date,
+          endDate: date,
+          windows: [{ start: "09:00", end: "17:00" }],
+        }],
+      },
+    };
+  });
+  const updateAvailabilityException = (id, patch) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        exceptions: availability.exceptions.map(exception => exception.id === id ? { ...exception, ...patch } : exception),
+      },
+    };
+  });
+  const removeAvailabilityException = (id) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        exceptions: availability.exceptions.filter(exception => exception.id !== id),
+      },
+    };
+  });
+
   const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
-  const accessLabel = form.access === "daytime"
-    ? "Daytime only (7am–9pm)"
-    : form.access === "weekends"
-      ? "Weekends only"
-      : "24 hours / 7 days";
+  const normalizedAvailability = normalizeAvailability(form.availability);
+  const availabilitySummary = formatAvailabilitySummary(normalizedAvailability);
   const listingFeatures = [
     form.covered && "Covered",
     form.cctv && "CCTV",
@@ -3924,9 +4050,6 @@ function ListDrivewayView({ user }) {
     form.snowRemoval && "Snow removal",
     form.evCharging && "EV charging",
     form.gated && "Gated",
-    form.access === "24hr" && "24hr Access",
-    form.access === "daytime" && "Daytime access (7am–9pm)",
-    form.access === "weekends" && "Weekends only",
   ].filter(Boolean);
   const hasPreviewSatelliteSpots = Boolean(
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY
@@ -3940,7 +4063,8 @@ function ListDrivewayView({ user }) {
     (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
-    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 6 },
+    !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
+    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 7 },
   ].filter(Boolean);
 
   const [submitted, setSubmitted] = useState(false);
@@ -3967,6 +4091,7 @@ function ListDrivewayView({ user }) {
       lat: form.lat || null,
       lng: form.lng || null,
       spots: form.spots || [],
+      availability: normalizedAvailability,
     });
     setPublishing(false);
     if (error) {
@@ -3978,7 +4103,7 @@ function ListDrivewayView({ user }) {
 
   const resetAll = () => {
     setSubmitted(false); setStep(1);
-    setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, access: "24hr", description: "" });
+    setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
 
   if (submitted) {
@@ -3995,7 +4120,7 @@ function ListDrivewayView({ user }) {
     );
   }
 
-  const steps = [{ label: "Location", num: 1 }, { label: "Verify", num: 2 }, { label: "Photos", num: 3 }, { label: "Spots", num: 4 }, { label: "Details", num: 5 }, { label: "Pricing", num: 6 }, { label: "Preview", num: 7 }];
+  const steps = [{ label: "Location", num: 1 }, { label: "Verify", num: 2 }, { label: "Photos", num: 3 }, { label: "Spots", num: 4 }, { label: "Details", num: 5 }, { label: "Availability", num: 6 }, { label: "Pricing", num: 7 }, { label: "Preview", num: 8 }];
   const docTypes = [{ v: "tax", l: "Property tax bill" }, { v: "mortgage", l: "Mortgage statement" }, { v: "utility", l: "Utility bill" }, { v: "license", l: "Driver's license" }, { v: "bank", l: "Bank statement" }];
 
   return (
@@ -4285,26 +4410,149 @@ function ListDrivewayView({ user }) {
               </label>
             ))}
           </div>
-          <div><label style={labelStyle}>Access hours</label>
-            <select style={inputStyle} value={form.access} onChange={e => update("access", e.target.value)}>
-              <option value="24hr">24 hours / 7 days</option>
-              <option value="daytime">Daytime only (7am–9pm)</option>
-              <option value="weekends">Weekends only</option>
-            </select>
-          </div>
           <div><label style={labelStyle}>Description (optional)</label><textarea style={{ ...inputStyle, resize:"vertical", minHeight:80 }} placeholder="Anything useful for drivers to know…" value={form.description} onChange={e => update("description", e.target.value)} /></div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
             <Btn variant="pill" onClick={() => setStep(4)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={() => setStep(6)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
+              <button onClick={() => setStep(6)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Use default availability</button>
               <Btn onClick={() => setStep(6)}>Continue →</Btn>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 6: Pricing */}
+      {/* Step 6: Custom availability */}
       {step === 6 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <h3 style={{ color: C.navy, fontSize: 17, margin: "0 0 4px" }}>When is your driveway available?</h3>
+            <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, margin: 0 }}>
+              Start with a quick preset or customize each day. Drivers will only be able to reserve times that fall inside this schedule.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8 }}>
+            {[
+              ["anytime", "Anytime", "24/7"],
+              ["weekdays", "Weekdays", "Mon–Fri"],
+              ["weekends", "Weekends", "Sat–Sun"],
+              ["business", "Business hours", "Mon–Fri · 9–5"],
+              ["evenings", "Evenings", "Daily · 5–11"],
+              ["custom", "Custom schedule", "Choose each day"],
+            ].map(([key, title, subtitle]) => {
+              const selected = normalizedAvailability.preset === key;
+              return (
+                <button key={key} type="button" onClick={() => setAvailabilityPreset(key)} style={{
+                  textAlign: "left", padding: "11px 12px", borderRadius: 10, cursor: "pointer",
+                  border: "2px solid " + (selected ? C.navy : C.concrete),
+                  background: selected ? C.amberLight : C.white, color: C.navy,
+                  fontFamily: "'Poppins', sans-serif",
+                }}>
+                  <strong style={{ display: "block", fontSize: 12 }}>{selected ? "✓ " : ""}{title}</strong>
+                  <span style={{ display: "block", marginTop: 2, fontSize: 10, color: C.muted }}>{subtitle}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 12, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <div>
+                <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Weekly schedule</div>
+                <div style={{ color: C.muted, fontSize: 10 }}>Times use the property's local timezone ({normalizedAvailability.timezone}).</div>
+              </div>
+              <button type="button" onClick={copyMondayToWeekdays} style={{ border: "1px solid " + C.concrete, background: C.white, color: C.navy, borderRadius: 7, padding: "6px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Copy Mon → weekdays</button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {AVAILABILITY_DAYS.map(day => {
+                const config = normalizedAvailability.weekly[day.key];
+                return (
+                  <div key={day.key} style={{ borderTop: "1px solid " + C.concrete, paddingTop: 9 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 84, cursor: "pointer" }}>
+                        <input type="checkbox" checked={config.enabled} onChange={e => updateAvailabilityDay(day.key, { enabled: e.target.checked, windows: e.target.checked && config.windows.length === 0 ? [{ start: "09:00", end: "17:00" }] : config.windows })} />
+                        <span style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>{day.short}</span>
+                      </label>
+                      {!config.enabled && <span style={{ fontSize: 11, color: C.muted }}>Not available</span>}
+                    </div>
+
+                    {config.enabled && (
+                      <div style={{ marginTop: 7, paddingLeft: 24, display: "flex", flexDirection: "column", gap: 7 }}>
+                        {config.windows.map((window, index) => (
+                          <div key={`${day.key}-${index}`} style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr auto", gap: 6, alignItems: "center" }}>
+                            <input type="time" step="900" value={window.start} onChange={e => updateAvailabilityWindow(day.key, index, "start", e.target.value)} style={{ ...inputStyle, padding: "7px 8px", fontSize: 11 }} />
+                            <span style={{ color: C.muted, fontSize: 10 }}>to</span>
+                            <input type="time" step="900" value={window.end} onChange={e => updateAvailabilityWindow(day.key, index, "end", e.target.value)} style={{ ...inputStyle, padding: "7px 8px", fontSize: 11 }} />
+                            <button type="button" aria-label={`Remove ${day.label} time window`} onClick={() => removeAvailabilityWindow(day.key, index)} disabled={config.windows.length === 1} style={{ width: 28, height: 28, borderRadius: "50%", border: 0, background: C.concrete, color: C.navy, cursor: config.windows.length === 1 ? "default" : "pointer", opacity: config.windows.length === 1 ? 0.4 : 1 }}>×</button>
+                          </div>
+                        ))}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button type="button" onClick={() => addAvailabilityWindow(day.key)} style={{ border: 0, background: "none", color: C.navy, fontSize: 10, fontWeight: 800, textDecoration: "underline", cursor: "pointer" }}>+ Add another time</button>
+                          <button type="button" onClick={() => updateAvailabilityDay(day.key, { enabled: true, windows: [{ start: "00:00", end: "23:59" }] })} style={{ border: 0, background: "none", color: C.moss, fontSize: 10, fontWeight: 800, textDecoration: "underline", cursor: "pointer" }}>Make all day</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ border: "1px solid " + C.concrete, borderRadius: 12, padding: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div>
+                <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Special dates & exceptions</div>
+                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours.</div>
+              </div>
+              <button type="button" onClick={addAvailabilityException} style={{ border: 0, borderRadius: 8, padding: "7px 9px", background: C.navy, color: C.white, fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>+ Add exception</button>
+            </div>
+
+            {normalizedAvailability.exceptions.length === 0 ? (
+              <div style={{ marginTop: 10, color: C.muted, fontSize: 11 }}>No special dates added.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                {normalizedAvailability.exceptions.map(exception => (
+                  <div key={exception.id} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <label style={labelStyle}>From<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
+                      <label style={labelStyle}>To<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
+                    </div>
+                    <label style={{ ...labelStyle, marginTop: 8 }}>On these dates
+                      <select style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.type} onChange={e => updateAvailabilityException(exception.id, { type: e.target.value })}>
+                        <option value="unavailable">Not available</option>
+                        <option value="available-all-day">Available all day</option>
+                        <option value="custom">Use special hours</option>
+                      </select>
+                    </label>
+                    {exception.type === "custom" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 6, alignItems: "center", marginTop: 8 }}>
+                        <input type="time" step="900" value={exception.windows?.[0]?.start || "09:00"} onChange={e => updateAvailabilityException(exception.id, { windows: [{ start: e.target.value, end: exception.windows?.[0]?.end || "17:00" }] })} style={{ ...inputStyle, padding: "7px 8px", fontSize: 11 }} />
+                        <span style={{ color: C.muted, fontSize: 10 }}>to</span>
+                        <input type="time" step="900" value={exception.windows?.[0]?.end || "17:00"} onChange={e => updateAvailabilityException(exception.id, { windows: [{ start: exception.windows?.[0]?.start || "09:00", end: e.target.value }] })} style={{ ...inputStyle, padding: "7px 8px", fontSize: 11 }} />
+                      </div>
+                    )}
+                    <button type="button" onClick={() => removeAvailabilityException(exception.id)} style={{ marginTop: 8, border: 0, background: "none", color: C.red, fontSize: 10, fontWeight: 800, textDecoration: "underline", cursor: "pointer" }}>Remove exception</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ background: C.mossLight, border: "1px solid " + C.moss, borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ color: C.moss, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Availability summary</div>
+            <div style={{ color: C.navy, fontSize: 12, fontWeight: 700, marginTop: 3 }}>{availabilitySummary}</div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
+            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability)}>Continue →</Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Step 7: Pricing */}
+      {step === 7 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label style={labelStyle}>Hourly rate (CAD)</label>
@@ -4320,14 +4568,15 @@ function ListDrivewayView({ user }) {
             </ParkerTip>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(7); }}>Preview listing →</Btn>
+            <Btn variant="pill" onClick={() => setStep(6)}>← Back</Btn>
+            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
           </div>
         </div>
       )}
 
-      {/* Step 7: Driver-facing listing preview */}
-      {step === 7 && (
+      {/* Step 8: Driver-facing listing preview */}
+
+      {step === 8 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div role="status" style={{ background: C.amberLight, border: "1.5px solid " + C.amber, borderRadius: 12, padding: "12px 14px", color: C.navy }}>
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 3 }}>👀 Preview mode — your listing is not live yet</div>
@@ -4410,8 +4659,14 @@ function ListDrivewayView({ user }) {
               </div>
 
               <div style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: "11px 13px", marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Access</div>
-                <div style={{ color: C.navy, fontSize: 13, fontWeight: 700 }}>{accessLabel}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>Availability</div>
+                    <div style={{ color: C.navy, fontSize: 13, fontWeight: 700 }}>{availabilitySummary}</div>
+                    {normalizedAvailability.exceptions.length > 0 && <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{normalizedAvailability.exceptions.length} special date exception{normalizedAvailability.exceptions.length === 1 ? "" : "s"} configured</div>}
+                  </div>
+                  <button onClick={() => setStep(6)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                </div>
               </div>
 
               {form.description ? (
@@ -4465,7 +4720,7 @@ function ListDrivewayView({ user }) {
           {publishError && <div role="alert" style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{publishError}</div>}
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <Btn variant="pill" onClick={() => setStep(6)}>← Back to edit</Btn>
+            <Btn variant="pill" onClick={() => setStep(7)}>← Back to edit</Btn>
             <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
           </div>
         </div>

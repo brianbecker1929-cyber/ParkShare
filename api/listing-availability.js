@@ -1,18 +1,21 @@
-
 // GET /api/listing-availability?listingId=123&hours=1
 //   or  ?listingId=123&hours=2&bookingDate=2026-07-25&startHour=14
 //
-// Public, no auth required — this powers both:
-//   - the "X spots available now" badge while browsing (no bookingDate/startHour)
-//   - the live check tied to a specific future date/time when scheduling an
-//     advance booking (bookingDate + startHour provided)
-//
-// Reuses getSessionWindow — the exact same window logic used to enforce
-// availability at checkout (create-checkout-session.js) and to time
-// reminder emails (send-reminders.js) — so "what this badge shows you" and
-// "what actually gets enforced when you pay" can never drift apart.
+// Public, no auth required. Checks both Host-defined schedule rules and
+// overlapping confirmed bookings/holds for the requested time window.
 
 import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
+import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
+
+function rentableSpotLabels(listing) {
+  if (Array.isArray(listing.spots) && listing.spots.length > 0) {
+    return listing.spots
+      .map((spot, index) => spot?.forRent ? String.fromCharCode(65 + index) : null)
+      .filter(Boolean);
+  }
+  const count = Math.max(1, Math.min(8, Number(listing.spaces) || 1));
+  return Array.from({ length: count }, (_, index) => String.fromCharCode(65 + index));
+}
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
@@ -31,14 +34,11 @@ export default async function handler(req, res) {
   try {
     const { data: listing, error } = await supabaseAdmin
       .from("listings")
-      .select("id, spaces")
+      .select("id, spaces, spots, availability")
       .eq("id", listingId)
       .single();
     if (error || !listing) return res.status(404).json({ error: "Listing not found." });
 
-    // No bookingDate/startHour -> same as before: window starts right now.
-    // With them -> checks that specific future window instead, so scheduling
-    // a slot shows real availability for THAT time, not just "now."
     const { start, end } = getSessionWindow({
       paid_at: new Date().toISOString(),
       booking_date: bookingDate,
@@ -46,16 +46,24 @@ export default async function handler(req, res) {
       hours,
     });
 
+    const labels = rentableSpotLabels(listing);
+    const hostScheduleOpen = isListingAvailableForWindow(listing.availability, start, end);
+    if (!hostScheduleOpen) {
+      const spotStatus = Object.fromEntries(labels.map(label => [label, false]));
+      return res.status(200).json({
+        available: false,
+        spacesTotal: Math.max(1, Number(listing.spaces) || labels.length || 1),
+        spacesFree: 0,
+        hostScheduleOpen: false,
+        reason: "host_schedule",
+        spotStatus,
+      });
+    }
+
     const result = await checkAvailability(listingId, listing.spaces || 1, start, end);
+    const spotStatus = await checkAllSpotAvailability(listingId, labels, start, end);
 
-    // Per-letter status for the picker UI — same window, same "confirmed
-    // bookings only" rule as the capacity check above, just broken out by
-    // spot_label instead of summed into one count. Hardcoded to A-D since
-    // that's the fixed 4-slot layout SpotPicker in App.jsx renders today;
-    // revisit both together if that ever supports more than 4 spots.
-    const spotStatus = await checkAllSpotAvailability(listingId, ["A", "B", "C", "D"], start, end);
-
-    return res.status(200).json({ ...result, spotStatus });
+    return res.status(200).json({ ...result, hostScheduleOpen: true, spotStatus });
   } catch (err) {
     console.error("listing-availability error:", err);
     return res.status(500).json({ error: "Couldn't check availability." });
