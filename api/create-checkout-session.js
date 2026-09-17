@@ -5,6 +5,7 @@
 import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { calculateBookingAmounts, isRentableSpot, isValidBookingDuration } from "./_booking-rules.js";
 import { getBookableVehicles } from "../src/lib/driverProfile.js";
+import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
 
 const SERVICE_FEE_RATE = 0.15;
 
@@ -47,7 +48,7 @@ export default async function handler(req, res) {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, host_id, title, address, price, spaces, spots")
+      .select("id, host_id, title, address, price, spaces, spots, availability")
       .eq("id", listingId)
       .single();
 
@@ -69,14 +70,20 @@ export default async function handler(req, res) {
       bookingEvent = eventRow;
     }
 
-    // Build the exact requested window. The atomic hold is acquired below,
-    // after validating that the Host can accept Stripe charges.
     const { start: windowStart, end: windowEnd } = getSessionWindow({
       paid_at: new Date().toISOString(),
       booking_date: bookingDate,
       start_hour: startHour,
       hours,
     });
+
+    // Host schedule is checked server-side immediately before any hold or
+    // Stripe session is created. Existing confirmed bookings remain intact if
+    // a Host later narrows their schedule; this only blocks NEW bookings.
+    if (!isListingAvailableForWindow(listing.availability, windowStart, windowEnd)) {
+      return res.status(409).json({ error: "This driveway is not available during that time. Please choose another time." });
+    }
+
     const { data: hostProfile, error: hostError } = await supabaseAdmin
       .from("profiles")
       .select("stripe_account_id")
@@ -92,7 +99,6 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: "This Host's Stripe account isn't ready to accept payments yet." });
     }
 
-    // All amounts are calculated server-side from the database price.
     const { hourlyCents, subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(
       listing.price,
       hours,
@@ -190,10 +196,6 @@ export default async function handler(req, res) {
         metadata,
         success_url: `${origin}/?booking_success=1&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/?booking_cancelled=1`,
-        // Stripe's minimum allowed expiry is 30 minutes — shorter than the
-        // default 24h, which shrinks (but can't fully close) the window
-        // where someone else could book the same last spot while this
-        // renter is mid-checkout on Stripe's page.
         expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
       },
       { stripeAccount: stripeAccountId }
