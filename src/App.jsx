@@ -1237,123 +1237,6 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState({ rating: 5, text: "" });
 
-  const setAvailabilityPreset = (preset) => {
-    setForm(current => ({
-      ...current,
-      availability: preset === "custom"
-        ? { ...normalizeAvailability(current.availability), preset: "custom" }
-        : createAvailabilityPreset(preset, normalizeAvailability(current.availability).timezone),
-    }));
-  };
-  const updateAvailabilityDay = (dayKey, patch) => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        preset: "custom",
-        weekly: {
-          ...availability.weekly,
-          [dayKey]: { ...availability.weekly[dayKey], ...patch },
-        },
-      },
-    };
-  });
-  const updateAvailabilityWindow = (dayKey, index, field, value) => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    const windows = [...availability.weekly[dayKey].windows];
-    windows[index] = { ...windows[index], [field]: value };
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        preset: "custom",
-        weekly: {
-          ...availability.weekly,
-          [dayKey]: { ...availability.weekly[dayKey], windows },
-        },
-      },
-    };
-  });
-  const addAvailabilityWindow = (dayKey) => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    const windows = [...availability.weekly[dayKey].windows, { start: "17:00", end: "21:00" }];
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        preset: "custom",
-        weekly: {
-          ...availability.weekly,
-          [dayKey]: { ...availability.weekly[dayKey], enabled: true, windows },
-        },
-      },
-    };
-  });
-  const removeAvailabilityWindow = (dayKey, index) => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    const windows = availability.weekly[dayKey].windows.filter((_, i) => i !== index);
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        preset: "custom",
-        weekly: {
-          ...availability.weekly,
-          [dayKey]: { ...availability.weekly[dayKey], enabled: windows.length > 0, windows },
-        },
-      },
-    };
-  });
-  const copyMondayToWeekdays = () => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    const monday = availability.weekly.mon;
-    const weekly = { ...availability.weekly };
-    ["tue", "wed", "thu", "fri"].forEach(day => {
-      weekly[day] = { enabled: monday.enabled, windows: monday.windows.map(window => ({ ...window })) };
-    });
-    return { ...current, availability: { ...availability, preset: "custom", weekly } };
-  });
-  const addAvailabilityException = () => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    const today = new Date();
-    today.setDate(today.getDate() + 1);
-    const date = today.toISOString().slice(0, 10);
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        exceptions: [...availability.exceptions, {
-          id: `exception-${Date.now()}`,
-          type: "unavailable",
-          startDate: date,
-          endDate: date,
-          windows: [{ start: "09:00", end: "17:00" }],
-        }],
-      },
-    };
-  });
-  const updateAvailabilityException = (id, patch) => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        exceptions: availability.exceptions.map(exception => exception.id === id ? { ...exception, ...patch } : exception),
-      },
-    };
-  });
-  const removeAvailabilityException = (id) => setForm(current => {
-    const availability = normalizeAvailability(current.availability);
-    return {
-      ...current,
-      availability: {
-        ...availability,
-        exceptions: availability.exceptions.filter(exception => exception.id !== id),
-      },
-    };
-  });
-
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -4039,6 +3922,123 @@ function ListDrivewayView({ user }) {
   });
   const toggleSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.map(s => s.id === id ? { ...s, forRent: !s.forRent } : s)));
   const removeSatelliteSpot = (id) => setForm(f => syncSpots(f, f.spots.filter(s => s.id !== id)));
+
+  const setAvailabilityPreset = (preset) => {
+    setForm(current => ({
+      ...current,
+      availability: preset === "custom"
+        ? { ...normalizeAvailability(current.availability), preset: "custom" }
+        : createAvailabilityPreset(preset, normalizeAvailability(current.availability).timezone),
+    }));
+  };
+  const updateAvailabilityDay = (dayKey, patch) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], ...patch },
+        },
+      },
+    };
+  });
+  const updateAvailabilityWindow = (dayKey, index, field, value) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const windows = [...availability.weekly[dayKey].windows];
+    windows[index] = { ...windows[index], [field]: value };
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], windows },
+        },
+      },
+    };
+  });
+  const addAvailabilityWindow = (dayKey) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const windows = [...availability.weekly[dayKey].windows, { start: "17:00", end: "21:00" }];
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], enabled: true, windows },
+        },
+      },
+    };
+  });
+  const removeAvailabilityWindow = (dayKey, index) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const windows = availability.weekly[dayKey].windows.filter((_, i) => i !== index);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        preset: "custom",
+        weekly: {
+          ...availability.weekly,
+          [dayKey]: { ...availability.weekly[dayKey], enabled: windows.length > 0, windows },
+        },
+      },
+    };
+  });
+  const copyMondayToWeekdays = () => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const monday = availability.weekly.mon;
+    const weekly = { ...availability.weekly };
+    ["tue", "wed", "thu", "fri"].forEach(day => {
+      weekly[day] = { enabled: monday.enabled, windows: monday.windows.map(window => ({ ...window })) };
+    });
+    return { ...current, availability: { ...availability, preset: "custom", weekly } };
+  });
+  const addAvailabilityException = () => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    const today = new Date();
+    today.setDate(today.getDate() + 1);
+    const date = today.toISOString().slice(0, 10);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        exceptions: [...availability.exceptions, {
+          id: `exception-${Date.now()}`,
+          type: "unavailable",
+          startDate: date,
+          endDate: date,
+          windows: [{ start: "09:00", end: "17:00" }],
+        }],
+      },
+    };
+  });
+  const updateAvailabilityException = (id, patch) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        exceptions: availability.exceptions.map(exception => exception.id === id ? { ...exception, ...patch } : exception),
+      },
+    };
+  });
+  const removeAvailabilityException = (id) => setForm(current => {
+    const availability = normalizeAvailability(current.availability);
+    return {
+      ...current,
+      availability: {
+        ...availability,
+        exceptions: availability.exceptions.filter(exception => exception.id !== id),
+      },
+    };
+  });
 
   const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
   const normalizedAvailability = normalizeAvailability(form.availability);
