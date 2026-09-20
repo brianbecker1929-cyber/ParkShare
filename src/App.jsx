@@ -12,6 +12,7 @@ import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime"
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
+import { buildOpenTableWidgetUrl, resolveOpenTableRestaurantId } from "./lib/opentable";
 import {
   EVENT_ARRIVAL_BUFFER_MINUTES,
   EVENT_CATEGORIES,
@@ -2000,6 +2001,69 @@ function EventSubmissionForm({ onClose }) {
   );
 }
 
+function OpenTableBrand({ compact = false }) {
+  return (
+    <span className={`ps-opentable-brand${compact ? " is-compact" : ""}`} aria-label="OpenTable">
+      <span className="ps-opentable-mark" aria-hidden="true">
+        <span className="ps-opentable-mark-dot" />
+        <span className="ps-opentable-mark-ring" />
+      </span>
+      <span className="ps-opentable-wordmark">OpenTable</span>
+    </span>
+  );
+}
+
+function OpenTableReservationModal({ restaurant, restaurantId, onClose, onContinueToParking }) {
+  if (!restaurant) return null;
+  const widgetUrl = buildOpenTableWidgetUrl(restaurantId);
+
+  return (
+    <div className="ps-opentable-overlay" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}>
+      <section className="ps-opentable-modal" role="dialog" aria-modal="true" aria-labelledby="ps-opentable-title">
+        <div className="ps-opentable-modal-handle" aria-hidden="true" />
+        <button type="button" className="ps-opentable-close" onClick={onClose} aria-label="Close OpenTable reservation">×</button>
+
+        <header className="ps-opentable-modal-header">
+          <small>RESERVE A TABLE</small>
+          <h2 id="ps-opentable-title">{restaurant.name}</h2>
+          <p>{restaurant.address}</p>
+          <OpenTableBrand />
+          <span className="ps-opentable-powered">Powered by OpenTable</span>
+        </header>
+
+        {widgetUrl ? (
+          <div className="ps-opentable-widget-shell">
+            <iframe
+              className="ps-opentable-widget-frame"
+              src={widgetUrl}
+              title={`OpenTable reservation for ${restaurant.name}`}
+              loading="eager"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        ) : (
+          <div className="ps-opentable-not-configured" role="status">
+            <strong>OpenTable reservations are not available for this restaurant in ParkShare yet.</strong>
+            <p>Choose another restaurant with OpenTable availability, or continue with nearby parking.</p>
+          </div>
+        )}
+
+        <footer className="ps-opentable-modal-footer">
+          {widgetUrl && (
+            <p>
+              Complete your table reservation above. Reservation details are handled directly by OpenTable inside the embedded booking widget.
+            </p>
+          )}
+          <button type="button" className="ps-opentable-continue" onClick={onContinueToParking}>
+            {widgetUrl ? "Done reserving — continue to parking" : "Continue to parking"}
+            <span aria-hidden="true">→</span>
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 // ─── Discover View ────────────────────────────────────────────────────────────
 // Restaurants and events deliberately live outside Browse. Discover helps a
 // Driver choose where they are going; Browse then does one job well: parking.
@@ -2255,12 +2319,14 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [walkingRoutes, setWalkingRoutes] = useState({});
   const [walkingRoutesLoading, setWalkingRoutesLoading] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(initialRestaurant);
+  const [openTableReservationOpen, setOpenTableReservationOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(initialEvent ? normalizeEventRow(initialEvent) : null);
   const [eventListingAccess, setEventListingAccess] = useState({});
   const debounceRef = useRef(null);
   const searchInputRef = useRef(null);
   const autocompleteTokenRef = useRef(null);
   const suggestionRequestRef = useRef(0);
+  const openTableRestaurantId = resolveOpenTableRestaurantId(selectedRestaurant, import.meta.env.VITE_OPENTABLE_RESTAURANT_MAP);
   const walkingRouteInputKey = allListings
     .map(listing => `${listing.id}:${listing.lat ?? ""}:${listing.lng ?? ""}`)
     .join("|");
@@ -2556,7 +2622,20 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
               <strong>{selectedEvent?.name || selectedRestaurant?.name}</strong>
               <em>{selectedEvent ? (selectedEvent.venueName || selectedEvent.address) : selectedRestaurant.address}</em>
             </div>
-            <button type="button" onClick={onOpenDiscover}>Choose another</button>
+            <div className="ps-browse-destination-actions">
+              {selectedRestaurant && (
+                <button
+                  type="button"
+                  className="ps-opentable-map-button"
+                  onClick={() => setOpenTableReservationOpen(true)}
+                  aria-label={`Reserve a table at ${selectedRestaurant.name} with OpenTable`}
+                >
+                  <OpenTableBrand compact />
+                  <span className="ps-opentable-button-powered">Powered by OpenTable</span>
+                </button>
+              )}
+              <button type="button" className="ps-browse-choose-another" onClick={onOpenDiscover}>Choose another</button>
+            </div>
             {showLongWalkNotice && <p>No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.</p>}
           </div>
         )}
@@ -2637,6 +2716,19 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         )}
         </>)}
       </div>
+      {openTableReservationOpen && selectedRestaurant && (
+        <OpenTableReservationModal
+          restaurant={selectedRestaurant}
+          restaurantId={openTableRestaurantId}
+          onClose={() => setOpenTableReservationOpen(false)}
+          onContinueToParking={() => {
+            setOpenTableReservationOpen(false);
+            window.requestAnimationFrame(() => {
+              document.querySelector(".ps-browse-listing-column")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

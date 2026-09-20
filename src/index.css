@@ -5603,3 +5603,328 @@ button, input, select, textarea { font: inherit; }
   .ps-browse-destination-context { grid-template-columns: auto minmax(0, 1fr); }
   .ps-browse-destination-context > button { grid-column: 2; justify-self: start; }
 }
+
+/* -------------------------------------------------------------------------- */
+/* OpenTable reservation handoff — lives only after a restaurant is selected  */
+/* -------------------------------------------------------------------------- */
+.ps-browse-destination-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ps-browse-choose-another {
+  padding: 7px 10px;
+  border: 1px solid #FFC107;
+  border-radius: 8px;
+  background: transparent;
+  color: #FFC107;
+  font: 800 9px 'Poppins', sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ps-opentable-map-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 36px;
+  padding: 5px 10px 4px;
+  border: 1.5px solid #DA3743;
+  border-radius: 8px;
+  background: #fff;
+  color: #0E1B2E;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+  cursor: pointer;
+}
+
+.ps-opentable-map-button:hover,
+.ps-opentable-map-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(218, 55, 67, .18), 0 3px 10px rgba(0, 0, 0, .15);
+}
+
+.ps-opentable-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #0E1B2E;
+  line-height: 1;
+}
+
+.ps-opentable-brand.is-compact { gap: 5px; }
+
+.ps-opentable-mark {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.ps-opentable-brand.is-compact .ps-opentable-mark {
+  width: 25px;
+  height: 15px;
+}
+
+.ps-opentable-mark-dot,
+.ps-opentable-mark-ring {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: #DA3743;
+}
+
+.ps-opentable-mark-dot {
+  left: 0;
+  width: 9px;
+  height: 9px;
+}
+
+.ps-opentable-mark-ring {
+  right: 0;
+  width: 24px;
+  height: 24px;
+}
+
+.ps-opentable-mark-ring::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.ps-opentable-brand.is-compact .ps-opentable-mark-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.ps-opentable-brand.is-compact .ps-opentable-mark-ring {
+  width: 15px;
+  height: 15px;
+}
+
+.ps-opentable-brand.is-compact .ps-opentable-mark-ring::after { inset: 4px; }
+
+.ps-opentable-wordmark {
+  font: 800 23px/1 'Poppins', sans-serif;
+  letter-spacing: -.04em;
+}
+
+.ps-opentable-brand.is-compact .ps-opentable-wordmark {
+  font-size: 10.5px;
+  letter-spacing: -.03em;
+}
+
+.ps-opentable-button-powered {
+  color: #71695A;
+  font: 600 6.3px/1.1 'Poppins', sans-serif;
+  white-space: nowrap;
+}
+
+.ps-opentable-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(14, 27, 46, .62);
+  backdrop-filter: blur(3px);
+}
+
+.ps-opentable-modal {
+  position: relative;
+  width: min(100%, 620px);
+  max-height: min(92vh, 820px);
+  overflow: hidden;
+  border: 1px solid rgba(14, 27, 46, .12);
+  border-radius: 22px;
+  background: #fff;
+  color: #0E1B2E;
+  box-shadow: 0 24px 70px rgba(14, 27, 46, .28);
+  font-family: 'Poppins', sans-serif;
+}
+
+.ps-opentable-modal-handle { display: none; }
+
+.ps-opentable-close {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: #F2EEE6;
+  color: #0E1B2E;
+  font: 500 22px/34px Arial, sans-serif;
+  cursor: pointer;
+}
+
+.ps-opentable-modal-header {
+  padding: 24px 58px 15px 24px;
+  border-bottom: 1px solid #E3DDC9;
+}
+
+.ps-opentable-modal-header > small {
+  display: block;
+  margin-bottom: 5px;
+  color: #DA3743;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.ps-opentable-modal-header h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.ps-opentable-modal-header p {
+  margin: 4px 0 14px;
+  color: #71695A;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.ps-opentable-powered {
+  display: block;
+  margin-top: 5px;
+  color: #71695A;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.ps-opentable-widget-shell {
+  height: min(48vh, 420px);
+  min-height: 330px;
+  background: #FAF7F0;
+}
+
+.ps-opentable-widget-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.ps-opentable-not-configured {
+  margin: 22px 24px;
+  padding: 20px;
+  border: 1px solid #F2C5C8;
+  border-radius: 14px;
+  background: #FFF8F8;
+  text-align: center;
+}
+
+.ps-opentable-not-configured strong {
+  display: block;
+  color: #0E1B2E;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.ps-opentable-not-configured p {
+  margin: 8px 0 0;
+  color: #71695A;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.ps-opentable-modal-footer {
+  padding: 14px 18px 18px;
+  border-top: 1px solid #E3DDC9;
+  background: #fff;
+}
+
+.ps-opentable-modal-footer p {
+  margin: 0 0 10px;
+  color: #71695A;
+  font-size: 9.5px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.ps-opentable-continue {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #FFC107;
+  color: #0E1B2E;
+  font: 800 12px 'Poppins', sans-serif;
+  cursor: pointer;
+}
+
+.ps-opentable-continue span { font-size: 18px; line-height: 1; }
+
+@media (max-width: 700px) {
+  .ps-browse-destination-context {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .ps-browse-destination-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    padding-left: 29px;
+  }
+
+  .ps-opentable-map-button,
+  .ps-browse-choose-another { min-height: 40px; }
+
+  .ps-opentable-map-button { padding-inline: 12px; }
+
+  .ps-opentable-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .ps-opentable-modal {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .ps-opentable-modal-handle {
+    display: block;
+    width: 44px;
+    height: 4px;
+    margin: 8px auto 0;
+    border-radius: 999px;
+    background: #C9C6C0;
+  }
+
+  .ps-opentable-close { top: 12px; }
+  .ps-opentable-modal-header { padding: 18px 52px 12px 18px; }
+  .ps-opentable-modal-header h2 { font-size: 18px; }
+  .ps-opentable-widget-shell { height: 48dvh; min-height: 300px; }
+  .ps-opentable-modal-footer { padding: 12px 14px max(15px, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 390px) {
+  .ps-browse-destination-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    padding-left: 0;
+  }
+
+  .ps-opentable-map-button { width: 100%; }
+  .ps-browse-choose-another { padding-inline: 9px; }
+}
