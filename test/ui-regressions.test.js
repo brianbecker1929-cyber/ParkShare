@@ -56,6 +56,24 @@ test("Discover connects Google Places restaurants to a clean parking handoff", (
   assert.match(styles, /\.ps-browse-destination-context[\s\S]*?background:\s*#0E1B2E/);
 });
 
+test("OpenTable reservations appear after restaurant selection, not on Discover restaurant cards", () => {
+  const discoverView = functionSource("DiscoverView", "BrowseView");
+  const browseView = functionSource("BrowseView", "EditListingModal");
+  const openTableModal = functionSource("OpenTableReservationModal", "DiscoverView");
+
+  assert.doesNotMatch(discoverView, /ps-opentable-map-button/);
+  assert.match(browseView, /ps-opentable-map-button/);
+  assert.match(browseView, /OpenTableBrand compact/);
+  assert.match(browseView, /Powered by OpenTable/);
+  assert.match(browseView, /ps-browse-destination-actions/);
+  assert.match(browseView, /className="ps-browse-choose-another"/);
+  assert.match(browseView, /OpenTableReservationModal/);
+  assert.match(openTableModal, /ps-opentable-widget-frame/);
+  assert.match(openTableModal, /Done reserving — continue to parking/);
+  assert.match(styles, /\.ps-opentable-map-button\s*{[\s\S]*?border:\s*1\.5px solid #DA3743/);
+  assert.match(styles, /\.ps-opentable-overlay\s*{[\s\S]*?position:\s*fixed/);
+});
+
 test("Discover connects events to Browse without adding event markers to the map", () => {
   const discoverView = functionSource("DiscoverView", "BrowseView");
   const browseView = functionSource("BrowseView", "EditListingModal");
