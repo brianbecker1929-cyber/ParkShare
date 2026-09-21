@@ -5905,3 +5905,21 @@ button, input, select, textarea { font: inherit; }
     filter: drop-shadow(0 14px 18px rgba(0,0,0,.15)) !important;
   }
 }
+
+
+/* ==========================================================================
+   ABOUT + TRUST HERO — FINAL DESKTOP SIZE REFINEMENT — 2026-09-21
+   Duo 02: desktop artwork +~11%; mobile unchanged.
+   Duo 08: desktop artwork +~14%; mobile unchanged.
+   ========================================================================== */
+@media (min-width: 900px) {
+  .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero {
+    width: min(345px, 84%) !important;
+    max-height: 365px !important;
+  }
+
+  .ps-trust-v2-hero-visual .ps-mascot-trust-hero {
+    width: min(360px, 88%) !important;
+    max-height: 375px !important;
+  }
+}
