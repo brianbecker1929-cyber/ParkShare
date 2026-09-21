@@ -5803,3 +5803,49 @@ button, input, select, textarea { font: inherit; }
     max-height: 220px !important;
   }
 }
+
+
+/* ==========================================================================
+   DRIVER + HOST HERO CORRECTION — approved Phase 1 refinement — 2026-09-21
+   Parker 07 / William 11 artwork is unchanged; only responsive scale and
+   presentation are refined. Cleaned alpha assets remove export fringe/shadow.
+   ========================================================================== */
+
+/* Driver desktop: give Parker 07 stronger presence in the amber panel. */
+@media (min-width: 900px) {
+  .ps-driver-v2-hero-parker {
+    width: 315px !important;
+    height: 390px !important;
+  }
+  .ps-driver-v2-hero-parker .ps-mascot-driver-hero {
+    width: 100% !important;
+    max-height: 390px !important;
+  }
+}
+
+/* Host desktop: William 11 should read as a primary hero visual, not a thumbnail. */
+@media (min-width: 900px) {
+  .ps-host-hero-visual .ps-mascot-host-hero {
+    width: min(330px, 82%) !important;
+    max-height: 400px !important;
+  }
+}
+
+/* Host mobile: remove the navy box-inside-amber treatment and let the cleaned
+   transparent William artwork sit naturally on the existing amber hero. */
+@media (max-width: 899px) {
+  .ps-host-hero-visual {
+    display: flex !important;
+    background: transparent !important;
+    padding: 12px 0 0 !important;
+    margin-top: 14px !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+    overflow: visible !important;
+  }
+  .ps-host-hero-visual .ps-mascot-host-hero {
+    width: min(250px, 68vw) !important;
+    max-height: 285px !important;
+    filter: drop-shadow(0 10px 14px rgba(14,27,46,.14)) !important;
+  }
+}
