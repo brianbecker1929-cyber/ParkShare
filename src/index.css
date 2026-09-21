@@ -5603,3 +5603,179 @@ button, input, select, textarea { font: inherit; }
   .ps-browse-destination-context { grid-template-columns: auto minmax(0, 1fr); }
   .ps-browse-destination-context > button { grid-column: 2; justify-self: start; }
 }
+
+
+/* ==========================================================================
+   WILLIAM + PARKER MASCOT INTEGRATION — PHASE 1 — 2026-09-21
+   Responsive transparent WebP assets (480 / 768 / 1122) are served by the
+   shared ResponsiveMascot component in App.jsx. These rules intentionally
+   override the old baked-in Parker card treatments only at the eight Phase 1
+   placements. Other Parker artwork and the floating Ask Parker control remain
+   unchanged for this review pass.
+   ========================================================================== */
+.ps-responsive-mascot {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center bottom;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Homepage hero — Duo 01: let the transparent duo sit directly on amber. */
+.ps-home-v2-parker-card {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+.ps-home-v2-parker-card .ps-mascot-home-hero {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 390px;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+}
+
+/* Homepage How It Works — Duo 03A. */
+.ps-home-v2-how-mascot {
+  width: min(290px, 68vw);
+  margin: -8px auto 28px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+.ps-home-v2-how-mascot .ps-responsive-mascot {
+  max-height: 300px;
+}
+
+/* Driver hero — Parker 07: remove the old white card so transparency is real. */
+.ps-driver-v2-hero-parker {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+.ps-driver-v2-hero-parker .ps-mascot-driver-hero {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 310px;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+}
+
+/* Host hero — William 11. */
+.ps-host-hero-visual .ps-mascot-host-hero {
+  display: block !important;
+  width: min(280px, 72vw) !important;
+  height: auto !important;
+  max-height: 340px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  filter: drop-shadow(0 16px 20px rgba(0,0,0,.18));
+}
+
+/* About hero — Duo 02. Cancel the historical white Parker card/crop rules. */
+.ps-about-page .ps-about-hero-visual .ps-mascot-about-hero {
+  width: min(310px, 76%) !important;
+  height: auto !important;
+  max-height: 330px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  transform: none !important;
+  clip-path: none !important;
+}
+
+/* Trust & Safety hero — Duo 08. */
+.ps-trust-v2-hero-visual .ps-mascot-trust-hero {
+  display: block !important;
+  width: min(315px, 78%) !important;
+  height: auto !important;
+  max-height: 330px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  margin: 0 auto !important;
+}
+
+/* Help hero — William 10. */
+.ps-help-parker-frame .ps-mascot-help-hero {
+  display: block !important;
+  width: min(100%, 240px) !important;
+  height: auto !important;
+  max-height: 300px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  margin: 0 auto !important;
+}
+
+/* Contact hero — William 15. */
+.ps-contact-hero-art .ps-mascot-contact-hero {
+  display: block !important;
+  width: min(100%, 370px) !important;
+  height: auto !important;
+  max-height: 350px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+}
+
+/* The old Driver and Host heroes intentionally hid artwork on phones. Phase 1
+   needs the new characters visible on mobile too, at a smaller scale. */
+@media (max-width: 899px) {
+  .ps-host-hero-visual {
+    display: flex !important;
+    background: #0E1B2E !important;
+    padding: 22px 20px 0 !important;
+    margin-top: 22px !important;
+    align-items: flex-end !important;
+    justify-content: center !important;
+  }
+  .ps-host-hero-visual .ps-mascot-host-hero {
+    width: min(245px, 66vw) !important;
+    max-height: 275px !important;
+  }
+
+  .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero {
+    width: min(270px, 72%) !important;
+    max-height: 285px !important;
+  }
+
+  .ps-trust-v2-hero-visual .ps-mascot-trust-hero {
+    width: min(270px, 72%) !important;
+    max-height: 285px !important;
+  }
+
+  .ps-contact-hero-art .ps-mascot-contact-hero {
+    width: min(100%, 280px) !important;
+    max-height: 250px !important;
+  }
+}
+
+@media (max-width: 699px) {
+  .ps-driver-v2-hero-art {
+    display: flex !important;
+    min-height: 0 !important;
+    padding: 28px 24px 30px !important;
+    gap: 14px !important;
+  }
+  .ps-driver-v2-hero-parker {
+    width: min(220px, 58vw) !important;
+    height: auto !important;
+  }
+  .ps-driver-v2-hero-parker .ps-mascot-driver-hero {
+    max-height: 260px !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .ps-home-v2-how-mascot {
+    width: min(250px, 66vw);
+    margin-bottom: 22px;
+  }
+}
