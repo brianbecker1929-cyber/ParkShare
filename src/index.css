@@ -5779,3 +5779,27 @@ button, input, select, textarea { font: inherit; }
     margin-bottom: 22px;
   }
 }
+
+/* Homepage mascot refinement — approved after Phase 1 Vercel review — 2026-09-21 */
+@media (min-width: 821px) {
+  .ps-home-v2-parker-card {
+    width: min(100%, 380px) !important;
+    height: 430px !important;
+  }
+  .ps-home-v2-parker-card .ps-mascot-home-hero {
+    max-height: 430px !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .ps-home-v2-hero-art {
+    padding: 16px 20px 18px !important;
+  }
+  .ps-home-v2-parker-card {
+    width: 220px !important;
+    height: 220px !important;
+  }
+  .ps-home-v2-parker-card .ps-mascot-home-hero {
+    max-height: 220px !important;
+  }
+}
