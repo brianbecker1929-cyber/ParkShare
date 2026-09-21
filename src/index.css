@@ -5849,3 +5849,59 @@ button, input, select, textarea { font: inherit; }
     filter: drop-shadow(0 10px 14px rgba(14,27,46,.14)) !important;
   }
 }
+
+
+/* ==========================================================================
+   DRIVER + HOST HERO — FINAL PRE-LOCK REFINEMENT — 2026-09-21
+   Parker 07 placement remains approved. William 11 receives slightly stronger
+   desktop presence plus a subtle amber separation glow against the navy panel.
+   ========================================================================== */
+
+/* Parker 07: preserve approved scale and let the browser use normal
+   high-quality interpolation. The alpha-edge cleanup itself belongs in the
+   image asset, not CSS. */
+.ps-driver-v2-hero-parker .ps-mascot-driver-hero {
+  image-rendering: auto !important;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* William 11 desktop: increase presence and add soft brand-colour separation
+   behind the transparent character without outlining or altering the artwork. */
+@media (min-width: 900px) {
+  .ps-host-hero-visual {
+    position: relative !important;
+    isolation: isolate;
+    overflow: hidden !important;
+  }
+
+  .ps-host-hero-visual::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: 50%;
+    top: 50%;
+    width: 82%;
+    height: 88%;
+    transform: translate(-50%, -49%);
+    border-radius: 50%;
+    background:
+      radial-gradient(
+        ellipse at center,
+        rgba(255, 193, 7, .30) 0%,
+        rgba(255, 193, 7, .17) 34%,
+        rgba(255, 193, 7, .07) 54%,
+        rgba(255, 193, 7, 0) 74%
+      );
+    filter: blur(6px);
+    pointer-events: none;
+  }
+
+  .ps-host-hero-visual .ps-mascot-host-hero {
+    position: relative;
+    z-index: 1;
+    width: min(385px, 88%) !important;
+    max-height: 445px !important;
+    filter: drop-shadow(0 14px 18px rgba(0,0,0,.15)) !important;
+  }
+}
