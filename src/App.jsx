@@ -38,6 +38,40 @@ const C = {
   red: "#C53030", redLight: "#FFF5F5", hazard: "#E2571C",
 };
 
+// Shared responsive mascot renderer. Each mascot library keeps matching
+// 480px / 768px / 1122px transparent WebP exports under public/<family>/web.
+// The browser chooses the smallest suitable file through srcSet, keeping
+// mobile pages light without maintaining separate markup on every screen.
+function ResponsiveMascot({
+  family,
+  name,
+  alt = "",
+  className = "",
+  hero = false,
+  sizes = "(max-width: 600px) 90vw, (max-width: 1000px) 60vw, 600px",
+  decorative = false,
+}) {
+  const base = `/${family}/web`;
+  const resolvedAlt = decorative ? "" : alt;
+
+  return (
+    <img
+      className={`ps-responsive-mascot ${className}`.trim()}
+      src={`${base}/768px/${name}-768.webp`}
+      srcSet={`${base}/480px/${name}-480.webp 480w, ${base}/768px/${name}-768.webp 768w, ${base}/1122px/${name}-1122.webp 1122w`}
+      sizes={sizes}
+      width="1122"
+      height="1402"
+      alt={resolvedAlt}
+      aria-hidden={decorative ? "true" : undefined}
+      loading={hero ? "eager" : "lazy"}
+      fetchPriority={hero ? "high" : "auto"}
+      decoding="async"
+      draggable={false}
+    />
+  );
+}
+
 function VehicleBadge({ vehicle, compact = false }) {
   const bodyType = getVehicleBodyType(vehicle);
   const colour = getVehicleColourName(vehicle);
@@ -6400,7 +6434,14 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-hero-art">
           <div className="ps-home-v2-parker-card">
-            <img src={PARKER.homeWave} alt="Parker, ParkShare's parking guide" />
+            <ResponsiveMascot
+              family="william-parker"
+              name="ParkShare_William_Parker_01_Signature_Welcome"
+              alt="William and Parker welcoming ParkShare Drivers and Hosts"
+              className="ps-mascot-home-hero"
+              hero
+              sizes="(max-width: 600px) 82vw, 340px"
+            />
           </div>
         </div>
       </section>
@@ -6434,6 +6475,14 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         <div className="ps-home-v2-section-heading">
           <div className="ps-home-v2-eyebrow">HOW PARKSHARE WORKS</div>
           <h2>Simple on both sides.</h2>
+        </div>
+        <div className="ps-home-v2-how-mascot" aria-hidden="true">
+          <ResponsiveMascot
+            family="william-parker"
+            name="ParkShare_William_Parker_03A_How_It_Works"
+            decorative
+            sizes="(max-width: 600px) 64vw, 290px"
+          />
         </div>
         <div className="ps-home-v2-how-grid">
           <article>
@@ -6930,7 +6979,14 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
         <div className="ps-trust-v2-hero-visual">
-          <img className="ps-trust-v2-parker-card" src="/parker/parker-trust-card.png" alt="Parker holding the ParkShare Trust and Safety shield" />
+          <ResponsiveMascot
+            family="william-parker"
+            name="ParkShare_William_Parker_08_Trust_Safety_Reassurance"
+            alt="William and Parker representing ParkShare Trust and Safety"
+            className="ps-trust-v2-parker-card ps-mascot-trust-hero"
+            hero
+            sizes="(max-width: 600px) 68vw, 315px"
+          />
           <strong>Trust makes sharing space possible.</strong>
           <span>Clear expectations. Responsible parking. Better experiences.</span>
         </div>
@@ -7078,7 +7134,14 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
         <div className="ps-about-hero-visual">
-          <img src={PARKER.aboutWaving} alt="Parker waving" />
+          <ResponsiveMascot
+            family="william-parker"
+            name="ParkShare_William_Parker_02_Joint_Wave"
+            alt="William and Parker welcoming the ParkShare community"
+            className="ps-mascot-about-hero"
+            hero
+            sizes="(max-width: 600px) 68vw, 300px"
+          />
           <strong>For Hosts. For Drivers.</strong>
           <span>For communities.</span>
         </div>
@@ -7306,8 +7369,15 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.navy, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
           <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
         </div>
-        <div className="ps-host-hero-visual" aria-hidden="true">
-          <img src={PARKER.savings} alt="" />
+        <div className="ps-host-hero-visual">
+          <ResponsiveMascot
+            family="william-v2"
+            name="ParkShare_William_11_Keys_Thumbs_Up"
+            alt="William holding keys and welcoming ParkShare Hosts"
+            className="ps-mascot-host-hero"
+            hero
+            sizes="(max-width: 600px) 64vw, 280px"
+          />
         </div>
       </div>
 
@@ -7717,9 +7787,16 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
           <p>Search for private parking near where you're going, book your space and arrive knowing where you're going to park.</p>
           <button className="ps-driver-v2-primary" onClick={onFindParking}>Find Parking →</button>
         </div>
-        <div className="ps-driver-v2-hero-art" aria-hidden="true">
+        <div className="ps-driver-v2-hero-art">
           <div className="ps-driver-v2-hero-parker">
-            <img src={PARKER.fullbody} alt="" />
+            <ResponsiveMascot
+              family="parker-v2"
+              name="ParkShare_Parker_07_Giving_Directions"
+              alt="Parker helping Drivers find their way to parking"
+              className="ps-mascot-driver-hero"
+              hero
+              sizes="(max-width: 600px) 58vw, 245px"
+            />
           </div>
           <div className="ps-driver-v2-hero-note">
             <strong>Your destination.</strong>
@@ -8572,13 +8649,13 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <div className="ps-help-hero-art">
           <div className="ps-help-support-visual">
             <div className="ps-help-parker-frame">
-              <img
-                src="/parker/parker-help-card.jpg"
-                alt="Parker, ParkShare support guide"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = PARKER.thinking;
-                }}
+              <ResponsiveMascot
+                family="william-v2"
+                name="ParkShare_William_10_Helpful_Tip"
+                alt="William, the ParkShare Guide, ready to help"
+                className="ps-mascot-help-hero"
+                hero
+                sizes="(max-width: 600px) 62vw, 240px"
               />
             </div>
             <h2>Support when you need it.</h2>
@@ -8798,7 +8875,14 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
           <p>Whether you have a question about parking, hosting, your account or an existing reservation, send us a message and we’ll help point you in the right direction.</p>
         </div>
         <div className="ps-contact-hero-art">
-          <img src="/parker/Parker-Customer-Care-Fullbody.png" alt="Parker, ParkShare customer support guide" />
+          <ResponsiveMascot
+            family="william-v2"
+            name="ParkShare_William_15_Customer_Service"
+            alt="William, the ParkShare Guide, ready to help with support questions"
+            className="ps-mascot-contact-hero"
+            hero
+            sizes="(max-width: 600px) 68vw, 370px"
+          />
         </div>
       </section>
 
