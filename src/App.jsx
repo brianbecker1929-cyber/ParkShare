@@ -8700,15 +8700,14 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             <div className="ps-help-guide">
               <div className="ps-help-small-parker-frame">
                 <div className="ps-help-small-parker-card">
-                  <img
-                src={PARKER.helpful}
-                alt="Parker"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = PARKER.thinking;
-                }}
-              />
-                </div>
+                <ResponsiveMascot
+                  family="william-v2"
+                  name="ParkShare_William_16_Need_A_Hand"
+                  alt="William, the ParkShare Guide, ready to help"
+                  className="ps-mascot-help-card"
+                  sizes="(max-width: 600px) 34vw, 170px"
+                />
+              </div>
               </div>
               <div>
                 <strong>Need a hand?</strong>
