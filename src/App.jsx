@@ -7052,8 +7052,10 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/parker/Parker-Helpful.png"
-              alt="Parker ready to help"
+              src="/william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp"
+              srcSet="/william-v2/web/480px/ParkShare_William_17_Trust_Support-480.webp 480w, /william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp 768w, /william-v2/web/1122px/ParkShare_William_17_Trust_Support-1122.webp 1122w"
+              sizes="(max-width: 600px) 56vw, 253px"
+              alt="William, the ParkShare Guide, ready to help"
               loading="eager"
               decoding="async"
               style={{
