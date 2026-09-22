@@ -5924,85 +5924,68 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
-
-/* ==========================================================================
-   PHASE 2 HELP CARD — WILLIAM VERTICAL ALIGNMENT — 2026-09-22
-   Desktop: move William down inside the white card.
-   Mobile: move William up slightly so he sits fully inside the white card.
-   No sizing or layout changes.
-   ========================================================================== */
-
-/* Desktop / web */
-@media (min-width: 821px) {
-  .ps-help-small-parker-card .ps-mascot-help-card {
-    top: -6px !important;
-  }
-}
-
-/* Mobile */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Phase 2 — Help card mobile William hand-over-border fix
+   Keep the current William artwork/design. Mobile only:
+   let William's right hand extend past the white card and sit above the navy
+   outline/card edge while keeping desktop unchanged.
+   ───────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 620px) {
-  .ps-help-small-parker-card .ps-mascot-help-card {
-    top: 2px !important;
-  }
-}
-
-
-/* ==========================================================================
-   PHASE 2 HELP CARD — FINAL WILLIAM CONTAINMENT — 2026-09-22
-   Override the legacy Parker crop/overflow rules only for the new William
-   support-card artwork. Keep William visually contained inside the white card.
-   ========================================================================== */
-
-.ps-help-small-parker-card {
-  overflow: hidden !important;
-}
-
-/* Desktop: lower William slightly and centre the portrait crop in the white box. */
-@media (min-width: 821px) {
-  .ps-help-small-parker-card .ps-mascot-help-card {
-    width: 260px !important;
-    max-width: none !important;
-    height: auto !important;
-    left: 50% !important;
-    top: 6px !important;
-    bottom: auto !important;
-    transform: translateX(-50%) !important;
-    clip-path: none !important;
-    object-fit: contain !important;
-  }
-}
-
-/* Tablet: keep the same contained portrait treatment. */
-@media (min-width: 621px) and (max-width: 820px) {
-  .ps-help-small-parker-card .ps-mascot-help-card {
-    width: 225px !important;
-    max-width: none !important;
-    height: auto !important;
-    left: 50% !important;
-    top: 2px !important;
-    bottom: auto !important;
-    transform: translateX(-50%) !important;
-    clip-path: none !important;
-    object-fit: contain !important;
-  }
-}
-
-/* Mobile: move William up slightly and shrink just enough to keep the
-   presenting hand and torso visually inside the white box. */
-@media (max-width: 620px) {
-  .ps-help-small-parker-card {
+  .ps-help-guide {
     overflow: hidden !important;
   }
 
-  .ps-help-small-parker-card .ps-mascot-help-card {
-    width: 200px !important;
+  .ps-help-small-parker-frame {
+    width: 158px !important;
+    height: 150px !important;
+    flex: 0 0 158px !important;
+    overflow: visible !important;
+    position: relative !important;
+    z-index: 4 !important;
+  }
+
+  .ps-help-small-parker-card {
+    width: 158px !important;
+    height: 150px !important;
+    background: #FFFFFF !important;
+    border-radius: 22px !important;
+    overflow: visible !important;
+    position: relative !important;
+    isolation: isolate !important;
+    z-index: 2 !important;
+  }
+
+  .ps-help-small-parker-card img {
+    position: absolute !important;
+    width: 220px !important;
     max-width: none !important;
     height: auto !important;
-    left: 50% !important;
-    top: -4px !important;
+    left: 44% !important;
+    top: 10px !important;
     bottom: auto !important;
     transform: translateX(-50%) !important;
-    clip-path: none !important;
     object-fit: contain !important;
+    clip-path: none !important;
+    z-index: 5 !important;
+    pointer-events: none !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .ps-help-small-parker-frame {
+    width: 148px !important;
+    height: 144px !important;
+    flex-basis: 148px !important;
+  }
+
+  .ps-help-small-parker-card {
+    width: 148px !important;
+    height: 144px !important;
+  }
+
+  .ps-help-small-parker-card img {
+    width: 206px !important;
+    left: 44% !important;
+    top: 12px !important;
   }
 }
