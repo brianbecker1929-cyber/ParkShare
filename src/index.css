@@ -5923,3 +5923,21 @@ button, input, select, textarea { font: inherit; }
     max-height: 375px !important;
   }
 }
+
+
+/* ==========================================================================
+   HELP + CONTACT HERO — FINAL DESKTOP SIZE REFINEMENT — 2026-09-22
+   William 10: desktop artwork +~12.5%; mobile unchanged.
+   William 15: desktop artwork +~11%; mobile unchanged.
+   ========================================================================== */
+@media (min-width: 900px) {
+  .ps-help-parker-frame .ps-mascot-help-hero {
+    width: min(100%, 270px) !important;
+    max-height: 338px !important;
+  }
+
+  .ps-contact-hero-art .ps-mascot-contact-hero {
+    width: min(100%, 410px) !important;
+    max-height: 390px !important;
+  }
+}
