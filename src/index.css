@@ -5926,74 +5926,22 @@ button, input, select, textarea { font: inherit; }
 
 
 /* ==========================================================================
-   HELP + CONTACT HERO — FINAL DESKTOP SIZE REFINEMENT — 2026-09-22
-   William 10: desktop artwork +~12.5%; mobile unchanged.
-   William 15: desktop artwork +~11%; mobile unchanged.
+   PHASE 2 HELP CARD — WILLIAM VERTICAL ALIGNMENT — 2026-09-22
+   Desktop: move William down inside the white card.
+   Mobile: move William up slightly so he sits fully inside the white card.
+   No sizing or layout changes.
    ========================================================================== */
-@media (min-width: 900px) {
-  .ps-help-parker-frame .ps-mascot-help-hero {
-    width: min(100%, 270px) !important;
-    max-height: 338px !important;
-  }
 
-  .ps-contact-hero-art .ps-mascot-contact-hero {
-    width: min(100%, 410px) !important;
-    max-height: 390px !important;
+/* Desktop / web */
+@media (min-width: 821px) {
+  .ps-help-small-parker-card .ps-mascot-help-card {
+    top: -6px !important;
   }
 }
 
-
-/* ==========================================================================
-   HELP MOBILE HERO — WILLIAM 10 VISIBILITY FIX — 2026-09-22
-   The Help component's embedded mobile CSS hides .ps-help-hero-art entirely.
-   Override that legacy rule so the approved William 10 hero appears on mobile.
-   ========================================================================== */
-@media (max-width: 899px) {
-  .ps-help-page .ps-help-hero-art {
-    display: flex !important;
-    min-height: 330px !important;
-    padding: 24px 20px 26px !important;
-    background: #FFC107 !important;
-    align-items: center !important;
-    justify-content: center !important;
-  }
-
-  .ps-help-page .ps-help-support-visual {
-    width: 100% !important;
-    max-width: 360px !important;
-    text-align: center !important;
-  }
-
-  .ps-help-page .ps-help-parker-frame {
-    width: min(230px, 64vw) !important;
-    max-width: 230px !important;
-    margin: 0 auto 14px !important;
-  }
-
-  .ps-help-page .ps-help-parker-frame .ps-mascot-help-hero {
-    display: block !important;
-    width: 100% !important;
-    height: auto !important;
-    max-height: 270px !important;
-    object-fit: contain !important;
-    object-position: center bottom !important;
-    margin: 0 auto !important;
-  }
-
-  .ps-help-page .ps-help-support-visual h2 {
-    display: block !important;
-    font-size: 22px !important;
-    line-height: 1.15 !important;
-    margin: 0 0 7px !important;
-    color: #0E1B2E !important;
-  }
-
-  .ps-help-page .ps-help-support-visual p {
-    display: block !important;
-    font-size: 12.5px !important;
-    line-height: 1.5 !important;
-    max-width: 320px !important;
-    margin: 0 auto !important;
-    color: rgba(14,27,46,.76) !important;
+/* Mobile */
+@media (max-width: 620px) {
+  .ps-help-small-parker-card .ps-mascot-help-card {
+    top: 2px !important;
   }
 }
