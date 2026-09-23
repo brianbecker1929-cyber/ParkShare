@@ -7199,7 +7199,16 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
           <div className="ps-about-marketplace-grid">
             <article className="ps-about-audience-card ps-about-host-card">
-              <img className="ps-about-card-parker" src={PARKER.aboutPointing} alt="Parker pointing toward hosting" />
+              <img
+                className="ps-about-card-parker"
+                src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
+                srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+                sizes="(max-width: 819px) 38vw, 175px"
+                alt="William presenting the opportunity to become a ParkShare Host"
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
               <div>
                 <div className="ps-about-audience-label">FOR HOSTS</div>
                 <h3>Your empty space has potential.</h3>
@@ -7223,7 +7232,15 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 
         <section id="parker" className="ps-about-parker">
           <div className="ps-about-parker-art">
-            <img src={PARKER.aboutWaving} alt="Parker, ParkShare's valet parker mascot, waving" />
+            <img
+              src="/parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp"
+              srcSet="/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
+              sizes="(max-width: 819px) 58vw, 310px"
+              alt="Parker, ParkShare's valet parker mascot, waving"
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
           </div>
           <div className="ps-about-parker-copy">
             <div className="ps-about-eyebrow">MEET PARKER</div>
@@ -7242,7 +7259,15 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <P style={{ color: C.navy }}>ParkShare was created to help make that existing space easier to share — creating more parking choices for Drivers and new opportunities for Hosts.</P>
             <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
           </div>
-          <img src={PARKER.aboutThumbsUp} alt="Parker giving a thumbs up" />
+          <img
+            src="/parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
+            srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
+            sizes="225px"
+            alt="Parker giving a thumbs up"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+          />
         </section>
 
         <section className="ps-about-closing">
