@@ -6696,3 +6696,41 @@ button, input, select, textarea { font: inherit; }
     margin: 0 !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 ABOUT — FOR HOSTS WILLIAM 05 TEXT-OVERLAP CORRECTION — 2026-09-23
+   Preserve the approved William size.
+   - Mobile/tablet: nudge William left so he no longer layers over Host copy.
+   - Desktop/web: nudge William right so the presenting hand clears the copy.
+   - Meet Parker and Built in Canada remain untouched.
+   ========================================================================== */
+
+/* Mobile / tablet */
+@media (max-width: 819px) {
+  .ps-about-host-card .ps-about-card-parker {
+    width: 160% !important;
+    max-width: none !important;
+    transform: translate(-18px, -6px) !important;
+  }
+}
+
+/* Small phones */
+@media (max-width: 430px) {
+  .ps-about-host-card .ps-about-card-parker {
+    width: 168% !important;
+    max-width: none !important;
+    transform: translate(-14px, -4px) !important;
+  }
+}
+
+/* Desktop / web */
+@media (min-width: 820px) {
+  .ps-about-host-card .ps-about-card-parker {
+    width: 224px !important;
+    max-width: 224px !important;
+    right: -34px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+  }
+}
