@@ -6049,3 +6049,61 @@ button, input, select, textarea { font: inherit; }
     pointer-events: none !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 DRIVER CTA — PARKER V2 FIT FIX — 2026-09-22
+   The global .ps-responsive-mascot rule was overriding the legacy CTA image
+   dimensions, causing Parker 07 to expand across the entire navy panel.
+   Keep the approved Driver Tip unchanged; correct only the closing CTA.
+   ========================================================================== */
+
+/* Desktop / tablet: restore the intended right-side mascot placement. */
+@media (min-width: 700px) {
+  .ps-driver-v2-final .ps-driver-v2-final-parker.ps-responsive-mascot {
+    display: block !important;
+    position: absolute !important;
+    right: 38px !important;
+    bottom: 50% !important;
+    left: auto !important;
+    top: auto !important;
+    transform: translateY(50%) !important;
+    width: 205px !important;
+    max-width: 205px !important;
+    height: 300px !important;
+    max-height: 300px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    filter: none !important;
+    z-index: 1 !important;
+  }
+}
+
+/* Mobile: keep all CTA copy unobstructed, then place Parker beneath it. */
+@media (max-width: 699px) {
+  .ps-driver-v2-final {
+    overflow: hidden !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker.ps-responsive-mascot {
+    display: block !important;
+    position: relative !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: 158px !important;
+    max-width: 46vw !important;
+    height: auto !important;
+    max-height: 220px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 24px auto -12px !important;
+    opacity: 1 !important;
+    filter: none !important;
+    z-index: 1 !important;
+  }
+}
