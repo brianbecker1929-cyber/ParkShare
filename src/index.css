@@ -6390,3 +6390,76 @@ button, input, select, textarea { font: inherit; }
     filter: drop-shadow(0 18px 22px rgba(0,0,0,.22)) !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 HOST INTERIOR — FINAL CSS-ONLY POSITION/SCALE LOCK — 2026-09-23
+   Final refinements from Vercel review:
+   - Host Tip mobile: keep size, move William slightly right and up.
+   - Host Tip desktop: enlarge ~17%, move closer to tip box, vertically centered.
+   - Ready to Host mobile: enlarge ~13%, move slightly upward.
+   - Ready to Host desktop: enlarge ~14%, keep right anchored and sit lower.
+   No copy, layout, or asset changes.
+   ========================================================================== */
+
+/* HOST TIP — MOBILE */
+@media (max-width: 899px) {
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 146px !important;
+    height: 202px !important;
+    transform: translate(18px, -16px) !important;
+    transform-origin: center center !important;
+  }
+}
+
+/* HOST TIP — DESKTOP */
+@media (min-width: 900px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 228px minmax(0, 1fr) !important;
+    gap: 4px !important;
+    align-items: center !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 222px !important;
+    height: 304px !important;
+    justify-self: end !important;
+    align-self: center !important;
+    transform: translateX(24px) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 232px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+/* READY TO HOST — MOBILE / TABLET */
+@media (max-width: 899px) {
+  .ps-host-closing .ps-host-closing-parker {
+    width: 260px !important;
+    max-width: 72vw !important;
+    max-height: 350px !important;
+    margin: 8px 18px 0 auto !important;
+    transform: translateY(-8px) !important;
+  }
+}
+
+/* READY TO HOST — DESKTOP */
+@media (min-width: 900px) {
+  .ps-host-closing {
+    padding-right: 385px !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    width: 342px !important;
+    max-width: 342px !important;
+    height: 405px !important;
+    max-height: 405px !important;
+    right: 28px !important;
+    bottom: 2px !important;
+  }
+}
