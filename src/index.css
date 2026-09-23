@@ -6118,3 +6118,159 @@ button, input, select, textarea { font: inherit; }
   transform: scale(1.14) !important;
   transform-origin: center bottom !important;
 }
+
+
+/* ==========================================================================
+   PHASE 2 HOST INTERIOR — FINAL MASCOT REPAIR PACKAGE — 2026-09-23
+   Approved correction pass for the Host interior pair.
+   Goals:
+   1) Enlarge and better balance William 10 in the Host Tip on desktop.
+   2) Enlarge and better balance William 10 in the Host Tip on mobile.
+   3) Improve William 05 placement/presence in the Host closing CTA while
+      preserving the existing ParkShare design language.
+   No other sections are intentionally changed.
+   ========================================================================== */
+
+/* --- William 10 / Host Tip --- */
+.ps-host-parker-tip .ps-host-tip-row {
+  align-items: end !important;
+}
+
+.ps-host-parker-tip .ps-host-tip-row img {
+  transform: none !important;
+  justify-self: center !important;
+  align-self: end !important;
+  object-fit: contain !important;
+  margin: 0 0 -2px !important;
+}
+
+.ps-host-parker-tip .ps-host-tip-row > div {
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Mobile / tablet: larger William 10 with the same left-image / right-copy layout. */
+@media (max-width: 899px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 128px minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 118px !important;
+    height: 162px !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 162px !important;
+    padding: 18px !important;
+  }
+}
+
+/* Small phones: keep William strong but avoid crowding the text card. */
+@media (max-width: 480px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 120px minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 112px !important;
+    height: 154px !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 154px !important;
+    padding: 16px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+/* Desktop: make William 10 read as a proper supporting guide, not a thumbnail. */
+@media (min-width: 900px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 185px minmax(0, 1fr) !important;
+    gap: 24px !important;
+    align-items: center !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 170px !important;
+    height: 232px !important;
+    margin-left: 8px !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 210px !important;
+    padding: 24px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* --- William 05 / Host closing CTA --- */
+/* Mobile / tablet: reveal William beneath the existing copy block, centred and clean. */
+@media (max-width: 899px) {
+  .ps-host-closing {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    overflow: hidden !important;
+  }
+
+  .ps-host-closing-copy {
+    width: 100% !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    display: block !important;
+    position: relative !important;
+    right: auto !important;
+    left: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    width: 190px !important;
+    max-width: 62vw !important;
+    height: auto !important;
+    max-height: 265px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 18px auto 0 !important;
+    align-self: center !important;
+    z-index: 1 !important;
+    filter: drop-shadow(0 14px 18px rgba(0,0,0,.22)) !important;
+  }
+}
+
+/* Desktop: increase William 05 presence and anchor him naturally to the panel floor. */
+@media (min-width: 900px) {
+  .ps-host-closing {
+    min-height: 380px !important;
+    padding: 50px 315px 50px 48px !important;
+  }
+
+  .ps-host-closing-copy {
+    width: auto !important;
+    max-width: 700px !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    display: block !important;
+    position: absolute !important;
+    right: 44px !important;
+    left: auto !important;
+    top: auto !important;
+    bottom: 18px !important;
+    transform: none !important;
+    width: 248px !important;
+    max-width: 248px !important;
+    height: 350px !important;
+    max-height: 350px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 0 !important;
+    z-index: 1 !important;
+    filter: drop-shadow(0 18px 22px rgba(0,0,0,.24)) !important;
+  }
+}
