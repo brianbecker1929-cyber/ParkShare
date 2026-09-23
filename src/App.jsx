@@ -7934,7 +7934,12 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         <section className="ps-driver-v2-parker-tip">
           <div className="ps-driver-v2-eyebrow">PARKER'S DRIVER TIP</div>
           <div className="ps-driver-v2-parker-tip-row">
-            <img src={PARKER.fullbody} alt="Parker, ParkShare's parking guide" />
+            <ResponsiveMascot
+              family="parker-v2"
+              name="ParkShare_Parker_10_Helpful_Tip"
+              alt="Parker sharing a helpful parking tip"
+              sizes="(max-width: 600px) 28vw, 145px"
+            />
             <div className="ps-driver-v2-parker-tip-bubble">
               Before you leave, take a quick look at your parking instructions. Knowing exactly where you're going to park can make arrival a whole lot easier.
             </div>
@@ -7987,7 +7992,13 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
             <button className="ps-driver-v2-primary" onClick={onFindParking}>Find Parking →</button>
             <strong>Search. Book. Park.</strong>
           </div>
-          <img className="ps-driver-v2-final-parker" src={PARKER.fullbody} alt="" aria-hidden="true" />
+          <ResponsiveMascot
+            family="parker-v2"
+            name="ParkShare_Parker_07_Giving_Directions"
+            className="ps-driver-v2-final-parker"
+            decorative
+            sizes="(max-width: 600px) 34vw, 180px"
+          />
         </section>
       </main>
 
