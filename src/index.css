@@ -6274,3 +6274,119 @@ button, input, select, textarea { font: inherit; }
     filter: drop-shadow(0 18px 22px rgba(0,0,0,.24)) !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 HOST INTERIOR — FINAL REPAIR OVERRIDES — 2026-09-23
+   Implements the agreed correction:
+   • Host Tip mobile: William +~28%, slightly up and toward the white tip box.
+   • Host Tip desktop: William +~30%, closer to the white tip box and centered.
+   • Ready to Host CTA: William +~22%, anchored right.
+   • The William 05 asset supplied with this package has the white floor/base
+     contamination removed from its alpha.
+   ========================================================================== */
+
+/* Host Tip — MOBILE */
+@media (max-width: 899px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 154px minmax(0, 1fr) !important;
+    gap: 6px !important;
+    align-items: center !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 146px !important;
+    height: 202px !important;
+    max-width: none !important;
+    object-fit: contain !important;
+    justify-self: end !important;
+    align-self: center !important;
+    transform: translate(9px, -8px) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 190px !important;
+  }
+}
+
+/* Host Tip — DESKTOP */
+@media (min-width: 900px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 205px minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 190px !important;
+    height: 260px !important;
+    max-width: none !important;
+    object-fit: contain !important;
+    justify-self: end !important;
+    align-self: center !important;
+    transform: translateX(12px) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 220px !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+/* Ready to Host — MOBILE/TABLET */
+@media (max-width: 899px) {
+  .ps-host-closing {
+    overflow: hidden !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    display: block !important;
+    position: relative !important;
+    width: 230px !important;
+    max-width: 66vw !important;
+    height: auto !important;
+    max-height: 315px !important;
+    right: auto !important;
+    left: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    align-self: flex-end !important;
+    margin: 18px 18px -2px auto !important;
+    filter: drop-shadow(0 14px 18px rgba(0,0,0,.20)) !important;
+  }
+}
+
+/* Ready to Host — DESKTOP */
+@media (min-width: 900px) {
+  .ps-host-closing {
+    min-height: 390px !important;
+    padding-right: 350px !important;
+    overflow: hidden !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    display: block !important;
+    position: absolute !important;
+    width: 300px !important;
+    max-width: 300px !important;
+    height: 365px !important;
+    max-height: 365px !important;
+    right: 34px !important;
+    bottom: 8px !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 0 !important;
+    filter: drop-shadow(0 18px 22px rgba(0,0,0,.22)) !important;
+  }
+}
