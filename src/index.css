@@ -6734,3 +6734,48 @@ button, input, select, textarea { font: inherit; }
     transform: translateY(-50%) !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 ABOUT — FOR HOSTS WILLIAM 05 FINAL POSITION TUNE — 2026-09-23
+   Requested refinements:
+   - Mobile: let William's left hand extend past the amber card onto the white page background.
+   - Desktop/web: move William slightly downward so his hand no longer covers any copy.
+   ========================================================================== */
+
+/* Mobile / tablet: allow visual overflow and nudge left so the hand crosses the card edge */
+@media (max-width: 819px) {
+  .ps-about-host-card {
+    overflow: visible !important;
+  }
+
+  .ps-about-host-card .ps-about-card-parker {
+    width: 160% !important;
+    max-width: none !important;
+    transform: translate(-36px, -6px) !important;
+  }
+}
+
+/* Small phones: same idea, slightly stronger left offset */
+@media (max-width: 430px) {
+  .ps-about-host-card {
+    overflow: visible !important;
+  }
+
+  .ps-about-host-card .ps-about-card-parker {
+    width: 168% !important;
+    max-width: none !important;
+    transform: translate(-40px, -4px) !important;
+  }
+}
+
+/* Desktop / web: keep approved size and horizontal balance, move William slightly down */
+@media (min-width: 820px) {
+  .ps-about-host-card .ps-about-card-parker {
+    width: 224px !important;
+    max-width: 224px !important;
+    right: -34px !important;
+    top: 56% !important;
+    transform: translateY(-50%) !important;
+  }
+}
