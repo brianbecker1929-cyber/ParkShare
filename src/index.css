@@ -6570,3 +6570,28 @@ button, input, select, textarea { font: inherit; }
     bottom: 0 !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 HOST — READY TO HOST HAT OVERFLOW FIX — 2026-09-23
+   Desktop/web only:
+   Allow William 05's hat to rise slightly above the navy CTA panel into the
+   warm-white area, while preserving the approved mascot size and right-side
+   placement. Mobile remains unchanged.
+   ========================================================================== */
+@media (min-width: 900px) {
+  .ps-host-closing {
+    overflow: visible !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    z-index: 4 !important;
+    bottom: 0 !important;
+    transform: translateY(-10px) !important;
+  }
+
+  .ps-host-closing-copy {
+    position: relative !important;
+    z-index: 5 !important;
+  }
+}
