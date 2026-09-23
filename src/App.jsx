@@ -7626,11 +7626,19 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
         </section>
 
-        {/* Parker's Host Tip */}
+        {/* William's Host Tip */}
         <section className="ps-host-parker-tip" style={{ marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Parker's Host Tip</div>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>William's Host Tip</div>
           <div className="ps-host-tip-row">
-            <img src={PARKER.savings} alt="Parker, ParkShare's parking guide" />
+            <img
+              src="/william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp"
+              srcSet="/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp 480w, /william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp 768w, /william-v2/web/1122px/ParkShare_William_10_Helpful_Tip-1122.webp 1122w"
+              sizes="(max-width: 600px) 92px, 130px"
+              alt="William, the ParkShare Guide, sharing a helpful Host tip"
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
             <div>Before your first booking, take a quick look at your listing from a Driver's point of view. Clear photos and simple parking instructions can make it much easier for someone to find the right space when they arrive.</div>
           </div>
           <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, textAlign: "center", margin: "12px 0 0" }}>List. Set. Earn. Put your space to work.</p>
@@ -7645,7 +7653,17 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             <button onClick={onGetStarted}>List Your Space →</button>
             <strong>List. Set. Earn.</strong>
           </div>
-          <img className="ps-host-closing-parker" src={PARKER.savings} alt="" aria-hidden="true" />
+          <img
+            className="ps-host-closing-parker"
+            src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
+            srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+            sizes="205px"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+          />
         </section>
       </div>
 
@@ -7992,12 +8010,16 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
             <button className="ps-driver-v2-primary" onClick={onFindParking}>Find Parking →</button>
             <strong>Search. Book. Park.</strong>
           </div>
-          <ResponsiveMascot
-            family="parker-v2"
-            name="ParkShare_Parker_07_Giving_Directions"
+          <img
             className="ps-driver-v2-final-parker"
-            decorative
-            sizes="(max-width: 600px) 34vw, 180px"
+            src="/parker-v2/web/768px/ParkShare_Parker_07_Giving_Directions-768.webp"
+            srcSet="/parker-v2/web/480px/ParkShare_Parker_07_Giving_Directions-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_07_Giving_Directions-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_07_Giving_Directions-1122.webp 1122w"
+            sizes="205px"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
           />
         </section>
       </main>
