@@ -6463,3 +6463,110 @@ button, input, select, textarea { font: inherit; }
     bottom: 2px !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 HOST — MINOR FINAL CORRECTIONS — 2026-09-23
+   Targeted fixes only:
+   - Host Tip mobile: restore copy width, keep William large, overlap him toward box.
+   - Host Tip desktop: move William closer to the copy and slightly enlarge.
+   - Ready to Host mobile: reduce William and anchor lower-right.
+   - Ready to Host desktop: preserve current scale; only small right/bottom refinement.
+   ========================================================================== */
+
+/* HOST TIP — MOBILE */
+@media (max-width: 899px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 105px minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: center !important;
+    overflow: visible !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 150px !important;
+    height: 205px !important;
+    max-width: none !important;
+    justify-self: end !important;
+    align-self: center !important;
+    transform: translate(32px, -10px) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+    object-fit: contain !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 176px !important;
+    padding: 16px 18px !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+}
+
+/* HOST TIP — DESKTOP */
+@media (min-width: 900px) {
+  .ps-host-parker-tip .ps-host-tip-row {
+    grid-template-columns: 195px minmax(0, 1fr) !important;
+    gap: 0 !important;
+    align-items: center !important;
+    overflow: visible !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row img {
+    width: 245px !important;
+    height: 330px !important;
+    max-width: none !important;
+    justify-self: end !important;
+    align-self: center !important;
+    transform: translateX(38px) !important;
+    transform-origin: center center !important;
+    margin: 0 !important;
+    object-fit: contain !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-host-parker-tip .ps-host-tip-row > div {
+    min-height: 225px !important;
+    padding: 24px 28px !important;
+    position: relative !important;
+    z-index: 1 !important;
+  }
+}
+
+/* READY TO HOST — MOBILE / TABLET */
+@media (max-width: 899px) {
+  .ps-host-closing {
+    overflow: hidden !important;
+  }
+
+  .ps-host-closing .ps-host-closing-parker {
+    display: block !important;
+    position: relative !important;
+    width: 190px !important;
+    max-width: 54vw !important;
+    height: auto !important;
+    max-height: 260px !important;
+    right: auto !important;
+    left: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: translateY(-4px) !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    align-self: flex-end !important;
+    margin: 10px 22px 0 auto !important;
+    z-index: 1 !important;
+    filter: drop-shadow(0 12px 16px rgba(0,0,0,.18)) !important;
+  }
+}
+
+/* READY TO HOST — DESKTOP */
+@media (min-width: 900px) {
+  .ps-host-closing .ps-host-closing-parker {
+    right: 30px !important;
+    bottom: 0 !important;
+  }
+}
