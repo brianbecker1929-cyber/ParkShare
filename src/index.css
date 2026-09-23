@@ -6107,3 +6107,14 @@ button, input, select, textarea { font: inherit; }
     z-index: 1 !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2 HOST TIP — WILLIAM 10 SCALE REFINEMENT — 2026-09-22
+   Enlarge only William 10 in the Host Tip by ~14% on desktop and mobile.
+   Preserve the existing grid, text box, spacing, and placement.
+   ========================================================================== */
+.ps-host-parker-tip .ps-host-tip-row img {
+  transform: scale(1.14) !important;
+  transform-origin: center bottom !important;
+}
