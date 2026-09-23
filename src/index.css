@@ -6799,3 +6799,17 @@ button, input, select, textarea { font: inherit; }
     transform: translate(-28px, -4px) !important;
   }
 }
+
+
+/* Additional mobile right-shift refinement: move William a bit more right so left hand is fully visible */
+@media (max-width: 819px) {
+  .ps-about-host-card .ps-about-card-parker {
+    transform: translate(-16px, -6px) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .ps-about-host-card .ps-about-card-parker {
+    transform: translate(-18px, -4px) !important;
+  }
+}
