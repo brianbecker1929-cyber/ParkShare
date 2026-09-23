@@ -1109,7 +1109,15 @@ const subtotal = listing.price * hours;
   if (step === 4) return (
     <Modal title="Payment successful" onClose={() => { onClose(); onSuccess(); }}>
       <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
-        <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 6 }} />
+        <img
+          src="/parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp"
+          srcSet="/parker-v2/web/480px/ParkShare_Parker_08_Celebrating-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_08_Celebrating-1122.webp 1122w"
+          sizes="110px"
+          alt="Parker celebrating a successful booking"
+          style={{ height: 110, width: "auto", marginBottom: 6 }}
+          loading="eager"
+          decoding="async"
+        />
         <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 8 }}>You're booked!</h3>
         <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>
           <strong>{listing.title}</strong> · {hours} hr{hours > 1 ? "s" : ""}{chosenSpot !== null && chosenSpot !== undefined ? " · Spot " + spotLabel(chosenSpot) : ""}
@@ -4145,7 +4153,15 @@ function ListDrivewayView({ user }) {
     return (
       <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 16 }} />
+          <img
+            src="/william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
+            srcSet="/william-v2/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v2/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
+            sizes="110px"
+            alt="William celebrating a newly listed parking space"
+            style={{ height: 110, width: "auto", marginBottom: 16 }}
+            loading="eager"
+            decoding="async"
+          />
         </div>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
         <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(form.price)}/hr</strong>.</p>
@@ -4980,7 +4996,15 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           }}
         >
           {displayStatus === "Completed" && isExpanded && (
-            <img src={PARKER.success} alt="Parker celebrating a successful booking" style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }} />
+            <img
+              src="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
+              srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
+              sizes="88px"
+              alt="Parker giving a thumbs up for a completed booking"
+              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }}
+              loading="lazy"
+              decoding="async"
+            />
           )}
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
