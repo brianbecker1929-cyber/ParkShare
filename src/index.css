@@ -7528,3 +7528,94 @@ button, input, select, textarea { font: inherit; }
     clip-path: inset(0 0 44% 0) !important;
   }
 }
+
+/* ======================================================================
+   PHASE 2B — HELP WILLIAM LARGE CLIPPED BODY FINAL v3 — 2026-09-25
+   Final requested behaviour:
+   - remove any extra navy block
+   - keep William large on web and mobile
+   - preserve the larger approved treatment
+   - keep only the presenting hand/arm extending outside the white box
+   - clip the lower body at the bottom edge of the white box
+   - avoid the tiny full-body rendering
+   ====================================================================== */
+
+/* Make sure no temporary mask blocks appear. */
+.ps-help-small-parker-card::after,
+.ps-help-small-parker-frame::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Keep the overall navy help card contained while allowing the hand to project. */
+.ps-help-guide {
+  overflow: hidden !important;
+}
+
+/* Preserve the existing help-card layout dimensions; only control mascot placement. */
+.ps-help-small-parker-frame,
+.ps-help-small-parker-card {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 4 !important;
+}
+
+/* Common mascot behaviour. */
+.ps-help-small-parker-card .ps-mascot-help-card,
+.ps-help-small-parker-card img {
+  position: absolute !important;
+  height: auto !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  object-position: left top !important;
+  transform: none !important;
+  pointer-events: none !important;
+  z-index: 6 !important;
+}
+
+/* Mobile: large approved William treatment, lower body clipped at the white-box base. */
+@media (max-width: 620px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    width: 248px !important;
+    left: -16px !important;
+    top: -12px !important;
+    bottom: auto !important;
+    clip-path: inset(0 0 30% 0) !important;
+  }
+}
+
+/* Very small phones: trim only slightly so the treatment still reads large. */
+@media (max-width: 390px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    width: 236px !important;
+    left: -14px !important;
+    top: -10px !important;
+    clip-path: inset(0 0 31% 0) !important;
+  }
+}
+
+/* Tablet / desktop-site widths shown on phones. */
+@media (min-width: 621px) and (max-width: 820px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    width: 276px !important;
+    left: -18px !important;
+    top: -13px !important;
+    bottom: auto !important;
+    clip-path: inset(0 0 31% 0) !important;
+  }
+}
+
+/* Desktop / web: keep the larger approved William treatment and clip at the bottom edge. */
+@media (min-width: 821px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    width: 298px !important;
+    left: -20px !important;
+    top: -14px !important;
+    bottom: auto !important;
+    clip-path: inset(0 0 32% 0) !important;
+  }
+}
