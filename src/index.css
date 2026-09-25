@@ -7745,3 +7745,27 @@ button, input, select, textarea { font: inherit; }
     top: 0 !important;
   }
 }
+
+
+/* ======================================================================
+   PHASE 2B — HELP WILLIAM MOBILE LOWER REFINEMENT v7 — 2026-09-25
+   Desktop/web is LOCKED and must remain unchanged.
+
+   Mobile only:
+   - keep William's approved size, scale, crop and horizontal placement
+   - lower William slightly compared with v6
+   - keep the visible lower edge aligned with the bottom of the white box
+   - prevent lower-body spill into navy
+   ====================================================================== */
+
+@media (max-width: 620px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    /* v6 was -16px. Lower William 8px. */
+    top: -8px !important;
+
+    /* Add the same 8px to the lower crop so the visible body still ends
+       cleanly at the white-box bottom rather than spilling into navy. */
+    clip-path: inset(0 0 104px 0) !important;
+  }
+}
