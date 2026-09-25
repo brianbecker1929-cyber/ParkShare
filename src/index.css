@@ -7769,3 +7769,22 @@ button, input, select, textarea { font: inherit; }
     clip-path: inset(0 0 104px 0) !important;
   }
 }
+
+/* ======================================================================
+   PHASE 2B — HELP WILLIAM MOBILE BOTTOM ALIGN v8 — 2026-09-25
+   Desktop/web remains LOCKED and unchanged.
+
+   Mobile only:
+   - keep William's approved size, scale, crop and horizontal position
+   - lower William so the visible bottom of his body lands exactly at the
+     bottom edge where the white box meets the navy Help card
+   - keep lower-body spill out of the navy area
+   ====================================================================== */
+@media (max-width: 620px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    /* v7 = -8px. Move William down 12px; preserve the approved crop. */
+    top: 4px !important;
+    clip-path: inset(0 0 104px 0) !important;
+  }
+}
