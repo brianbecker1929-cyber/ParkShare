@@ -7713,3 +7713,35 @@ button, input, select, textarea { font: inherit; }
     pointer-events: none !important;
   }
 }
+
+/* ======================================================================
+   PHASE 2B — HELP WILLIAM VERTICAL ALIGNMENT REFINEMENT v6 — 2026-09-25
+   Keep the current approved William size, scale, crop and horizontal
+   placement unchanged. Make ONE adjustment only: move William upward so
+   the bottom edge of the visible body aligns cleanly with the bottom edge
+   of the white rounded box, with no lower-body spill into navy.
+   ====================================================================== */
+
+/* MOBILE — same size/crop/horizontal placement; move up 12px. */
+@media (max-width: 620px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    top: -16px !important;
+  }
+}
+
+/* TABLET / DESKTOP-SITE — same size/crop/horizontal placement; move up 10px. */
+@media (min-width: 621px) and (max-width: 820px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    top: -8px !important;
+  }
+}
+
+/* DESKTOP / WEB — same size/crop/horizontal placement; move up 6px. */
+@media (min-width: 821px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    top: 0 !important;
+  }
+}
