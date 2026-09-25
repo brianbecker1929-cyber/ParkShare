@@ -7619,3 +7619,97 @@ button, input, select, textarea { font: inherit; }
     clip-path: inset(0 0 32% 0) !important;
   }
 }
+
+/* ======================================================================
+   PHASE 2B — HELP WILLIAM REFERENCE SIZE FINAL v5 — 2026-09-25
+   Restore the previously approved LARGE William scale, then crop only the
+   lower body at the exact bottom edge of the white card.
+
+   Key principle: DO NOT shrink William to make him fit.
+   Keep the approved portrait scale and use clip-path only for the lower body.
+   ====================================================================== */
+
+/* Never show temporary mask blocks. */
+.ps-help-small-parker-card::after,
+.ps-help-small-parker-frame::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Keep the navy Help panel contained. The white mascot frame stays overflow-
+   visible so William's presenting hand can reach into the navy area. */
+.ps-help-guide {
+  overflow: hidden !important;
+}
+
+.ps-help-small-parker-frame,
+.ps-help-small-parker-card {
+  position: relative !important;
+  overflow: visible !important;
+  z-index: 4 !important;
+}
+
+/* MOBILE — restore the approved 200px William treatment.
+   Card = 150px high; top = -4px; crop below the card bottom only. */
+@media (max-width: 620px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    position: absolute !important;
+    width: 200px !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    left: 50% !important;
+    top: -4px !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+    object-fit: contain !important;
+    object-position: center top !important;
+    clip-path: inset(0 0 96px 0) !important;
+    z-index: 6 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* TABLET / DESKTOP-SITE intermediate width — approved 225px treatment. */
+@media (min-width: 621px) and (max-width: 820px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    position: absolute !important;
+    width: 225px !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    left: 50% !important;
+    top: 2px !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+    object-fit: contain !important;
+    object-position: center top !important;
+    clip-path: inset(0 0 127px 0) !important;
+    z-index: 6 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* DESKTOP / WEB — restore the approved 260px portrait treatment.
+   Card = 176px high; top = 6px; crop only below the card bottom. */
+@media (min-width: 821px) {
+  .ps-help-small-parker-card .ps-mascot-help-card,
+  .ps-help-small-parker-card img {
+    position: absolute !important;
+    width: 260px !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    left: 50% !important;
+    top: 6px !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+    object-fit: contain !important;
+    object-position: center top !important;
+    clip-path: inset(0 0 155px 0) !important;
+    z-index: 6 !important;
+    pointer-events: none !important;
+  }
+}
