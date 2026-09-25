@@ -1109,7 +1109,15 @@ const subtotal = listing.price * hours;
   if (step === 4) return (
     <Modal title="Payment successful" onClose={() => { onClose(); onSuccess(); }}>
       <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
-        <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 6 }} />
+        <img
+          src="/parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp"
+          srcSet="/parker-v2/web/480px/ParkShare_Parker_08_Celebrating-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_08_Celebrating-1122.webp 1122w"
+          sizes="110px"
+          alt="Parker celebrating a successful booking"
+          style={{ height: 110, width: "auto", marginBottom: 6 }}
+          loading="eager"
+          decoding="async"
+        />
         <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 8 }}>You're booked!</h3>
         <p style={{ color: C.muted, fontSize: 14, marginBottom: 6 }}>
           <strong>{listing.title}</strong> · {hours} hr{hours > 1 ? "s" : ""}{chosenSpot !== null && chosenSpot !== undefined ? " · Spot " + spotLabel(chosenSpot) : ""}
@@ -4145,7 +4153,15 @@ function ListDrivewayView({ user }) {
     return (
       <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={PARKER.success} alt="Parker giving thumbs up" style={{ height: 110, width: "auto", marginBottom: 16 }} />
+          <img
+            src="/william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
+            srcSet="/william-v2/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v2/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
+            sizes="110px"
+            alt="William celebrating a newly listed parking space"
+            style={{ height: 110, width: "auto", marginBottom: 16 }}
+            loading="eager"
+            decoding="async"
+          />
         </div>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
         <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(form.price)}/hr</strong>.</p>
@@ -4980,7 +4996,15 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           }}
         >
           {displayStatus === "Completed" && isExpanded && (
-            <img src={PARKER.success} alt="Parker celebrating a successful booking" style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }} />
+            <img
+              src="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
+              srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
+              sizes="88px"
+              alt="Parker giving a thumbs up for a completed booking"
+              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }}
+              loading="lazy"
+              decoding="async"
+            />
           )}
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
@@ -7052,8 +7076,10 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/parker/Parker-Helpful.png"
-              alt="Parker ready to help"
+              src="/william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp"
+              srcSet="/william-v2/web/480px/ParkShare_William_17_Trust_Support-480.webp 480w, /william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp 768w, /william-v2/web/1122px/ParkShare_William_17_Trust_Support-1122.webp 1122w"
+              sizes="(max-width: 600px) 56vw, 253px"
+              alt="William, the ParkShare Guide, ready to help"
               loading="eager"
               decoding="async"
               style={{
@@ -7197,7 +7223,16 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
           <div className="ps-about-marketplace-grid">
             <article className="ps-about-audience-card ps-about-host-card">
-              <img className="ps-about-card-parker" src={PARKER.aboutPointing} alt="Parker pointing toward hosting" />
+              <img
+                className="ps-about-card-parker"
+                src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
+                srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+                sizes="(max-width: 819px) 38vw, 175px"
+                alt="William presenting the opportunity to become a ParkShare Host"
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
               <div>
                 <div className="ps-about-audience-label">FOR HOSTS</div>
                 <h3>Your empty space has potential.</h3>
@@ -7221,7 +7256,15 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 
         <section id="parker" className="ps-about-parker">
           <div className="ps-about-parker-art">
-            <img src={PARKER.aboutWaving} alt="Parker, ParkShare's valet parker mascot, waving" />
+            <img
+              src="/parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp"
+              srcSet="/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
+              sizes="(max-width: 819px) 58vw, 310px"
+              alt="Parker, ParkShare's valet parker mascot, waving"
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
           </div>
           <div className="ps-about-parker-copy">
             <div className="ps-about-eyebrow">MEET PARKER</div>
@@ -7240,7 +7283,15 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <P style={{ color: C.navy }}>ParkShare was created to help make that existing space easier to share — creating more parking choices for Drivers and new opportunities for Hosts.</P>
             <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
           </div>
-          <img src={PARKER.aboutThumbsUp} alt="Parker giving a thumbs up" />
+          <img
+            src="/parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
+            srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
+            sizes="225px"
+            alt="Parker giving a thumbs up"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+          />
         </section>
 
         <section className="ps-about-closing">
@@ -7624,11 +7675,19 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
         </section>
 
-        {/* Parker's Host Tip */}
+        {/* William's Host Tip */}
         <section className="ps-host-parker-tip" style={{ marginBottom: 28 }}>
-          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Parker's Host Tip</div>
+          <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>William's Host Tip</div>
           <div className="ps-host-tip-row">
-            <img src={PARKER.savings} alt="Parker, ParkShare's parking guide" />
+            <img
+              src="/william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp"
+              srcSet="/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp 480w, /william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp 768w, /william-v2/web/1122px/ParkShare_William_10_Helpful_Tip-1122.webp 1122w"
+              sizes="(max-width: 600px) 92px, 130px"
+              alt="William, the ParkShare Guide, sharing a helpful Host tip"
+              loading="lazy"
+              decoding="async"
+              draggable={false}
+            />
             <div>Before your first booking, take a quick look at your listing from a Driver's point of view. Clear photos and simple parking instructions can make it much easier for someone to find the right space when they arrive.</div>
           </div>
           <p style={{ fontWeight: 700, fontSize: 13.5, color: C.navy, textAlign: "center", margin: "12px 0 0" }}>List. Set. Earn. Put your space to work.</p>
@@ -7643,7 +7702,17 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             <button onClick={onGetStarted}>List Your Space →</button>
             <strong>List. Set. Earn.</strong>
           </div>
-          <img className="ps-host-closing-parker" src={PARKER.savings} alt="" aria-hidden="true" />
+          <img
+            className="ps-host-closing-parker"
+            src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
+            srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+            sizes="205px"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+          />
         </section>
       </div>
 
@@ -7932,7 +8001,12 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         <section className="ps-driver-v2-parker-tip">
           <div className="ps-driver-v2-eyebrow">PARKER'S DRIVER TIP</div>
           <div className="ps-driver-v2-parker-tip-row">
-            <img src={PARKER.fullbody} alt="Parker, ParkShare's parking guide" />
+            <ResponsiveMascot
+              family="parker-v2"
+              name="ParkShare_Parker_10_Helpful_Tip"
+              alt="Parker sharing a helpful parking tip"
+              sizes="(max-width: 600px) 28vw, 145px"
+            />
             <div className="ps-driver-v2-parker-tip-bubble">
               Before you leave, take a quick look at your parking instructions. Knowing exactly where you're going to park can make arrival a whole lot easier.
             </div>
@@ -7985,7 +8059,17 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
             <button className="ps-driver-v2-primary" onClick={onFindParking}>Find Parking →</button>
             <strong>Search. Book. Park.</strong>
           </div>
-          <img className="ps-driver-v2-final-parker" src={PARKER.fullbody} alt="" aria-hidden="true" />
+          <img
+            className="ps-driver-v2-final-parker"
+            src="/parker-v2/web/768px/ParkShare_Parker_07_Giving_Directions-768.webp"
+            srcSet="/parker-v2/web/480px/ParkShare_Parker_07_Giving_Directions-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_07_Giving_Directions-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_07_Giving_Directions-1122.webp 1122w"
+            sizes="205px"
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+          />
         </section>
       </main>
 
@@ -8700,15 +8784,14 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             <div className="ps-help-guide">
               <div className="ps-help-small-parker-frame">
                 <div className="ps-help-small-parker-card">
-                  <img
-                src={PARKER.helpful}
-                alt="Parker"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = PARKER.thinking;
-                }}
-              />
-                </div>
+                <ResponsiveMascot
+                  family="william-v2"
+                  name="ParkShare_William_16_Need_A_Hand"
+                  alt="William, the ParkShare Guide, ready to help"
+                  className="ps-mascot-help-card"
+                  sizes="(max-width: 600px) 34vw, 170px"
+                />
+              </div>
               </div>
               <div>
                 <strong>Need a hand?</strong>
