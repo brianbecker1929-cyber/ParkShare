@@ -8138,3 +8138,115 @@ button, input, select, textarea { font: inherit; }
     max-width: 132px !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — DRIVER "READY TO PARK?" CTA — REMOVE PARKER + CENTER COPY
+   2026-09-25
+
+   Requested final treatment:
+   - Remove Parker entirely from the Ready to Park navy CTA.
+   - Center all CTA content horizontally within the navy panel.
+   - Preserve wording, navy background, amber button, rounded corners,
+     card height/style, and ParkShare branding.
+   - Keep the previously approved Driver Tip Parker update unchanged.
+   ========================================================================== */
+
+.ps-driver-v2-final {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  padding-left: 48px !important;
+  padding-right: 48px !important;
+}
+
+.ps-driver-v2-final-copy {
+  width: min(100%, 760px) !important;
+  max-width: 760px !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+.ps-driver-v2-final .ps-driver-v2-final-parker {
+  display: none !important;
+}
+
+.ps-driver-v2-final-copy .ps-driver-v2-eyebrow,
+.ps-driver-v2-final-copy h2,
+.ps-driver-v2-final-copy p,
+.ps-driver-v2-final-copy > strong {
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.ps-driver-v2-final-copy p {
+  max-width: 650px !important;
+}
+
+.ps-driver-v2-final .ps-driver-v2-primary {
+  width: auto !important;
+  min-width: 230px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Mobile: keep the same centered treatment, with comfortable spacing. */
+@media (max-width: 699px) {
+  .ps-driver-v2-final {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+    padding: 36px 24px !important;
+    text-align: center !important;
+  }
+
+  .ps-driver-v2-final-copy {
+    width: 100% !important;
+    max-width: 100% !important;
+    grid-column: auto !important;
+    grid-row: auto !important;
+    text-align: center !important;
+  }
+
+  .ps-driver-v2-final h2 {
+    font-size: 31px !important;
+    line-height: 1.18 !important;
+    text-align: center !important;
+  }
+
+  .ps-driver-v2-final p {
+    max-width: 560px !important;
+    font-size: 14px !important;
+    line-height: 1.65 !important;
+    text-align: center !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-primary {
+    width: min(100%, 380px) !important;
+    min-width: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .ps-driver-v2-final-copy > strong {
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .ps-driver-v2-final {
+    padding: 34px 20px !important;
+  }
+
+  .ps-driver-v2-final h2 {
+    font-size: 29px !important;
+  }
+}
