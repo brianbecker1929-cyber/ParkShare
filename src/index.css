@@ -7788,3 +7788,306 @@ button, input, select, textarea { font: inherit; }
     clip-path: inset(0 0 104px 0) !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — DRIVER "READY TO PARK?" CTA — PARKER LEFT / COPY RIGHT
+   2026-09-25
+
+   Goal:
+   - Move Parker to the LEFT side of the closing navy CTA.
+   - Move the READY TO PARK? copy + button to the RIGHT side.
+   - Keep Parker's existing pose/orientation so his pointing arm directs
+     attention toward the CTA copy.
+   - Preserve the existing artwork, wording, colours, rounded card, and
+     ParkShare styling.
+   ========================================================================== */
+
+/* Desktop / tablet: Parker left, copy right. */
+@media (min-width: 700px) {
+  .ps-driver-v2-final {
+    display: flex !important;
+    align-items: center !important;
+    min-height: 360px !important;
+    padding: 50px 48px 50px 300px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+  }
+
+  .ps-driver-v2-final-copy {
+    width: 100% !important;
+    max-width: 720px !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker.ps-responsive-mascot {
+    display: block !important;
+    position: absolute !important;
+    left: 42px !important;
+    right: auto !important;
+    bottom: 50% !important;
+    top: auto !important;
+    transform: translateY(50%) !important;
+    width: 205px !important;
+    max-width: 205px !important;
+    height: 300px !important;
+    max-height: 300px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    filter: none !important;
+    z-index: 1 !important;
+  }
+}
+
+/* Mid-size tablet / desktop-site view: retain the same relationship with
+   slightly tighter spacing. */
+@media (min-width: 700px) and (max-width: 899px) {
+  .ps-driver-v2-final {
+    padding-left: 240px !important;
+    padding-right: 32px !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker.ps-responsive-mascot {
+    left: 26px !important;
+    width: 175px !important;
+    max-width: 175px !important;
+    height: 265px !important;
+    max-height: 265px !important;
+  }
+}
+
+/* Mobile: preserve Parker-left / copy-right rather than stacking Parker below.
+   Reduce Parker proportionally so he points toward the copy without covering it. */
+@media (max-width: 699px) {
+  .ps-driver-v2-final {
+    display: grid !important;
+    grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+    gap: 14px !important;
+    align-items: center !important;
+    min-height: 0 !important;
+    padding: 30px 22px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+  }
+
+  .ps-driver-v2-final-copy {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-driver-v2-final h2 {
+    font-size: clamp(22px, 6.6vw, 29px) !important;
+    line-height: 1.16 !important;
+  }
+
+  .ps-driver-v2-final p {
+    font-size: 13px !important;
+    line-height: 1.58 !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-primary {
+    width: 100% !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker.ps-responsive-mascot {
+    display: block !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    width: 118px !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 190px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    align-self: center !important;
+    justify-self: center !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    filter: none !important;
+    z-index: 1 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .ps-driver-v2-final {
+    grid-template-columns: 90px minmax(0, 1fr) !important;
+    gap: 11px !important;
+    padding: 28px 18px !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker.ps-responsive-mascot {
+    width: 104px !important;
+    max-height: 174px !important;
+  }
+
+  .ps-driver-v2-final h2 {
+    font-size: 22px !important;
+  }
+}
+
+
+/* ==========================================================================
+   PHASE 2B — DRIVER "READY TO PARK?" CTA — SELECTOR CORRECTION v2
+   2026-09-25
+
+   IMPORTANT:
+   The CTA Parker image in App.jsx uses class:
+     .ps-driver-v2-final-parker
+
+   It does NOT carry .ps-responsive-mascot.
+   The previous override therefore missed the real image on desktop and mobile.
+
+   This correction targets the actual rendered class directly.
+   ========================================================================== */
+
+/* Desktop / tablet — Parker LEFT, copy RIGHT. */
+@media (min-width: 700px) {
+  .ps-driver-v2-final {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    min-height: 360px !important;
+    padding: 50px 48px 50px 300px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+  }
+
+  .ps-driver-v2-final-copy {
+    width: 100% !important;
+    max-width: 720px !important;
+    margin-left: 0 !important;
+    margin-right: auto !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker {
+    display: block !important;
+    position: absolute !important;
+    left: 42px !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: 50% !important;
+    transform: translateY(50%) !important;
+    width: 205px !important;
+    max-width: 205px !important;
+    height: 300px !important;
+    max-height: 300px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    filter: none !important;
+    z-index: 1 !important;
+  }
+}
+
+/* Intermediate tablet / desktop-site width. */
+@media (min-width: 700px) and (max-width: 899px) {
+  .ps-driver-v2-final {
+    padding-left: 240px !important;
+    padding-right: 32px !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker {
+    left: 26px !important;
+    width: 175px !important;
+    max-width: 175px !important;
+    height: 265px !important;
+    max-height: 265px !important;
+  }
+}
+
+/* Mobile — Parker visible in the empty LEFT side, pointing toward copy on RIGHT. */
+@media (max-width: 699px) {
+  .ps-driver-v2-final {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: minmax(105px, 32%) minmax(0, 1fr) !important;
+    gap: 14px !important;
+    align-items: center !important;
+    min-height: 0 !important;
+    padding: 30px 22px !important;
+    text-align: left !important;
+    overflow: hidden !important;
+  }
+
+  .ps-driver-v2-final-copy {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    position: relative !important;
+    z-index: 2 !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker {
+    display: block !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    bottom: auto !important;
+    transform: none !important;
+    width: 118px !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: 190px !important;
+    object-fit: contain !important;
+    object-position: center bottom !important;
+    align-self: center !important;
+    justify-self: center !important;
+    margin: 0 !important;
+    opacity: 1 !important;
+    filter: none !important;
+    z-index: 1 !important;
+  }
+
+  .ps-driver-v2-final h2 {
+    font-size: clamp(22px, 6.5vw, 29px) !important;
+    line-height: 1.16 !important;
+  }
+
+  .ps-driver-v2-final p {
+    font-size: 13px !important;
+    line-height: 1.58 !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-primary {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .ps-driver-v2-final {
+    grid-template-columns: 96px minmax(0, 1fr) !important;
+    gap: 11px !important;
+    padding: 28px 18px !important;
+  }
+
+  .ps-driver-v2-final .ps-driver-v2-final-parker {
+    width: 104px !important;
+    max-height: 174px !important;
+  }
+
+  .ps-driver-v2-final h2 {
+    font-size: 22px !important;
+  }
+}
