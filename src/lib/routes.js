@@ -162,6 +162,8 @@ export function updateRouteMetadata(route) {
   ensureMeta('meta[property="og:title"]', { property: "og:title" }).setAttribute("content", activeRoute.title);
   ensureMeta('meta[property="og:description"]', { property: "og:description" }).setAttribute("content", activeRoute.description);
   ensureMeta('meta[property="og:url"]', { property: "og:url" }).setAttribute("content", canonicalUrl);
+  ensureMeta('meta[name="twitter:title"]', { name: "twitter:title" }).setAttribute("content", activeRoute.title);
+  ensureMeta('meta[name="twitter:description"]', { name: "twitter:description" }).setAttribute("content", activeRoute.description);
 
   let canonical = document.head.querySelector('link[rel="canonical"]');
   if (!canonical) {

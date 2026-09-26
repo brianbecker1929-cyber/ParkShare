@@ -25,7 +25,7 @@
       // phone possible without needing DevTools.
       function showBootError(message) {
         var root = document.getElementById("root");
-        if (!root || root.childElementCount > 0) return; // React already mounted, don't clobber it
+        if (!root || (root.childElementCount > 0 && root.dataset.prerendered !== "true")) return; // React already mounted, don't clobber it
         root.innerHTML =
           '<div style="font-family: monospace; padding: 24px; color: #b00020; background: #fff3f3; min-height: 100vh; box-sizing: border-box;">' +
           '<h2 style="margin-top:0;">ParkShare failed to load</h2>' +
