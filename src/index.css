@@ -8250,3 +8250,53 @@ button, input, select, textarea { font: inherit; }
     font-size: 29px !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — DRIVER "FIND PARKING THAT FITS YOUR PLANS" — CENTER CONTENT
+   2026-09-25
+
+   Requested refinement:
+   - Center all copy inside the navy Find Parking card.
+   - Keep wording, navy background, spacing, rounded corners and typography.
+   - Center the Search Parking button beneath the copy for visual balance.
+   - Preserve all other Driver-page sections unchanged.
+   ========================================================================== */
+
+.ps-driver-v2-find-card {
+  text-align: center !important;
+}
+
+.ps-driver-v2-find-card .ps-driver-v2-eyebrow,
+.ps-driver-v2-find-card h2,
+.ps-driver-v2-find-card p {
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.ps-driver-v2-find-card p {
+  max-width: 760px !important;
+}
+
+.ps-driver-v2-find-card .ps-driver-v2-primary {
+  display: block !important;
+  width: auto !important;
+  min-width: 190px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Mobile: keep the centered layout and a full-width-friendly button. */
+@media (max-width: 699px) {
+  .ps-driver-v2-find-card {
+    text-align: center !important;
+  }
+
+  .ps-driver-v2-find-card .ps-driver-v2-primary {
+    width: min(100%, 380px) !important;
+    min-width: 0 !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
