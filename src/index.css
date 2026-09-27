@@ -8445,3 +8445,33 @@ div:has(> button[aria-label="ParkShare help"])
   transform: scale(1.04) !important;
   transform-origin: center 18% !important;
 }
+
+
+/* ==========================================================================
+   PHASE 2B — ASK PARKER WIDGET — CURRENT PARKER FACE ONLY
+   2026-09-26
+
+   IMPORTANT:
+   This uses the CURRENT approved Parker v2 face, cropped directly from the
+   approved Parker 10 Helpful Tip artwork.
+
+   It does NOT use the old legacy /parker/parker-face.png artwork.
+
+   Applies to BOTH:
+   1) floating circular Ask Parker button
+   2) circular avatar in the expanded Ask Parker panel
+   ========================================================================== */
+
+div:has(> button[aria-label="ParkShare help"])
+  img[src="/parker/parker-icon.png"],
+button[aria-label="ParkShare help"] img[alt="Parker help"],
+div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
+  content: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  transform: none !important;
+  transform-origin: center center !important;
+  pointer-events: none !important;
+}
