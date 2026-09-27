@@ -8366,3 +8366,37 @@ img[alt="Parker waving hello"][style*="height: 100px"] {
     height: 136px !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — HOST LISTING PRICING TIP — LEGACY PARKER → WILLIAM
+   2026-09-26
+
+   Scope:
+   - Replace the remaining legacy Parker "success" mascot shown in Host
+     onboarding Step 7 (Pricing / earnings estimate).
+   - Use approved William v2 Pose 10 — Helpful Tip.
+   - Preserve the earnings-estimate navy speech bubble, copy, calculations,
+     controls and functionality.
+   ========================================================================== */
+
+/* ParkerTip renders the legacy success image from /parker/parker-success.png.
+   This legacy success pose is used for the Host pricing estimate. */
+img[src="/parker/parker-success.png"] {
+  content: url("/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp") !important;
+  height: 118px !important;
+  width: auto !important;
+  max-width: 135px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  flex-shrink: 0 !important;
+}
+
+/* Give William a little more presence on wider layouts while leaving the
+   speech-bubble size and copy untouched. */
+@media (min-width: 700px) {
+  img[src="/parker/parker-success.png"] {
+    height: 128px !important;
+    max-width: 148px !important;
+  }
+}
