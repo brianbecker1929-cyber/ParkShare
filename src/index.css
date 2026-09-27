@@ -8333,3 +8333,36 @@ img[alt="Parker waving hello"][style*="height: 92px"] {
     height: 128px !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — "SIGN IN REQUIRED" SCREEN — LEGACY PARKER REPLACEMENT
+   2026-09-26
+
+   Scope:
+   - Replace ONLY the legacy Parker on the separate "Sign in required" screen.
+   - Use approved Parker v2 Pose 01 — Waving.
+   - Preserve all copy, button styling, spacing and functionality.
+   - Keep the already-approved Sign-in / Create Account modal unchanged.
+   ========================================================================== */
+
+/* The separate auth-required screen renders the legacy welcome Parker at 100px.
+   Target that exact occurrence only. */
+img[alt="Parker waving hello"][style*="height: 100px"] {
+  content: url("/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
+  height: 128px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Slightly larger on wider screens while preserving the centered treatment. */
+@media (min-width: 700px) {
+  img[alt="Parker waving hello"][style*="height: 100px"] {
+    height: 136px !important;
+  }
+}
