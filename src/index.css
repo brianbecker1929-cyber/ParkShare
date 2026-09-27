@@ -8400,3 +8400,48 @@ img[src="/parker/parker-success.png"] {
     max-width: 148px !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — FLOATING "ASK PARKER" HELP WIDGET — LEGACY ICON REFRESH
+   2026-09-26
+
+   Scope:
+   - Replace the legacy Parker icon used by the floating Help widget.
+   - Update BOTH:
+       1) the circular floating help button
+       2) the circular avatar in the expanded Ask Parker panel
+   - Use approved Parker v2 Pose 10 — Helpful Tip.
+   - Preserve all widget behavior, drag interaction, Q&A content and layout.
+   - Do NOT change header/logo Parker icons elsewhere on the site.
+   ========================================================================== */
+
+/* Scope the replacement ONLY to the fixed wrapper that directly owns the
+   ParkShare help button. This avoids changing Parker imagery in the header,
+   footer or other parts of the app. */
+div:has(> button[aria-label="ParkShare help"])
+  img[src="/parker/parker-icon.png"] {
+  content: url("/parker-v2/web/480px/ParkShare_Parker_10_Helpful_Tip-480.webp") !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: 50% 17% !important;
+  pointer-events: none !important;
+}
+
+/* Slightly tighter crop for the small floating button so Parker's face,
+   hat and raised helpful finger remain readable at compact size. */
+button[aria-label="ParkShare help"] img[alt="Parker help"] {
+  object-position: 50% 14% !important;
+  transform: scale(1.08) !important;
+  transform-origin: center 20% !important;
+}
+
+/* Expanded Ask Parker panel avatar — preserve the existing 68px circle,
+   but show the new Parker v2 Helpful Tip treatment clearly. */
+div:has(> button[aria-label="ParkShare help"])
+  img[alt="Parker"][src="/parker/parker-icon.png"] {
+  object-position: 50% 15% !important;
+  transform: scale(1.04) !important;
+  transform-origin: center 18% !important;
+}
