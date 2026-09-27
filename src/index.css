@@ -8300,3 +8300,36 @@ button, input, select, textarea { font: inherit; }
     margin-right: auto !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — SIGN-IN / CREATE ACCOUNT MODAL — LEGACY PARKER REPLACEMENT
+   2026-09-26
+
+   Scope:
+   - Replace ONLY the legacy Parker shown on the auth modal landing screen.
+   - Use approved Parker v2 Pose 01 — Waving.
+   - Preserve the modal header, buttons, copy, spacing and functionality.
+   - Do NOT alter the separate "Sign in required" screen yet.
+   ========================================================================== */
+
+/* The auth modal's legacy welcome image is the 92px Parker waving image.
+   Target that exact modal rendering only, leaving the separate 100px
+   "Sign in required" Parker untouched for the next Phase 2B item. */
+img[alt="Parker waving hello"][style*="height: 92px"] {
+  content: url("/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
+  height: 122px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  display: block !important;
+}
+
+/* Give the updated full-body Parker a little more presence on wider screens
+   without changing the modal dimensions or button layout. */
+@media (min-width: 700px) {
+  img[alt="Parker waving hello"][style*="height: 92px"] {
+    height: 128px !important;
+  }
+}
