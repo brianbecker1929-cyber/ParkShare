@@ -8300,3 +8300,216 @@ button, input, select, textarea { font: inherit; }
     margin-right: auto !important;
   }
 }
+
+
+/* ==========================================================================
+   PHASE 2B — SIGN-IN / CREATE ACCOUNT MODAL — LEGACY PARKER REPLACEMENT
+   2026-09-26
+
+   Scope:
+   - Replace ONLY the legacy Parker shown on the auth modal landing screen.
+   - Use approved Parker v2 Pose 01 — Waving.
+   - Preserve the modal header, buttons, copy, spacing and functionality.
+   - Do NOT alter the separate "Sign in required" screen yet.
+   ========================================================================== */
+
+/* The auth modal's legacy welcome image is the 92px Parker waving image.
+   Target that exact modal rendering only, leaving the separate 100px
+   "Sign in required" Parker untouched for the next Phase 2B item. */
+img[alt="Parker waving hello"][style*="height: 92px"] {
+  content: url("/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
+  height: 122px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  display: block !important;
+}
+
+/* Give the updated full-body Parker a little more presence on wider screens
+   without changing the modal dimensions or button layout. */
+@media (min-width: 700px) {
+  img[alt="Parker waving hello"][style*="height: 92px"] {
+    height: 128px !important;
+  }
+}
+
+
+/* ==========================================================================
+   PHASE 2B — "SIGN IN REQUIRED" SCREEN — LEGACY PARKER REPLACEMENT
+   2026-09-26
+
+   Scope:
+   - Replace ONLY the legacy Parker on the separate "Sign in required" screen.
+   - Use approved Parker v2 Pose 01 — Waving.
+   - Preserve all copy, button styling, spacing and functionality.
+   - Keep the already-approved Sign-in / Create Account modal unchanged.
+   ========================================================================== */
+
+/* The separate auth-required screen renders the legacy welcome Parker at 100px.
+   Target that exact occurrence only. */
+img[alt="Parker waving hello"][style*="height: 100px"] {
+  content: url("/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
+  height: 128px !important;
+  width: auto !important;
+  max-width: 100% !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  display: block !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Slightly larger on wider screens while preserving the centered treatment. */
+@media (min-width: 700px) {
+  img[alt="Parker waving hello"][style*="height: 100px"] {
+    height: 136px !important;
+  }
+}
+
+
+/* ==========================================================================
+   PHASE 2B — HOST LISTING PRICING TIP — LEGACY PARKER → WILLIAM
+   2026-09-26
+
+   Scope:
+   - Replace the remaining legacy Parker "success" mascot shown in Host
+     onboarding Step 7 (Pricing / earnings estimate).
+   - Use approved William v2 Pose 10 — Helpful Tip.
+   - Preserve the earnings-estimate navy speech bubble, copy, calculations,
+     controls and functionality.
+   ========================================================================== */
+
+/* ParkerTip renders the legacy success image from /parker/parker-success.png.
+   This legacy success pose is used for the Host pricing estimate. */
+img[src="/parker/parker-success.png"] {
+  content: url("/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp") !important;
+  height: 118px !important;
+  width: auto !important;
+  max-width: 135px !important;
+  object-fit: contain !important;
+  object-position: center bottom !important;
+  flex-shrink: 0 !important;
+}
+
+/* Give William a little more presence on wider layouts while leaving the
+   speech-bubble size and copy untouched. */
+@media (min-width: 700px) {
+  img[src="/parker/parker-success.png"] {
+    height: 128px !important;
+    max-width: 148px !important;
+  }
+}
+
+
+/* ==========================================================================
+   PHASE 2B — FLOATING "ASK PARKER" HELP WIDGET — LEGACY ICON REFRESH
+   2026-09-26
+
+   Scope:
+   - Replace the legacy Parker icon used by the floating Help widget.
+   - Update BOTH:
+       1) the circular floating help button
+       2) the circular avatar in the expanded Ask Parker panel
+   - Use approved Parker v2 Pose 10 — Helpful Tip.
+   - Preserve all widget behavior, drag interaction, Q&A content and layout.
+   - Do NOT change header/logo Parker icons elsewhere on the site.
+   ========================================================================== */
+
+/* Scope the replacement ONLY to the fixed wrapper that directly owns the
+   ParkShare help button. This avoids changing Parker imagery in the header,
+   footer or other parts of the app. */
+div:has(> button[aria-label="ParkShare help"])
+  img[src="/parker/parker-icon.png"] {
+  content: url("/parker-v2/web/480px/ParkShare_Parker_10_Helpful_Tip-480.webp") !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: 50% 17% !important;
+  pointer-events: none !important;
+}
+
+/* Slightly tighter crop for the small floating button so Parker's face,
+   hat and raised helpful finger remain readable at compact size. */
+button[aria-label="ParkShare help"] img[alt="Parker help"] {
+  object-position: 50% 14% !important;
+  transform: scale(1.08) !important;
+  transform-origin: center 20% !important;
+}
+
+/* Expanded Ask Parker panel avatar — preserve the existing 68px circle,
+   but show the new Parker v2 Helpful Tip treatment clearly. */
+div:has(> button[aria-label="ParkShare help"])
+  img[alt="Parker"][src="/parker/parker-icon.png"] {
+  object-position: 50% 15% !important;
+  transform: scale(1.04) !important;
+  transform-origin: center 18% !important;
+}
+
+
+/* ==========================================================================
+   PHASE 2B — ASK PARKER WIDGET — CURRENT PARKER FACE ONLY
+   2026-09-26
+
+   IMPORTANT:
+   This uses the CURRENT approved Parker v2 face, cropped directly from the
+   approved Parker 10 Helpful Tip artwork.
+
+   It does NOT use the old legacy /parker/parker-face.png artwork.
+
+   Applies to BOTH:
+   1) floating circular Ask Parker button
+   2) circular avatar in the expanded Ask Parker panel
+   ========================================================================== */
+
+div:has(> button[aria-label="ParkShare help"])
+  img[src="/parker/parker-icon.png"],
+button[aria-label="ParkShare help"] img[alt="Parker help"],
+div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
+  content: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  transform: none !important;
+  transform-origin: center center !important;
+  pointer-events: none !important;
+}
+
+
+/* ==========================================================================
+   PHASE 2B — ASK PARKER FLOATING BUTTON — CURRENT FACE RELIABILITY FIX
+   2026-09-27
+
+   Why:
+   The expanded Ask Parker avatar is loading the current Parker face correctly,
+   but the small floating button can show the broken-image fallback text.
+   This avoids relying on CSS `content:` replacement for that button.
+
+   Fix:
+   - Render the CURRENT Parker face as the floating button background.
+   - Hide the old underlying <img> element completely.
+   - Keep the existing circular button, border, shadow, dragging and click behavior.
+   ========================================================================== */
+
+button[aria-label="ParkShare help"] {
+  background-color: #FFC107 !important;
+  background-image: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  background-size: cover !important;
+}
+
+/* Hide the legacy image element so its broken-image icon / alt text
+   can never show over the new current Parker face. */
+button[aria-label="ParkShare help"] > img[alt="Parker help"] {
+  display: none !important;
+}
+
+/* Keep expanded widget avatar on the same CURRENT Parker v2 face. */
+div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
+  content: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  transform: none !important;
+}
