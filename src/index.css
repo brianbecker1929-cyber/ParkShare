@@ -8475,3 +8475,41 @@ div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
   transform-origin: center center !important;
   pointer-events: none !important;
 }
+
+
+/* ==========================================================================
+   PHASE 2B — ASK PARKER FLOATING BUTTON — CURRENT FACE RELIABILITY FIX
+   2026-09-27
+
+   Why:
+   The expanded Ask Parker avatar is loading the current Parker face correctly,
+   but the small floating button can show the broken-image fallback text.
+   This avoids relying on CSS `content:` replacement for that button.
+
+   Fix:
+   - Render the CURRENT Parker face as the floating button background.
+   - Hide the old underlying <img> element completely.
+   - Keep the existing circular button, border, shadow, dragging and click behavior.
+   ========================================================================== */
+
+button[aria-label="ParkShare help"] {
+  background-color: #FFC107 !important;
+  background-image: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  background-repeat: no-repeat !important;
+  background-position: center center !important;
+  background-size: cover !important;
+}
+
+/* Hide the legacy image element so its broken-image icon / alt text
+   can never show over the new current Parker face. */
+button[aria-label="ParkShare help"] > img[alt="Parker help"] {
+  display: none !important;
+}
+
+/* Keep expanded widget avatar on the same CURRENT Parker v2 face. */
+div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
+  content: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  transform: none !important;
+}
