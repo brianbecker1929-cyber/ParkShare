@@ -2,6 +2,22 @@
   "rewrites": [
     { "source": "/driveway-template.png", "destination": "/driveway-template.png" },
     { "source": "/car-icon.png", "destination": "/car-icon.png" },
+    { "source": "/parking", "destination": "/parking/index.html" },
+    { "source": "/discover", "destination": "/discover/index.html" },
+    { "source": "/my-bookings", "destination": "/my-bookings/index.html" },
+    { "source": "/messages", "destination": "/messages/index.html" },
+    { "source": "/profile", "destination": "/profile/index.html" },
+    { "source": "/list-your-driveway", "destination": "/list-your-driveway/index.html" },
+    { "source": "/host-dashboard", "destination": "/host-dashboard/index.html" },
+    { "source": "/transactions", "destination": "/transactions/index.html" },
+    { "source": "/drivers", "destination": "/drivers/index.html" },
+    { "source": "/hosts", "destination": "/hosts/index.html" },
+    { "source": "/about", "destination": "/about/index.html" },
+    { "source": "/trust-and-safety", "destination": "/trust-and-safety/index.html" },
+    { "source": "/help", "destination": "/help/index.html" },
+    { "source": "/contact", "destination": "/contact/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
