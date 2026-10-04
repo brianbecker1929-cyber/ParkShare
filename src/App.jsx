@@ -7422,7 +7422,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </div>
         <div className="ps-host-hero-visual">
           <ResponsiveMascot
-            family="william-v2"
+            family="william-v3"
             name="ParkShare_William_11_Keys_Thumbs_Up"
             alt="William holding keys and welcoming ParkShare Hosts"
             className="ps-mascot-host-hero"
@@ -7859,8 +7859,8 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         <div className="ps-driver-v2-hero-art">
           <div className="ps-driver-v2-hero-parker">
             <ResponsiveMascot
-              family="parker-v2"
-              name="ParkShare_Parker_07_Giving_Directions"
+              family="parker-v3"
+              name="ParkShare_Parker_03_Pointing_Forward"
               alt="Parker helping Drivers find their way to parking"
               className="ps-mascot-driver-hero"
               hero
