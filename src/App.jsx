@@ -7076,8 +7076,8 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp"
-              srcSet="/william-v2/web/480px/ParkShare_William_17_Trust_Support-480.webp 480w, /william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp 768w, /william-v2/web/1122px/ParkShare_William_17_Trust_Support-1122.webp 1122w"
+              src="/william-v3/web/768px/ParkShare_William_17_Trust_Support-768.webp"
+              srcSet="/william-v3/web/480px/ParkShare_William_17_Trust_Support-480.webp 480w, /william-v3/web/768px/ParkShare_William_17_Trust_Support-768.webp 768w, /william-v3/web/1122px/ParkShare_William_17_Trust_Support-1122.webp 1122w"
               sizes="(max-width: 600px) 56vw, 253px"
               alt="William, the ParkShare Guide, ready to help"
               loading="eager"
@@ -7225,8 +7225,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <article className="ps-about-audience-card ps-about-host-card">
               <img
                 className="ps-about-card-parker"
-                src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
-                srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+                src="/william-v3/web/768px/ParkShare_William_05_Presenting-768.webp"
+                srcSet="/william-v3/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v3/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v3/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
                 sizes="(max-width: 819px) 38vw, 175px"
                 alt="William presenting the opportunity to become a ParkShare Host"
                 loading="lazy"
@@ -8785,7 +8785,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
               <div className="ps-help-small-parker-frame">
                 <div className="ps-help-small-parker-card">
                 <ResponsiveMascot
-                  family="william-v2"
+                  family="william-v3"
                   name="ParkShare_William_16_Need_A_Hand"
                   alt="William, the ParkShare Guide, ready to help"
                   className="ps-mascot-help-card"
