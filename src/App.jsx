@@ -7004,8 +7004,8 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
         <div className="ps-trust-v2-hero-visual">
           <ResponsiveMascot
-            family="william-parker"
-            name="ParkShare_William_Parker_08_Trust_Safety_Reassurance"
+            family="william-parker-v2"
+            name="ParkShare_William_Parker_07_Trust_Safety"
             alt="William and Parker representing ParkShare Trust and Safety"
             className="ps-trust-v2-parker-card ps-mascot-trust-hero"
             hero
@@ -7161,8 +7161,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
         <div className="ps-about-hero-visual">
           <ResponsiveMascot
-            family="william-parker"
-            name="ParkShare_William_Parker_02_Joint_Wave"
+            family="william-parker-v2"
+            name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
             alt="William and Parker welcoming the ParkShare community"
             className="ps-mascot-about-hero"
             hero
