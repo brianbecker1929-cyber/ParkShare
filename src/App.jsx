@@ -7681,8 +7681,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>William's Host Tip</div>
           <div className="ps-host-tip-row">
             <img
-              src="/william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp"
-              srcSet="/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp 480w, /william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp 768w, /william-v2/web/1122px/ParkShare_William_10_Helpful_Tip-1122.webp 1122w"
+              src="/william-v3/web/768px/ParkShare_William_18_Lightbulb_Moment-768.webp"
+              srcSet="/william-v3/web/480px/ParkShare_William_18_Lightbulb_Moment-480.webp 480w, /william-v3/web/768px/ParkShare_William_18_Lightbulb_Moment-768.webp 768w, /william-v3/web/1122px/ParkShare_William_18_Lightbulb_Moment-1122.webp 1122w"
               sizes="(max-width: 600px) 92px, 130px"
               alt="William, the ParkShare Guide, sharing a helpful Host tip"
               loading="lazy"
@@ -7705,8 +7705,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
           <img
             className="ps-host-closing-parker"
-            src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
-            srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+            src="/william-v3/web/768px/ParkShare_William_05_Presenting-768.webp"
+            srcSet="/william-v3/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v3/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v3/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
             sizes="205px"
             alt=""
             aria-hidden="true"
@@ -8003,8 +8003,8 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
           <div className="ps-driver-v2-eyebrow">PARKER'S DRIVER TIP</div>
           <div className="ps-driver-v2-parker-tip-row">
             <ResponsiveMascot
-              family="parker-v2"
-              name="ParkShare_Parker_10_Helpful_Tip"
+              family="parker-v3"
+              name="ParkShare_Parker_11_Checklist"
               alt="Parker sharing a helpful parking tip"
               sizes="(max-width: 600px) 28vw, 145px"
             />
