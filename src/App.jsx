@@ -8734,8 +8734,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div className="ps-help-support-visual">
             <div className="ps-help-parker-frame">
               <ResponsiveMascot
-                family="william-v2"
-                name="ParkShare_William_10_Helpful_Tip"
+                family="william-v3"
+                name="ParkShare_William_25_FAQ_Mascot"
                 alt="William, the ParkShare Guide, ready to help"
                 className="ps-mascot-help-hero"
                 hero
@@ -8959,7 +8959,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </div>
         <div className="ps-contact-hero-art">
           <ResponsiveMascot
-            family="william-v2"
+            family="william-v3"
             name="ParkShare_William_15_Customer_Service"
             alt="William, the ParkShare Guide, ready to help with support questions"
             className="ps-mascot-contact-hero"
