@@ -7257,9 +7257,10 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         <section id="parker" className="ps-about-parker">
           <div className="ps-about-parker-art">
             <img
-              src="/parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp"
-              srcSet="/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
+              src="/parker-v3/web/768px/ParkShare_Parker_01_Waving-768.webp"
+              srcSet="/parker-v3/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
               sizes="(max-width: 819px) 58vw, 310px"
+              style={{ aspectRatio: "4 / 5" }}
               alt="Parker, ParkShare's valet parker mascot, waving"
               loading="lazy"
               decoding="async"
@@ -7284,8 +7285,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
           </div>
           <img
-            src="/parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
-            srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
+            src="/parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
+            srcSet="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
             sizes="225px"
             alt="Parker giving a thumbs up"
             loading="lazy"
