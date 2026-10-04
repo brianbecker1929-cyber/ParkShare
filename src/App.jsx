@@ -6459,8 +6459,8 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         <div className="ps-home-v2-hero-art">
           <div className="ps-home-v2-parker-card">
             <ResponsiveMascot
-              family="william-parker"
-              name="ParkShare_William_Parker_01_Signature_Welcome"
+              family="william-parker-v2"
+              name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
               alt="William and Parker welcoming ParkShare Drivers and Hosts"
               className="ps-mascot-home-hero"
               hero
@@ -6502,8 +6502,8 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-how-mascot" aria-hidden="true">
           <ResponsiveMascot
-            family="william-parker"
-            name="ParkShare_William_Parker_03A_How_It_Works"
+            family="william-parker-v2"
+            name="ParkShare_William_Parker_05_Driver_Host_Welcome"
             decorative
             sizes="(max-width: 600px) 64vw, 290px"
           />
