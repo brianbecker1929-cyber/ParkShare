@@ -8528,7 +8528,8 @@ button[aria-label="ParkShare help"] {
   background-position: 56% top !important;
 }
 
-div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
+div:has(> button[aria-label="ParkShare help"])
+  img[alt="Parker"][src="/parker/parker-icon.png"] {
   object-position: center top !important;
   transform: scale(2.8) !important;
   transform-origin: 56% top !important;
