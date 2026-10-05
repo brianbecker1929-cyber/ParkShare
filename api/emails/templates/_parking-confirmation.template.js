@@ -1,6 +1,6 @@
 // Booking confirmation email — raw HTML with [VARIABLE] placeholders.
-// Images point to https://www.myparkshare.ca/email/*.png — see
-// README for the files that need to exist there.
+// Brand graphics use /email/*.png; the cartoon mascot uses its approved
+// /parker-v3/masters/*.png asset on https://www.myparkshare.ca.
 
 export default `<!DOCTYPE html>
 <html lang="en">
@@ -43,7 +43,13 @@ export default `<!DOCTYPE html>
                   </p>
                 </td>
                 <td width="130" valign="bottom" align="right" style="overflow:visible;">
-                  <img src="https://www.myparkshare.ca/email/parker-confirmation.png" alt="Parker holding his phone with the ParkShare app" width="140" style="display:block; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
+                  <table role="presentation" width="140" height="175" cellpadding="0" cellspacing="0" style="width:140px; height:174.914px; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
+                    <tr>
+                      <td height="175" valign="bottom" align="right" style="height:174.914px; padding:0;">
+                        <img src="https://www.myparkshare.ca/parker-v3/masters/ParkShare_Parker_04_ParkShare_App.png" alt="Parker holding his phone with the ParkShare app" width="131" height="175" style="display:block; border:0; width:131.186px; height:auto;">
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
             </table>

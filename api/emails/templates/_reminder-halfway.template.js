@@ -42,7 +42,13 @@ export default `<!DOCTYPE html>
                   </p>
                 </td>
                 <td width="130" valign="bottom" align="right" style="overflow:visible;">
-                  <img src="https://www.myparkshare.ca/email/parker-reminder.png" alt="Parker checking the time" width="140" style="display:block; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
+                  <table role="presentation" width="140" height="211" cellpadding="0" cellspacing="0" style="width:140px; height:210.936px; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
+                    <tr>
+                      <td height="211" valign="bottom" align="right" style="height:210.936px; padding:0;">
+                        <img src="https://www.myparkshare.ca/parker-v3/masters/ParkShare_Parker_04_ParkShare_App.png" alt="Parker holding his phone with the ParkShare app" width="140" height="187" style="display:block; border:0; width:140.000px; height:auto;">
+                      </td>
+                    </tr>
+                  </table>
                 </td>
               </tr>
             </table>
