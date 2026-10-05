@@ -1110,8 +1110,8 @@ const subtotal = listing.price * hours;
     <Modal title="Payment successful" onClose={() => { onClose(); onSuccess(); }}>
       <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
         <img
-          src="/parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp"
-          srcSet="/parker-v2/web/480px/ParkShare_Parker_08_Celebrating-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_08_Celebrating-1122.webp 1122w"
+          src="/parker-v3/web/768px/ParkShare_Parker_30_Success_Celebration-768.webp"
+          srcSet="/parker-v3/web/480px/ParkShare_Parker_30_Success_Celebration-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_30_Success_Celebration-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_30_Success_Celebration-1122.webp 1122w"
           sizes="110px"
           alt="Parker celebrating a successful booking"
           style={{ height: 110, width: "auto", marginBottom: 6 }}
@@ -4154,8 +4154,8 @@ function ListDrivewayView({ user }) {
       <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <img
-            src="/william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
-            srcSet="/william-v2/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v2/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
+            src="/william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
+            srcSet="/william-v3/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v3/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
             sizes="110px"
             alt="William celebrating a newly listed parking space"
             style={{ height: 110, width: "auto", marginBottom: 16 }}
@@ -4997,11 +4997,11 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         >
           {displayStatus === "Completed" && isExpanded && (
             <img
-              src="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
-              srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
+              src="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
+              srcSet="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
               sizes="88px"
               alt="Parker giving a thumbs up for a completed booking"
-              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }}
+              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", aspectRatio: "4 / 5", objectFit: "contain", opacity: 0.9, pointerEvents: "none" }}
               loading="lazy"
               decoding="async"
             />
@@ -6459,8 +6459,8 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         <div className="ps-home-v2-hero-art">
           <div className="ps-home-v2-parker-card">
             <ResponsiveMascot
-              family="william-parker"
-              name="ParkShare_William_Parker_01_Signature_Welcome"
+              family="william-parker-v2"
+              name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
               alt="William and Parker welcoming ParkShare Drivers and Hosts"
               className="ps-mascot-home-hero"
               hero
@@ -6502,8 +6502,8 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-how-mascot" aria-hidden="true">
           <ResponsiveMascot
-            family="william-parker"
-            name="ParkShare_William_Parker_03A_How_It_Works"
+            family="william-parker-v2"
+            name="ParkShare_William_Parker_05_Driver_Host_Welcome"
             decorative
             sizes="(max-width: 600px) 64vw, 290px"
           />
@@ -7004,8 +7004,8 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
         <div className="ps-trust-v2-hero-visual">
           <ResponsiveMascot
-            family="william-parker"
-            name="ParkShare_William_Parker_08_Trust_Safety_Reassurance"
+            family="william-parker-v2"
+            name="ParkShare_William_Parker_11_Sharing_Friendly_Handshake"
             alt="William and Parker representing ParkShare Trust and Safety"
             className="ps-trust-v2-parker-card ps-mascot-trust-hero"
             hero
@@ -7076,8 +7076,8 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}
           >
             <img
-              src="/william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp"
-              srcSet="/william-v2/web/480px/ParkShare_William_17_Trust_Support-480.webp 480w, /william-v2/web/768px/ParkShare_William_17_Trust_Support-768.webp 768w, /william-v2/web/1122px/ParkShare_William_17_Trust_Support-1122.webp 1122w"
+              src="/william-v3/web/768px/ParkShare_William_17_Trust_Support-768.webp"
+              srcSet="/william-v3/web/480px/ParkShare_William_17_Trust_Support-480.webp 480w, /william-v3/web/768px/ParkShare_William_17_Trust_Support-768.webp 768w, /william-v3/web/1122px/ParkShare_William_17_Trust_Support-1122.webp 1122w"
               sizes="(max-width: 600px) 56vw, 253px"
               alt="William, the ParkShare Guide, ready to help"
               loading="eager"
@@ -7161,8 +7161,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
         <div className="ps-about-hero-visual">
           <ResponsiveMascot
-            family="william-parker"
-            name="ParkShare_William_Parker_02_Joint_Wave"
+            family="william-parker-v2"
+            name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
             alt="William and Parker welcoming the ParkShare community"
             className="ps-mascot-about-hero"
             hero
@@ -7225,8 +7225,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <article className="ps-about-audience-card ps-about-host-card">
               <img
                 className="ps-about-card-parker"
-                src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
-                srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+                src="/william-v3/web/768px/ParkShare_William_05_Presenting-768.webp"
+                srcSet="/william-v3/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v3/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v3/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
                 sizes="(max-width: 819px) 38vw, 175px"
                 alt="William presenting the opportunity to become a ParkShare Host"
                 loading="lazy"
@@ -7257,9 +7257,10 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         <section id="parker" className="ps-about-parker">
           <div className="ps-about-parker-art">
             <img
-              src="/parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp"
-              srcSet="/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
+              src="/parker-v3/web/768px/ParkShare_Parker_01_Waving-768.webp"
+              srcSet="/parker-v3/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
               sizes="(max-width: 819px) 58vw, 310px"
+              style={{ aspectRatio: "4 / 5" }}
               alt="Parker, ParkShare's valet parker mascot, waving"
               loading="lazy"
               decoding="async"
@@ -7284,8 +7285,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
           </div>
           <img
-            src="/parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
-            srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
+            src="/parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
+            srcSet="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
             sizes="225px"
             alt="Parker giving a thumbs up"
             loading="lazy"
@@ -7414,15 +7415,15 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
 
       {/* Hero */}
-      <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "32px 24px 26px", textAlign: "center" }}>
+      <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
         <div className="ps-host-hero-copy">
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
-          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.navy, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
-          <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
+          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.white, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
+          <button onClick={onGetStarted} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
         </div>
         <div className="ps-host-hero-visual">
           <ResponsiveMascot
-            family="william-v2"
+            family="william-v3"
             name="ParkShare_William_11_Keys_Thumbs_Up"
             alt="William holding keys and welcoming ParkShare Hosts"
             className="ps-mascot-host-hero"
@@ -7680,8 +7681,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>William's Host Tip</div>
           <div className="ps-host-tip-row">
             <img
-              src="/william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp"
-              srcSet="/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp 480w, /william-v2/web/768px/ParkShare_William_10_Helpful_Tip-768.webp 768w, /william-v2/web/1122px/ParkShare_William_10_Helpful_Tip-1122.webp 1122w"
+              src="/william-v3/web/768px/ParkShare_William_18_Lightbulb_Moment-768.webp"
+              srcSet="/william-v3/web/480px/ParkShare_William_18_Lightbulb_Moment-480.webp 480w, /william-v3/web/768px/ParkShare_William_18_Lightbulb_Moment-768.webp 768w, /william-v3/web/1122px/ParkShare_William_18_Lightbulb_Moment-1122.webp 1122w"
               sizes="(max-width: 600px) 92px, 130px"
               alt="William, the ParkShare Guide, sharing a helpful Host tip"
               loading="lazy"
@@ -7704,8 +7705,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
           <img
             className="ps-host-closing-parker"
-            src="/william-v2/web/768px/ParkShare_William_05_Presenting-768.webp"
-            srcSet="/william-v2/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v2/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v2/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+            src="/william-v3/web/768px/ParkShare_William_05_Presenting-768.webp"
+            srcSet="/william-v3/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v3/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v3/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
             sizes="205px"
             alt=""
             aria-hidden="true"
@@ -7859,8 +7860,8 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         <div className="ps-driver-v2-hero-art">
           <div className="ps-driver-v2-hero-parker">
             <ResponsiveMascot
-              family="parker-v2"
-              name="ParkShare_Parker_07_Giving_Directions"
+              family="parker-v3"
+              name="ParkShare_Parker_03_Pointing_Forward"
               alt="Parker helping Drivers find their way to parking"
               className="ps-mascot-driver-hero"
               hero
@@ -8002,8 +8003,8 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
           <div className="ps-driver-v2-eyebrow">PARKER'S DRIVER TIP</div>
           <div className="ps-driver-v2-parker-tip-row">
             <ResponsiveMascot
-              family="parker-v2"
-              name="ParkShare_Parker_10_Helpful_Tip"
+              family="parker-v3"
+              name="ParkShare_Parker_11_Checklist"
               alt="Parker sharing a helpful parking tip"
               sizes="(max-width: 600px) 28vw, 145px"
             />
@@ -8734,8 +8735,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           <div className="ps-help-support-visual">
             <div className="ps-help-parker-frame">
               <ResponsiveMascot
-                family="william-v2"
-                name="ParkShare_William_10_Helpful_Tip"
+                family="william-v3"
+                name="ParkShare_William_25_FAQ_Mascot"
                 alt="William, the ParkShare Guide, ready to help"
                 className="ps-mascot-help-hero"
                 hero
@@ -8785,7 +8786,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
               <div className="ps-help-small-parker-frame">
                 <div className="ps-help-small-parker-card">
                 <ResponsiveMascot
-                  family="william-v2"
+                  family="william-v3"
                   name="ParkShare_William_16_Need_A_Hand"
                   alt="William, the ParkShare Guide, ready to help"
                   className="ps-mascot-help-card"
@@ -8959,7 +8960,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </div>
         <div className="ps-contact-hero-art">
           <ResponsiveMascot
-            family="william-v2"
+            family="william-v3"
             name="ParkShare_William_15_Customer_Service"
             alt="William, the ParkShare Guide, ready to help with support questions"
             className="ps-mascot-contact-hero"

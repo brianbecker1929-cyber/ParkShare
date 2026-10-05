@@ -437,7 +437,7 @@ button, input, select, textarea { font: inherit; }
     box-shadow: 0 14px 34px rgba(14,27,46,.10);
   }
   .ps-host-hero-copy {
-    background: #FFC107;
+    background: #0E1B2E;
     padding: 54px 58px;
     display: flex;
     flex-direction: column;
@@ -462,7 +462,7 @@ button, input, select, textarea { font: inherit; }
     justify-content: center;
     align-items: center;
     padding: 36px;
-    background: #0E1B2E;
+    background: #FFC107;
     color: #fff;
     text-align: center;
   }
@@ -5831,14 +5831,13 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
-/* Host mobile: remove the navy box-inside-amber treatment and let the cleaned
-   transparent William artwork sit naturally on the existing amber hero. */
+/* Host mobile: continue the navy-copy / amber-art hero palette when stacked. */
 @media (max-width: 899px) {
   .ps-host-hero-visual {
     display: flex !important;
-    background: transparent !important;
-    padding: 12px 0 0 !important;
-    margin-top: 14px !important;
+    background: #FFC107 !important;
+    padding: 12px 24px 26px !important;
+    margin: 14px -24px -26px !important;
     align-items: flex-end !important;
     justify-content: center !important;
     overflow: visible !important;
@@ -8317,7 +8316,7 @@ button, input, select, textarea { font: inherit; }
    Target that exact modal rendering only, leaving the separate 100px
    "Sign in required" Parker untouched for the next Phase 2B item. */
 img[alt="Parker waving hello"][style*="height: 92px"] {
-  content: url("/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
+  content: url("/parker-v3/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
   height: 122px !important;
   width: auto !important;
   max-width: 100% !important;
@@ -8349,7 +8348,7 @@ img[alt="Parker waving hello"][style*="height: 92px"] {
 /* The separate auth-required screen renders the legacy welcome Parker at 100px.
    Target that exact occurrence only. */
 img[alt="Parker waving hello"][style*="height: 100px"] {
-  content: url("/parker-v2/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
+  content: url("/parker-v3/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
   height: 128px !important;
   width: auto !important;
   max-width: 100% !important;
@@ -8383,7 +8382,7 @@ img[alt="Parker waving hello"][style*="height: 100px"] {
 /* ParkerTip renders the legacy success image from /parker/parker-success.png.
    This legacy success pose is used for the Host pricing estimate. */
 img[src="/parker/parker-success.png"] {
-  content: url("/william-v2/web/480px/ParkShare_William_10_Helpful_Tip-480.webp") !important;
+  content: url("/william-v3/web/480px/ParkShare_William_22_Presenting_Gold_Coin-480.webp") !important;
   height: 118px !important;
   width: auto !important;
   max-width: 135px !important;
@@ -8466,7 +8465,7 @@ div:has(> button[aria-label="ParkShare help"])
   img[src="/parker/parker-icon.png"],
 button[aria-label="ParkShare help"] img[alt="Parker help"],
 div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
-  content: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  content: url("/parker-v3/web/480px/ParkShare_Parker_10_Customer_Support-480.webp") !important;
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
@@ -8494,7 +8493,7 @@ div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
 
 button[aria-label="ParkShare help"] {
   background-color: #FFC107 !important;
-  background-image: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  background-image: url("/parker-v3/web/480px/ParkShare_Parker_10_Customer_Support-480.webp") !important;
   background-repeat: no-repeat !important;
   background-position: center center !important;
   background-size: cover !important;
@@ -8508,8 +8507,29 @@ button[aria-label="ParkShare help"] > img[alt="Parker help"] {
 
 /* Keep expanded widget avatar on the same CURRENT Parker v2 face. */
 div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
-  content: url("/parker-v2/ui/ParkShare_Parker_Current_Face.png") !important;
+  content: url("/parker-v3/web/480px/ParkShare_Parker_10_Customer_Support-480.webp") !important;
   object-fit: cover !important;
   object-position: center center !important;
   transform: none !important;
+}
+
+
+/* Cartoon v3 shared placements: retain the approved welcome/pricing boxes
+   and crop the support artwork inside the existing Ask Parker circles. */
+img[alt="Parker waving hello"][style*="height: 92px"],
+img[alt="Parker waving hello"][style*="height: 100px"],
+img[src="/parker/parker-success.png"] {
+  aspect-ratio: 4 / 5 !important;
+}
+
+button[aria-label="ParkShare help"] {
+  background-size: 280% auto !important;
+  background-position: 56% top !important;
+}
+
+div:has(> button[aria-label="ParkShare help"])
+  img[alt="Parker"][src="/parker/parker-icon.png"] {
+  object-position: center top !important;
+  transform: scale(2.8) !important;
+  transform-origin: 56% top !important;
 }
