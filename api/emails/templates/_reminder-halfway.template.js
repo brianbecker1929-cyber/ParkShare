@@ -34,22 +34,15 @@ export default `<!DOCTYPE html>
         <tr>
           <td style="padding:6px 29px 0 29px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td valign="middle" style="padding-right:14px;">
+              <tr valign="bottom">
+                <td valign="middle" style="padding-right:10px; padding-bottom:10px; vertical-align:middle;">
                   <p style="margin:0; font-size:14px; color:#1c2b4a;">Hi [CUSTOMER_FIRST_NAME],</p>
                   <p style="margin:11px 0 0 0; font-size:14px; color:#4a5568; line-height:1.5;">
                     You're about halfway through your parking session. Here's a quick recap.
                   </p>
                 </td>
-                <td width="130" valign="bottom" align="right" style="overflow:visible;">
-                  <table role="presentation" width="140" height="211" cellpadding="0" cellspacing="0" style="width:140px; height:210.936px; border:0; margin-top:-70px; margin-bottom:-1px; position:relative; z-index:2;">
-                    <tr>
-                      <td height="211" valign="bottom" align="right" style="height:210.936px; padding:0;">
-                        <img src="https://www.myparkshare.ca/parker-v3/masters/ParkShare_Parker_04_ParkShare_App.png" alt="Parker holding his phone with the ParkShare app" width="140" height="187" style="display:block; border:0; width:140.000px; height:auto;">
-                      </td>
-                    </tr>
-                  </table>
-                </td>
+                <td width="128" valign="bottom" align="right" style="width:128px; min-width:128px; padding:0; vertical-align:bottom; line-height:0; font-size:0;">
+                  <div class="ps-parker-waist-portrait" style="display:block; position:relative; width:128px; height:147px; overflow:hidden; margin-top:-56px; margin-bottom:0; padding:0; line-height:0;"><img src="https://www.myparkshare.ca/parker-v3/masters/ParkShare_Parker_04_ParkShare_App.png" alt="Parker holding his phone with the ParkShare app" width="216" height="288" style="display:block; position:relative; left:-35px; top:0; border:0; margin:0; padding:0; width:216px; height:auto; max-width:none;"></div></td>
               </tr>
             </table>
           </td>
