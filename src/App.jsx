@@ -7415,11 +7415,11 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
 
       {/* Hero */}
-      <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.amber, padding: "32px 24px 26px", textAlign: "center" }}>
+      <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
         <div className="ps-host-hero-copy">
-          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.navy, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
-          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.navy, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
-          <button onClick={onGetStarted} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 11, color: C.amber, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, opacity: 0.75 }}>Become a ParkShare Host</div>
+          <h1 style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 25, color: C.white, lineHeight: 1.3, margin: "0 0 16px" }}>Your driveway could be earning while you're not using it.</h1>
+          <button onClick={onGetStarted} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "13px 28px", fontFamily: "'Poppins', sans-serif", fontSize: 14, fontWeight: 700, cursor: "pointer", width: "100%" }}>List Your Space</button>
         </div>
         <div className="ps-host-hero-visual">
           <ResponsiveMascot

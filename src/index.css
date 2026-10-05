@@ -437,7 +437,7 @@ button, input, select, textarea { font: inherit; }
     box-shadow: 0 14px 34px rgba(14,27,46,.10);
   }
   .ps-host-hero-copy {
-    background: #FFC107;
+    background: #0E1B2E;
     padding: 54px 58px;
     display: flex;
     flex-direction: column;
@@ -462,7 +462,7 @@ button, input, select, textarea { font: inherit; }
     justify-content: center;
     align-items: center;
     padding: 36px;
-    background: #0E1B2E;
+    background: #FFC107;
     color: #fff;
     text-align: center;
   }
@@ -5831,14 +5831,13 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
-/* Host mobile: remove the navy box-inside-amber treatment and let the cleaned
-   transparent William artwork sit naturally on the existing amber hero. */
+/* Host mobile: continue the navy-copy / amber-art hero palette when stacked. */
 @media (max-width: 899px) {
   .ps-host-hero-visual {
     display: flex !important;
-    background: transparent !important;
-    padding: 12px 0 0 !important;
-    margin-top: 14px !important;
+    background: #FFC107 !important;
+    padding: 12px 24px 26px !important;
+    margin: 14px -24px -26px !important;
     align-items: flex-end !important;
     justify-content: center !important;
     overflow: visible !important;
