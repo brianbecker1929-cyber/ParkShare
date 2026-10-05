@@ -1110,8 +1110,8 @@ const subtotal = listing.price * hours;
     <Modal title="Payment successful" onClose={() => { onClose(); onSuccess(); }}>
       <div style={{ textAlign: "center", padding: "10px 0 20px" }}>
         <img
-          src="/parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp"
-          srcSet="/parker-v2/web/480px/ParkShare_Parker_08_Celebrating-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_08_Celebrating-768.webp 768w, /parker-v2/web/1122px/ParkShare_Parker_08_Celebrating-1122.webp 1122w"
+          src="/parker-v3/web/768px/ParkShare_Parker_30_Success_Celebration-768.webp"
+          srcSet="/parker-v3/web/480px/ParkShare_Parker_30_Success_Celebration-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_30_Success_Celebration-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_30_Success_Celebration-1122.webp 1122w"
           sizes="110px"
           alt="Parker celebrating a successful booking"
           style={{ height: 110, width: "auto", marginBottom: 6 }}
@@ -4154,8 +4154,8 @@ function ListDrivewayView({ user }) {
       <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <img
-            src="/william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
-            srcSet="/william-v2/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v2/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v2/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
+            src="/william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
+            srcSet="/william-v3/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v3/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
             sizes="110px"
             alt="William celebrating a newly listed parking space"
             style={{ height: 110, width: "auto", marginBottom: 16 }}
@@ -4997,11 +4997,11 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         >
           {displayStatus === "Completed" && isExpanded && (
             <img
-              src="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
-              srcSet="/parker-v2/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v2/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
+              src="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
+              srcSet="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
               sizes="88px"
               alt="Parker giving a thumbs up for a completed booking"
-              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", opacity: 0.9, pointerEvents: "none" }}
+              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", aspectRatio: "4 / 5", objectFit: "contain", opacity: 0.9, pointerEvents: "none" }}
               loading="lazy"
               decoding="async"
             />
