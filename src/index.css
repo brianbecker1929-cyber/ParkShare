@@ -1234,14 +1234,14 @@ button, input, select, textarea { font: inherit; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    ParkShare official global navbar logo
-   Uses /website-logo.png without changing Parker artwork anywhere else.
+   Uses the transparent William + Parker logo without changing page artwork.
    This safely overrides the old assembled Parker-icon + text wordmark.
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Shared behavior: preserve the official logo's natural aspect ratio. */
 .ps-header .ps-desktop-logo,
 .ps-header .ps-mobile-header-row > button:nth-child(2) {
-  background-image: url("/website-logo.png") !important;
+  background-image: url("/brand/parkshare-william-parker-logo.webp") !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   background-size: contain !important;
@@ -1258,9 +1258,9 @@ button, input, select, textarea { font: inherit; }
 
 /* Desktop/public navigation logo. */
 .ps-header .ps-desktop-logo {
-  width: 190px !important;
-  min-width: 190px !important;
-  height: 54px !important;
+  width: 220px !important;
+  min-width: 220px !important;
+  height: 90px !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
@@ -1269,7 +1269,12 @@ button, input, select, textarea { font: inherit; }
 /* Give the shared desktop header enough room for the official full logo. */
 @media (min-width: 761px) {
   .ps-header .ps-desktop-guest-header {
-    grid-template-columns: 190px minmax(0, 1fr) auto !important;
+    grid-template-columns: 220px minmax(0, 1fr) auto !important;
+  }
+
+  .ps-header .ps-desktop-guest-nav {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
   }
 }
 
@@ -1278,8 +1283,12 @@ button, input, select, textarea { font: inherit; }
   .ps-header .ps-mobile-header-row > button:nth-child(2) {
     width: 170px !important;
     max-width: 42vw !important;
-    height: 58px !important;
+    height: 72px !important;
     justify-self: center !important;
+  }
+
+  .ps-header .ps-mobile-header-row {
+    min-height: 90px !important;
   }
 }
 
@@ -1291,14 +1300,14 @@ button, input, select, textarea { font: inherit; }
 @media (min-width: 761px) {
   .ps-header:not(:has(.ps-desktop-guest-header)) .ps-mobile-header-row {
     display: grid !important;
-    min-height: 76px !important;
+    min-height: 108px !important;
     padding: 9px 22px !important;
   }
 
   .ps-header:not(:has(.ps-desktop-guest-header))
     .ps-mobile-header-row > button:nth-child(2) {
-    width: 190px !important;
-    height: 54px !important;
+    width: 220px !important;
+    height: 90px !important;
     justify-self: center !important;
   }
 }
@@ -2337,7 +2346,7 @@ button, input, select, textarea { font: inherit; }
 .ps-footer-v2-inner { width: min(1120px,100%); margin: 0 auto; display: grid; grid-template-columns: 1.4fr .8fr .8fr 1fr; gap: 42px; align-items: start; }
 .ps-footer-v2-brand { min-width: 0; }
 .ps-footer-v2-logo { display: block; border: 0; background: transparent; padding: 0; cursor: pointer; }
-.ps-footer-v2-logo img { display: block; width: 168px; max-width: 100%; height: auto; object-fit: contain; }
+.ps-footer-v2-logo img { display: block; width: 220px; max-width: 100%; height: auto; object-fit: contain; }
 .ps-footer-v2-brand p { margin: 14px 0 18px; color: rgba(255,255,255,.72); font-size: 12.5px; }
 .ps-footer-v2-social { display: flex; gap: 8px; flex-wrap: wrap; }
 .ps-footer-v2-social span { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.28); color: #fff; font-size: 12px; font-weight: 800; }
@@ -2376,7 +2385,7 @@ button, input, select, textarea { font: inherit; }
   .ps-footer-v2-inner { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px 12px; text-align: left; }
   .ps-footer-v2-brand { grid-column: 1 / -1; text-align: center; }
   .ps-footer-v2-logo { min-height: 44px; margin: 0 auto; display: flex; align-items: center; justify-content: center; }
-  .ps-footer-v2-logo img { width: 150px; }
+  .ps-footer-v2-logo img { width: 180px; }
   .ps-footer-v2-brand p { margin: 10px 0 14px; }
   .ps-footer-v2-social { justify-content: center; flex-wrap: nowrap; }
   .ps-footer-v2-column { min-width: 0; padding-top: 2px; gap: 0; }

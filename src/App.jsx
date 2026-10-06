@@ -5920,7 +5920,7 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
       <div className="ps-footer-v2-inner">
         <div className="ps-footer-v2-brand">
           <button className="ps-footer-v2-logo" onClick={onAboutClick} aria-label="About ParkShare">
-            <img src="/website-logo.png" alt="ParkShare" />
+            <img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" />
           </button>
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
@@ -6090,7 +6090,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
       {dashboardMobileHeader && (
         <div className="ps-dashboard-mobile-header-row">
           <button onClick={onLogoClick} aria-label="ParkShare home" style={{ width: 190, maxWidth: "62vw", minHeight: 44, padding: 0, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "flex-start" }}>
-            <img src="/website-logo.png" alt="ParkShare" style={{ display: "block", width: "100%", height: 48, objectFit: "contain", objectPosition: "left center" }} />
+            <img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" style={{ display: "block", width: "100%", height: 80, objectFit: "contain", objectPosition: "left center" }} />
           </button>
           <button onClick={() => setDashboardMenuOpen(v => !v)} aria-label="Open account and navigation menu" aria-expanded={dashboardMenuOpen} style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid rgba(255,255,255,0.28)", background: dashboardMenuOpen ? "rgba(255,255,255,0.14)" : "transparent", color: C.white, fontSize: 22, lineHeight: 1, cursor: "pointer" }}>{dashboardMenuOpen ? "×" : "☰"}</button>
         </div>
@@ -6100,7 +6100,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
         <div style={{ display: "flex", justifyContent: "flex-start" }}>
           {!user && <button onClick={onShowAuth} style={{ background: C.amber, color: C.navy, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 8, width: 70, height: 38, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>Sign in</button>}
         </div>
-        <button onClick={onLogoClick} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifySelf: "center" }}>
+        <button onClick={onLogoClick} aria-label="ParkShare home" style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, justifySelf: "center" }}>
           <div style={{ display: "inline-block", textAlign: "center" }}>
             <div style={{ display: "inline-flex", alignItems: "center" }}>
               <div style={{ width: 62, height: 62, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, overflow: "hidden", flexShrink: 0, zIndex: 2, position: "relative" }}>
