@@ -8742,8 +8742,8 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             <div className="ps-help-parker-frame">
               <ResponsiveMascot
                 family="william-v3"
-                name="ParkShare_William_02_Thumbs_Up"
-                alt="William, the ParkShare Guide, giving a reassuring thumbs-up"
+                name="ParkShare_William_09_Hand_On_Heart"
+                alt="William, the ParkShare Guide, with his hand on his chest"
                 className="ps-mascot-help-hero"
                 hero
                 sizes="(max-width: 600px) 62vw, 240px"
