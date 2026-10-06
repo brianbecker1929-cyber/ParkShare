@@ -7424,8 +7424,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         <div className="ps-host-hero-visual">
           <ResponsiveMascot
             family="william-v3"
-            name="ParkShare_William_11_Keys_Thumbs_Up"
-            alt="William holding keys and welcoming ParkShare Hosts"
+            name="ParkShare_William_05_Presenting"
+            alt="William warmly welcoming Hosts with an open-hand gesture"
             className="ps-mascot-host-hero"
             hero
             sizes="(max-width: 600px) 64vw, 280px"
