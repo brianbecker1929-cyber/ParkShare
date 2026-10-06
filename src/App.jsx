@@ -7705,8 +7705,8 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
           <img
             className="ps-host-closing-parker"
-            src="/william-v3/web/768px/ParkShare_William_05_Presenting-768.webp"
-            srcSet="/william-v3/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v3/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v3/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+            src="/william-v3/web/768px/ParkShare_William_22_Presenting_Gold_Coin-768.webp"
+            srcSet="/william-v3/web/480px/ParkShare_William_22_Presenting_Gold_Coin-480.webp 480w, /william-v3/web/768px/ParkShare_William_22_Presenting_Gold_Coin-768.webp 768w, /william-v3/web/1122px/ParkShare_William_22_Presenting_Gold_Coin-1122.webp 1122w"
             sizes="205px"
             alt=""
             aria-hidden="true"
