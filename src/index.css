@@ -1276,6 +1276,10 @@ button, input, select, textarea { font: inherit; }
     flex-wrap: wrap !important;
     gap: 8px !important;
   }
+
+  .ps-header .ps-desktop-auth-actions {
+    width: auto !important;
+  }
 }
 
 /* Mobile logo: same official asset, scaled down without cropping or distortion. */
