@@ -8559,6 +8559,7 @@ div:has(> button[aria-label="ParkShare help"])
 /* Match the Host hero's soft shadow on the approved banner and card mascots. */
 .ps-home-v2-parker-card .ps-mascot-home-hero,
 .ps-driver-v2-hero-parker .ps-mascot-driver-hero,
+.ps-host-parker-tip .ps-host-tip-row > img,
 .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero,
 .ps-about-page .ps-about-host-card .ps-about-card-parker,
 .ps-about-page .ps-about-parker-art > img,
@@ -8571,6 +8572,7 @@ div:has(> button[aria-label="ParkShare help"])
 @media (max-width: 899px) {
   .ps-home-v2-parker-card .ps-mascot-home-hero,
   .ps-driver-v2-hero-parker .ps-mascot-driver-hero,
+  .ps-host-parker-tip .ps-host-tip-row > img,
   .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero,
   .ps-about-page .ps-about-host-card .ps-about-card-parker,
   .ps-about-page .ps-about-parker-art > img,
