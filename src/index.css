@@ -1282,6 +1282,15 @@ button, input, select, textarea { font: inherit; }
   }
 }
 
+/* Keep wrapped desktop navigation in balanced rows beside the taller logo. */
+@media (min-width: 761px) and (max-width: 1150px) {
+  .ps-header .ps-desktop-guest-nav {
+    width: 292px !important;
+    max-width: 100% !important;
+    justify-self: center;
+  }
+}
+
 /* Mobile logo: same official asset, scaled down without cropping or distortion. */
 @media (max-width: 760px) {
   .ps-header .ps-mobile-header-row > button:nth-child(2) {
