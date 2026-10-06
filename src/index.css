@@ -8556,17 +8556,19 @@ div:has(> button[aria-label="ParkShare help"])
   transform-origin: 56% top !important;
 }
 
-/* Match the Host hero's soft shadow on the Home, Driver and About mascots. */
+/* Match the Host hero's soft shadow on the banners and About Host mascot. */
 .ps-home-v2-parker-card .ps-mascot-home-hero,
 .ps-driver-v2-hero-parker .ps-mascot-driver-hero,
-.ps-about-page .ps-about-hero-visual .ps-mascot-about-hero {
+.ps-about-page .ps-about-hero-visual .ps-mascot-about-hero,
+.ps-about-page .ps-about-host-card .ps-about-card-parker {
   filter: drop-shadow(0 14px 18px rgba(0, 0, 0, .15)) !important;
 }
 
 @media (max-width: 899px) {
   .ps-home-v2-parker-card .ps-mascot-home-hero,
   .ps-driver-v2-hero-parker .ps-mascot-driver-hero,
-  .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero {
+  .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero,
+  .ps-about-page .ps-about-host-card .ps-about-card-parker {
     filter: drop-shadow(0 10px 14px rgba(14, 27, 46, .14)) !important;
   }
 }
