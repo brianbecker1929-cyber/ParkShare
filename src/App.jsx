@@ -5668,7 +5668,13 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
           {screen === "landing" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", justifyContent: "center", marginBottom: 2 }}>
-                <img src={PARKER.welcome} alt="Parker waving hello" style={{ height: 92, width: "auto" }} />
+                <ResponsiveMascot
+                  family="william-parker-v2"
+                  name="ParkShare_William_Parker_10_Parking_Guidance_Pin"
+                  alt="William and Parker welcoming you beside the ParkShare parking pin"
+                  className="ps-auth-welcome-mascot"
+                  sizes="(min-width: 700px) 128px, 120px"
+                />
               </div>
               <button onClick={() => setScreen("signup")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Create free account</button>
               <button onClick={() => setScreen("signin")} style={{ background: "transparent", color: C.navy, border: "2px solid "+C.concrete, borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
