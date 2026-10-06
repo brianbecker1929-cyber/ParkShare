@@ -8580,3 +8580,12 @@ div:has(> button[aria-label="ParkShare help"])
     filter: drop-shadow(0 10px 14px rgba(14, 27, 46, .14)) !important;
   }
 }
+
+/* Keep the Help guide portrait inside its rounded white card at every width. */
+.ps-help-guide .ps-help-small-parker-card {
+  overflow: hidden !important;
+}
+
+.ps-help-guide .ps-help-small-parker-card .ps-mascot-help-card {
+  clip-path: none !important;
+}
