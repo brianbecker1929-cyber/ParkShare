@@ -8323,38 +8323,21 @@ button, input, select, textarea { font: inherit; }
 }
 
 
-/* ==========================================================================
-   PHASE 2B — SIGN-IN / CREATE ACCOUNT MODAL — LEGACY PARKER REPLACEMENT
-   2026-09-26
-
-   Scope:
-   - Replace ONLY the legacy Parker shown on the auth modal landing screen.
-   - Use approved Parker v2 Pose 01 — Waving.
-   - Preserve the modal header, buttons, copy, spacing and functionality.
-   - Do NOT alter the separate "Sign in required" screen yet.
-   ========================================================================== */
-
-/* The auth modal's legacy welcome image is the 92px Parker waving image.
-   Target that exact modal rendering only, leaving the separate 100px
-   "Sign in required" Parker untouched for the next Phase 2B item. */
-img[alt="Parker waving hello"][style*="height: 92px"] {
-  content: url("/parker-v3/web/480px/ParkShare_Parker_01_Waving-480.webp") !important;
-  height: 122px !important;
-  width: auto !important;
-  max-width: 100% !important;
-  object-fit: contain !important;
-  object-position: center bottom !important;
-  display: block !important;
+/* Sign-in / Create Account welcome: approved duo with the amber parking pin. */
+.ps-auth-welcome-mascot {
+  height: 150px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  display: block;
 }
 
-/* Give the updated full-body Parker a little more presence on wider screens
-   without changing the modal dimensions or button layout. */
 @media (min-width: 700px) {
-  img[alt="Parker waving hello"][style*="height: 92px"] {
-    height: 128px !important;
+  .ps-auth-welcome-mascot {
+    height: 160px;
   }
 }
-
 
 /* ==========================================================================
    PHASE 2B — "SIGN IN REQUIRED" SCREEN — LEGACY PARKER REPLACEMENT
@@ -8538,7 +8521,6 @@ div:has(> button[aria-label="ParkShare help"]) img[alt="Parker"] {
 
 /* Cartoon v3 shared placements: retain the approved welcome/pricing boxes
    and crop the support artwork inside the existing Ask Parker circles. */
-img[alt="Parker waving hello"][style*="height: 92px"],
 img[alt="Parker waving hello"][style*="height: 100px"],
 img[src="/parker/parker-success.png"] {
   aspect-ratio: 4 / 5 !important;
@@ -8559,6 +8541,7 @@ div:has(> button[aria-label="ParkShare help"])
 /* Match the Host hero's soft shadow on the approved banner and card mascots. */
 .ps-home-v2-parker-card .ps-mascot-home-hero,
 .ps-home-v2-how-mascot .ps-responsive-mascot,
+.ps-auth-welcome-mascot,
 .ps-driver-v2-hero-parker .ps-mascot-driver-hero,
 .ps-host-parker-tip .ps-host-tip-row > img,
 .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero,
@@ -8573,6 +8556,7 @@ div:has(> button[aria-label="ParkShare help"])
 @media (max-width: 899px) {
   .ps-home-v2-parker-card .ps-mascot-home-hero,
   .ps-home-v2-how-mascot .ps-responsive-mascot,
+  .ps-auth-welcome-mascot,
   .ps-driver-v2-hero-parker .ps-mascot-driver-hero,
   .ps-host-parker-tip .ps-host-tip-row > img,
   .ps-about-page .ps-about-hero-visual .ps-mascot-about-hero,
