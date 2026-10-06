@@ -7285,10 +7285,10 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <P style={{ color: C.navy, fontWeight: 800, marginBottom: 0 }}>One driveway may seem small. Thousands of them can change how a community parks.</P>
           </div>
           <img
-            src="/parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp"
-            srcSet="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_02_Thumbs_Up-1122.webp 1122w"
+            src="/william-parker-v2/web/768px/ParkShare_William_Parker_27_Celebratory_Duo-768.webp"
+            srcSet="/william-parker-v2/web/480px/ParkShare_William_Parker_27_Celebratory_Duo-480.webp 480w, /william-parker-v2/web/768px/ParkShare_William_Parker_27_Celebratory_Duo-768.webp 768w, /william-parker-v2/web/1122px/ParkShare_William_Parker_27_Celebratory_Duo-1122.webp 1122w"
             sizes="225px"
-            alt="Parker giving a thumbs up"
+            alt="William and Parker celebrating ParkShare, built in Canada"
             loading="lazy"
             decoding="async"
             draggable={false}
