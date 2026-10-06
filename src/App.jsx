@@ -7861,8 +7861,8 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
           <div className="ps-driver-v2-hero-parker">
             <ResponsiveMascot
               family="parker-v3"
-              name="ParkShare_Parker_03_Pointing_Forward"
-              alt="Parker helping Drivers find their way to parking"
+              name="ParkShare_Parker_04_ParkShare_App"
+              alt="Parker showing Drivers the ParkShare parking app on his phone"
               className="ps-mascot-driver-hero"
               hero
               sizes="(max-width: 600px) 58vw, 245px"
