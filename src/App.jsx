@@ -8004,8 +8004,8 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
           <div className="ps-driver-v2-parker-tip-row">
             <ResponsiveMascot
               family="parker-v3"
-              name="ParkShare_Parker_11_Checklist"
-              alt="Parker sharing a helpful parking tip"
+              name="ParkShare_Parker_06_Parking_Pin"
+              alt="Parker leaning on the ParkShare parking pin and sharing a Driver tip"
               sizes="(max-width: 600px) 28vw, 145px"
             />
             <div className="ps-driver-v2-parker-tip-bubble">
