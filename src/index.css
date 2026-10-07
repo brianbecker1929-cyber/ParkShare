@@ -9010,8 +9010,9 @@ div:has(> button[aria-label="ParkShare help"])
 @media (min-width: 621px) {
   .ps-driver-booking-card.is-past .ps-driver-booking-followup {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto auto;
     align-items: center;
+    justify-content: center;
     gap: 12px;
   }
   .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-driver-booking-footer,
@@ -9031,8 +9032,6 @@ div:has(> button[aria-label="ParkShare help"])
   }
   .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-driver-booking-actions > button { white-space: nowrap; }
   .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-booking-completion-mascot {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-self: end;
+    display: none;
   }
 }
