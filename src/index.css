@@ -9005,3 +9005,34 @@ div:has(> button[aria-label="ParkShare help"])
     grid-template-columns: minmax(0, 1fr) 136px;
   }
 }
+
+/* Desktop booking history: vehicle and booking actions share one row. */
+@media (min-width: 621px) {
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-driver-booking-footer,
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-driver-booking-controls { display: contents; }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-booking-vehicle-visual {
+    grid-column: 1;
+    grid-row: 1;
+    flex-wrap: nowrap;
+    margin: 0;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-driver-booking-actions {
+    grid-column: 2;
+    grid-row: 1;
+    flex-direction: row;
+    flex-wrap: nowrap !important;
+    align-items: center;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-driver-booking-actions > button { white-space: nowrap; }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup .ps-booking-completion-mascot {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+  }
+}
