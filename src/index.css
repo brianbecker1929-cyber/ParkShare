@@ -8942,7 +8942,7 @@ div:has(> button[aria-label="ParkShare help"])
   }
   .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 128px;
+    grid-template-columns: minmax(0, 1fr) 156px;
     grid-template-rows: auto auto;
     gap: 8px;
     align-items: center;
@@ -8991,10 +8991,10 @@ div:has(> button[aria-label="ParkShare help"])
     align-self: center;
     box-sizing: border-box;
     min-width: 0;
-    padding: 12px;
+    padding: 4px;
   }
   .ps-driver-booking-followup.has-celebration .ps-booking-completion-mascot .ps-mascot-booking-complete {
-    width: min(104px, 100%);
+    width: min(148px, 100%);
     height: auto;
     object-fit: contain;
   }
@@ -9002,6 +9002,6 @@ div:has(> button[aria-label="ParkShare help"])
 @media (max-width: 360px) {
   .ps-driver-booking-card.is-past .ps-driver-booking-followup { padding: 10px; }
   .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration {
-    grid-template-columns: minmax(0, 1fr) 116px;
+    grid-template-columns: minmax(0, 1fr) 136px;
   }
 }

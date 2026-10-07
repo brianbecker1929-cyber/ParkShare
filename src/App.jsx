@@ -5152,7 +5152,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                     family="parker-v3"
                     name="ParkShare_Parker_30_Success_Celebration"
                     className="ps-mascot-booking-complete"
-                    sizes="(max-width: 620px) 120px, 140px"
+                    sizes="(max-width: 360px) 128px, (max-width: 620px) 148px, 140px"
                     decorative
                   />
                 </div>
