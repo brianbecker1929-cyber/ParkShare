@@ -8654,3 +8654,27 @@ div:has(> button[aria-label="ParkShare help"])
     clip-path: inset(3px 3px 3px -100% round 19px);
   }
 }
+
+/* Restaurants: Serving Smiles duo below Be Adventurous, with the shared soft glow. */
+.ps-discover-dining-art {
+  display: flex;
+  justify-content: center;
+  margin: 6px auto 24px;
+  padding: 0 8px;
+  pointer-events: none;
+}
+.ps-discover-dining-art .ps-mascot-discover-dining {
+  display: block;
+  width: min(280px, 100%);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, .15));
+}
+@media (max-width: 899px) {
+  .ps-discover-dining-art .ps-mascot-discover-dining {
+    filter: drop-shadow(0 10px 14px rgba(14, 27, 46, .14));
+  }
+}
+@media (max-width: 620px) {
+  .ps-discover-dining-art .ps-mascot-discover-dining { width: min(240px, 100%); }
+}
