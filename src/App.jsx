@@ -5126,6 +5126,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
               <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} compact={isPast} />
+              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
               <BookingVehicleVisual vehicle={b.vehicle} />
               <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
                 <div className="ps-driver-booking-controls">
@@ -5156,6 +5157,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                   />
                 </div>
               )}
+              </div>
               </div>
               {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
               {isRideshareEligible && (

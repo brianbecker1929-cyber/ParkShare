@@ -8890,3 +8890,118 @@ div:has(> button[aria-label="ParkShare help"])
 @media (max-width: 620px) {
   .ps-booking-date-filter-fields input { font-size: 16px; padding: 8px; }
 }
+
+/* Mobile booking history: two aligned groups instead of detached details. */
+@media (max-width: 620px) {
+  .ps-driver-booking-card.is-past .ps-booking-parking-details.is-compact {
+    margin: 10px 0;
+    padding: 10px;
+    border: 1px solid #E3DDC9;
+    border-radius: 10px;
+    background: #FAF7F0;
+    gap: 8px 10px;
+  }
+  .ps-driver-booking-card.is-past .ps-booking-parking-details.is-compact .ps-booking-parking-panel {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .ps-driver-booking-card.is-past .ps-booking-parking-details.is-compact .ps-booking-parking-heading {
+    display: grid;
+    grid-template-rows: 28px 18px;
+    align-content: start;
+    justify-content: start;
+    min-height: 50px;
+    margin-bottom: 6px;
+    gap: 4px;
+  }
+  .ps-driver-booking-card.is-past .ps-booking-parking-details.is-compact .ps-booking-parking-heading > span {
+    align-self: start;
+    line-height: 1.25;
+  }
+  .ps-driver-booking-card.is-past .ps-booking-parking-details.is-compact .ps-booking-parking-heading > strong {
+    justify-self: start;
+    align-self: start;
+    padding: 2px 6px;
+    font-size: 9px;
+    line-height: 14px;
+  }
+  .ps-driver-booking-card.is-past .ps-booking-preview-button {
+    justify-self: stretch;
+    margin-top: 2px;
+    padding: 8px 0 0;
+    border-top: 1px solid #E3DDC9;
+    text-align: center;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup {
+    padding: 12px;
+    border: 1px solid #E3DDC9;
+    border-radius: 10px;
+    background: #FAF7F0;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 128px;
+    grid-template-rows: auto auto;
+    gap: 8px;
+    align-items: center;
+  }
+  .ps-driver-booking-followup.has-celebration .ps-driver-booking-footer,
+  .ps-driver-booking-followup.has-celebration .ps-driver-booking-controls { display: contents; }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration .ps-booking-vehicle-visual {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+    justify-content: center;
+    min-width: 0;
+    gap: 6px;
+    margin: 0;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration .ps-vehicle-badge.is-compact {
+    flex-shrink: 0;
+    width: 40px;
+    height: 36px;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration .ps-booking-license-plate {
+    width: 100px;
+    max-width: 100%;
+    height: 48px;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration .ps-booking-license-plate > strong {
+    font-size: 14px;
+    letter-spacing: .04em;
+  }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration .ps-booking-license-plate-top,
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration .ps-booking-license-plate-bottom {
+    left: 12px;
+    right: 12px;
+    font-size: 5px;
+  }
+  .ps-driver-booking-followup.has-celebration .ps-driver-booking-actions {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: start;
+    min-width: 0;
+    margin-top: 2px;
+  }
+  .ps-driver-booking-followup.has-celebration .ps-booking-completion-mascot {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 12px;
+  }
+  .ps-driver-booking-followup.has-celebration .ps-booking-completion-mascot .ps-mascot-booking-complete {
+    width: min(104px, 100%);
+    height: auto;
+    object-fit: contain;
+  }
+}
+@media (max-width: 360px) {
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup { padding: 10px; }
+  .ps-driver-booking-card.is-past .ps-driver-booking-followup.has-celebration {
+    grid-template-columns: minmax(0, 1fr) 116px;
+  }
+}
