@@ -8585,7 +8585,8 @@ div:has(> button[aria-label="ParkShare help"])
 @media (max-width: 620px) {
   .ps-help-guide .ps-help-small-parker-card {
     overflow: visible !important;
-    /* Open the left edge for William's fingers; retain the top, right and bottom crop. */
-    clip-path: inset(0 0 0 -100% round 22px);
+    /* Open the left edge for William's fingers. Crop to the white area inside
+       the 3px navy border, so his torso cannot paint over the bottom border. */
+    clip-path: inset(3px 3px 3px -100% round 19px);
   }
 }
