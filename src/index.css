@@ -9006,6 +9006,12 @@ div:has(> button[aria-label="ParkShare help"])
   }
 }
 
+/* The thumbs-up pose needs no amber overlay over William's arm. */
+.ps-about-page .ps-about-host-card::after {
+  content: none !important;
+  display: none !important;
+}
+
 /* Desktop booking history: vehicle and booking actions share one row. */
 @media (min-width: 621px) {
   .ps-driver-booking-card.is-past .ps-driver-booking-followup {
