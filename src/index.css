@@ -8573,11 +8573,20 @@ div:has(> button[aria-label="ParkShare help"])
   }
 }
 
-/* Keep the Help guide portrait inside its rounded white card at every width. */
+/* Keep the Help guide portrait contained, with the full presenting hand visible on mobile. */
 .ps-help-guide .ps-help-small-parker-card {
   overflow: hidden !important;
 }
 
 .ps-help-guide .ps-help-small-parker-card .ps-mascot-help-card {
   clip-path: none !important;
+}
+
+@media (max-width: 620px) {
+  .ps-help-guide .ps-help-small-parker-card {
+    overflow: visible !important;
+    /* Open the left edge for William's fingers. Crop to the white area inside
+       the 3px navy border, so his torso cannot paint over the bottom border. */
+    clip-path: inset(3px 3px 3px -100% round 19px);
+  }
 }
