@@ -11,6 +11,7 @@ import {
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
+import { matchesBookingDateRange } from "./lib/bookingDateFilter";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
@@ -4914,6 +4915,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [cancelError, setCancelError] = useState("");
   const [cancelNotice, setCancelNotice] = useState("");
   const [expandedPastBookings, setExpandedPastBookings] = useState({});
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const highlightRef = useRef(null);
 
@@ -4999,7 +5002,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
     }
   }, [highlightBookingId, dbBookings]);
 
-  const bookings = dbBookings;
+  const hasDateFilter = Boolean(fromDate || toDate);
+  const invalidDateRange = Boolean(fromDate && toDate && fromDate > toDate);
+  const bookings = dbBookings.filter(booking => matchesBookingDateRange(booking, fromDate, toDate));
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewed, setReviewed] = useState({});
 
@@ -5023,10 +5028,38 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   return (
     <div className="ps-driver-bookings" style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 680, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+      <div className="ps-booking-date-filter" role="group" aria-labelledby="booking-date-filter-title">
+        <div className="ps-booking-date-filter-heading">
+          <strong id="booking-date-filter-title">Filter by date</strong>
+          <button type="button" disabled={!hasDateFilter} onClick={() => { setFromDate(""); setToDate(""); }}>Clear</button>
+        </div>
+        <div className="ps-booking-date-filter-fields">
+          <label htmlFor="booking-from-date">
+            From
+            <input id="booking-from-date" type="date" value={fromDate} max={toDate || undefined}
+              onChange={event => setFromDate(event.target.value)} aria-invalid={invalidDateRange}
+              aria-describedby={invalidDateRange ? "booking-date-filter-help booking-date-filter-error" : "booking-date-filter-help"} />
+          </label>
+          <label htmlFor="booking-to-date">
+            To
+            <input id="booking-to-date" type="date" value={toDate} min={fromDate || undefined}
+              onChange={event => setToDate(event.target.value)} aria-invalid={invalidDateRange}
+              aria-describedby={invalidDateRange ? "booking-date-filter-help booking-date-filter-error" : "booking-date-filter-help"} />
+          </label>
+        </div>
+        <small id="booking-date-filter-help">Filter by booking start date. Includes both dates.</small>
+        {invalidDateRange && <p id="booking-date-filter-error" className="ps-booking-date-filter-error" role="alert">Choose an end date on or after the start date.</p>}
+      </div>
+      {!loading && !loadError && hasDateFilter && !invalidDateRange && (
+        <p className="ps-booking-filter-results" role="status">Showing {bookings.length} of {dbBookings.length} bookings</p>
+      )}
       {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
       {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
       {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
-      {!loading && !loadError && bookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
+      {!loading && !loadError && dbBookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
+      {!loading && !loadError && dbBookings.length > 0 && hasDateFilter && !invalidDateRange && bookings.length === 0 && (
+        <p className="ps-booking-filter-empty">No bookings found for these dates. Adjust the dates or select Clear to see all bookings.</p>
+      )}
       {bookings.map(b => {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
         const displayStatus = getBookingDisplayStatus(b.status, b.bookingStart, b.bookingEnd, currentTime);

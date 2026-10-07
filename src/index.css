@@ -8835,3 +8835,58 @@ div:has(> button[aria-label="ParkShare help"])
   .ps-past-booking-overview .ps-past-booking-toggle { padding: 6px; gap: 4px; font-size: 10px; }
   .ps-driver-booking-footer.has-celebration { grid-template-columns: minmax(0, 1fr) 128px; }
 }
+
+/* My Bookings: inclusive calendar-date filtering. */
+.ps-booking-date-filter {
+  margin-bottom: 16px;
+  padding: 12px;
+  border: 1px solid #E3DDC9;
+  border-radius: 11px;
+  background: #fff;
+  color: #0E1B2E;
+}
+.ps-booking-date-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.ps-booking-date-filter-heading > strong { font-size: 13px; }
+.ps-booking-date-filter-heading > button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: #0E1B2E;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.ps-booking-date-filter-heading > button:disabled { color: #71695A; opacity: .6; cursor: default; text-decoration: none; }
+.ps-booking-date-filter-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ps-booking-date-filter-fields > label { display: grid; min-width: 0; gap: 5px; font-size: 11px; font-weight: 700; }
+.ps-booking-date-filter-fields input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #E3DDC9;
+  border-radius: 8px;
+  background: #FAF7F0;
+  color: #0E1B2E;
+  font-family: inherit;
+  font-size: 14px;
+  color-scheme: light;
+}
+.ps-booking-date-filter input[aria-invalid="true"] { border-color: #C53030; }
+.ps-booking-date-filter input:focus-visible,
+.ps-booking-date-filter button:focus-visible { outline: 3px solid #FFC107; outline-offset: 2px; }
+.ps-booking-date-filter > small { display: block; margin-top: 8px; color: #71695A; font-size: 10px; }
+.ps-booking-date-filter-error { margin: 8px 0 0; color: #C53030; font-size: 12px; }
+.ps-booking-filter-results { margin: 0 0 12px; color: #71695A; font-size: 12px; }
+.ps-booking-filter-empty { margin: 0 0 16px; padding: 18px; border: 1px solid #E3DDC9; border-radius: 11px; background: #fff; color: #71695A; font-size: 13px; }
+@media (max-width: 620px) {
+  .ps-booking-date-filter-fields input { font-size: 16px; padding: 8px; }
+}
