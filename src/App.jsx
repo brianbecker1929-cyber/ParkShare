@@ -2212,11 +2212,11 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
                   </button>
                 </div>
               </form>
-              <div className="ps-discover-dining-art" aria-hidden="true">
+              <div className="ps-discover-mascot-art" aria-hidden="true">
                 <ResponsiveMascot
                   family="william-parker-v2"
                   name="ParkShare_William_Parker_30_Serving_Smiles"
-                  className="ps-mascot-discover-dining"
+                  className="ps-mascot-discover-destination"
                   sizes="(max-width: 620px) 240px, 280px"
                   decorative
                 />
@@ -2249,6 +2249,15 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
                   <button type="button" className="is-secondary" onClick={() => setEventSubmissionOpen(true)}>📣 Add your event</button>
                 </div>
               </form>
+              <div className="ps-discover-mascot-art" aria-hidden="true">
+                <ResponsiveMascot
+                  family="william-parker-v2"
+                  name="ParkShare_William_Parker_03_Directional_Guidance_Right"
+                  className="ps-mascot-discover-destination"
+                  sizes="(max-width: 620px) 240px, 280px"
+                  decorative
+                />
+              </div>
               {eventSearchError && <div className="ps-discover-error" role="alert">⚠️ {eventSearchError}</div>}
               <div className="ps-discover-results">
                 {events.map(event => {
