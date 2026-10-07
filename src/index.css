@@ -8678,3 +8678,27 @@ div:has(> button[aria-label="ParkShare help"])
 @media (max-width: 620px) {
   .ps-discover-mascot-art .ps-mascot-discover-destination { width: min(240px, 100%); }
 }
+
+/* Completed bookings: full celebrating Parker with clear space on every side. */
+.ps-booking-completion-mascot {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 0;
+  padding: 16px;
+  pointer-events: none;
+}
+.ps-booking-completion-mascot .ps-mascot-booking-complete {
+  display: block;
+  width: min(180px, 100%);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, .15));
+}
+@media (max-width: 899px) {
+  .ps-booking-completion-mascot .ps-mascot-booking-complete {
+    filter: drop-shadow(0 10px 14px rgba(14, 27, 46, .14));
+  }
+}
+@media (max-width: 620px) {
+  .ps-booking-completion-mascot .ps-mascot-booking-complete { width: min(160px, 100%); }
+}
