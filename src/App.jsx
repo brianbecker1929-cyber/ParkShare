@@ -3660,7 +3660,16 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
   );
 }
 
-function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
+function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false }) {
+  const previewDialog = useRef(null);
+  const previewTitleId = useId();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (previewOpen && previewDialog.current && !previewDialog.current.open) {
+      previewDialog.current.showModal();
+    }
+  }, [previewOpen]);
+
   if (!listing) return null;
   const photos = Array.isArray(listing.photos) ? listing.photos : [];
   const propertyPhoto = [listing.img, ...photos].find(photo => typeof photo === "string" && /^(data:image\/|https?:\/\/|\/)/i.test(photo));
@@ -3677,7 +3686,8 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
   );
 
   return (
-    <section className="ps-booking-parking-details" aria-label="Property and reserved parking space">
+    <>
+    <section className={`ps-booking-parking-details${compact ? " is-compact" : ""}`} aria-label="Property and reserved parking space">
       <div className="ps-booking-parking-panel">
         <div className="ps-booking-parking-heading">
           <span>Property photo</span>
@@ -3694,6 +3704,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
           <span>Reserved parking space</span>
           <strong>{selectedIndex >= 0 ? `Spot ${selectedLabel}` : "See arrival instructions"}</strong>
         </div>
+        <div className="ps-booking-space-preview">
         {selectedIndex >= 0 ? (
           hasSatelliteSpot ? (
             <ListingSatelliteView
@@ -3702,7 +3713,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
               spots={configuredSpots}
               chosen={selectedIndex}
               chosenColor={C.amber}
-              height={260}
+              height={compact ? 128 : 260}
             />
           ) : (
             <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} />
@@ -3710,8 +3721,33 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
         ) : (
           <div className="ps-booking-property-placeholder"><span>No parking-space label is saved for this booking.</span></div>
         )}
+        </div>
       </div>
+      {compact && (
+        <button type="button" className="ps-booking-preview-button" onClick={() => setPreviewOpen(true)}
+          aria-label={`View larger property and parking-space previews for ${listing.title || "this booking"}`}>
+          View larger previews <span aria-hidden="true">↗</span>
+        </button>
+      )}
     </section>
+    {compact && createPortal(
+      <dialog ref={previewDialog} className="ps-booking-preview-dialog" aria-labelledby={previewTitleId}
+        onClose={() => setPreviewOpen(false)}
+        onClick={event => { if (event.target === event.currentTarget) previewDialog.current.close(); }}>
+        <header>
+          <h3 id={previewTitleId}>Property &amp; parking space</h3>
+          <button type="button" aria-label="Close parking previews" onClick={() => previewDialog.current.close()}>×</button>
+        </header>
+        {previewOpen && (
+          <>
+            <p>{listing.address || listing.title}</p>
+            <BookingParkingDetails listing={listing} spotLabel={bookedSpotLabel} />
+          </>
+        )}
+      </dialog>,
+      document.body,
+    )}
+    </>
   );
 }
 
@@ -5020,20 +5056,28 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
-              {isPast && (
-                <button
-                  type="button"
-                  className="ps-past-booking-toggle"
-                  aria-expanded={isExpanded}
-                  aria-controls={detailsId}
-                  aria-label={`${isExpanded ? "Collapse" : "Expand"} ${b.listing.title} booking`}
-                  onClick={() => setExpandedPastBookings(open => ({ ...open, [b.id]: !isExpanded }))}
-                >
-                  <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
-                </button>
-              )}
+
             </div>
           </div>
+          {isPast ? (
+            <div className="ps-past-booking-overview">
+              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}`}>
+                <strong>{b.date}</strong>
+                <span>{b.startTime} – {b.endTime} <span className="ps-past-booking-duration">· {b.duration}</span></span>
+              </div>
+              <button
+                type="button"
+                className="ps-past-booking-toggle"
+                aria-expanded={isExpanded}
+                aria-controls={detailsId}
+                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${b.listing.title} booking`}
+                onClick={() => setExpandedPastBookings(open => ({ ...open, [b.id]: !isExpanded }))}
+              >
+                <span>{isExpanded ? "Hide details" : "View details"}</span>
+                <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+              </button>
+            </div>
+          ) : (
           <BookingSchedule
             date={b.date}
             startTime={b.startTime}
@@ -5043,12 +5087,15 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             isActive={displayStatus === "Active"}
             currentTime={currentTime}
           />
+          )}
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
-              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} />
+              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} compact={isPast} />
               <BookingVehicleVisual vehicle={b.vehicle} />
+              <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+                <div className="ps-driver-booking-controls">
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isRideshareEligible && (
                   <div className="ps-booking-navigation-group">
@@ -5064,17 +5111,19 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 )}
                 {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
               </div>
+                </div>
               {displayStatus === "Completed" && (
                 <div className="ps-booking-completion-mascot" aria-hidden="true">
                   <ResponsiveMascot
                     family="parker-v3"
                     name="ParkShare_Parker_30_Success_Celebration"
                     className="ps-mascot-booking-complete"
-                    sizes="(max-width: 620px) 160px, 180px"
+                    sizes="(max-width: 620px) 120px, 140px"
                     decorative
                   />
                 </div>
               )}
+              </div>
               {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
               {isRideshareEligible && (
                 <div className="ps-driver-arrival-instructions">
