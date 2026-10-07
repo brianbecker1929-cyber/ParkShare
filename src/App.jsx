@@ -7343,8 +7343,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         <div className="ps-about-hero-visual">
           <ResponsiveMascot
             family="william-parker-v2"
-            name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
-            alt="William and Parker welcoming the ParkShare community"
+            name="ParkShare_William_Parker_04_App_Phone_Showcase"
+            alt="William and Parker presenting the ParkShare app on a phone"
             className="ps-mascot-about-hero"
             hero
             sizes="(max-width: 600px) 68vw, 300px"
@@ -7406,10 +7406,10 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <article className="ps-about-audience-card ps-about-host-card">
               <img
                 className="ps-about-card-parker"
-                src="/william-v3/web/768px/ParkShare_William_05_Presenting-768.webp"
-                srcSet="/william-v3/web/480px/ParkShare_William_05_Presenting-480.webp 480w, /william-v3/web/768px/ParkShare_William_05_Presenting-768.webp 768w, /william-v3/web/1122px/ParkShare_William_05_Presenting-1122.webp 1122w"
+                src="/william-v3/web/768px/ParkShare_William_02_Thumbs_Up-768.webp"
+                srcSet="/william-v3/web/480px/ParkShare_William_02_Thumbs_Up-480.webp 480w, /william-v3/web/768px/ParkShare_William_02_Thumbs_Up-768.webp 768w, /william-v3/web/1122px/ParkShare_William_02_Thumbs_Up-1122.webp 1122w"
                 sizes="(max-width: 819px) 38vw, 175px"
-                alt="William presenting the opportunity to become a ParkShare Host"
+                alt="William giving a thumbs up to ParkShare Hosts"
                 loading="lazy"
                 decoding="async"
                 draggable={false}

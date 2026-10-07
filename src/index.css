@@ -9006,6 +9006,24 @@ div:has(> button[aria-label="ParkShare help"])
   }
 }
 
+/* The thumbs-up pose needs no amber overlay over William's arm. */
+.ps-about-page .ps-about-host-card::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Bring William closer to the supporting copy on mobile. */
+@media (max-width: 819px) {
+  .ps-about-page .ps-about-host-card .ps-about-card-parker {
+    transform: translate(2px, 24px) !important;
+  }
+}
+@media (max-width: 430px) {
+  .ps-about-page .ps-about-host-card .ps-about-card-parker {
+    transform: translate(4px, 28px) !important;
+  }
+}
+
 /* Desktop booking history: vehicle and booking actions share one row. */
 @media (min-width: 621px) {
   .ps-driver-booking-card.is-past .ps-driver-booking-followup {
