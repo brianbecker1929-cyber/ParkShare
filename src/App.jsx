@@ -2212,6 +2212,15 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
                   </button>
                 </div>
               </form>
+              <div className="ps-discover-dining-art" aria-hidden="true">
+                <ResponsiveMascot
+                  family="william-parker-v2"
+                  name="ParkShare_William_Parker_30_Serving_Smiles"
+                  className="ps-mascot-discover-dining"
+                  sizes="(max-width: 620px) 240px, 280px"
+                  decorative
+                />
+              </div>
               {restaurantSearchError && <div className="ps-discover-error" role="alert">⚠️ {restaurantSearchError}</div>}
               <div className="ps-discover-results">
                 {restaurants.map(restaurant => (
