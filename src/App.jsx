@@ -5013,17 +5013,6 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             borderRadius: 12, padding: "16px 18px", marginBottom: 12, position: "relative", overflow: "hidden",
           }}
         >
-          {displayStatus === "Completed" && isExpanded && (
-            <img
-              src="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp"
-              srcSet="/parker-v3/web/480px/ParkShare_Parker_02_Thumbs_Up-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_02_Thumbs_Up-768.webp 768w"
-              sizes="88px"
-              alt="Parker giving a thumbs up for a completed booking"
-              style={{ position: "absolute", right: -6, bottom: -6, height: 88, width: "auto", aspectRatio: "4 / 5", objectFit: "contain", opacity: 0.9, pointerEvents: "none" }}
-              loading="lazy"
-              decoding="async"
-            />
-          )}
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
@@ -5075,6 +5064,17 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 )}
                 {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
               </div>
+              {displayStatus === "Completed" && (
+                <div className="ps-booking-completion-mascot" aria-hidden="true">
+                  <ResponsiveMascot
+                    family="parker-v3"
+                    name="ParkShare_Parker_30_Success_Celebration"
+                    className="ps-mascot-booking-complete"
+                    sizes="(max-width: 620px) 160px, 180px"
+                    decorative
+                  />
+                </div>
+              )}
               {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
               {isRideshareEligible && (
                 <div className="ps-driver-arrival-instructions">
