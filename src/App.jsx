@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, Component } from "react";
+import { useState, useEffect, useRef, useId, Component } from "react";
+import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -2045,12 +2046,11 @@ function EventSubmissionForm({ onClose }) {
 // ─── Discover View ────────────────────────────────────────────────────────────
 // Restaurants and events deliberately live outside Browse. Discover helps a
 // Driver choose where they are going; Browse then does one job well: parking.
-function DiscoverView({ onFindParking, onBrowseParking }) {
+function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParking }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const [mode, setMode] = useState(null);
   const [restaurantQuery, setRestaurantQuery] = useState("");
   const [restaurantCuisine, setRestaurantCuisine] = useState("");
   const [restaurants, setRestaurants] = useState([]);
@@ -2163,7 +2163,7 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
 
       {!mode ? (
         <section className="ps-discover-hub" aria-label="Discover destinations">
-          <button type="button" className="ps-discover-choice" onClick={() => setMode("restaurants")}>
+          <button type="button" className="ps-discover-choice" onClick={() => onModeChange("Restaurants")}>
             <span className="ps-discover-choice-icon" aria-hidden="true">🍽️</span>
             <span>
               <small>DINING</small>
@@ -2172,7 +2172,7 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
             </span>
             <b>Explore restaurants →</b>
           </button>
-          <button type="button" className="ps-discover-choice" onClick={() => setMode("events")}>
+          <button type="button" className="ps-discover-choice" onClick={() => onModeChange("Events & Festivals")}>
             <span className="ps-discover-choice-icon" aria-hidden="true">🎟️</span>
             <span>
               <small>WHAT'S ON</small>
@@ -2188,7 +2188,7 @@ function DiscoverView({ onFindParking, onBrowseParking }) {
         </section>
       ) : (
         <section className="ps-discover-panel">
-          <button type="button" className="ps-discover-back" onClick={() => setMode(null)}>← Back to Discover</button>
+          <button type="button" className="ps-discover-back" onClick={() => onModeChange("Discover")}>← Back to Discover</button>
           <div className="ps-discover-panel-heading">
             <span aria-hidden="true">{mode === "restaurants" ? "🍽️" : "🎟️"}</span>
             <div>
@@ -5971,6 +5971,75 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
   );
 }
 
+// Render outside the scrolling nav row so the submenu remains visible on phones.
+function DiscoverNav({ tab, onTabChange, signedIn = false }) {
+  const [position, setPosition] = useState(null);
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
+  const panelId = useId();
+  const active = ["Discover", "Restaurants", "Events & Festivals"].includes(tab);
+
+  useEffect(() => { setPosition(null); }, [tab]);
+  useEffect(() => {
+    if (!position) return;
+    panelRef.current?.querySelector("a")?.focus();
+    const dismiss = event => {
+      if (!triggerRef.current?.contains(event.target) && !panelRef.current?.contains(event.target)) setPosition(null);
+    };
+    const escape = event => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPosition(null);
+        triggerRef.current?.focus();
+      }
+    };
+    const close = () => setPosition(null);
+    const scroll = event => { if (!panelRef.current?.contains(event.target)) close(); };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("focusin", dismiss);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("resize", close);
+    document.addEventListener("scroll", scroll, true);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("focusin", dismiss);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("resize", close);
+      document.removeEventListener("scroll", scroll, true);
+    };
+  }, [position]);
+
+  const toggle = () => {
+    if (position) { setPosition(null); return; }
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = Math.min(240, window.innerWidth - 24);
+    const height = 124;
+    const top = rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 8 : Math.max(12, rect.top - height - 8);
+    setPosition({ width, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), top });
+  };
+
+  return (
+    <>
+      <button type="button" ref={triggerRef} onClick={toggle} aria-expanded={!!position} aria-controls={position ? panelId : undefined}
+        className={`ps-discover-nav-trigger ${signedIn ? "is-signed-in" : "ps-shared-nav-pill"}${active ? " is-active" : ""}`}>
+        Discover <span aria-hidden="true">{position ? "▴" : "▾"}</span>
+      </button>
+      {position && createPortal(
+        <nav id={panelId} ref={panelRef} className="ps-discover-submenu" aria-label="Discover categories" style={position}>
+          {[{ tab: "Restaurants", path: "/discover/restaurants", icon: "🍽️" }, { tab: "Events & Festivals", path: "/discover/festivals", icon: "🎟️" }].map(item => (
+            <a key={item.tab} href={item.path} aria-current={tab === item.tab ? "page" : undefined} onClick={event => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              setPosition(null);
+              onTabChange(item.tab);
+            }}><span aria-hidden="true">{item.icon}</span>{item.tab}</a>
+          ))}
+        </nav>, document.body
+      )}
+    </>
+  );
+}
+
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
@@ -6239,7 +6308,9 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
               { label: "About", onClick: onAboutClick, show: !!onAboutClick },
               { label: "Trust & Safety", onClick: onTrustClick, show: !!onTrustClick },
               { label: "Help", onClick: onHelpClick, show: !!onHelpClick },
-            ].filter(item => item.show).map(item => (
+            ].filter(item => item.show).map(item => item.label === "Discover" ? (
+              <DiscoverNav key={item.label} tab={tab} onTabChange={onTabChange} />
+            ) : (
               <button
                 key={item.label}
                 className="ps-shared-nav-pill"
@@ -6298,7 +6369,9 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
               <button onClick={() => { setDashboardMenuOpen(false); onSignOut?.(); }} style={{ minHeight: 38, padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.1)", color: C.white, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Sign out</button>
             </div>
           )}
-          {tabs.map(t => (
+          {tabs.map(t => t === "Discover" ? (
+            <DiscoverNav key={t} tab={tab} signedIn onTabChange={nextTab => { setDashboardMenuOpen(false); onTabChange(nextTab); }} />
+          ) : (
             <button key={t} aria-label={t === "Profile" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && !user.profileComplete ? "Profile •" : t}</button>
           ))}
         </div>
@@ -9597,7 +9670,7 @@ export default function App() {
             </div>
           )}
           {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />}
-          {tab === "Discover" && <DiscoverView onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
+          {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
           {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
