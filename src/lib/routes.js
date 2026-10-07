@@ -22,6 +22,20 @@ const ROUTES = [
     description: "Find restaurants, events and festivals, then search for convenient ParkShare parking nearby.",
   },
   {
+    path: "/discover/restaurants",
+    screen: "app",
+    tab: "Restaurants",
+    title: "Discover Restaurants | ParkShare",
+    description: "Search restaurants by name, area or cuisine, then find ParkShare parking nearby.",
+  },
+  {
+    path: "/discover/festivals",
+    screen: "app",
+    tab: "Events & Festivals",
+    title: "Discover Events and Festivals | ParkShare",
+    description: "Explore events and festivals by venue, category or date, then find ParkShare parking nearby.",
+  },
+  {
     path: "/my-bookings",
     screen: "app",
     tab: "My Bookings",

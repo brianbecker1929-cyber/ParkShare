@@ -1,4 +1,68 @@
 * { box-sizing: border-box; }
+
+/* Discover disclosure: the panel is portaled beyond horizontal nav clipping. */
+.ps-header .ps-discover-nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: #FFC107;
+  color: #0E1B2E;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 2px #0E1B2E;
+  border-radius: 999px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ps-header .ps-discover-nav-trigger:hover { color: #0E1B2E; }
+.ps-header .ps-discover-nav-trigger.is-signed-in {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 5px 13px;
+  font-size: 11px;
+  font-weight: 500;
+  background: transparent;
+  color: rgba(255,255,255,.8);
+  border-color: rgba(255,255,255,.35);
+  box-shadow: none;
+}
+.ps-header .ps-discover-nav-trigger.is-signed-in.is-active {
+  background: #FFC107;
+  color: #0E1B2E;
+  border-color: #fff;
+  font-weight: 700;
+}
+.ps-discover-submenu {
+  position: fixed;
+  z-index: 110;
+  padding: 8px;
+  background: #fff;
+  border: 2px solid #FFC107;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(14,27,46,.24);
+  font-family: 'Poppins', sans-serif;
+  box-sizing: border-box;
+}
+.ps-discover-submenu a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
+  color: #0E1B2E;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.ps-discover-submenu a:hover,
+.ps-discover-submenu a[aria-current="page"] { background: #FFF8E1; }
+.ps-discover-submenu a:focus-visible,
+.ps-discover-nav-trigger:focus-visible { outline: 3px solid #FFC107; outline-offset: 3px; }
 html { background: #FAF7F0; }
 body {
   margin: 0;
