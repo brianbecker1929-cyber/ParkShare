@@ -11,6 +11,7 @@ import {
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
+import { matchesBookingDateRange } from "./lib/bookingDateFilter";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
@@ -3660,7 +3661,16 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
   );
 }
 
-function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
+function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false }) {
+  const previewDialog = useRef(null);
+  const previewTitleId = useId();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (previewOpen && previewDialog.current && !previewDialog.current.open) {
+      previewDialog.current.showModal();
+    }
+  }, [previewOpen]);
+
   if (!listing) return null;
   const photos = Array.isArray(listing.photos) ? listing.photos : [];
   const propertyPhoto = [listing.img, ...photos].find(photo => typeof photo === "string" && /^(data:image\/|https?:\/\/|\/)/i.test(photo));
@@ -3677,7 +3687,8 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
   );
 
   return (
-    <section className="ps-booking-parking-details" aria-label="Property and reserved parking space">
+    <>
+    <section className={`ps-booking-parking-details${compact ? " is-compact" : ""}`} aria-label="Property and reserved parking space">
       <div className="ps-booking-parking-panel">
         <div className="ps-booking-parking-heading">
           <span>Property photo</span>
@@ -3694,6 +3705,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
           <span>Reserved parking space</span>
           <strong>{selectedIndex >= 0 ? `Spot ${selectedLabel}` : "See arrival instructions"}</strong>
         </div>
+        <div className="ps-booking-space-preview">
         {selectedIndex >= 0 ? (
           hasSatelliteSpot ? (
             <ListingSatelliteView
@@ -3702,7 +3714,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
               spots={configuredSpots}
               chosen={selectedIndex}
               chosenColor={C.amber}
-              height={260}
+              height={compact ? 128 : 260}
             />
           ) : (
             <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} />
@@ -3710,8 +3722,33 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel }) {
         ) : (
           <div className="ps-booking-property-placeholder"><span>No parking-space label is saved for this booking.</span></div>
         )}
+        </div>
       </div>
+      {compact && (
+        <button type="button" className="ps-booking-preview-button" onClick={() => setPreviewOpen(true)}
+          aria-label={`View larger property and parking-space previews for ${listing.title || "this booking"}`}>
+          View larger previews <span aria-hidden="true">↗</span>
+        </button>
+      )}
     </section>
+    {compact && createPortal(
+      <dialog ref={previewDialog} className="ps-booking-preview-dialog" aria-labelledby={previewTitleId}
+        onClose={() => setPreviewOpen(false)}
+        onClick={event => { if (event.target === event.currentTarget) previewDialog.current.close(); }}>
+        <header>
+          <h3 id={previewTitleId}>Property &amp; parking space</h3>
+          <button type="button" aria-label="Close parking previews" onClick={() => previewDialog.current.close()}>×</button>
+        </header>
+        {previewOpen && (
+          <>
+            <p>{listing.address || listing.title}</p>
+            <BookingParkingDetails listing={listing} spotLabel={bookedSpotLabel} />
+          </>
+        )}
+      </dialog>,
+      document.body,
+    )}
+    </>
   );
 }
 
@@ -4878,6 +4915,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [cancelError, setCancelError] = useState("");
   const [cancelNotice, setCancelNotice] = useState("");
   const [expandedPastBookings, setExpandedPastBookings] = useState({});
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const highlightRef = useRef(null);
 
@@ -4963,7 +5002,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
     }
   }, [highlightBookingId, dbBookings]);
 
-  const bookings = dbBookings;
+  const hasDateFilter = Boolean(fromDate || toDate);
+  const invalidDateRange = Boolean(fromDate && toDate && fromDate > toDate);
+  const bookings = dbBookings.filter(booking => matchesBookingDateRange(booking, fromDate, toDate));
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewed, setReviewed] = useState({});
 
@@ -4987,10 +5028,38 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   return (
     <div className="ps-driver-bookings" style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 680, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+      <div className="ps-booking-date-filter" role="group" aria-labelledby="booking-date-filter-title">
+        <div className="ps-booking-date-filter-heading">
+          <strong id="booking-date-filter-title">Filter by date</strong>
+          <button type="button" disabled={!hasDateFilter} onClick={() => { setFromDate(""); setToDate(""); }}>Clear</button>
+        </div>
+        <div className="ps-booking-date-filter-fields">
+          <label htmlFor="booking-from-date">
+            From
+            <input id="booking-from-date" type="date" value={fromDate} max={toDate || undefined}
+              onChange={event => setFromDate(event.target.value)} aria-invalid={invalidDateRange}
+              aria-describedby={invalidDateRange ? "booking-date-filter-help booking-date-filter-error" : "booking-date-filter-help"} />
+          </label>
+          <label htmlFor="booking-to-date">
+            To
+            <input id="booking-to-date" type="date" value={toDate} min={fromDate || undefined}
+              onChange={event => setToDate(event.target.value)} aria-invalid={invalidDateRange}
+              aria-describedby={invalidDateRange ? "booking-date-filter-help booking-date-filter-error" : "booking-date-filter-help"} />
+          </label>
+        </div>
+        <small id="booking-date-filter-help">Filter by booking start date. Includes both dates.</small>
+        {invalidDateRange && <p id="booking-date-filter-error" className="ps-booking-date-filter-error" role="alert">Choose an end date on or after the start date.</p>}
+      </div>
+      {!loading && !loadError && hasDateFilter && !invalidDateRange && (
+        <p className="ps-booking-filter-results" role="status">Showing {bookings.length} of {dbBookings.length} bookings</p>
+      )}
       {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
       {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
       {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
-      {!loading && !loadError && bookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
+      {!loading && !loadError && dbBookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
+      {!loading && !loadError && dbBookings.length > 0 && hasDateFilter && !invalidDateRange && bookings.length === 0 && (
+        <p className="ps-booking-filter-empty">No bookings found for these dates. Adjust the dates or select Clear to see all bookings.</p>
+      )}
       {bookings.map(b => {
         const isHighlighted = highlightBookingId != null && String(b.rawId) === String(highlightBookingId);
         const displayStatus = getBookingDisplayStatus(b.status, b.bookingStart, b.bookingEnd, currentTime);
@@ -5020,20 +5089,28 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
-              {isPast && (
-                <button
-                  type="button"
-                  className="ps-past-booking-toggle"
-                  aria-expanded={isExpanded}
-                  aria-controls={detailsId}
-                  aria-label={`${isExpanded ? "Collapse" : "Expand"} ${b.listing.title} booking`}
-                  onClick={() => setExpandedPastBookings(open => ({ ...open, [b.id]: !isExpanded }))}
-                >
-                  <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
-                </button>
-              )}
+
             </div>
           </div>
+          {isPast ? (
+            <div className="ps-past-booking-overview">
+              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}`}>
+                <strong>{b.date}</strong>
+                <span>{b.startTime} – {b.endTime} <span className="ps-past-booking-duration">· {b.duration}</span></span>
+              </div>
+              <button
+                type="button"
+                className="ps-past-booking-toggle"
+                aria-expanded={isExpanded}
+                aria-controls={detailsId}
+                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${b.listing.title} booking`}
+                onClick={() => setExpandedPastBookings(open => ({ ...open, [b.id]: !isExpanded }))}
+              >
+                <span>{isExpanded ? "Hide details" : "View details"}</span>
+                <span aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+              </button>
+            </div>
+          ) : (
           <BookingSchedule
             date={b.date}
             startTime={b.startTime}
@@ -5043,12 +5120,16 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             isActive={displayStatus === "Active"}
             currentTime={currentTime}
           />
+          )}
           {isExpanded && (
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
-              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} />
+              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} compact={isPast} />
+              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
               <BookingVehicleVisual vehicle={b.vehicle} />
+              <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+                <div className="ps-driver-booking-controls">
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isRideshareEligible && (
                   <div className="ps-booking-navigation-group">
@@ -5064,17 +5145,20 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 )}
                 {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
               </div>
+                </div>
               {displayStatus === "Completed" && (
                 <div className="ps-booking-completion-mascot" aria-hidden="true">
                   <ResponsiveMascot
                     family="parker-v3"
                     name="ParkShare_Parker_30_Success_Celebration"
                     className="ps-mascot-booking-complete"
-                    sizes="(max-width: 620px) 160px, 180px"
+                    sizes="(max-width: 360px) 128px, (max-width: 620px) 148px, 140px"
                     decorative
                   />
                 </div>
               )}
+              </div>
+              </div>
               {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
               {isRideshareEligible && (
                 <div className="ps-driver-arrival-instructions">
