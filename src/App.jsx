@@ -7343,8 +7343,8 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         <div className="ps-about-hero-visual">
           <ResponsiveMascot
             family="william-parker-v2"
-            name="ParkShare_William_Parker_04_App_Phone_Showcase"
-            alt="William and Parker presenting the ParkShare app on a phone"
+            name="ParkShare_William_Parker_26_Back_To_Back"
+            alt="William and Parker standing back to back with folded arms"
             className="ps-mascot-about-hero"
             hero
             sizes="(max-width: 600px) 68vw, 300px"
