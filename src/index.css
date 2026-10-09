@@ -9055,3 +9055,39 @@ div:has(> button[aria-label="ParkShare help"])
     display: none;
   }
 }
+
+/* Vehicle-in-spot preview: same roof shape and booking colour on every screen. */
+.ps-driveway-car-roof {
+  display: block;
+  width: 65%;
+  height: 54%;
+  max-width: 86px;
+  min-height: 0;
+  flex: 0 1 54%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(14, 27, 46, .28));
+}
+.ps-booked-spot > img.ps-driveway-car-roof {
+  width: 66%;
+  height: 60%;
+  max-width: 75px;
+  max-height: 65%;
+}
+.ps-booking-parking-details.is-compact .ps-booked-spot > img.ps-driveway-car-roof {
+  width: 73%;
+  height: 58%;
+  max-width: 40px;
+}
+.ps-satellite-booked-car .ps-driveway-car-roof {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  flex: none;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .6));
+}
+.ps-driveway-vehicle-help {
+  margin: -2px 0 12px;
+  color: #71695A;
+  font-size: 11px;
+  line-height: 1.5;
+}
