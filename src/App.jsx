@@ -981,15 +981,15 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
   const bookableVehicles = getBookableVehicles(user || {});
-  const [selectedVehicleId, setSelectedVehicleId] = useState(() => bookableVehicles[0]?.id || "");
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
+  const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
   const spotLabel = (i) => String.fromCharCode(65 + i);
 
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
@@ -1184,29 +1184,40 @@ const subtotal = listing.price * hours;
             </div>
           </div>
 
-          <p className="ps-driveway-vehicle-help">Choose a vehicle below. The driveway preview updates automatically whenever you switch vehicles.</p>
-          <div className="ps-booking-vehicle-picker">
+          <div className="ps-booking-vehicle-picker ps-booking-vehicle-summary">
             <div className="ps-booking-vehicle-picker-label" id="booking-vehicle-label">Vehicle you are parking</div>
-            {bookableVehicles.length > 0 ? (
-              <div className="ps-booking-vehicle-options" role="radiogroup" aria-labelledby="booking-vehicle-label">
-                {bookableVehicles.map(vehicle => {
-                  const isSelected = vehicle.id === selectedVehicleId;
-                  return (
-                    <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio" aria-checked={isSelected} onClick={() => setSelectedVehicleId(vehicle.id)}>
-                      <VehicleBadge vehicle={vehicle} compact />
-                      <span>
-                        <strong>{vehicle.label}</strong>
-                        <small>{formatVehicleVisualSummary(vehicle)}</small>
-                        <em>{vehicle.licensePlate}</em>
-                      </span>
-                      <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="ps-booking-vehicle-missing" role="alert">Complete a Primary or Guest vehicle in your Driver Profile before booking.</div>
-            )}
+            {selectedVehicle ? (
+              <>
+                <div className="ps-spot-selected-vehicle">
+                  <VehicleBadge vehicle={selectedVehicle} compact />
+                  <span>
+                    <strong>{selectedVehicle.label}</strong>
+                    <small>{formatVehicleVisualSummary(selectedVehicle)}</small>
+                    <em>{selectedVehicle.licensePlate}</em>
+                  </span>
+                  <span className="ps-spot-vehicle-check" aria-hidden="true">✓</span>
+                </div>
+                <button type="button" className="ps-spot-change-vehicle" aria-expanded={changeVehicleOpen}
+                  aria-controls="payment-vehicle-choices" onClick={() => setChangeVehicleOpen(open => !open)}>
+                  {changeVehicleOpen ? "Hide vehicles" : "Switch vehicle"} <span aria-hidden="true">{changeVehicleOpen ? "▴" : "▾"}</span>
+                </button>
+                {changeVehicleOpen && (
+                  <div id="payment-vehicle-choices" className="ps-booking-vehicle-options ps-spot-vehicle-dropdown" role="radiogroup" aria-labelledby="booking-vehicle-label">
+                    {bookableVehicles.map(vehicle => {
+                      const isSelected = vehicle.id === selectedVehicleId;
+                      return (
+                        <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio"
+                          aria-checked={isSelected} onClick={() => { onVehicleChange(vehicle.id); setChangeVehicleOpen(false); }}>
+                          <VehicleBadge vehicle={vehicle} compact />
+                          <span><strong>{vehicle.label}</strong><small>{formatVehicleVisualSummary(vehicle)}</small><em>{vehicle.licensePlate}</em></span>
+                          <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : <div className="ps-booking-vehicle-missing" role="alert">Choose a saved vehicle in the parking spot selector before paying.</div>}
           </div>
           {chosenSpot !== null && chosenSpot !== undefined && (
             <div style={{ marginBottom: 20 }}>
@@ -1587,6 +1598,20 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
+  const bookableVehicles = getBookableVehicles(user || {});
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
+  const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
+  const spotVehiclePickerRef = useRef(null);
+  const chooseSpot = (index) => {
+    setChosenSpot(index);
+    setSpotVehiclePickerOpen(true);
+  };
+  useEffect(() => {
+    if (showSpotPicker && chosenSpot !== null && spotVehiclePickerOpen) {
+      spotVehiclePickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [showSpotPicker, chosenSpot, spotVehiclePickerOpen]);
   const hasValidBounds = (s) => s?.bounds && typeof s.bounds.north === "number" && typeof s.bounds.south === "number" && typeof s.bounds.east === "number" && typeof s.bounds.west === "number";
   const hasSatelliteSpots = typeof listing.lat === "number" && typeof listing.lng === "number"
     && Array.isArray(listing.spots) && listing.spots.some(s => s.forRent)
@@ -1850,6 +1875,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
+              {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
@@ -1857,7 +1883,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
               <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || selectedAvailability?.available === false}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>Reserve & pay →</Btn>
           </div>
         </div>
       )}
@@ -1881,15 +1907,62 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
           </p>
           {hasSatelliteSpots ? (
-                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={getBookableVehicles(user || {})[0]} />}>
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} vehicle={getBookableVehicles(user || {})[0]} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
                   </div>
                 </SpotMapBoundary>
               ) : (
-                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={getBookableVehicles(user || {})[0]} />
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />
               )}
-          <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
+          {chosenSpot !== null && (
+            <section className="ps-spot-vehicle-panel" ref={spotVehiclePickerRef} aria-label="Choose the vehicle you will park">
+              <div className="ps-spot-vehicle-heading">
+                <div>
+                  <strong>Vehicle for Spot {spotLabel(chosenSpot)}</strong>
+                  <small>Select your vehicle to preview it in the driveway.</small>
+                </div>
+                {selectedVehicle && (
+                  <button type="button" className="ps-spot-change-vehicle" aria-expanded={spotVehiclePickerOpen}
+                    aria-controls="spot-vehicle-choices" onClick={() => setSpotVehiclePickerOpen(open => !open)}>
+                    {spotVehiclePickerOpen ? "Done" : "Switch vehicle"} <span aria-hidden="true">{spotVehiclePickerOpen ? "▴" : "▾"}</span>
+                  </button>
+                )}
+              </div>
+              {selectedVehicle && !spotVehiclePickerOpen && (
+                <div className="ps-spot-selected-vehicle">
+                  <VehicleBadge vehicle={selectedVehicle} compact />
+                  <span><strong>{selectedVehicle.label}</strong><small>{formatVehicleVisualSummary(selectedVehicle)}</small><em>{selectedVehicle.licensePlate}</em></span>
+                  <span className="ps-spot-vehicle-check" aria-hidden="true">✓</span>
+                </div>
+              )}
+              {bookableVehicles.length === 0 ? (
+                <p className="ps-booking-vehicle-missing" role="alert">
+                  No complete saved vehicle is available. Sign in and add a vehicle (make, model, colour and plate) to your Driver Profile before reserving.
+                </p>
+              ) : spotVehiclePickerOpen && (
+                <div id="spot-vehicle-choices" className="ps-booking-vehicle-options ps-spot-vehicle-dropdown" role="radiogroup" aria-label="Select your parking vehicle">
+                  {bookableVehicles.map(vehicle => {
+                    const isSelected = selectedVehicleId === vehicle.id;
+                    return (
+                      <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""}
+                        role="radio" aria-checked={isSelected}
+                        onClick={() => { setSelectedVehicleId(vehicle.id); setSpotVehiclePickerOpen(false); }}>
+                        <VehicleBadge vehicle={vehicle} compact />
+                        <span><strong>{vehicle.label}</strong><small>{formatVehicleVisualSummary(vehicle)}</small><em>{vehicle.licensePlate}</em></span>
+                        <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+          <Btn variant="amber" full
+            onClick={() => { if (chosenSpot !== null && selectedVehicle) setShowSpotPicker(false); }}
+            disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>
+            {chosenSpot === null ? "Pick a spot to continue" : !selectedVehicle ? "Select a vehicle to continue" : "Confirm Spot " + spotLabel(chosenSpot)}
+          </Btn>
         </Modal>
       )}
 
@@ -1904,6 +1977,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           startHour={bookingMode === "advance" ? startHour : undefined}
           endHour={bookingMode === "advance" ? endHour : undefined}
           selectedEvent={selectedEvent}
+          selectedVehicleId={selectedVehicleId}
+          onVehicleChange={setSelectedVehicleId}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
