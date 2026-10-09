@@ -7,6 +7,7 @@ import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
+import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -325,9 +326,7 @@ async function sendBookingConfirmationEmail(booking) {
   }
 
   const { start, end, isAdvance } = getSessionWindow(booking);
-  const now = new Date();
-  const timeFmt = { hour: "numeric", minute: "2-digit" };
-  const fullDateFmt = { weekday: "short", month: "long", day: "numeric", year: "numeric" };
+  const formattedTimes = formatBookingEmailTimes(start, end);
 
   // NOTE: the new confirmation template has no price/payment summary and no
   // "booked in advance" vs. "already started" copy distinction — both of
@@ -370,11 +369,13 @@ async function sendBookingConfirmationEmail(booking) {
       locationId: booking.listing_id,
       spotLabel: booking.spot_label,
       confirmationNumber: "PK-" + booking.id,
-      startDateLabel: dayLabel(start, now),
-      startTimeStr: start.toLocaleTimeString(undefined, timeFmt),
-      entryDateFull: start.toLocaleDateString(undefined, fullDateFmt),
-      endTimeStr: end.toLocaleTimeString(undefined, timeFmt),
-      exitDateFull: end.toLocaleDateString(undefined, fullDateFmt),
+      startDateLabel: formattedTimes.startDateLabel,
+      startTimeStr: formattedTimes.startTimeStr,
+      entryDateFull: formattedTimes.entryDateFull,
+      endTimeStr: formattedTimes.endTimeStr,
+      exitDateFull: formattedTimes.exitDateFull,
+      vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
+      vehiclePlate: booking.license_plate || "Not provided",
       spotImageCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       // TODO: confirm this route actually exists in your app — this is a
@@ -394,8 +395,8 @@ async function sendBookingConfirmationEmail(booking) {
         address,
         spotLabel: booking.spot_label,
         vehicle: booking,
-        startLabel: start.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Toronto" }),
-        endLabel: end.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Toronto" }),
+        startLabel: formattedTimes.hostStartLabel,
+        endLabel: formattedTimes.hostEndLabel,
         bookingId: booking.id,
         spotImageCid,
       }),
