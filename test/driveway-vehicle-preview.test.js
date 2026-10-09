@@ -27,9 +27,9 @@ test("front-end spot selection and the pre-Stripe vehicle switch use the same ca
   assert.match(app, /function SpotPicker\(\{[^\n]*vehicle = null/);
   assert.match(app, /isChosen && hasDrivewayVehicle\(vehicle\)/);
   assert.match(app, /vehicle=\{selectedVehicle\}/);
-  assert.match(app, /onClick=\{\(\) => setSelectedVehicleId\(vehicle.id\)\}/);
+  assert.match(app, /onClick=\{\(\) => \{ setSelectedVehicleId\(vehicle.id\); setSpotVehiclePickerOpen\(false\); \}\}/);
   assert.match(app, /vehicleId: selectedVehicle.id/);
-  assert.match(app, /vehicle=\{getBookableVehicles\(user \|\| \{\}\)\[0\]\}/);
+  assert.match(app, /vehicle=\{selectedVehicle\}/);
 });
 
 test("both Driver and Host booking previews show the confirmed vehicle snapshot", async () => {
@@ -55,4 +55,25 @@ test("Stripe email uses the same parked car graphic and sends a separate host no
   assert.match(email, /export function hostBookingNotificationHtml/);
   assert.match(email, /Top-down vehicle in reserved Spot/);
   assert.match(webhook, /Promise.allSettled\(notifications\)/);
+});
+
+test("spot selection expands saved vehicle cards and blocks confirmation until selected", async () => {
+  const app = await read("../src/App.jsx");
+  assert.match(app, /const chooseSpot = \(index\) => \{\s*setChosenSpot\(index\);\s*setSpotVehiclePickerOpen\(true\);/);
+  assert.match(app, /<section className="ps-spot-vehicle-panel" ref=\{spotVehiclePickerRef\}/);
+  assert.match(app, /Select your vehicle to preview it in the driveway/);
+  assert.match(app, /role="radiogroup" aria-label="Select your parking vehicle"/);
+  assert.match(app, /getBookableVehicles\(user \|\| \{\}\)/);
+  assert.match(app, /disabled=\{chosenSpot === null \|\| !selectedVehicle \|\| selectedAvailability\?\.available === false\}/);
+  assert.match(app, /!selectedVehicle \? "Select a vehicle to continue"/);
+});
+
+test("the selected car carries from spot confirmation to checkout and remains switchable", async () => {
+  const app = await read("../src/App.jsx");
+  assert.match(app, /selectedVehicleId=\{selectedVehicleId\}/);
+  assert.match(app, /onVehicleChange=\{setSelectedVehicleId\}/);
+  assert.match(app, /function PaymentModal\(\{[^\n]*selectedVehicleId, onVehicleChange \}\)/);
+  assert.match(app, /onClick=\{\(\) => \{ onVehicleChange\(vehicle.id\); setChangeVehicleOpen\(false\); \}\}/);
+  assert.match(app, /<SpotPicker[^\n]*vehicle=\{selectedVehicle\}/);
+  assert.match(app, /vehicleId: selectedVehicle.id/);
 });
