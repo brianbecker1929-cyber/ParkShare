@@ -5,7 +5,7 @@
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
-import { sendEmail, confirmationEmailHtml, extensionConfirmedHtml } from "./_email.js";
+import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 
 export const config = { api: { bodyParser: false } };
@@ -316,12 +316,12 @@ async function sendBookingConfirmationEmail(booking) {
     .select("name, email")
     .eq("id", booking.renter_id)
     .single();
-  if (!renter?.email) return;
-
+  let hostEmail = null;
   let hostName = "your host";
   if (listing?.host_id) {
-    const { data: host } = await supabaseAdmin.from("profiles").select("name").eq("id", listing.host_id).single();
+    const { data: host } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
     hostName = host?.name || hostName;
+    hostEmail = host?.email || null;
   }
 
   const { start, end, isAdvance } = getSessionWindow(booking);
@@ -344,7 +344,7 @@ async function sendBookingConfirmationEmail(booking) {
   let attachments;
   let spotImageCid;
   try {
-    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-" + booking.id;
     attachments = [{
       filename: "parking-spot.png",
@@ -357,7 +357,10 @@ async function sendBookingConfirmationEmail(booking) {
 
   const address = listing?.address || "";
 
-  await sendEmail({
+  // Separate host notification prevents exposing renter email and unrelated
+  // confirmation content through CC.
+  const notifications = [];
+  if (renter?.email) notifications.push(sendEmail({
     to: renter.email,
     subject: isAdvance ? "Booking confirmed — " + (listing?.title || "ParkShare") : "Parking authorized — " + (listing?.title || "ParkShare"),
     html: confirmationEmailHtml({
@@ -381,7 +384,29 @@ async function sendBookingConfirmationEmail(booking) {
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
     attachments,
-  });
+  }));
+  if (hostEmail && hostEmail.toLowerCase() !== renter?.email?.toLowerCase()) {
+    notifications.push(sendEmail({
+      to: hostEmail,
+      subject: "New driveway reservation — Spot " + (booking.spot_label || "—"),
+      html: hostBookingNotificationHtml({
+        hostName,
+        address,
+        spotLabel: booking.spot_label,
+        vehicle: booking,
+        startLabel: start.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Toronto" }),
+        endLabel: end.toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Toronto" }),
+        bookingId: booking.id,
+        spotImageCid,
+      }),
+      attachments,
+    }));
+  }
+  // A failure on one email doesn't prevent attempting the other recipient.
+  const outcomes = await Promise.allSettled(notifications);
+  for (const outcome of outcomes) {
+    if (outcome.status === "rejected") console.error("Booking notification email failed:", outcome.reason);
+  }
 }
 
 export default async function handler(req, res) {
