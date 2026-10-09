@@ -67,6 +67,48 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
   return res.json();
 }
 
+
+function escapeBookingHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// A separate notification: do not CC the host on the renter's personal
+// confirmation. Both recipients get the same exact booked-car driveway PNG.
+export function hostBookingNotificationHtml({
+  hostName, address, spotLabel, vehicle, startLabel, endLabel, bookingId, spotImageCid,
+}) {
+  const e = escapeBookingHtml;
+  const car = [vehicle?.vehicle_make, vehicle?.vehicle_model].filter(Boolean).join(" ") || "Vehicle not specified";
+  const colour = vehicle?.vehicle_colour || "Colour not specified";
+  const plate = vehicle?.license_plate || "Not provided";
+  const picture = spotImageCid
+    ? `<img src="cid:${e(spotImageCid)}" alt="Top-down vehicle in reserved Spot ${e(spotLabel)}" width="360" style="display:block;width:100%;max-width:360px;height:auto;margin:16px auto;border-radius:9px;border:1px solid #E3DDC9;">`
+    : "";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"></head>
+<body style="font-family:Arial,Helvetica,sans-serif;background:#FAF7F0;color:#0E1B2E;margin:0;padding:22px 12px;">
+  <main style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #E3DDC9;">
+    <header style="background:#0E1B2E;color:white;padding:20px 24px;border-bottom:4px solid #FFC107;">
+      <strong style="font-size:24px;">Park<span style="color:#FFC107;">Share</span></strong>
+    </header>
+    <section style="padding:24px;">
+      <h1 style="font-size:22px;">New driveway booking</h1>
+      <p>Hi ${e(hostName || "Host")}, a driver has reserved a space at your property.</p>
+      <p><strong>Address:</strong> ${e(address)}</p>
+      <p><strong>Reserved space:</strong> Spot ${e(spotLabel || "—")}</p>
+      <p><strong>Vehicle:</strong> ${e(car)} · ${e(colour)}</p>
+      <p><strong>Licence plate:</strong> ${e(plate)}</p>
+      <p><strong>Start:</strong> ${e(startLabel)}</p>
+      <p><strong>End:</strong> ${e(endLabel)}</p>
+      <p><strong>Booking:</strong> PK-${e(bookingId)}</p>
+      ${picture}
+      <p style="font-size:13px;color:#71695A;">This is a visual reference of the reserved space and expected vehicle, not confirmation that the vehicle has arrived.</p>
+      <a href="https://www.myparkshare.ca/" style="display:inline-block;background:#FFC107;color:#0E1B2E;font-weight:bold;text-decoration:none;padding:12px 18px;border-radius:8px;">Open Host Dashboard</a>
+    </section>
+  </main>
+</body></html>`;
+}
+
 // ---------------------------------------------------------------------
 // Booking confirmation
 // ---------------------------------------------------------------------
