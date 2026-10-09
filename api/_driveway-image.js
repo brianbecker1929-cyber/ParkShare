@@ -16,6 +16,7 @@
 import sharp from "sharp";
 import { readFileSync } from "fs";
 import path from "path";
+import { drivewayCarShapes, hasDrivewayVehicle } from "../src/lib/drivewayCar.js";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "public", "driveway-template.png");
 const IMG_W = 1065;
@@ -83,9 +84,10 @@ function escapeXml(s) {
  *   `spaces` count), callers should derive this the same way the frontend
  *   does: `[0,1,2,3].map(i => i < spaces)`.
  * @param {number|null} chosenIndex - 0-3, which spot this booking picked.
+ * @param {object|null} vehicle - Stripe-confirmed vehicle snapshot, including colour.
  * @returns {Promise<Buffer>} PNG image buffer.
  */
-export async function renderParkingSpotImage(spotStates, chosenIndex) {
+export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = null) {
   const boxes = computeBoxes();
 
   const rects = boxes.map((b, i) => {
@@ -97,13 +99,21 @@ export async function renderParkingSpotImage(spotStates, chosenIndex) {
     const statusText = isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent";
     const statusColor = isChosen ? COLORS.hazard : isAvailable ? COLORS.moss : COLORS.muted;
     const cx = b.x + b.w / 2;
-    const labelY = b.y + b.h * 0.38;
+    const labelY = b.y + b.h * (isChosen && hasDrivewayVehicle(vehicle) ? 0.21 : 0.38);
     const iconY = b.y + b.h * 0.58;
     const statusY = b.y + b.h * 0.85;
 
     // Simple vector glyphs instead of emoji/icon fonts, which don't
     // reliably render in server-side SVG-to-PNG compositing.
-    const glyph = isAvailable
+    // Centre the exact car roof shown in the React booking UI in the chosen
+    // spot; booked colour is an authenticated checkout snapshot, not email input.
+    const scale = Math.min(b.w * 0.62 / 96, b.h * 0.46 / 188);
+    const carX = cx - (96 * scale) / 2;
+    const carY = b.y + b.h * 0.34;
+    const carGlyph = `<g transform="translate(${carX} ${carY}) scale(${scale})">${drivewayCarShapes(vehicle || {})}</g>`;
+    const glyph = isChosen && hasDrivewayVehicle(vehicle)
+      ? carGlyph
+      : isAvailable
       ? `<rect x="${cx - 26}" y="${iconY - 14}" width="52" height="28" rx="9" fill="${statusColor}" opacity="0.85" />`
       : `<g stroke="${COLORS.muted}" stroke-width="6" stroke-linecap="round" opacity="0.55">
            <line x1="${cx - 18}" y1="${iconY - 18}" x2="${cx + 18}" y2="${iconY + 18}" />

@@ -27,6 +27,7 @@ import {
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
+import { drivewayCarDataUrl, hasDrivewayVehicle } from "./lib/drivewayCar";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
 
@@ -92,6 +93,12 @@ function VehicleBadge({ vehicle, compact = false }) {
       <img src={getVehicleAssetPath(vehicle)} alt="" aria-hidden="true" loading="lazy" decoding="async" />
     </span>
   );
+}
+
+// The same colour-accurate top-down artwork used in the email image renderer.
+function DrivewayCarVisual({ vehicle }) {
+  if (!hasDrivewayVehicle(vehicle)) return null;
+  return <img className="ps-driveway-car-roof" src={drivewayCarDataUrl(vehicle)} alt={`Top-down view of ${formatVehicleVisualSummary(vehicle) || "selected car"}`} draggable={false} />;
 }
 
 function BookingVehicleVisual({ vehicle }) {
@@ -974,15 +981,15 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
   const bookableVehicles = getBookableVehicles(user || {});
-  const [selectedVehicleId, setSelectedVehicleId] = useState(() => bookableVehicles[0]?.id || "");
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
+  const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
   const spotLabel = (i) => String.fromCharCode(65 + i);
 
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
@@ -1177,38 +1184,50 @@ const subtotal = listing.price * hours;
             </div>
           </div>
 
+          <div className="ps-booking-vehicle-picker ps-booking-vehicle-summary">
+            <div className="ps-booking-vehicle-picker-label" id="booking-vehicle-label">Vehicle you are parking</div>
+            {selectedVehicle ? (
+              <>
+                <div className="ps-spot-selected-vehicle">
+                  <VehicleBadge vehicle={selectedVehicle} compact />
+                  <span>
+                    <strong>{selectedVehicle.label}</strong>
+                    <small>{formatVehicleVisualSummary(selectedVehicle)}</small>
+                    <em>{selectedVehicle.licensePlate}</em>
+                  </span>
+                  <span className="ps-spot-vehicle-check" aria-hidden="true">✓</span>
+                </div>
+                <button type="button" className="ps-spot-change-vehicle" aria-expanded={changeVehicleOpen}
+                  aria-controls="payment-vehicle-choices" onClick={() => setChangeVehicleOpen(open => !open)}>
+                  {changeVehicleOpen ? "Hide vehicles" : "Switch vehicle"} <span aria-hidden="true">{changeVehicleOpen ? "▴" : "▾"}</span>
+                </button>
+                {changeVehicleOpen && (
+                  <div id="payment-vehicle-choices" className="ps-booking-vehicle-options ps-spot-vehicle-dropdown" role="radiogroup" aria-labelledby="booking-vehicle-label">
+                    {bookableVehicles.map(vehicle => {
+                      const isSelected = vehicle.id === selectedVehicleId;
+                      return (
+                        <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio"
+                          aria-checked={isSelected} onClick={() => { onVehicleChange(vehicle.id); setChangeVehicleOpen(false); }}>
+                          <VehicleBadge vehicle={vehicle} compact />
+                          <span><strong>{vehicle.label}</strong><small>{formatVehicleVisualSummary(vehicle)}</small><em>{vehicle.licensePlate}</em></span>
+                          <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : <div className="ps-booking-vehicle-missing" role="alert">Choose a saved vehicle in the parking spot selector before paying.</div>}
+          </div>
           {chosenSpot !== null && chosenSpot !== undefined && (
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
+              <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} />
-                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
           )}
-          <div className="ps-booking-vehicle-picker">
-            <div className="ps-booking-vehicle-picker-label" id="booking-vehicle-label">Vehicle you are parking</div>
-            {bookableVehicles.length > 0 ? (
-              <div className="ps-booking-vehicle-options" role="radiogroup" aria-labelledby="booking-vehicle-label">
-                {bookableVehicles.map(vehicle => {
-                  const isSelected = vehicle.id === selectedVehicleId;
-                  return (
-                    <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio" aria-checked={isSelected} onClick={() => setSelectedVehicleId(vehicle.id)}>
-                      <VehicleBadge vehicle={vehicle} compact />
-                      <span>
-                        <strong>{vehicle.label}</strong>
-                        <small>{formatVehicleVisualSummary(vehicle)}</small>
-                        <em>{vehicle.licensePlate}</em>
-                      </span>
-                      <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="ps-booking-vehicle-missing" role="alert">Complete a Primary or Guest vehicle in your Driver Profile before booking.</div>
-            )}
-          </div>
           {stripeError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
           {isRealListing ? (
             <>
@@ -1415,7 +1434,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1462,6 +1481,17 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
             />
           );
         })}
+        {Number.isInteger(chosen) && hasDrivewayVehicle(vehicle) && (() => {
+          const bounds = spots[chosen]?.bounds;
+          if (!bounds || !["north", "south", "east", "west"].every(key => Number.isFinite(Number(bounds[key])))) return null;
+          return (
+            <OverlayView position={{ lat: (Number(bounds.north) + Number(bounds.south)) / 2, lng: (Number(bounds.east) + Number(bounds.west)) / 2 }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+              <div className="ps-satellite-booked-car" style={{ width: height < 180 ? 19 : 37, transform: "translate(-50%, -50%)", pointerEvents: "none" }}>
+                <DrivewayCarVisual vehicle={vehicle} />
+              </div>
+            </OverlayView>
+          );
+        })()}
       </GoogleMap>
     </div>
   );
@@ -1568,6 +1598,20 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
   const [showSpotPicker, setShowSpotPicker] = useState(true);
+  const bookableVehicles = getBookableVehicles(user || {});
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
+  const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
+  const spotVehiclePickerRef = useRef(null);
+  const chooseSpot = (index) => {
+    setChosenSpot(index);
+    setSpotVehiclePickerOpen(true);
+  };
+  useEffect(() => {
+    if (showSpotPicker && chosenSpot !== null && spotVehiclePickerOpen) {
+      spotVehiclePickerRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [showSpotPicker, chosenSpot, spotVehiclePickerOpen]);
   const hasValidBounds = (s) => s?.bounds && typeof s.bounds.north === "number" && typeof s.bounds.south === "number" && typeof s.bounds.east === "number" && typeof s.bounds.west === "number";
   const hasSatelliteSpots = typeof listing.lat === "number" && typeof listing.lng === "number"
     && Array.isArray(listing.spots) && listing.spots.some(s => s.forRent)
@@ -1831,6 +1875,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
+              {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
@@ -1838,7 +1883,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
               <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || selectedAvailability?.available === false}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>Reserve & pay →</Btn>
           </div>
         </div>
       )}
@@ -1862,15 +1907,62 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
           </p>
           {hasSatelliteSpots ? (
-                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} />}>
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
                   </div>
                 </SpotMapBoundary>
               ) : (
-                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} />
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />
               )}
-          <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
+          {chosenSpot !== null && (
+            <section className="ps-spot-vehicle-panel" ref={spotVehiclePickerRef} aria-label="Choose the vehicle you will park">
+              <div className="ps-spot-vehicle-heading">
+                <div>
+                  <strong>Vehicle for Spot {spotLabel(chosenSpot)}</strong>
+                  <small>Select your vehicle to preview it in the driveway.</small>
+                </div>
+                {selectedVehicle && (
+                  <button type="button" className="ps-spot-change-vehicle" aria-expanded={spotVehiclePickerOpen}
+                    aria-controls="spot-vehicle-choices" onClick={() => setSpotVehiclePickerOpen(open => !open)}>
+                    {spotVehiclePickerOpen ? "Done" : "Switch vehicle"} <span aria-hidden="true">{spotVehiclePickerOpen ? "▴" : "▾"}</span>
+                  </button>
+                )}
+              </div>
+              {selectedVehicle && !spotVehiclePickerOpen && (
+                <div className="ps-spot-selected-vehicle">
+                  <VehicleBadge vehicle={selectedVehicle} compact />
+                  <span><strong>{selectedVehicle.label}</strong><small>{formatVehicleVisualSummary(selectedVehicle)}</small><em>{selectedVehicle.licensePlate}</em></span>
+                  <span className="ps-spot-vehicle-check" aria-hidden="true">✓</span>
+                </div>
+              )}
+              {bookableVehicles.length === 0 ? (
+                <p className="ps-booking-vehicle-missing" role="alert">
+                  No complete saved vehicle is available. Sign in and add a vehicle (make, model, colour and plate) to your Driver Profile before reserving.
+                </p>
+              ) : spotVehiclePickerOpen && (
+                <div id="spot-vehicle-choices" className="ps-booking-vehicle-options ps-spot-vehicle-dropdown" role="radiogroup" aria-label="Select your parking vehicle">
+                  {bookableVehicles.map(vehicle => {
+                    const isSelected = selectedVehicleId === vehicle.id;
+                    return (
+                      <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""}
+                        role="radio" aria-checked={isSelected}
+                        onClick={() => { setSelectedVehicleId(vehicle.id); setSpotVehiclePickerOpen(false); }}>
+                        <VehicleBadge vehicle={vehicle} compact />
+                        <span><strong>{vehicle.label}</strong><small>{formatVehicleVisualSummary(vehicle)}</small><em>{vehicle.licensePlate}</em></span>
+                        <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+          <Btn variant="amber" full
+            onClick={() => { if (chosenSpot !== null && selectedVehicle) setShowSpotPicker(false); }}
+            disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>
+            {chosenSpot === null ? "Pick a spot to continue" : !selectedVehicle ? "Select a vehicle to continue" : "Confirm Spot " + spotLabel(chosenSpot)}
+          </Btn>
         </Modal>
       )}
 
@@ -1885,6 +1977,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           startHour={bookingMode === "advance" ? startHour : undefined}
           endHour={bookingMode === "advance" ? endHour : undefined}
           selectedEvent={selectedEvent}
+          selectedVehicleId={selectedVehicleId}
+          onVehicleChange={setSelectedVehicleId}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
@@ -3336,7 +3430,7 @@ function HostDashboard({ user, setTab }) {
                   isActive={b.displayStatus === "Active"}
                   currentTime={currentTime}
                 />
-                <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} />
+                <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} vehicle={b.vehicle} />
               </div>
             ))}
           </div>
@@ -3592,7 +3686,7 @@ function DrivewayFrame({ children }) {
 }
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
-function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }) {
+function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, vehicle = null }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
@@ -3617,7 +3711,9 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
               <span style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
-              {isAvailable ? (
+              {isChosen && hasDrivewayVehicle(vehicle) ? (
+                <DrivewayCarVisual vehicle={vehicle} />
+              ) : isAvailable ? (
                 <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
               ) : (
                 <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
@@ -3634,7 +3730,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }
 // Read-only booking view shared by Drivers and Hosts. It pairs the listing's
 // property photo with the exact space saved on the booking so both people see
 // the same arrival reference and parking assignment.
-function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
+function BookedSpotDiagram({ listing, selectedIndex, selectedLabel, vehicle }) {
   const configuredSpots = Array.isArray(listing?.spots) ? listing.spots : [];
   const total = Math.min(8, Math.max(Number(listing?.spaces) || 1, configuredSpots.length, selectedIndex + 1));
   const labels = Array.from({ length: total }, (_, index) => String.fromCharCode(65 + index));
@@ -3650,7 +3746,11 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
           return (
             <div key={label} className={`ps-booked-spot${isSelected ? " is-selected" : ""}${!isRentable ? " is-private" : ""}`}>
               <strong>Spot {label}</strong>
-              {isSelected ? <img src="/car-icon.png" alt="" aria-hidden="true" /> : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
+              {isSelected ? (
+                hasDrivewayVehicle(vehicle)
+                  ? <DrivewayCarVisual vehicle={vehicle} />
+                  : <img className="ps-driveway-car-roof" src={drivewayCarDataUrl({})} alt="Neutral car illustration; booked vehicle details unavailable" draggable={false} />
+              ) : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
               <small>{isSelected ? "RESERVED" : isRentable ? "" : "NOT FOR RENT"}</small>
             </div>
           );
@@ -3661,7 +3761,7 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
   );
 }
 
-function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false }) {
+function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false, vehicle = null }) {
   const previewDialog = useRef(null);
   const previewTitleId = useId();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -3715,9 +3815,10 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = 
               chosen={selectedIndex}
               chosenColor={C.amber}
               height={compact ? 128 : 260}
+              vehicle={vehicle}
             />
           ) : (
-            <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} />
+            <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} vehicle={vehicle} />
           )
         ) : (
           <div className="ps-booking-property-placeholder"><span>No parking-space label is saved for this booking.</span></div>
@@ -3742,7 +3843,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = 
         {previewOpen && (
           <>
             <p>{listing.address || listing.title}</p>
-            <BookingParkingDetails listing={listing} spotLabel={bookedSpotLabel} />
+            <BookingParkingDetails listing={listing} spotLabel={bookedSpotLabel} vehicle={vehicle} />
           </>
         )}
       </dialog>,
@@ -5125,7 +5226,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
-              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} compact={isPast} />
+              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} vehicle={b.vehicle} compact={isPast} />
               <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
               <BookingVehicleVisual vehicle={b.vehicle} />
               <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>

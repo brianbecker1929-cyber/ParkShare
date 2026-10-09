@@ -156,7 +156,9 @@ export default `<!DOCTYPE html>
                 <tr>
                   <td align="center">
                     <p style="margin:0 0 9px 0; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.45px; color:#1c2b4a; text-align:center;">Your Parking Spot</p>
-                    <img src="[SPOT_MAP_IMAGE_URL]" alt="Your parking spot: [SPOT_LABEL]" style="display:block; height:260px; width:auto; max-width:100%; margin:0 auto; border-radius:7px; border:1px solid #e2e6ee;">
+                    <img src="[SPOT_MAP_IMAGE_URL]" alt="Reserved parking spot: [SPOT_LABEL]. Your booked vehicle: [BOOKED_VEHICLE_SUMMARY]" style="display:block; height:260px; width:auto; max-width:100%; margin:0 auto; border-radius:7px; border:1px solid #e2e6ee;">
+                    <p style="margin:10px 0 0 0; font-size:12px; font-weight:bold; color:#1c2b4a; text-align:center;">[BOOKED_VEHICLE_SUMMARY]</p>
+                    <p style="margin:3px 0 0 0; font-size:11px; color:#4a5568; text-align:center;">Licence plate: [BOOKED_VEHICLE_PLATE]</p>
                   </td>
                 </tr>
             </table>

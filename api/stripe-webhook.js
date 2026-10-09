@@ -5,8 +5,9 @@
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
-import { sendEmail, confirmationEmailHtml, extensionConfirmedHtml } from "./_email.js";
+import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
+import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -316,18 +317,16 @@ async function sendBookingConfirmationEmail(booking) {
     .select("name, email")
     .eq("id", booking.renter_id)
     .single();
-  if (!renter?.email) return;
-
+  let hostEmail = null;
   let hostName = "your host";
   if (listing?.host_id) {
-    const { data: host } = await supabaseAdmin.from("profiles").select("name").eq("id", listing.host_id).single();
+    const { data: host } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
     hostName = host?.name || hostName;
+    hostEmail = host?.email || null;
   }
 
   const { start, end, isAdvance } = getSessionWindow(booking);
-  const now = new Date();
-  const timeFmt = { hour: "numeric", minute: "2-digit" };
-  const fullDateFmt = { weekday: "short", month: "long", day: "numeric", year: "numeric" };
+  const formattedTimes = formatBookingEmailTimes(start, end);
 
   // NOTE: the new confirmation template has no price/payment summary and no
   // "booked in advance" vs. "already started" copy distinction — both of
@@ -344,7 +343,7 @@ async function sendBookingConfirmationEmail(booking) {
   let attachments;
   let spotImageCid;
   try {
-    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-" + booking.id;
     attachments = [{
       filename: "parking-spot.png",
@@ -357,7 +356,10 @@ async function sendBookingConfirmationEmail(booking) {
 
   const address = listing?.address || "";
 
-  await sendEmail({
+  // Separate host notification prevents exposing renter email and unrelated
+  // confirmation content through CC.
+  const notifications = [];
+  if (renter?.email) notifications.push(sendEmail({
     to: renter.email,
     subject: isAdvance ? "Booking confirmed — " + (listing?.title || "ParkShare") : "Parking authorized — " + (listing?.title || "ParkShare"),
     html: confirmationEmailHtml({
@@ -367,11 +369,13 @@ async function sendBookingConfirmationEmail(booking) {
       locationId: booking.listing_id,
       spotLabel: booking.spot_label,
       confirmationNumber: "PK-" + booking.id,
-      startDateLabel: dayLabel(start, now),
-      startTimeStr: start.toLocaleTimeString(undefined, timeFmt),
-      entryDateFull: start.toLocaleDateString(undefined, fullDateFmt),
-      endTimeStr: end.toLocaleTimeString(undefined, timeFmt),
-      exitDateFull: end.toLocaleDateString(undefined, fullDateFmt),
+      startDateLabel: formattedTimes.startDateLabel,
+      startTimeStr: formattedTimes.startTimeStr,
+      entryDateFull: formattedTimes.entryDateFull,
+      endTimeStr: formattedTimes.endTimeStr,
+      exitDateFull: formattedTimes.exitDateFull,
+      vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
+      vehiclePlate: booking.license_plate || "Not provided",
       spotImageCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       // TODO: confirm this route actually exists in your app — this is a
@@ -381,7 +385,29 @@ async function sendBookingConfirmationEmail(booking) {
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
     attachments,
-  });
+  }));
+  if (hostEmail && hostEmail.toLowerCase() !== renter?.email?.toLowerCase()) {
+    notifications.push(sendEmail({
+      to: hostEmail,
+      subject: "New driveway reservation — Spot " + (booking.spot_label || "—"),
+      html: hostBookingNotificationHtml({
+        hostName,
+        address,
+        spotLabel: booking.spot_label,
+        vehicle: booking,
+        startLabel: formattedTimes.hostStartLabel,
+        endLabel: formattedTimes.hostEndLabel,
+        bookingId: booking.id,
+        spotImageCid,
+      }),
+      attachments,
+    }));
+  }
+  // A failure on one email doesn't prevent attempting the other recipient.
+  const outcomes = await Promise.allSettled(notifications);
+  for (const outcome of outcomes) {
+    if (outcome.status === "rejected") console.error("Booking notification email failed:", outcome.reason);
+  }
 }
 
 export default async function handler(req, res) {
