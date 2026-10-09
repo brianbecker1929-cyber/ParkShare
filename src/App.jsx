@@ -1883,7 +1883,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={getBookableVehicles(user || {})[0]} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} vehicle={getBookableVehicles(user || {})[0]} />
                   </div>
                 </SpotMapBoundary>
               ) : (
