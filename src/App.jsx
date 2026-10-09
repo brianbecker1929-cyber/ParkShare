@@ -27,6 +27,7 @@ import {
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
+import { drivewayCarDataUrl, hasDrivewayVehicle } from "./lib/drivewayCar";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
 
@@ -92,6 +93,12 @@ function VehicleBadge({ vehicle, compact = false }) {
       <img src={getVehicleAssetPath(vehicle)} alt="" aria-hidden="true" loading="lazy" decoding="async" />
     </span>
   );
+}
+
+// The same colour-accurate top-down artwork used in the email image renderer.
+function DrivewayCarVisual({ vehicle }) {
+  if (!hasDrivewayVehicle(vehicle)) return null;
+  return <img className="ps-driveway-car-roof" src={drivewayCarDataUrl(vehicle)} alt={`Top-down view of ${formatVehicleVisualSummary(vehicle) || "selected car"}`} draggable={false} />;
 }
 
 function BookingVehicleVisual({ vehicle }) {
@@ -1181,11 +1188,12 @@ const subtotal = listing.price * hours;
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} />
-                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)}</div>
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
           )}
+          <p className="ps-driveway-vehicle-help">Switch vehicles below to update the colour and type of the car shown in your parking space before payment.</p>
           <div className="ps-booking-vehicle-picker">
             <div className="ps-booking-vehicle-picker-label" id="booking-vehicle-label">Vehicle you are parking</div>
             {bookableVehicles.length > 0 ? (
@@ -1415,7 +1423,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1462,6 +1470,17 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
             />
           );
         })}
+        {Number.isInteger(chosen) && hasDrivewayVehicle(vehicle) && (() => {
+          const bounds = spots[chosen]?.bounds;
+          if (!bounds || !["north", "south", "east", "west"].every(key => Number.isFinite(Number(bounds[key])))) return null;
+          return (
+            <OverlayView position={{ lat: (Number(bounds.north) + Number(bounds.south)) / 2, lng: (Number(bounds.east) + Number(bounds.west)) / 2 }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
+              <div className="ps-satellite-booked-car" style={{ width: height < 180 ? 19 : 37, transform: "translate(-50%, -50%)", pointerEvents: "none" }}>
+                <DrivewayCarVisual vehicle={vehicle} />
+              </div>
+            </OverlayView>
+          );
+        })()}
       </GoogleMap>
     </div>
   );
@@ -1862,13 +1881,13 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
           </p>
           {hasSatelliteSpots ? (
-                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} />}>
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={getBookableVehicles(user || {})[0]} />}>
                   <div style={{ marginBottom: 16 }}>
                     <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={setChosenSpot} height={260} />
                   </div>
                 </SpotMapBoundary>
               ) : (
-                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} />
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={setChosenSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={getBookableVehicles(user || {})[0]} />
               )}
           <Btn variant="amber" full onClick={() => setShowSpotPicker(false)} disabled={chosenSpot === null} >{chosenSpot === null ? "Pick a spot to continue" : "Confirm Spot " + spotLabel(chosenSpot)}</Btn>
         </Modal>
@@ -3336,7 +3355,7 @@ function HostDashboard({ user, setTab }) {
                   isActive={b.displayStatus === "Active"}
                   currentTime={currentTime}
                 />
-                <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} />
+                <BookingParkingDetails listing={b.listingDetails} spotLabel={b.spotLabel} vehicle={b.vehicle} />
               </div>
             ))}
           </div>
@@ -3592,7 +3611,7 @@ function DrivewayFrame({ children }) {
 }
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
-function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }) {
+function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, vehicle = null }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
@@ -3617,7 +3636,9 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
               <span style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
-              {isAvailable ? (
+              {isChosen && hasDrivewayVehicle(vehicle) ? (
+                <DrivewayCarVisual vehicle={vehicle} />
+              ) : isAvailable ? (
                 <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
               ) : (
                 <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
@@ -3634,7 +3655,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus }
 // Read-only booking view shared by Drivers and Hosts. It pairs the listing's
 // property photo with the exact space saved on the booking so both people see
 // the same arrival reference and parking assignment.
-function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
+function BookedSpotDiagram({ listing, selectedIndex, selectedLabel, vehicle }) {
   const configuredSpots = Array.isArray(listing?.spots) ? listing.spots : [];
   const total = Math.min(8, Math.max(Number(listing?.spaces) || 1, configuredSpots.length, selectedIndex + 1));
   const labels = Array.from({ length: total }, (_, index) => String.fromCharCode(65 + index));
@@ -3650,7 +3671,7 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
           return (
             <div key={label} className={`ps-booked-spot${isSelected ? " is-selected" : ""}${!isRentable ? " is-private" : ""}`}>
               <strong>Spot {label}</strong>
-              {isSelected ? <img src="/car-icon.png" alt="" aria-hidden="true" /> : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
+              {isSelected ? (hasDrivewayVehicle(vehicle) ? <DrivewayCarVisual vehicle={vehicle} /> : <img src="/car-icon.png" alt="" aria-hidden="true" />) : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
               <small>{isSelected ? "RESERVED" : isRentable ? "" : "NOT FOR RENT"}</small>
             </div>
           );
@@ -3661,7 +3682,7 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel }) {
   );
 }
 
-function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false }) {
+function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false, vehicle = null }) {
   const previewDialog = useRef(null);
   const previewTitleId = useId();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -3715,9 +3736,10 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = 
               chosen={selectedIndex}
               chosenColor={C.amber}
               height={compact ? 128 : 260}
+              vehicle={vehicle}
             />
           ) : (
-            <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} />
+            <BookedSpotDiagram listing={listing} selectedIndex={selectedIndex} selectedLabel={selectedLabel} vehicle={vehicle} />
           )
         ) : (
           <div className="ps-booking-property-placeholder"><span>No parking-space label is saved for this booking.</span></div>
@@ -3742,7 +3764,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = 
         {previewOpen && (
           <>
             <p>{listing.address || listing.title}</p>
-            <BookingParkingDetails listing={listing} spotLabel={bookedSpotLabel} />
+            <BookingParkingDetails listing={listing} spotLabel={bookedSpotLabel} vehicle={vehicle} />
           </>
         )}
       </dialog>,
@@ -5125,7 +5147,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
-              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} compact={isPast} />
+              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} vehicle={b.vehicle} compact={isPast} />
               <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
               <BookingVehicleVisual vehicle={b.vehicle} />
               <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
