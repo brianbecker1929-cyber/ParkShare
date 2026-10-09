@@ -3746,7 +3746,11 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel, vehicle }) {
           return (
             <div key={label} className={`ps-booked-spot${isSelected ? " is-selected" : ""}${!isRentable ? " is-private" : ""}`}>
               <strong>Spot {label}</strong>
-              {isSelected ? (hasDrivewayVehicle(vehicle) ? <DrivewayCarVisual vehicle={vehicle} /> : <img src="/car-icon.png" alt="" aria-hidden="true" />) : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
+              {isSelected ? (
+                hasDrivewayVehicle(vehicle)
+                  ? <DrivewayCarVisual vehicle={vehicle} />
+                  : <img className="ps-driveway-car-roof" src={drivewayCarDataUrl({})} alt="Neutral car illustration; booked vehicle details unavailable" draggable={false} />
+              ) : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
               <small>{isSelected ? "RESERVED" : isRentable ? "" : "NOT FOR RENT"}</small>
             </div>
           );
