@@ -1184,16 +1184,7 @@ const subtotal = listing.price * hours;
             </div>
           </div>
 
-          {chosenSpot !== null && chosenSpot !== undefined && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot</div>
-              <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
-                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
-              </div>
-            </div>
-          )}
-          <p className="ps-driveway-vehicle-help">Switch vehicles below to update the colour and type of the car shown in your parking space before payment.</p>
+          <p className="ps-driveway-vehicle-help">Choose a vehicle below. The driveway preview updates automatically whenever you switch vehicles.</p>
           <div className="ps-booking-vehicle-picker">
             <div className="ps-booking-vehicle-picker-label" id="booking-vehicle-label">Vehicle you are parking</div>
             {bookableVehicles.length > 0 ? (
@@ -1217,6 +1208,15 @@ const subtotal = listing.price * hours;
               <div className="ps-booking-vehicle-missing" role="alert">Complete a Primary or Guest vehicle in your Driver Profile before booking.</div>
             )}
           </div>
+          {chosenSpot !== null && chosenSpot !== undefined && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
+              <div>
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
+              </div>
+            </div>
+          )}
           {stripeError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
           {isRealListing ? (
             <>
