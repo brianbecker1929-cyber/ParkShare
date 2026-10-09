@@ -77,3 +77,45 @@ test("the selected car carries from spot confirmation to checkout and remains sw
   assert.match(app, /<SpotPicker[^\n]*vehicle=\{selectedVehicle\}/);
   assert.match(app, /vehicleId: selectedVehicle.id/);
 });
+
+
+test("host upcoming booking displays the same saved vehicle in its badge and parking diagram", async () => {
+  const app = await read("../src/App.jsx");
+  const hostStart = app.indexOf("function HostDashboard(");
+  const hostEnd = app.indexOf("function DrivewayFrame(", hostStart);
+  assert.ok(hostStart >= 0 && hostEnd > hostStart);
+  const host = app.slice(hostStart, hostEnd);
+  // Match the record returned from bookings to the badge and map, including
+  // vehicles purchased before the new preview was deployed.
+  for (const [camel, snake] of [
+    ["vehicleMake", "vehicle_make"],
+    ["vehicleModel", "vehicle_model"],
+    ["vehicleColour", "vehicle_colour"],
+    ["licensePlate", "license_plate"],
+  ]) {
+    assert.ok(host.includes(`${camel}: row.${snake} || ""`), `Missing host snapshot ${snake}`);
+  }
+  assert.match(host, /<BookingVehicleVisual vehicle=\{b\.vehicle\} \/>/);
+  assert.match(host, /<BookingParkingDetails listing=\{b\.listingDetails\} spotLabel=\{b\.spotLabel\} vehicle=\{b\.vehicle\} \/>/);
+
+  const storedYellow = {
+    vehicle_make: "INFINITI",
+    vehicle_model: "Q30",
+    vehicle_colour: "Yellow",
+    license_plate: "ABCD 123",
+  };
+  assert.equal(hasDrivewayVehicle(storedYellow), true);
+  assert.match(drivewayCarSvg(storedYellow), /fill="#FFC107"/);
+});
+
+test("confirmed-space diagram never misidentifies a vehicle as generic red", async () => {
+  const app = await read("../src/App.jsx");
+  const from = app.indexOf("function BookedSpotDiagram(");
+  const to = app.indexOf("function BookingParkingDetails(", from);
+  const diagram = app.slice(from, to);
+  assert.ok(from >= 0 && to > from);
+  assert.match(diagram, /<DrivewayCarVisual vehicle=\{vehicle\} \/>/);
+  assert.match(diagram, /src=\{drivewayCarDataUrl\(\{\}\)\}/);
+  assert.match(diagram, /Neutral car illustration; booked vehicle details unavailable/);
+  assert.doesNotMatch(diagram, /src="\/car-icon\.png"/);
+});
