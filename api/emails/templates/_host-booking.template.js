@@ -27,7 +27,8 @@ export default `<!DOCTYPE html>
 @media only screen and (max-width:640px) {
   .ps-email-wrap { width:100% !important; }
   .ps-email-inset { padding-left:16px !important; padding-right:16px !important; }
-  .ps-host-portrait { width:112px !important; }
+  .ps-host-portrait-col { width:155px !important; min-width:155px !important; } 
+  .ps-host-portrait { width:155px !important; max-width:155px !important; }
   .ps-host-copy { font-size:13px !important; }
 }
 </style>
@@ -44,7 +45,7 @@ export default `<!DOCTYPE html>
     </td></tr>
 
     <!-- Host variant of the Driver confirmation headline and mascot greeting -->
-    <tr><td class="ps-email-inset" style="padding:22px 29px 4px;">
+    <tr><td class="ps-email-inset" style="padding:14px 29px 0 29px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;width:100%;">
         <tr>
           <td valign="middle" style="padding:0 9px 0 0;vertical-align:middle;">
@@ -52,8 +53,11 @@ export default `<!DOCTYPE html>
             <p class="ps-host-copy" style="margin:13px 0 4px;font-size:14px;line-height:20px;color:#1c2b4a;">Hi <strong>[HOST_NAME]</strong>,</p>
             <p class="ps-host-copy" style="margin:7px 0 0;font-size:13px;line-height:20px;color:#4a5568;">A driver has reserved a space at your property. Here's what to expect.</p>
           </td>
-          <td valign="bottom" width="118" align="right" style="width:118px;min-width:100px;vertical-align:bottom;">
-            <img class="ps-host-portrait" src="https://www.myparkshare.ca/william-v3/masters/ParkShare_William_05_Presenting.png" width="118" alt="William, your ParkShare hosting guide" style="display:block;width:118px;max-width:100%;height:auto;border:0;">
+          <!-- The PNG is physically cropped waist-up. Bottom-aligned table
+               cell and zero hero bottom padding anchor William flush with
+               the navy reservation banner, including in Outlook/Gmail. -->
+          <td class="ps-host-portrait-col" valign="bottom" width="194" align="right" style="width:194px;min-width:155px;vertical-align:bottom;padding:0;line-height:0;font-size:0;">
+            <img class="ps-host-portrait" src="[HOST_PORTRAIT_URL]" width="194" alt="William, your ParkShare hosting guide" style="display:block;width:194px;max-width:100%;height:auto;border:0;padding:0;margin:0;">
           </td>
         </tr>
       </table>
