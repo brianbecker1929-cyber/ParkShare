@@ -7,6 +7,7 @@ import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
+import { renderHostLogoPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
@@ -387,6 +388,22 @@ async function sendBookingConfirmationEmail(booking) {
     attachments,
   }));
   if (hostEmail && hostEmail.toLowerCase() !== renter?.email?.toLowerCase()) {
+    // Embed exactly the site's approved signature logo inside the Host
+    // email, rather than loading a deployment-specific asset URL. The
+    // driver email's existing assets/attachments remain untouched.
+    let hostLogoCid;
+    const hostAttachments = [...(attachments || [])];
+    try {
+      const logoBuffer = await renderHostLogoPng();
+      hostLogoCid = "parkshare-signature-logo-" + booking.id;
+      hostAttachments.push({
+        filename: "parkshare-signature-logo.png",
+        content: logoBuffer.toString("base64"),
+        content_id: hostLogoCid,
+      });
+    } catch (err) {
+      console.error("Unable to embed Host signature logo; using hosted PNG fallback:", err);
+    }
     notifications.push(sendEmail({
       to: hostEmail,
       subject: "New driveway reservation — Spot " + (booking.spot_label || "—"),
@@ -400,8 +417,9 @@ async function sendBookingConfirmationEmail(booking) {
         endLabel: formattedTimes.hostEndLabel,
         bookingId: booking.id,
         spotImageCid,
+        logoCid: hostLogoCid,
       }),
-      attachments,
+      attachments: hostAttachments,
     }));
   }
   // A failure on one email doesn't prevent attempting the other recipient.
