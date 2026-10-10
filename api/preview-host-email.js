@@ -2,6 +2,7 @@
 // deployments, never production. Does not send email or access customer data.
 import { hostBookingNotificationHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
+import { renderHostLogoPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export default async function handler(req, res) {
@@ -24,7 +25,10 @@ export default async function handler(req, res) {
     const start = new Date("2026-10-09T23:36:00.000Z");
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const times = formatBookingEmailTimes(start, end, start);
-    const image = await renderParkingSpotImage([false, true, false, false], 1, vehicle);
+    const [image, signatureLogo] = await Promise.all([
+      renderParkingSpotImage([false, true, false, false], 1, vehicle),
+      renderHostLogoPng(),
+    ]);
     const html = hostBookingNotificationHtml({
       hostName: "Sample Host",
       address: "12 Example Crescent, Vaughan, Ontario",
@@ -34,11 +38,9 @@ export default async function handler(req, res) {
       endLabel: times.hostEndLabel,
       bookingId: "DEMO",
       driverName: "Sample Driver",
-      // The approved PNG is built into this Vercel preview deployment.
-      // Production still points to www.myparkshare.ca after merge.
-      logoUrl: process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}/email/parkshare-signature-logo.png`
-        : "https://www.myparkshare.ca/brand/parkshare-william-parker-logo.webp",
+      // Use the actual approved PNG inline for preview so the logo works
+      // even if Vercel's preview host blocks cross-origin image requests.
+      logoSrc: `data:image/png;base64,${signatureLogo.toString("base64")}`,
       spotImageSrc: `data:image/png;base64,${image.toString("base64")}`,
     });
     return res.status(200).send(html.replace(
