@@ -39,8 +39,8 @@ export default `<!DOCTYPE html>
   <table role="presentation" class="ps-email-wrap" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;border-collapse:collapse;background:#ffffff;">
 
     <!-- ParkShare brand: same header as the Driver booking confirmation -->
-    <tr><td align="center" class="ps-email-inset" style="padding:18px 29px;background:#1b2b3a;border-bottom:3px solid #f5a623;">
-      <img src="[HOST_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="360" style="display:block;width:360px;max-width:100%;height:auto;border:0;">
+    <tr><td align="center" class="ps-email-inset" style="padding:10px 29px;background:#1b2b3a;border-bottom:3px solid #f5a623;">
+      <img src="[HOST_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="260" style="display:block;width:260px;max-width:100%;height:auto;border:0;">
     </td></tr>
 
     <!-- Host variant of the Driver confirmation headline and mascot greeting -->
