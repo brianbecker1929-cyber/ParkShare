@@ -6,7 +6,7 @@ import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
-import { renderParkingSpotImage } from "./_driveway-image.js";
+import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
@@ -309,7 +309,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
 async function sendBookingConfirmationEmail(booking) {
   const { data: listing } = await supabaseAdmin
     .from("listings")
-    .select("title, address, spaces, host_id")
+    .select("title, address, spaces, spots, host_id")
     .eq("id", booking.listing_id)
     .single();
   const { data: renter } = await supabaseAdmin
@@ -335,10 +335,10 @@ async function sendBookingConfirmationEmail(booking) {
   // that requires adding a placeholder to parking_confirmation.html — ask
   // for that change explicitly rather than having it silently reappear here.
   const spaces = listing?.spaces || 1;
-  const spotStates = [0, 1, 2, 3].map(i => i < spaces);
   const chosenIndex = booking.spot_label
     ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
     : null;
+  const spotStates = deriveEmailSpotStates(listing || { spaces }, chosenIndex);
 
   let attachments;
   let spotImageCid;
