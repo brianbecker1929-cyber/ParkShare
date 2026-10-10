@@ -34,3 +34,17 @@ Use the feature branch's Vercel preview:
 Sample combinations: Silver BMW X4, Orange Lexus LC, Black Honda Civic, White MINI Cooper, Red Ford F-150 and Blue Toyota Sienna.
 
 No database migrations, payment changes, or booking write-side changes. These changes are stacked on PR #123, which is stacked on unmerged email PR #121. **Do not merge into main until explicit approval.**
+
+
+## Approved 12% scale enhancement (October 10, 2026)
+
+The original six approved transparent WebP masters are unchanged; the **displayed vehicle** is approximately 12% larger on each axis, while its parking bay and the driveway's spot labels remain unchanged.
+
+- SpotPicker / checkout: `83% × 66%` → `93% × 74%`
+- Driver and Host booked-space cards: `82% × 67%` → `92% × 75%`
+- Compact cards: `80% × 64%` → `90% × 72%`
+- Shared confirmation email PNG: `83% × 59%` → `93% × 66%` of the selected spot. Image top moves upward to 19.5% of the bay; selected `SPOT B` label sits at 10% and `RESERVED` at 89% so neither is covered.
+
+The bookable area, reserved outline, car colour/body selection, host/driver booking snapshots and email branding are unchanged. All images still use `object-fit:contain` / Sharp `fit:contain` to avoid distortion and leave a small margin.
+
+See `test/approved-vehicle-scale.test.js` for numeric growth bounds and label-clearance checks.
