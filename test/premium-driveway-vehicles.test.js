@@ -45,8 +45,8 @@ test("premium shared SVG uses real body-specific silhouettes and layered details
     assert.match(decodeURIComponent(uri), /Premium top-down vehicle illustration/);
   }
   assert.equal(new Set(renders).size, 6, "six visual silhouettes/colours must be distinct");
-  assert.match(drivewayCarShapes(DEMO_VEHICLES[4]), /opacity=".37"/, "pickup has distinct cargo bed");
-  assert.doesNotMatch(drivewayCarShapes(DEMO_VEHICLES[0]), /opacity=".37"/, "SUV has no pickup bed");
+  assert.match(drivewayCarShapes(DEMO_VEHICLES[4]), /data-ps-pickup-bed="true"/, "pickup has distinct cargo bed");
+  assert.doesNotMatch(drivewayCarShapes(DEMO_VEHICLES[0]), /data-ps-pickup-bed="true"/, "SUV has no pickup bed");
 });
 
 test("email PNG uses exact shared SVG and enlarges booked vehicle inside Spot B", async () => {
