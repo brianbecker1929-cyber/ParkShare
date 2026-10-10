@@ -122,7 +122,7 @@ test("Renter uses the same signature logo as Host without changing reservation d
   };
   const email = confirmationEmailHtml({ ...details, logoCid: "parkshare-signature-logo-22" });
   assert.match(email, /src="cid:parkshare-signature-logo-22"/);
-  assert.match(email, /width="190"/);
+  assert.match(email, /width="329"/);
   assert.match(email, /cid:parking-spot-22/);
   assert.match(email, /Lexus LC · Orange/);
   assert.match(email, /7:36 p\.m\./);

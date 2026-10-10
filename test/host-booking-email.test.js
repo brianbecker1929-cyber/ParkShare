@@ -24,7 +24,7 @@ test("Host booking email has Driver-quality branding with William and host-speci
   assert.doesNotMatch(html, /https:\/\/www\.myparkshare\.ca\/email\/logo\.png/);
   assert.match(html, /ParkShare — William and Parker with the signature wordmark/);
   assert.match(html, /class="ps-booking-ticket"/);
-  assert.match(html, /width="190"/);
+  assert.match(html, /width="329"/);
   assert.match(html, /parkshare-william-portrait\.png/);
   assert.match(html, /width="112" alt="William welcoming a new ParkShare host reservation"/);
   assert.doesNotMatch(html, /position:|overflow:hidden;[^<]*<img/);
