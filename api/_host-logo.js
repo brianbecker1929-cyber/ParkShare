@@ -32,9 +32,12 @@ export async function renderHostPortraitPng() {
   const { width, height } = await sharp(trimmed).metadata();
   if (!width || !height) throw new Error("Approved William mascot could not be trimmed");
 
-  // Keeps the cap, face, raised hand, yellow tie, vest and waist. Removes legs,
-  // feet and empty transparent padding; prevents William floating above banner.
-  const waistHeight = Math.max(1, Math.min(height, Math.round(height * 0.68)));
+  // Approved hero treatment: William is scaled UP while his head stays in
+  // place. The crop ends immediately below the yellow belt at the waist
+  // (about 55.5% of the tightly trimmed master); NO legs or hips remain.
+  // The following navy email banner masks the continuation of his body with
+  // one straight uninterrupted edge, without CSS clipping or positioning.
+  const waistHeight = Math.max(1, Math.min(height, Math.round(height * 0.555)));
   return sharp(trimmed)
     .extract({ left: 0, top: 0, width, height: waistHeight })
     .resize({ width: 460, withoutEnlargement: true })
