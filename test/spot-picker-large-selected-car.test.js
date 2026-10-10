@@ -11,7 +11,9 @@ test("selected booking bay removes only Your spot, leaving Spot label visible", 
   assert.ok(start>0 && end>start);
   const picker=app.slice(start,end);
   assert.doesNotMatch(picker, /isChosen \? "Your spot"/, "Selected SpotPicker should not render the removed footer");
-  assert.match(picker, /<span style=\{\{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 \}\}>Spot \{l\}<\/span>/);
+  assert.match(picker, /<span className="ps-spot-picker-label"/);
+  assert.match(picker, /fontSize: isChosen \? 12 : 13/);
+  assert.match(picker, />Spot \{l\}<\/span>/);
   assert.match(picker, /ps-spot-picker-bay/);
   assert.match(picker, /gridTemplateRows: isChosen \? "min-content minmax\(0, 1fr\)"/);
   assert.match(picker, /display: isChosen \? "grid" : "flex"/);
@@ -36,7 +38,7 @@ test("selected car uses all of remaining bay without overflow or pixel caps", as
   ])assert.ok(styles.includes(declaration),declaration);
   const app=await read("../src/App.jsx");
   const picker=app.slice(app.indexOf("function SpotPicker("),app.indexOf("// Read-only booking view shared"));
-  assert.match(picker, /padding: "3% 3%"/,"Keep side margins from button padding");
+  assert.match(picker, /padding: isChosen \? "10px 5px 5px" : "3% 3%"/, "Maintain label-to-border clearance and existing other-bay padding");
   assert.match(picker, /overflow: "hidden"/,"Keep car inside reserved bay");
   assert.match(picker, /border: isChosen \? "4px solid " \+ C\.hazard/,"Keep orange selected outline");
 });
@@ -49,4 +51,31 @@ test("Host/Driver completed booking and both email diagrams retain RESERVED labe
   const email=await read("../api/_driveway-image.js");
   assert.match(email,/pixelLabel\("RESERVED"/);
   assert.match(email,/premiumVehicleBuffer\(vehicle\)/);
+});
+
+
+test("SpotPicker renders the selected primary vehicle immediately without generic cartoon car", async () => {
+  const app=await read("../src/App.jsx");
+  const listing=app.slice(app.indexOf("function ListingDetail("),app.indexOf("function DrivewayFrame("));
+  const picker=app.slice(app.indexOf("function SpotPicker("),app.indexOf("// Read-only booking view shared"));
+  assert.match(listing,/const \[selectedVehicleId, setSelectedVehicleId\] = useState\(""\)/);
+  assert.match(listing,/const defaultVehicle = existingVehicle/);
+  assert.match(listing,/bookableVehicles\.find\(vehicle => vehicle\.id === "primary"\)/);
+  assert.match(listing,/if \(!existingVehicle && defaultVehicle\) setSelectedVehicleId\(defaultVehicle\.id\)/);
+  assert.match(listing,/setSpotVehiclePickerOpen\(!defaultVehicle\)/);
+  assert.match(listing,/vehicle=\{selectedVehicle\}/);
+  assert.match(picker,/isChosen && hasDrivewayVehicle\(vehicle\)/);
+  assert.match(picker,/isChosen \? \(\s*<span className="ps-spot-picker-no-vehicle">Select vehicle<\/span>/);
+  assert.match(picker,/!isChosen && \(/,"Available and not-for-rent bays retain their labels");
+  assert.match(listing,/setSelectedVehicleId\(vehicle\.id\); setSpotVehiclePickerOpen\(false\)/);
+});
+
+test("orange selected outline cannot obscure the Spot A or Spot B heading", async () => {
+  const app=await read("../src/App.jsx");
+  const picker=app.slice(app.indexOf("function SpotPicker("),app.indexOf("// Read-only booking view shared"));
+  assert.match(picker,/padding: isChosen \? "10px 5px 5px" : "3% 3%"/);
+  assert.match(picker,/border: isChosen \? "4px solid " \+ C\.hazard/);
+  assert.match(picker,/fontSize: isChosen \? 12 : 13/);
+  assert.match(picker,/lineHeight: 1\.25, textAlign: "center", width: "100%"/);
+  assert.match(picker,/gridTemplateRows: isChosen \? "min-content minmax\(0, 1fr\)"/);
 });
