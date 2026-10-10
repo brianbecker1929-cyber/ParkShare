@@ -74,8 +74,73 @@ function computeBoxes() {
   return boxes;
 }
 
-function escapeXml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+// A small font rendered as SVG paths instead of font-dependent <text> nodes.
+// Sharp/Vercel serverless environments may not include Arial; without this,
+// the emailed diagram can show replacement squares instead of spot labels.
+// 5x7 glyphs remain legible even in the 300px-wide email preview.
+const GLYPHS = {
+  " ": ["00000","00000","00000","00000","00000","00000","00000"],
+  A: ["01110","10001","10001","11111","10001","10001","10001"],
+  B: ["11110","10001","10001","11110","10001","10001","11110"],
+  C: ["01111","10000","10000","10000","10000","10000","01111"],
+  D: ["11110","10001","10001","10001","10001","10001","11110"],
+  E: ["11111","10000","10000","11110","10000","10000","11111"],
+  F: ["11111","10000","10000","11110","10000","10000","10000"],
+  G: ["01111","10000","10000","10111","10001","10001","01111"],
+  H: ["10001","10001","10001","11111","10001","10001","10001"],
+  I: ["11111","00100","00100","00100","00100","00100","11111"],
+  J: ["00111","00010","00010","00010","10010","10010","01100"],
+  K: ["10001","10010","10100","11000","10100","10010","10001"],
+  L: ["10000","10000","10000","10000","10000","10000","11111"],
+  M: ["10001","11011","10101","10101","10001","10001","10001"],
+  N: ["10001","11001","10101","10011","10001","10001","10001"],
+  O: ["01110","10001","10001","10001","10001","10001","01110"],
+  P: ["11110","10001","10001","11110","10000","10000","10000"],
+  Q: ["01110","10001","10001","10001","10101","10010","01101"],
+  R: ["11110","10001","10001","11110","10100","10010","10001"],
+  S: ["01111","10000","10000","01110","00001","00001","11110"],
+  T: ["11111","00100","00100","00100","00100","00100","00100"],
+  U: ["10001","10001","10001","10001","10001","10001","01110"],
+  V: ["10001","10001","10001","10001","10001","01010","00100"],
+  W: ["10001","10001","10001","10101","10101","10101","01010"],
+  X: ["10001","10001","01010","00100","01010","10001","10001"],
+  Y: ["10001","10001","01010","00100","00100","00100","00100"],
+  Z: ["11111","00001","00010","00100","01000","10000","11111"],
+};
+
+function pixelLabel(text, centerX, y, pixelSize, color) {
+  const glyphs = String(text).toUpperCase().split("");
+  const width = (glyphs.length * 6 - 1) * pixelSize;
+  const left = centerX - width / 2;
+  const paths = [];
+  glyphs.forEach((letter, index) => {
+    (GLYPHS[letter] || GLYPHS[" "]).forEach((line, row) => {
+      for (let col = 0; col < line.length; col++) {
+        if (line[col] === "1") {
+          const x = left + (index * 6 + col) * pixelSize;
+          const yy = y + row * pixelSize;
+          paths.push(`M${x} ${yy}h${pixelSize}v${pixelSize}h-${pixelSize}Z`);
+        }
+      }
+    });
+  });
+  return `<path fill="${color}" d="${paths.join(" ")}"/>`;
+}
+
+// The number of rental spots is not a physical spot index. If the host made
+// Spot B rentable and Spot A private, a capacity of 1 MUST NOT label A open.
+export function deriveEmailSpotStates(listing = {}, chosenIndex = -1) {
+  const configured = Array.isArray(listing?.spots) ? listing.spots : [];
+  if (configured.length) return Array.from({ length: 4 }, (_, i) => configured[i]?.forRent === true);
+  const capacity = Math.min(4, Math.max(1, Number(listing?.spaces) || 1));
+  const chosen = Number.isInteger(chosenIndex) && chosenIndex >= 0 && chosenIndex < 4 ? chosenIndex : -1;
+  const result = Array(4).fill(false);
+  if (chosen >= 0) result[chosen] = true;
+  let remaining = capacity - (chosen >= 0 ? 1 : 0);
+  for (let i = 0; i < 4 && remaining > 0; i++) {
+    if (!result[i]) { result[i] = true; remaining--; }
+  }
+  return result;
 }
 
 /**
@@ -93,38 +158,33 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
   const rects = boxes.map((b, i) => {
     const isChosen = chosenIndex === i;
     const isAvailable = spotStates ? !!spotStates[i] : true;
-    const fill = isChosen ? "#E9F2ED" : isAvailable ? "#F7F3E7" : "#EAE6DA";
-    const stroke = isChosen ? COLORS.hazard : isAvailable ? COLORS.moss : "#B0AA9C";
-    const strokeWidth = isChosen ? 6 : 4;
-    const statusText = isChosen ? "Your spot" : isAvailable ? "Available" : "Not for rent";
-    const statusColor = isChosen ? COLORS.hazard : isAvailable ? COLORS.moss : COLORS.muted;
+    const fill = isChosen ? "#FFF8E1" : isAvailable ? "#F7F3E7" : "#EAE6DA";
+    const stroke = isChosen ? "#FFC107" : isAvailable ? COLORS.moss : "#B0AA9C";
+    const strokeWidth = isChosen ? 10 : 4;
     const cx = b.x + b.w / 2;
-    const labelY = b.y + b.h * (isChosen && hasDrivewayVehicle(vehicle) ? 0.21 : 0.38);
-    const iconY = b.y + b.h * 0.58;
-    const statusY = b.y + b.h * 0.85;
+    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * 0.16, 4.2, COLORS.navy);
+    const status = isChosen
+      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.84, 3.1, COLORS.navy)
+      : isAvailable
+        ? pixelLabel("AVAILABLE", cx, b.y + b.h * 0.83, 2.9, COLORS.moss)
+        : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
+          + pixelLabel("RENT", cx, b.y + b.h * 0.85, 3.2, COLORS.muted);
 
-    // Simple vector glyphs instead of emoji/icon fonts, which don't
-    // reliably render in server-side SVG-to-PNG compositing.
-    // Centre the exact car roof shown in the React booking UI in the chosen
-    // spot; booked colour is an authenticated checkout snapshot, not email input.
     const scale = Math.min(b.w * 0.62 / 96, b.h * 0.46 / 188);
     const carX = cx - (96 * scale) / 2;
     const carY = b.y + b.h * 0.34;
     const carGlyph = `<g transform="translate(${carX} ${carY}) scale(${scale})">${drivewayCarShapes(vehicle || {})}</g>`;
-    const glyph = isChosen && hasDrivewayVehicle(vehicle)
+    const symbol = isChosen && hasDrivewayVehicle(vehicle)
       ? carGlyph
       : isAvailable
-      ? `<rect x="${cx - 26}" y="${iconY - 14}" width="52" height="28" rx="9" fill="${statusColor}" opacity="0.85" />`
-      : `<g stroke="${COLORS.muted}" stroke-width="6" stroke-linecap="round" opacity="0.55">
-           <line x1="${cx - 18}" y1="${iconY - 18}" x2="${cx + 18}" y2="${iconY + 18}" />
-           <line x1="${cx + 18}" y1="${iconY - 18}" x2="${cx - 18}" y2="${iconY + 18}" />
-         </g>`;
+        ? `<g><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="19" fill="${COLORS.moss}" opacity=".88"/>${pixelLabel("P", cx, b.y + b.h * 0.58 - 12, 3.6, "#FFFFFF")}</g>`
+        : `<g fill="none" stroke="#B6AFA3" stroke-width="7" stroke-linecap="round"><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="25"/><path d="M${cx - 16} ${b.y + b.h * 0.58 - 16}L${cx + 16} ${b.y + b.h * 0.58 + 16}"/></g>`;
 
     return `
       <rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="14" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />
-      <text x="${cx}" y="${labelY}" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="${Math.round(b.h * 0.12)}" fill="${COLORS.navy}" text-anchor="middle">Spot ${b.label}</text>
-      ${glyph}
-      <text x="${cx}" y="${statusY}" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="${Math.round(b.h * 0.075)}" fill="${statusColor}" text-anchor="middle">${escapeXml(statusText)}</text>
+      ${label}
+      ${symbol}
+      ${status}
     `;
   }).join("\n");
 

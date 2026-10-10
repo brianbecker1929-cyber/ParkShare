@@ -19,8 +19,8 @@ export default `<!DOCTYPE html>
 
         <!-- ===== STATIC: HEADER / LOGO ===== -->
         <tr>
-          <td style="background-color:#1b2b3a; padding:18px 29px 18px 29px; border-bottom:3px solid #f5a623;" align="center">
-            <img src="https://www.myparkshare.ca/email/logo.png" alt="ParkShare" width="240" style="display:block; border:0; margin:0;">
+          <td style="background-color:#1b2b3a; padding:10px 29px; border-bottom:3px solid #f5a623;" align="center">
+            <img src="[BOOKING_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="260" style="display:block; width:260px; max-width:100%; height:auto; border:0; margin:0;">
           </td>
         </tr>
 

@@ -6,7 +6,8 @@ import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
-import { renderParkingSpotImage } from "./_driveway-image.js";
+import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
+import { renderHostLogoPng, renderHostPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
@@ -309,7 +310,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
 async function sendBookingConfirmationEmail(booking) {
   const { data: listing } = await supabaseAdmin
     .from("listings")
-    .select("title, address, spaces, host_id")
+    .select("title, address, spaces, spots, host_id")
     .eq("id", booking.listing_id)
     .single();
   const { data: renter } = await supabaseAdmin
@@ -335,10 +336,10 @@ async function sendBookingConfirmationEmail(booking) {
   // that requires adding a placeholder to parking_confirmation.html — ask
   // for that change explicitly rather than having it silently reappear here.
   const spaces = listing?.spaces || 1;
-  const spotStates = [0, 1, 2, 3].map(i => i < spaces);
   const chosenIndex = booking.spot_label
     ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
     : null;
+  const spotStates = deriveEmailSpotStates(listing || { spaces }, chosenIndex);
 
   let attachments;
   let spotImageCid;
@@ -355,6 +356,23 @@ async function sendBookingConfirmationEmail(booking) {
   }
 
   const address = listing?.address || "";
+
+  // Generate the same approved William-and-Parker signature logo for both
+  // booking recipients. Each email has its own attachment list, keeping
+  // customer and Host email content separate.
+  let hostLogoCid;
+  const bookingAttachments = [...(attachments || [])];
+  try {
+    const logoBuffer = await renderHostLogoPng();
+    hostLogoCid = "parkshare-signature-logo-" + booking.id;
+    bookingAttachments.push({
+      filename: "parkshare-signature-logo.png",
+      content: logoBuffer.toString("base64"),
+      content_id: hostLogoCid,
+    });
+  } catch (err) {
+    console.error("Unable to embed booking signature logo; using hosted PNG fallback:", err);
+  }
 
   // Separate host notification prevents exposing renter email and unrelated
   // confirmation content through CC.
@@ -377,6 +395,7 @@ async function sendBookingConfirmationEmail(booking) {
       vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
       vehiclePlate: booking.license_plate || "Not provided",
       spotImageCid,
+      logoCid: hostLogoCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       // TODO: confirm this route actually exists in your app — this is a
       // guess based on common patterns, not read from your frontend router.
@@ -384,23 +403,41 @@ async function sendBookingConfirmationEmail(booking) {
       supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
-    attachments,
+    attachments: bookingAttachments,
   }));
   if (hostEmail && hostEmail.toLowerCase() !== renter?.email?.toLowerCase()) {
+    // The Host receives the shared brand logo and their separate William
+    // portrait. The Renter never receives Host-only artwork.
+    let hostPortraitCid;
+    const hostAttachments = [...bookingAttachments];
+    try {
+      const portraitBuffer = await renderHostPortraitPng();
+      hostPortraitCid = "parkshare-william-portrait-" + booking.id;
+      hostAttachments.push({
+        filename: "parkshare-william-portrait.png",
+        content: portraitBuffer.toString("base64"),
+        content_id: hostPortraitCid,
+      });
+    } catch (err) {
+      console.error("Unable to embed Host William portrait; using hosted fallback:", err);
+    }
     notifications.push(sendEmail({
       to: hostEmail,
       subject: "New driveway reservation — Spot " + (booking.spot_label || "—"),
       html: hostBookingNotificationHtml({
         hostName,
         address,
+        driverName: renter?.name || "ParkShare Driver",
         spotLabel: booking.spot_label,
         vehicle: booking,
         startLabel: formattedTimes.hostStartLabel,
         endLabel: formattedTimes.hostEndLabel,
         bookingId: booking.id,
         spotImageCid,
+        logoCid: hostLogoCid,
+        portraitCid: hostPortraitCid,
       }),
-      attachments,
+      attachments: hostAttachments,
     }));
   }
   // A failure on one email doesn't prevent attempting the other recipient.

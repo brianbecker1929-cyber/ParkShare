@@ -31,6 +31,7 @@
 
 import { fillTemplate } from "./emails/_render.js";
 import confirmationTemplate from "./emails/templates/_parking-confirmation.template.js";
+import hostBookingTemplate from "./emails/templates/_host-booking.template.js";
 import endingReminderTemplate from "./emails/templates/_reminder-ending.template.js";
 import halfwayReminderTemplate from "./emails/templates/_reminder-halfway.template.js";
 import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.template.js";
@@ -73,40 +74,55 @@ function escapeBookingHtml(value) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-// A separate notification: do not CC the host on the renter's personal
-// confirmation. Both recipients get the same exact booked-car driveway PNG.
+// Send a separate, fully branded Host notification using the same table-based
+// email design, typography, palette and footer as the Driver confirmation.
+// Do not CC the Host on the Driver email. All booking values are HTML-escaped.
 export function hostBookingNotificationHtml({
-  hostName, address, spotLabel, vehicle, startLabel, endLabel, bookingId, spotImageCid,
+  hostName, address, spotLabel, vehicle, startLabel, endLabel, bookingId,
+  driverName, spotImageCid, spotImageSrc, logoCid, logoSrc, portraitCid, portraitSrc,
 }) {
   const e = escapeBookingHtml;
-  const car = [vehicle?.vehicle_make, vehicle?.vehicle_model].filter(Boolean).join(" ") || "Vehicle not specified";
-  const colour = vehicle?.vehicle_colour || "Colour not specified";
-  const plate = vehicle?.license_plate || "Not provided";
-  const picture = spotImageCid
-    ? `<img src="cid:${e(spotImageCid)}" alt="Top-down vehicle in reserved Spot ${e(spotLabel)}" width="360" style="display:block;width:100%;max-width:360px;height:auto;margin:16px auto;border-radius:9px;border:1px solid #E3DDC9;">`
-    : "";
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"></head>
-<body style="font-family:Arial,Helvetica,sans-serif;background:#FAF7F0;color:#0E1B2E;margin:0;padding:22px 12px;">
-  <main style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #E3DDC9;">
-    <header style="background:#0E1B2E;color:white;padding:20px 24px;border-bottom:4px solid #FFC107;">
-      <strong style="font-size:24px;">Park<span style="color:#FFC107;">Share</span></strong>
-    </header>
-    <section style="padding:24px;">
-      <h1 style="font-size:22px;">New driveway booking</h1>
-      <p>Hi ${e(hostName || "Host")}, a driver has reserved a space at your property.</p>
-      <p><strong>Address:</strong> ${e(address)}</p>
-      <p><strong>Reserved space:</strong> Spot ${e(spotLabel || "—")}</p>
-      <p><strong>Vehicle:</strong> ${e(car)} · ${e(colour)}</p>
-      <p><strong>Licence plate:</strong> ${e(plate)}</p>
-      <p><strong>Start:</strong> ${e(startLabel)}</p>
-      <p><strong>End:</strong> ${e(endLabel)}</p>
-      <p><strong>Booking:</strong> PK-${e(bookingId)}</p>
-      ${picture}
-      <p style="font-size:13px;color:#71695A;">This is a visual reference of the reserved space and expected vehicle, not confirmation that the vehicle has arrived.</p>
-      <a href="https://www.myparkshare.ca/" style="display:inline-block;background:#FFC107;color:#0E1B2E;font-weight:bold;text-decoration:none;padding:12px 18px;border-radius:8px;">Open Host Dashboard</a>
-    </section>
-  </main>
-</body></html>`;
+  const label = /^[A-Z]$/.test(String(spotLabel || "").trim().toUpperCase())
+    ? `Spot ${String(spotLabel).trim().toUpperCase()}` : "Spot not specified";
+  const car = [vehicle?.vehicle_make || vehicle?.vehicleMake, vehicle?.vehicle_model || vehicle?.vehicleModel]
+    .filter(Boolean).join(" ") || "Vehicle not specified";
+  const colour = vehicle?.vehicle_colour || vehicle?.vehicleColour || "Colour not specified";
+  const plate = String(vehicle?.license_plate || vehicle?.licensePlate || "Not provided").toUpperCase();
+  // Resend CID attachment in real emails; a PNG data URL is allowed strictly
+  // for a synthetic, preview-only browser render (no real customer data).
+  const imageSrc = spotImageSrc || (spotImageCid ? `cid:${spotImageCid}` : "");
+  const safeSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+)$/.test(imageSrc) ? imageSrc : "";
+  // Hosted email uses an image attachment with content_id (CID).
+  // Visual preview can inline the same PNG as a data URI; neither depends
+  // on Vercel's protected deployment asset URLs loading in a mail client.
+  const logoCandidate = logoSrc || (logoCid ? `cid:${logoCid}` : "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
+  const safeLogoSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(logoCandidate)
+    ? logoCandidate
+    : "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
+  // The approved William waist-up PNG is embedded for email-client reliability.
+  const portraitCandidate = portraitSrc || (portraitCid ? `cid:${portraitCid}` : "https://www.myparkshare.ca/william-v3/masters/ParkShare_William_05_Presenting.png");
+  const safePortraitSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/william-v3\/masters\/ParkShare_William_05_Presenting\.png)$/.test(portraitCandidate)
+    ? portraitCandidate
+    : "https://www.myparkshare.ca/william-v3/masters/ParkShare_William_05_Presenting.png";
+  const mapBlock = safeSrc
+    ? `<img src="${e(safeSrc)}" width="300" alt="Top-down diagram showing the ${e(colour)} ${e(car)} in ${e(label)}" style="display:block;width:300px;max-width:100%;height:auto;margin:0 auto;border:1px solid #e2e6ee;border-radius:8px;">`
+    : '<p style="margin:0;font-size:12px;color:#71695a;">Driveway preview unavailable. Refer to the spot label above.</p>';
+  return fillTemplate(hostBookingTemplate, {
+    HOST_LOGO_URL: e(safeLogoSrc),
+    HOST_PORTRAIT_URL: e(safePortraitSrc),
+    HOST_NAME: e(hostName || "Host"),
+    PROPERTY_ADDRESS: e(address || "Property address unavailable"),
+    DRIVER_NAME: e(driverName || "ParkShare Driver"),
+    SPOT_LABEL: e(label),
+    BOOKING_NUMBER: e(`PK-${bookingId}`),
+    START_DATE_TIME: e(startLabel || "Not provided"),
+    END_DATE_TIME: e(endLabel || "Not provided"),
+    START_TIME_SUMMARY: e(startLabel || "Not provided"),
+    VEHICLE_DETAILS: e(`${car} · ${colour}`),
+    VEHICLE_PLATE: e(plate),
+    SPOT_MAP_BLOCK: mapBlock,
+    HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -133,12 +149,21 @@ export function confirmationEmailHtml({
   spotImageCid,
   vehicleSummary,
   vehiclePlate,
+  logoCid,
+  logoSrc,
   directionsUrl,
   manageReservationUrl,
   supportEmail,
   supportPhone,
 }) {
+  // Match the Host email: use a CID-embedded PNG for actual bookings and an
+  // inline image for synthetic previews, with a trusted same-origin fallback.
+  const logoCandidate = logoSrc || (logoCid ? `cid:${logoCid}` : "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
+  const logoUrl = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(logoCandidate)
+    ? logoCandidate
+    : "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
   return fillTemplate(confirmationTemplate, {
+    BOOKING_LOGO_URL: escapeBookingHtml(logoUrl),
     CUSTOMER_FIRST_NAME: renterName,
     HOST_NAME: hostName,
     GARAGE_ADDRESS: address,
