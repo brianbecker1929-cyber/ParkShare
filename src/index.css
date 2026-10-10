@@ -9071,6 +9071,25 @@ div:has(> button[aria-label="ParkShare help"])
   object-fit: contain;
   filter: drop-shadow(0 3px 4px rgba(14, 27, 46, .25));
 }
+
+/* Selected SpotPicker bays intentionally omit the "Your spot" footer.
+   The car uses the remaining row beneath "Spot A/B/C/D", with the existing
+   3% internal button padding providing clean borders on mobile and desktop.
+   Other booked-space and email illustrations keep their own layout. */
+.ps-spot-picker-bay.is-selected > img.ps-driveway-car-roof {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: 100%;
+  flex: none;
+  object-fit: contain;
+  justify-self: center;
+  align-self: center;
+}
+
 .ps-booked-spot > img.ps-driveway-car-roof {
   width: 96%;
   height: 79%;
