@@ -9056,29 +9056,29 @@ div:has(> button[aria-label="ParkShare help"])
   }
 }
 
-/* Premium top-down booked vehicles, same shared colour/body SVG on every
-   booking view and the server-generated emails. Large but never clipped:
-   label/header and RESERVED remain readable on desktop and mobile. */
+/* Approved high-detail WebP cars fill ~12% more of each reserved bay.
+   Their transparent masters stay contained, with space for Spot labels above
+   and RESERVED below. All booking/Host/Driver views use this shared class. */
 .ps-driveway-car-roof {
   display: block;
-  width: 83%;
-  height: 66%;
-  max-width: 132px;
+  width: 93%;
+  height: 74%;
+  max-width: 148px;
   min-height: 0;
-  flex: 0 1 66%;
+  flex: 0 1 74%;
   object-fit: contain;
   filter: drop-shadow(0 3px 4px rgba(14, 27, 46, .25));
 }
 .ps-booked-spot > img.ps-driveway-car-roof {
-  width: 82%;
-  height: 67%;
-  max-width: 115px;
-  max-height: 68%;
+  width: 92%;
+  height: 75%;
+  max-width: 129px;
+  max-height: 76%;
 }
 .ps-booking-parking-details.is-compact .ps-booked-spot > img.ps-driveway-car-roof {
-  width: 80%;
-  height: 64%;
-  max-width: 70px;
+  width: 90%;
+  height: 72%;
+  max-width: 78px;
 }
 .ps-satellite-booked-car .ps-driveway-car-roof {
   width: 100%;
