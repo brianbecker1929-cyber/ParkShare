@@ -26,9 +26,12 @@ test("Host booking email has Driver-quality branding with William and host-speci
   assert.match(html, /width="260" style="display:block;width:260px;max-width:100%;height:auto;border:0;"/);
   assert.match(html, /padding:10px 29px;background:#1b2b3a;border-bottom:3px solid #f5a623/);
   assert.match(html, /class="ps-host-portrait" src="https:\/\/www\.myparkshare\.ca\/william-v3\/masters\/ParkShare_William_05_Presenting\.png"/);
-  assert.match(html, /width="194" alt="William, your ParkShare hosting guide"/);
+  assert.match(html, /width="260" alt="William welcoming a new ParkShare host reservation"/);
+  assert.match(html, /min-width:181px;vertical-align:bottom;padding:0;line-height:0;font-size:0/);
+  assert.match(html, /background:#1b2b3a;padding:12px 19px;border-radius:0;/);
+  assert.doesNotMatch(html, /border-radius:8px 8px 0 0;/);
   assert.match(html, /padding:14px 29px 0 29px/);
-  assert.match(html, /min-width:155px;vertical-align:bottom;padding:0;line-height:0;font-size:0/);
+  assert.match(html, /min-width:181px;vertical-align:bottom;padding:0;line-height:0;font-size:0/);
   assert.match(html, /NEW BOOKING/);
   assert.match(html, /CONFIRMED!/);
   assert.match(html, /Hi <strong>Sample Host<\/strong>/);
@@ -165,6 +168,11 @@ test("Waist-up William portrait is an approved transparent crop with email-safe 
   assert.equal(meta.channels, 4);
   assert.ok(meta.width > 100 && meta.height > 100);
   assert.ok(meta.height < original.height, "William's lower body must be cropped rather than scaled down");
+  // The approved illustration requires the yellow belt/waist at the banner.
+  // We crop at the torso rather than shrinking a full-length mascot.
+  const code = await readFile(new URL("../api/_host-logo.js", import.meta.url), "utf8");
+  assert.match(code, /Math\.round\(height \* 0\.555\)/);
+  assert.ok(meta.height / meta.width < 1.45, "Host image must remain a large torso-up crop");
   assert.ok(result.length > 10000);
   const email = hostBookingNotificationHtml({ ...example, portraitCid: "parkshare-william-portrait-24" });
   assert.match(email, /src="cid:parkshare-william-portrait-24"/);
