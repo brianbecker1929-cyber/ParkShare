@@ -22,8 +22,47 @@ export function premiumMasterPath(bodyType) {
   const type = PREMIUM_VEHICLE_TYPES.includes(bodyType) ? bodyType : "sedan";
   return path.join(MASTER_DIR, `${type}.webp`);
 }
+// The approved masters are rendered on tall canvases with transparent air
+// around the actual cars. object-fit:contain previously sized that empty
+// canvas inside the parking bay, making the silver BMW appear ~half-size.
+// Crop alpha padding ONCE per body class while preserving a narrow soft-edge
+// margin. Both browser previews and the email Sharp compositor reuse these
+// same tight render assets. The six original GitHub masters remain untouched.
+async function tightlyCropMaster(type) {
+  const source = readFileSync(premiumMasterPath(type));
+  const { data, info } = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const stride = info.channels;
+  let left = info.width, top = info.height, right = -1, bottom = -1;
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      if (data[(y * info.width + x) * stride + 3] < 32) continue;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  if (right < left || bottom < top) throw new Error("Approved car artwork has no visible alpha: " + type);
+  // ~2% margin prevents tyre/mirror edges from touching an image boundary.
+  const padX = Math.max(2, Math.ceil((right - left + 1) * .02));
+  const padY = Math.max(2, Math.ceil((bottom - top + 1) * .02));
+  const cropLeft = Math.max(0, left - padX);
+  const cropTop = Math.max(0, top - padY);
+  const cropRight = Math.min(info.width, right + padX + 1);
+  const cropBottom = Math.min(info.height, bottom + padY + 1);
+  return sharp(source)
+    .extract({ left: cropLeft, top: cropTop, width: cropRight - cropLeft, height: cropBottom - cropTop })
+    .webp({ quality: 92, effort: 4 })
+    .toBuffer();
+}
 function masterBuffer(type) {
-  if (!originals.has(type)) originals.set(type, readFileSync(premiumMasterPath(type)));
+  if (!originals.has(type)) {
+    const promise = tightlyCropMaster(type).catch(error => {
+      originals.delete(type);
+      throw error;
+    });
+    originals.set(type, promise);
+  }
   return originals.get(type);
 }
 function inPaintMask(r, g, b, p) {
@@ -46,13 +85,14 @@ function inPaintMask(r, g, b, p) {
 /**
  * Recolour the original photo-quality body paint; keep the same windows,
  * tyre/wheel surfaces, headlights, chrome details, transparent edges, and
- * shading. For master colours the exact approved original bytes are used.
- * Other colour options are approximate recolours of those approved masters
+ * shading. For master colours the approved source's pixels remain intact
+ * except for cropped transparent canvas padding and a lossless-looking WebP
+ * re-encode. Other colours are approximate recolours of those same masters
  * (not manufacturer-specific paint codes).
  */
 export async function premiumVehicleBuffer(vehicle) {
   const {bodyType,colour,masterColour} = premiumVehicleSpec(vehicle);
-  const original=masterBuffer(bodyType);
+  const original=await masterBuffer(bodyType);
   if (colour === masterColour) return original;
   const key=bodyType+":"+colour;
   if(tintedCache.has(key))return tintedCache.get(key);
