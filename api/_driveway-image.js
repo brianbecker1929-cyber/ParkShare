@@ -165,9 +165,9 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
     const cx = b.x + b.w / 2;
     // The selected car is larger, so move ONLY its text bands outward:
     // label remains at the top; RESERVED remains below the vehicle.
-    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * (isChosen ? 0.10 : 0.16), 4.2, COLORS.navy);
+    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * (isChosen ? 0.035 : 0.16), 4.2, COLORS.navy);
     const status = isChosen
-      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.89, 3.1, COLORS.navy)
+      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.915, 3.1, COLORS.navy)
       : isAvailable
         ? pixelLabel("AVAILABLE", cx, b.y + b.h * 0.83, 2.9, COLORS.moss)
         : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
@@ -206,14 +206,16 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
   let withCar = composited;
   const booked = Number.isInteger(chosenIndex) ? boxes[chosenIndex] : null;
   if (booked && hasDrivewayVehicle(vehicle)) {
-    // Same approved transparent WebP asset as the website, enlarged by
-    // ~12% on each axis (.83→.93 wide; .59→.66 high). Keep the car
-    // centred between the top spot label and lower RESERVED text.
-    // Safe bands: label 10–18%, car 19.5–85.5%, RESERVED 89–95%.
-    const carWidth = Math.max(1, Math.round(booked.w * .93));
-    const carHeight = Math.max(1, Math.round(booked.h * .66));
+    // Final approved orange Lexus footprint: size the REAL transparent
+    // WebP relative to its reserved bay, not a fixed icon pixel width.
+    // The image is contained inside a 96%-wide, 76%-high central window.
+    // TOP 'SPOT B' runs ~3.5–10.7%; car ~12.0–88.0%;
+    // RESERVED starts at 91.5%. Car/text/border never overlap.
+    // Works for all six body classes without changing vehicle colour mapping.
+    const carWidth = Math.max(1, Math.round(booked.w * .96));
+    const carHeight = Math.max(1, Math.round(booked.h * .76));
     const carX = Math.round(booked.x + (booked.w - carWidth) / 2);
-    const carY = Math.round(booked.y + booked.h * .195);
+    const carY = Math.round(booked.y + booked.h * .12);
     const photo = await sharp(await premiumVehicleBuffer(vehicle))
       .resize(carWidth, carHeight, { fit: "contain", background: "#00000000" })
       .png()
