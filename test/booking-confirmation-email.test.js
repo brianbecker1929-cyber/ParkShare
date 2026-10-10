@@ -43,8 +43,8 @@ test("rendered email driveway graphic contains booked vehicle colour in the righ
   });
   const [y, s] = await Promise.all([sharp(yellow).metadata(), sharp(silver).metadata()]);
   assert.equal(y.format, "png");
-  assert.equal(y.width, 500);
-  assert.equal(s.width, 500);
+  assert.equal(y.width, 1000);
+  assert.equal(s.width, 1000);
   assert.equal(y.height, s.height);
   assert.notDeepEqual(yellow, silver, "Changing the vehicle must affect the email PNG");
   const rawY = await sharp(yellow).removeAlpha().raw().toBuffer({ resolveWithObject: true });

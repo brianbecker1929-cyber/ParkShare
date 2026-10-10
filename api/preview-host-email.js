@@ -4,6 +4,7 @@ import { hostBookingNotificationHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
+import { sampleEmailBooking } from "./_email-preview.js";
 
 export default async function handler(req, res) {
   if (process.env.VERCEL_ENV !== "preview") return res.status(404).end("Not found");
@@ -16,24 +17,19 @@ export default async function handler(req, res) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
 
   try {
-    const vehicle = {
-      vehicle_make: "Lexus",
-      vehicle_model: "LC",
-      vehicle_colour: "Orange",
-      license_plate: "DEMO 123",
-    };
+    const { vehicle, spotLabel, spotStates, chosenIndex } = sampleEmailBooking(req.query);
     const start = new Date("2026-10-09T23:36:00.000Z");
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const times = formatBookingEmailTimes(start, end, start);
     const [image, signatureLogo, williamPortrait] = await Promise.all([
-      renderParkingSpotImage([false, true, false, false], 1, vehicle),
+      renderParkingSpotImage(spotStates, chosenIndex, vehicle),
       renderHostLogoPng(),
       renderHostPortraitPng(),
     ]);
     const html = hostBookingNotificationHtml({
       hostName: "Sample Host",
       address: "12 Example Crescent, Vaughan, Ontario",
-      spotLabel: "B",
+      spotLabel,
       vehicle,
       startLabel: times.hostStartLabel,
       endLabel: times.hostEndLabel,

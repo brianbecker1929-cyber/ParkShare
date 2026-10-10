@@ -43,13 +43,13 @@ test("selected car uses all of remaining bay without overflow or pixel caps", as
   assert.match(picker, /border: isChosen \? "4px solid " \+ C\.hazard/,"Keep orange selected outline");
 });
 
-test("Host/Driver completed booking and both email diagrams retain RESERVED labels", async () => {
+test("Dashboard keeps RESERVED status; email vehicle uses the approved picker footprint", async () => {
   const app=await read("../src/App.jsx");
   const booked=app.slice(app.indexOf("function BookedSpotDiagram("),app.indexOf("function BookingParkingDetails("));
   assert.match(booked, /isSelected \? "RESERVED" : isRentable/);
   assert.match(booked, /<DrivewayCarVisual vehicle=\{vehicle\} \/>/);
   const email=await read("../api/_driveway-image.js");
-  assert.match(email,/pixelLabel\("RESERVED"/);
+  assert.doesNotMatch(email,/pixelLabel\("RESERVED"/);
   assert.match(email,/premiumVehicleBuffer\(vehicle\)/);
 });
 

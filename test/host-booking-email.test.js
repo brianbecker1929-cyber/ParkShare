@@ -79,10 +79,10 @@ test("Hosted Spot B remains the single rentable spot in the diagram", () => {
   assert.deepEqual(deriveEmailSpotStates({ spaces: 2 }, 1), [true, true, false, false]);
 });
 
-test("Host email's 500px attached image is a real PNG with no font-dependent text", async () => {
+test("Host email's 1000px attached image is a real PNG with no font-dependent text", async () => {
   const png = await renderParkingSpotImage([false, true, false, false], 1, vehicle);
   const metadata = await sharp(png).metadata();
-  assert.equal(metadata.width, 500);
+  assert.equal(metadata.width, 1000);
   assert.equal(metadata.format, "png");
   assert.ok(png.length > 10_000);
   const renderer = await readFile(new URL("../api/_driveway-image.js", import.meta.url), "utf8");

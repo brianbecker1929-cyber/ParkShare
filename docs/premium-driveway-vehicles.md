@@ -78,3 +78,36 @@ Correction: `api/_premium-vehicle.js` now generates a **tight visible-alpha crop
 QA: `test/premium-vehicle-alpha-crop.test.js` asserts the visible car occupies at least 91% of the *image's* width and height for all six body classes and for recoloured variants, while email diagrams remain renderable.
 
 The next preview review should check that the **silver BMW X4 in the Spot A website flow** now appears close to the approved orange Lexus footprint, without overlapping 'Spot A' or 'Your spot'. The website and confirmation email previews are synthetic/review-only. Do not merge until approved.
+
+## Email consistency preview — October 10, 2026
+
+This review supersedes the earlier email-only 500px / 76%-height footprint.
+All five active template emails now reuse the same booked-vehicle artwork:
+Host new-booking notification, Driver booking confirmation, extension
+confirmation, halfway reminder and ending-soon reminder.
+
+- Extension and reminder queries load the immutable booked vehicle snapshot;
+  they never substitute today's account primary vehicle.
+- All send paths use `deriveEmailSpotStates` with the listing's configured
+  `spots`, preventing a private Spot A from appearing available when only B
+  is rentable.
+- The email PNG is 1000px wide and displayed at up to 420 CSS pixels in every
+  template, shrinking to the available width on mobile with its aspect ratio
+  preserved. CID delivery is retained.
+- The selected bay uses the website's orange `#E2571C` border and pale green
+  fill. Its protected A-D label sits above a 96%-wide / 83%-high vehicle window
+  beginning 13% down the bay. No selected-bay footer reduces the car's height.
+- Website markup, vehicle masters, colour resolution and email mascots remain
+  unchanged. The PNG changes only the shared email diagram.
+
+Preview URLs accept fixed synthetic options:
+`/api/preview-host-email?vehicle=silver&spot=A` and
+`/api/preview-renter-email?template=confirmation&vehicle=silver&spot=A`.
+Driver template options are `confirmation`, `extension`, `halfway`, `ending`;
+vehicle options are `silver`, `yellow`, `orange`, `black`, `red`, `blue`;
+spot options are `A`–`D`. These endpoints are preview-only and send no email.
+
+Validation exercises the real cron and signed Stripe webhook against a fake
+transport, honours database SELECT projections, and compares all five actual
+CID attachments with the same saved yellow vehicle in configured Spot B.
+No production merge until Brian reviews the previews.

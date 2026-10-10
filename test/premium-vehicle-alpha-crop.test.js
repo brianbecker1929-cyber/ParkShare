@@ -51,7 +51,7 @@ test("Renter/Host confirmation diagrams still rasterize approved SUV and coupe s
     const buffer=await renderParkingSpotImage([true,false,false,false],0,vehicle);
     const info=await sharp(buffer).metadata();
     assert.equal(info.format,"png");
-    assert.equal(info.width,500);
+    assert.equal(info.width,1000);
     assert.ok(buffer.length>10000);
   }
 });
