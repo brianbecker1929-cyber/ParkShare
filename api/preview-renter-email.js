@@ -3,6 +3,7 @@
 // Vercel preview deployments only: no customer records, payments, or emails.
 import { confirmationEmailHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
+import { renderHostLogoPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export default async function handler(req, res) {
@@ -25,7 +26,10 @@ export default async function handler(req, res) {
     const start = new Date("2026-10-09T23:36:00.000Z");
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const labels = formatBookingEmailTimes(start, end, start);
-    const mapPng = await renderParkingSpotImage([false, true, false, false], 1, sampleVehicle);
+    const [mapPng, signatureLogo] = await Promise.all([
+      renderParkingSpotImage([false, true, false, false], 1, sampleVehicle),
+      renderHostLogoPng(),
+    ]);
 
     const html = confirmationEmailHtml({
       renterName: "Sample Driver",
@@ -40,6 +44,7 @@ export default async function handler(req, res) {
       endTimeStr: labels.endTimeStr,
       exitDateFull: labels.exitDateFull,
       spotImageCid: "parking-spot-demo",
+      logoSrc: `data:image/png;base64,${signatureLogo.toString("base64")}`,
       vehicleSummary: "Lexus LC · Orange",
       vehiclePlate: "DEMO 123",
       directionsUrl: "https://www.myparkshare.ca/parking",
