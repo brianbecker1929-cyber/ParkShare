@@ -53,7 +53,7 @@ test("Stripe email uses the same parked car graphic and sends a separate host no
   assert.match(webhook, /hostEmail && hostEmail.toLowerCase\(\)/);
   assert.match(webhook, /hostBookingNotificationHtml/);
   assert.match(email, /export function hostBookingNotificationHtml/);
-  assert.match(email, /Top-down vehicle in reserved Spot/);
+  assert.match(email, /Top-down diagram showing the/);
   assert.match(webhook, /Promise.allSettled\(notifications\)/);
 });
 
