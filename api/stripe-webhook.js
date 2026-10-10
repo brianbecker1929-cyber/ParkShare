@@ -227,14 +227,14 @@ async function confirmExtension(session, connectedAccountId) {
 async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   const { data: booking, error: bookingError } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, spot_label, paid_at, booking_date, start_hour")
+    .select("id, listing_id, renter_id, hours, spot_label, paid_at, booking_date, start_hour, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate")
     .eq("id", bookingId)
     .single();
   if (bookingError || !booking) throw bookingError || new Error("Booking not found after extension.");
 
   const { data: listing } = await supabaseAdmin
     .from("listings")
-    .select("address, spaces, host_id")
+    .select("address, spaces, spots, host_id")
     .eq("id", booking.listing_id)
     .single();
   const { data: renter } = await supabaseAdmin
@@ -261,16 +261,15 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   const addedTimeStr = addedHours === 0.5 ? "30 minutes" : `${addedHours} hour${addedHours === 1 ? "" : "s"}`;
   const amountChargedStr = (totalCents / 100).toLocaleString(undefined, { style: "currency", currency: "CAD" });
 
-  const spaces = listing?.spaces || 1;
-  const spotStates = [0, 1, 2, 3].map(i => i < spaces);
   const chosenIndex = booking.spot_label
     ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
     : null;
+  const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
 
   let attachments;
   let spotImageCid;
   try {
-    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-ext-" + booking.id;
     attachments = [{
       filename: "parking-spot.png",

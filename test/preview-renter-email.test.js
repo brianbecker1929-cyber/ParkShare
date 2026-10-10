@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import previewRenterEmail from "../api/preview-renter-email.js";
+import previewHostEmail from "../api/preview-host-email.js";
+import { sampleEmailBooking } from "../api/_email-preview.js";
 
 function response() {
   return {
@@ -45,5 +47,42 @@ test("current renter email is previewable without charging or sending", async ()
   } finally {
     if (previous === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = previous;
+  }
+});
+
+test("all five email previews display the same high-resolution silver vehicle PNG", async () => {
+  const previous = process.env.VERCEL_ENV;
+  process.env.VERCEL_ENV = "preview";
+  try {
+    let expectedMap;
+    for (const template of ["host", "confirmation", "extension", "halfway", "ending"]) {
+      const res = response();
+      const handler = template === "host" ? previewHostEmail : previewRenterEmail;
+      await handler({ method: "GET", query: { template, vehicle: "silver", spot: "D" } }, res);
+      assert.equal(res.statusCode, 200, template);
+      const maps = [...res.html.matchAll(/<img[^>]*src="(data:image\/png;base64,[^"]+)"[^>]*width="420"/g)];
+      assert.equal(maps.length, 1, template + " must include one enlarged driveway");
+      expectedMap ||= maps[0][1];
+      assert.equal(maps[0][1], expectedMap, template + " must preserve the same vehicle and Spot D");
+      assert.match(res.html, /Spot D/);
+      assert.doesNotMatch(res.html, /\[[A-Z_]+\]|cid:parking-spot-demo|height:260px; width:auto/);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = previous;
+  }
+});
+
+test("preview selectors only choose fixed demo vehicles and protect A-D labels", () => {
+  for (const spot of ["A", "B", "C", "D"]) {
+    const sample = sampleEmailBooking({ vehicle: "yellow", spot });
+    assert.equal(sample.vehicle.vehicle_colour, "Yellow");
+    assert.equal(sample.spotLabel, spot);
+    assert.equal(sample.spotStates[sample.chosenIndex], true);
+    assert.equal(sample.spotStates.filter(Boolean).length, 1);
+  }
+  for (const query of [{ vehicle: "<script>", spot: "<script>" }, { vehicle: ["silver"], spot: ["A"] }]) {
+    assert.equal(sampleEmailBooking(query).vehicle.vehicle_colour, "Orange");
+    assert.equal(sampleEmailBooking(query).spotLabel, "B");
   }
 });

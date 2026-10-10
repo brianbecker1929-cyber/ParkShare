@@ -52,7 +52,7 @@ test("premium shared SVG uses real body-specific silhouettes and layered details
   assert.doesNotMatch(drivewayCarShapes(DEMO_VEHICLES[0]), /data-ps-pickup-bed="true"/, "SUV has no pickup bed");
 });
 
-test("email PNG uses exact shared SVG and enlarges booked vehicle inside Spot B", async () => {
+test("email PNG uses same approved artwork and enlarges booked vehicle inside Spot B", async () => {
   const silver = DEMO_VEHICLES[0];
   const orange = DEMO_VEHICLES[1];
   const [silverImg, orangeImg] = await Promise.all([
@@ -60,15 +60,15 @@ test("email PNG uses exact shared SVG and enlarges booked vehicle inside Spot B"
     renderParkingSpotImage([false,true,false,false], 1, orange),
   ]);
   const [a,b] = await Promise.all([sharp(silverImg).metadata(),sharp(orangeImg).metadata()]);
-  assert.equal(a.width, 500);
-  assert.equal(b.width, 500);
+  assert.equal(a.width, 1000);
+  assert.equal(b.width, 1000);
   assert.equal(a.format, "png");
   assert.notDeepEqual(silverImg, orangeImg);
   const email = await readFile(new URL("../api/_driveway-image.js", import.meta.url), "utf8");
   assert.match(email, /premiumVehicleBuffer\(vehicle\)/);
   assert.match(email, /booked\.w \* \.96/);
-  assert.match(email, /booked\.h \* \.76/);
-  assert.match(email, /pixelLabel\("RESERVED"/);
+  assert.match(email, /booked\.h \* \.83/);
+  assert.doesNotMatch(email, /pixelLabel\("RESERVED"/);
   assert.match(email, /pixelLabel\(`SPOT/);
 });
 

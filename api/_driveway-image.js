@@ -145,10 +145,8 @@ export function deriveEmailSpotStates(listing = {}, chosenIndex = -1) {
 }
 
 /**
- * @param {boolean[]} spotStates - 4 booleans, is-this-spot-for-rent. Since
- *   there's no real per-spot "for rent" data in the schema (only a total
- *   `spaces` count), callers should derive this the same way the frontend
- *   does: `[0,1,2,3].map(i => i < spaces)`.
+ * @param {boolean[]} spotStates - 4 booleans from deriveEmailSpotStates(),
+ *   respecting the Host's configured rentable bays and this booking's spot.
  * @param {number|null} chosenIndex - 0-3, which spot this booking picked.
  * @param {object|null} vehicle - Stripe-confirmed vehicle snapshot, including colour.
  * @returns {Promise<Buffer>} PNG image buffer.
@@ -159,22 +157,22 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
   const rects = boxes.map((b, i) => {
     const isChosen = chosenIndex === i;
     const isAvailable = spotStates ? !!spotStates[i] : true;
-    const fill = isChosen ? "#FFF8E1" : isAvailable ? "#F7F3E7" : "#EAE6DA";
-    const stroke = isChosen ? "#FFC107" : isAvailable ? COLORS.moss : "#B0AA9C";
+    const fill = isChosen ? "#E9F2ED" : isAvailable ? "#F7F3E7" : "#EAE6DA";
+    const stroke = isChosen ? COLORS.hazard : isAvailable ? COLORS.moss : "#B0AA9C";
     const strokeWidth = isChosen ? 10 : 4;
     const cx = b.x + b.w / 2;
-    // The selected car is larger, so move ONLY its text bands outward:
-    // label remains at the top; RESERVED remains below the vehicle.
-    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * (isChosen ? 0.035 : 0.16), 4.2, COLORS.navy);
+    // Keep every selected A-D label inside the orange outline, with the
+    // same left nudge as the website. The car has the remaining bay height.
+    const label = pixelLabel(`SPOT ${b.label}`, cx - (isChosen ? 4 : 0), b.y + b.h * (isChosen ? 0.055 : 0.16), isChosen ? 3.7 : 4.2, COLORS.navy);
     const status = isChosen
-      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.915, 3.1, COLORS.navy)
+      ? ""
       : isAvailable
         ? pixelLabel("AVAILABLE", cx, b.y + b.h * 0.83, 2.9, COLORS.moss)
         : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
           + pixelLabel("RENT", cx, b.y + b.h * 0.85, 3.2, COLORS.muted);
 
     // The actual PNG/WebP vehicle asset is composited AFTER the spot labels.
-    // Reserve its own vertical band: the label is above and RESERVED below.
+    // No footer inside the selected bay, matching the approved spot picker.
     const symbol = isChosen && hasDrivewayVehicle(vehicle)
       ? ""
       : isAvailable
@@ -206,16 +204,12 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
   let withCar = composited;
   const booked = Number.isInteger(chosenIndex) ? boxes[chosenIndex] : null;
   if (booked && hasDrivewayVehicle(vehicle)) {
-    // Final approved orange Lexus footprint: size the REAL transparent
-    // WebP relative to its reserved bay, not a fixed icon pixel width.
-    // The image is contained inside a 96%-wide, 76%-high central window.
-    // TOP 'SPOT B' runs ~3.5–10.7%; car ~12.0–88.0%;
-    // RESERVED starts at 91.5%. Car/text/border never overlap.
-    // Works for all six body classes without changing vehicle colour mapping.
+    // Reuse the website's tightly cropped detailed body/colour artwork.
+    // Label occupies the top band; car fills the rest with a clean margin.
     const carWidth = Math.max(1, Math.round(booked.w * .96));
-    const carHeight = Math.max(1, Math.round(booked.h * .76));
+    const carHeight = Math.max(1, Math.round(booked.h * .83));
     const carX = Math.round(booked.x + (booked.w - carWidth) / 2);
-    const carY = Math.round(booked.y + booked.h * .12);
+    const carY = Math.round(booked.y + booked.h * .13);
     const photo = await sharp(await premiumVehicleBuffer(vehicle))
       .resize(carWidth, carHeight, { fit: "contain", background: "#00000000" })
       .png()
@@ -227,7 +221,7 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
   }
 
   return sharp(withCar)
-    .resize(500) // email-appropriate width, keeps the template's aspect ratio
-    .png({ quality: 85 })
+    .resize(1000) // >2x the displayed 420px width for crisp email/retina detail
+    .png({ compressionLevel: 9 })
     .toBuffer();
 }

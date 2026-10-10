@@ -141,7 +141,7 @@ export default `<!DOCTYPE html>
                 <tr>
                   <td align="center">
                     <p style="margin:0 0 9px 0; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.45px; color:#1c2b4a; text-align:center;">Your Parking Spot</p>
-                    <img src="[SPOT_MAP_IMAGE_URL]" alt="Your parking spot: [SPOT_LABEL]" style="display:block; height:260px; width:auto; max-width:100%; margin:0 auto; border-radius:7px; border:1px solid #e2e6ee;">
+                    <img src="[SPOT_MAP_IMAGE_URL]" width="420" alt="Your parking spot: [SPOT_LABEL]" style="display:block; width:420px; height:auto; max-width:100%; margin:0 auto; border-radius:7px; border:1px solid #e2e6ee;">
                   </td>
                 </tr>
             </table>

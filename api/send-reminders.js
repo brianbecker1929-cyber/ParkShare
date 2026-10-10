@@ -26,7 +26,7 @@
 
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
-import { renderParkingSpotImage } from "./_driveway-image.js";
+import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 
 const ENDING_SOON_MINUTES = 15;
 
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
   const since = new Date(now.getTime() - 31 * 24 * 3600 * 1000).toISOString();
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, spot_label, reminder_halfway_sent_at, reminder_ending_sent_at")
+    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, reminder_halfway_sent_at, reminder_ending_sent_at")
     .eq("status", "confirmed")
     .not("paid_at", "is", null)
     .gte("paid_at", since)
@@ -121,7 +121,7 @@ function dayLabel(date, now) {
 async function sendReminder(booking, kind) {
   const { data: listing } = await supabaseAdmin
     .from("listings")
-    .select("title, address, spaces, host_id")
+    .select("title, address, spaces, spots, host_id")
     .eq("id", booking.listing_id)
     .single();
   const { data: renter } = await supabaseAdmin
@@ -154,12 +154,11 @@ async function sendReminder(booking, kind) {
   // BOTH reminder kinds now, since both templates have an image slot.
   let spotImageCid, attachments;
   try {
-    const spaces = listing?.spaces || 1;
-    const spotStates = [0, 1, 2, 3].map(i => i < spaces);
     const chosenIndex = booking.spot_label
       ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
       : null;
-    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex);
+    const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
+    const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-" + booking.id;
     attachments = [{
       filename: "parking-spot.png",
