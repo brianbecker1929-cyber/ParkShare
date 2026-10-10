@@ -79,7 +79,7 @@ function escapeBookingHtml(value) {
 // Do not CC the Host on the Driver email. All booking values are HTML-escaped.
 export function hostBookingNotificationHtml({
   hostName, address, spotLabel, vehicle, startLabel, endLabel, bookingId,
-  driverName, spotImageCid, spotImageSrc, logoUrl,
+  driverName, spotImageCid, spotImageSrc, logoCid, logoSrc,
 }) {
   const e = escapeBookingHtml;
   const label = /^[A-Z]$/.test(String(spotLabel || "").trim().toUpperCase())
@@ -92,11 +92,18 @@ export function hostBookingNotificationHtml({
   // for a synthetic, preview-only browser render (no real customer data).
   const imageSrc = spotImageSrc || (spotImageCid ? `cid:${spotImageCid}` : "");
   const safeSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+)$/.test(imageSrc) ? imageSrc : "";
+  // Hosted email uses an image attachment with content_id (CID).
+  // Visual preview can inline the same PNG as a data URI; neither depends
+  // on Vercel's protected deployment asset URLs loading in a mail client.
+  const logoCandidate = logoSrc || (logoCid ? `cid:${logoCid}` : "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
+  const safeLogoSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(logoCandidate)
+    ? logoCandidate
+    : "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
   const mapBlock = safeSrc
     ? `<img src="${e(safeSrc)}" width="300" alt="Top-down diagram showing the ${e(colour)} ${e(car)} in ${e(label)}" style="display:block;width:300px;max-width:100%;height:auto;margin:0 auto;border:1px solid #e2e6ee;border-radius:8px;">`
     : '<p style="margin:0;font-size:12px;color:#71695a;">Driveway preview unavailable. Refer to the spot label above.</p>';
   return fillTemplate(hostBookingTemplate, {
-    HOST_LOGO_URL: e(logoUrl || "https://www.myparkshare.ca/email/parkshare-signature-logo.png"),
+    HOST_LOGO_URL: e(safeLogoSrc),
     HOST_NAME: e(hostName || "Host"),
     PROPERTY_ADDRESS: e(address || "Property address unavailable"),
     DRIVER_NAME: e(driverName || "ParkShare Driver"),
