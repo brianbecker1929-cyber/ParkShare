@@ -357,6 +357,23 @@ async function sendBookingConfirmationEmail(booking) {
 
   const address = listing?.address || "";
 
+  // Generate the same approved William-and-Parker signature logo for both
+  // booking recipients. Each email has its own attachment list, keeping
+  // customer and Host email content separate.
+  let hostLogoCid;
+  const bookingAttachments = [...(attachments || [])];
+  try {
+    const logoBuffer = await renderHostLogoPng();
+    hostLogoCid = "parkshare-signature-logo-" + booking.id;
+    bookingAttachments.push({
+      filename: "parkshare-signature-logo.png",
+      content: logoBuffer.toString("base64"),
+      content_id: hostLogoCid,
+    });
+  } catch (err) {
+    console.error("Unable to embed booking signature logo; using hosted PNG fallback:", err);
+  }
+
   // Separate host notification prevents exposing renter email and unrelated
   // confirmation content through CC.
   const notifications = [];
@@ -378,6 +395,7 @@ async function sendBookingConfirmationEmail(booking) {
       vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
       vehiclePlate: booking.license_plate || "Not provided",
       spotImageCid,
+      logoCid: hostLogoCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       // TODO: confirm this route actually exists in your app — this is a
       // guess based on common patterns, not read from your frontend router.
@@ -385,28 +403,23 @@ async function sendBookingConfirmationEmail(booking) {
       supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
-    attachments,
+    attachments: bookingAttachments,
   }));
   if (hostEmail && hostEmail.toLowerCase() !== renter?.email?.toLowerCase()) {
-    // Embed exactly the site's approved signature logo inside the Host
-    // email, rather than loading a deployment-specific asset URL. The
-    // driver email's existing assets/attachments remain untouched.
-    let hostLogoCid;
+    // The Host receives the shared brand logo and their separate William
+    // portrait. The Renter never receives Host-only artwork.
     let hostPortraitCid;
-    const hostAttachments = [...(attachments || [])];
+    const hostAttachments = [...bookingAttachments];
     try {
-      const [logoBuffer, portraitBuffer] = await Promise.all([
-        renderHostLogoPng(),
-        renderHostPortraitPng(),
-      ]);
-      hostLogoCid = "parkshare-signature-logo-" + booking.id;
+      const portraitBuffer = await renderHostPortraitPng();
       hostPortraitCid = "parkshare-william-portrait-" + booking.id;
-      hostAttachments.push(
-        { filename: "parkshare-signature-logo.png", content: logoBuffer.toString("base64"), content_id: hostLogoCid },
-        { filename: "parkshare-william-portrait.png", content: portraitBuffer.toString("base64"), content_id: hostPortraitCid },
-      );
+      hostAttachments.push({
+        filename: "parkshare-william-portrait.png",
+        content: portraitBuffer.toString("base64"),
+        content_id: hostPortraitCid,
+      });
     } catch (err) {
-      console.error("Unable to embed Host email artwork; falling back to hosted images:", err);
+      console.error("Unable to embed Host William portrait; using hosted fallback:", err);
     }
     notifications.push(sendEmail({
       to: hostEmail,
