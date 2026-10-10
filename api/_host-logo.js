@@ -14,3 +14,30 @@ export async function renderHostLogoPng() {
     .png({ compressionLevel: 9 })
     .toBuffer();
 }
+
+
+// Email-ready waist-up William, derived from the existing approved mascot.
+// Crop the transparent source before rendering, not with CSS overflow/position:
+// several email clients ignore those properties. A tightly trimmed PNG lets
+// the visible bottom of William meet the navy booking-status banner exactly.
+const APPROVED_WILLIAM = path.join(process.cwd(), "public", "william-v3", "masters", "ParkShare_William_05_Presenting.png");
+
+export async function renderHostPortraitPng() {
+  const original = readFileSync(APPROVED_WILLIAM);
+  const trimmed = await sharp(original)
+    .trim({ threshold: 12 })
+    .ensureAlpha()
+    .png()
+    .toBuffer();
+  const { width, height } = await sharp(trimmed).metadata();
+  if (!width || !height) throw new Error("Approved William mascot could not be trimmed");
+
+  // Keeps the cap, face, raised hand, yellow tie, vest and waist. Removes legs,
+  // feet and empty transparent padding; prevents William floating above banner.
+  const waistHeight = Math.max(1, Math.min(height, Math.round(height * 0.68)));
+  return sharp(trimmed)
+    .extract({ left: 0, top: 0, width, height: waistHeight })
+    .resize({ width: 460, withoutEnlargement: true })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
