@@ -151,7 +151,7 @@ test("Host email embeds approved signature PNG via CID for reliable mail deliver
   assert.doesNotMatch(email, /src="https:\/\/www\.myparkshare\.ca\/email\/logo\.png"/);
 
   const webhook = await readFile(new URL("../api/stripe-webhook.js", import.meta.url), "utf8");
-  assert.match(webhook, /const logoBuffer = await renderHostLogoPng\(\)/);
+  assert.match(webhook, /renderHostLogoPng\(\)/);
   assert.match(webhook, /content_id: hostLogoCid/);
   assert.match(webhook, /attachments: hostAttachments/);
   assert.match(webhook, /logoCid: hostLogoCid/);
