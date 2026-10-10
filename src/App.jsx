@@ -3703,11 +3703,19 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
           const isAvailable = hostEnabled && liveFree;
           const isChosen = chosen === i;
           return (
-            <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
+            <button key={l} className={`ps-spot-picker-bay${isChosen ? " is-selected" : ""}`} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
               borderRadius: 10, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
               border: isChosen ? "4px solid " + C.hazard : "3px solid " + (isAvailable ? C.moss : "#B0AA9C"),
               background: isChosen ? C.mossLight : isAvailable ? "#F7F3E7" : "#EAE6DA", opacity: isAvailable ? 1 : 0.8,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
+              // Selected spots use two dedicated rows: readable Spot label,
+              // then the remaining bay entirely for the approved vehicle.
+              // Unselected availability/unavailable spots keep their layout.
+              display: isChosen ? "grid" : "flex",
+              gridTemplateColumns: isChosen ? "minmax(0, 1fr)" : undefined,
+              gridTemplateRows: isChosen ? "min-content minmax(0, 1fr)" : undefined,
+              flexDirection: "column", alignItems: "center",
+              justifyContent: isChosen ? "stretch" : "center",
+              gap: isChosen ? 1 : 4, padding: "3% 3%", overflow: "hidden",
               fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
@@ -3719,7 +3727,11 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
               ) : (
                 <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
               )}
-              <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
+              {/* Selection is conveyed by the orange bay outline and vehicle.
+                  No "Your spot" label stealing height from the car. */}
+              {!isChosen && (
+                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
+              )}
             </button>
           );
         })}
