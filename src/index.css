@@ -9056,29 +9056,32 @@ div:has(> button[aria-label="ParkShare help"])
   }
 }
 
-/* Approved high-detail WebP cars fill ~12% more of each reserved bay.
-   Their transparent masters stay contained, with space for Spot labels above
-   and RESERVED below. All booking/Host/Driver views use this shared class. */
+/* Approved orange Lexus reference sets the final large, realistic car
+   footprint. Scale to each actual bay (no 78/129/148px icon-style caps).
+   The top SPOT label and bottom RESERVED status retain their own room.
+   Identical WebP body type + colour assets are used across Driver/Host views. */
 .ps-driveway-car-roof {
   display: block;
-  width: 93%;
-  height: 74%;
-  max-width: 148px;
+  width: 96%;
+  height: 79%;
+  max-width: none;
+  max-height: 81%;
   min-height: 0;
-  flex: 0 1 74%;
+  flex: 0 1 79%;
   object-fit: contain;
   filter: drop-shadow(0 3px 4px rgba(14, 27, 46, .25));
 }
 .ps-booked-spot > img.ps-driveway-car-roof {
-  width: 92%;
-  height: 75%;
-  max-width: 129px;
-  max-height: 76%;
+  width: 96%;
+  height: 79%;
+  max-width: none;
+  max-height: 81%;
 }
 .ps-booking-parking-details.is-compact .ps-booked-spot > img.ps-driveway-car-roof {
-  width: 90%;
-  height: 72%;
-  max-width: 78px;
+  width: 96%;
+  height: 78%;
+  max-width: none;
+  max-height: 80%;
 }
 .ps-satellite-booked-car .ps-driveway-car-roof {
   width: 100%;
