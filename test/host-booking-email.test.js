@@ -31,7 +31,7 @@ test("Host booking email has Driver-quality branding with William and host-speci
   assert.match(html, /background:#1b2b3a;padding:12px 19px;border-radius:0;/);
   assert.doesNotMatch(html, /border-radius:8px 8px 0 0;/);
   assert.match(html, /padding:14px 29px 0 29px/);
-  assert.match(html, /min-width:155px;vertical-align:bottom;padding:0;line-height:0;font-size:0/);
+  assert.match(html, /min-width:181px;vertical-align:bottom;padding:0;line-height:0;font-size:0/);
   assert.match(html, /NEW BOOKING/);
   assert.match(html, /CONFIRMED!/);
   assert.match(html, /Hi <strong>Sample Host<\/strong>/);
