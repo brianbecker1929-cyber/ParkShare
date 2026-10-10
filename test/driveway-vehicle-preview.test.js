@@ -59,7 +59,13 @@ test("Stripe email uses the same parked car graphic and sends a separate host no
 
 test("spot selection expands saved vehicle cards and blocks confirmation until selected", async () => {
   const app = await read("../src/App.jsx");
-  assert.match(app, /const chooseSpot = \(index\) => \{\s*setChosenSpot\(index\);\s*setSpotVehiclePickerOpen\(true\);/);
+  // Selecting a spot defaults to a complete primary vehicle immediately.
+  // A deliberately selected guest remains selected until the renter switches.
+  assert.match(app, /const chooseSpot = \(index\) => \{/);
+  assert.match(app, /bookableVehicles\.find\(vehicle => vehicle\.id === "primary"\)/);
+  assert.match(app, /const defaultVehicle = existingVehicle/);
+  assert.match(app, /if \(!existingVehicle && defaultVehicle\) setSelectedVehicleId\(defaultVehicle\.id\)/);
+  assert.match(app, /setSpotVehiclePickerOpen\(!defaultVehicle\)/);
   assert.match(app, /<section className="ps-spot-vehicle-panel" ref=\{spotVehiclePickerRef\}/);
   assert.match(app, /Select your vehicle to preview it in the driveway/);
   assert.match(app, /role="radiogroup" aria-label="Select your parking vehicle"/);
