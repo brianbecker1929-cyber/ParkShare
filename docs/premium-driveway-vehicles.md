@@ -65,3 +65,16 @@ The later approved Spot B orange Lexus screenshot supersedes the earlier increme
 The **same six approved WebP masters, vehicle class/colour resolver, booking-selected vehicle snapshot and rendered confirmation image** remain in service. This is a rendering-only scale update, not a data-flow or booking change.
 
 Regression coverage includes the final bay-relative dimensions, no tiny pixel caps, label boundaries and PNG output for all six selected body types (`test/approved-vehicle-scale.test.js`). Review the actual Vercel preview before any merge.
+
+
+## October 10 visual QA: photo assets were still too small on the website
+
+Actual mobile screenshots showed a **silver BMW X4 in Spot A** with a small visual footprint, while the Renter and Host email previews showed an **orange Lexus LC in Spot B**. These are two different bookings/vehicles, not a mismatch in which car the emails selected.
+
+Root cause: some approved master WebPs contained substantial **transparent padding around the visible vehicle**. The browser's `object-fit:contain` was correctly fitting the *canvas*, but that canvas could contain a visibly smaller vehicle even with 96% × 79% CSS sizing. Further percentage growth alone could not fix it.
+
+Correction: `api/_premium-vehicle.js` now generates a **tight visible-alpha crop** from each approved master (alpha threshold 32), with ~2% artwork margin to protect mirrors/tyres/shadows. The result is cached per body class and reused by the public vehicle URL and the Sharp email diagrams. The original six WebP source files, profile colour mapping and model/body silhouettes are unchanged. Recolouring happens *after* cropping so a silver BMW X4 and blue BMW X4 have identical properly filled bounding boxes.
+
+QA: `test/premium-vehicle-alpha-crop.test.js` asserts the visible car occupies at least 91% of the *image's* width and height for all six body classes and for recoloured variants, while email diagrams remain renderable.
+
+The next preview review should check that the **silver BMW X4 in the Spot A website flow** now appears close to the approved orange Lexus footprint, without overlapping 'Spot A' or 'Your spot'. The website and confirmation email previews are synthetic/review-only. Do not merge until approved.
