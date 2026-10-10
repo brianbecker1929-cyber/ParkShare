@@ -48,3 +48,20 @@ The original six approved transparent WebP masters are unchanged; the **displaye
 The bookable area, reserved outline, car colour/body selection, host/driver booking snapshots and email branding are unchanged. All images still use `object-fit:contain` / Sharp `fit:contain` to avoid distortion and leave a small margin.
 
 See `test/approved-vehicle-scale.test.js` for numeric growth bounds and label-clearance checks.
+
+
+## Final locked orange Lexus reference footprint (October 10, 2026)
+
+The later approved Spot B orange Lexus screenshot supersedes the earlier incremental 12% sizing experiment. The issue was not image quality; limiting the vehicle to 66% of the parking-bay height (plus hard CSS pixel caps) kept it visibly undersized.
+
+**Final bay-relative placement:**
+
+- Website SpotPicker and checkout selected vehicle: **96% available width / 79% available height**, `object-fit:contain`, no 148px image-width cap.
+- Driver and Host full booking cards: **96% available width / 79% available height**, no 129px cap.
+- Compact booking cards: **96% available width / 78% available height**, no 78px cap.
+- Shared Host/Renter email driveway PNG: **96% bay width / 76% bay height**, centred at 12% below the selected bay top. Actual art's visible footprint is subject to transparent-image aspect ratio, with the coupe expected to occupy about 73–76% of bay height.
+- Email selected SPOT label begins 3.5% down the bay, with RESERVED at 91.5%. The image region runs from 12% to 88%, giving clear gap between all three. Unselected bay labels and driveway texture remain unchanged.
+
+The **same six approved WebP masters, vehicle class/colour resolver, booking-selected vehicle snapshot and rendered confirmation image** remain in service. This is a rendering-only scale update, not a data-flow or booking change.
+
+Regression coverage includes the final bay-relative dimensions, no tiny pixel caps, label boundaries and PNG output for all six selected body types (`test/approved-vehicle-scale.test.js`). Review the actual Vercel preview before any merge.
