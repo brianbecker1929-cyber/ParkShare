@@ -3732,7 +3732,17 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
               fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span className="ps-spot-picker-label" style={{ fontWeight: 800, fontSize: isChosen ? 12 : 13, lineHeight: 1.25, textAlign: "center", width: "100%", whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
+              <span className="ps-spot-picker-label" style={{
+                fontWeight: 800, fontSize: isChosen ? 12 : 13, lineHeight: 1.25,
+                textAlign: "center", width: "100%", boxSizing: "border-box",
+                whiteSpace: "nowrap", flexShrink: 0,
+                // Selected labels (A-D) must stay inside even the narrowest mobile
+                // orange outline. Right-side inset nudges text left; horizontal
+                // compression adds clearance without changing the label row's
+                // height, vehicle footprint, or surrounding driveway layout.
+                paddingRight: isChosen ? 4 : 0,
+                transform: isChosen ? "scaleX(0.86)" : undefined,
+              }}>Spot {l}</span>
               {isChosen && hasDrivewayVehicle(vehicle) ? (
                 <DrivewayCarVisual vehicle={vehicle} />
               ) : isChosen ? (
