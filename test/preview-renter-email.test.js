@@ -33,7 +33,12 @@ test("current renter email is previewable without charging or sending", async ()
     assert.match(demo.html, /Lexus LC · Orange/);
     assert.match(demo.html, /7:36 p\.m\./);
     assert.match(demo.html, /8:36 p\.m\./);
-    assert.match(demo.html, /data:image\/png;base64,/);
+    const images = demo.html.match(/data:image\/png;base64,/g) || [];
+    assert.equal(images.length, 2, "Approved brand logo and parking illustration both render inline");
+    assert.match(demo.html, /ParkShare — William and Parker with the signature wordmark/);
+    assert.doesNotMatch(demo.html, /email\/logo\.png/);
+    assert.match(demo.html, /width="260"/);
+    assert.match(demo.html, /parker-v3\/masters\/ParkShare_Parker_04_ParkShare_App\.png/);
     assert.doesNotMatch(demo.html, /cid:parking-spot-demo/);
     assert.equal(demo.headers["X-Robots-Tag"], "noindex, nofollow");
     assert.equal(demo.headers["Cache-Control"], "no-store");
