@@ -11,23 +11,8 @@
 //                     own account email using onboarding@resend.dev — fine
 //                     for testing, not for real users.
 //
-// CHANGE LOG (this revision):
-//   - halfwayReminderHtml() now renders from the new reminder-halfway
-//     template — same visual design as the confirmation and ending-soon
-//     reminder emails (navy header, white body, stacked spot map, ESKA
-//     footer). All three email types are now visually consistent.
-//   - Removed the old inline-HTML halfway design (shell/brandHeader/
-//     confirmationDetailRow helpers) — nothing references them anymore.
-//   - halfwayReminderHtml()'s signature changed to match endingReminderHtml()
-//     (now needs hostName, locationId, directionsUrl, manageReservationUrl,
-//     supportEmail, supportPhone — see send-reminders.js for the update
-//     that supplies these).
-//   - KNOWN GAP: the confirmation template has no price/payment summary and
-//     no "booked in advance vs. already started" distinction — both of
-//     which the old design showed. That content was intentionally not
-//     smuggled back into your finished template; flagging it here so it's
-//     a deliberate decision, not a silent regression. See stripe-webhook.js
-//     comments at the confirmationEmailHtml() call site.
+// All five notifications share the approved compact Booking Ticket layout.
+// Customer fields are escaped; booking-specific images remain inline CID PNGs.
 
 import { fillTemplate } from "./emails/_render.js";
 import confirmationTemplate from "./emails/templates/_parking-confirmation.template.js";
@@ -74,220 +59,102 @@ function escapeBookingHtml(value) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-// All five templates use the approved signature logo. Actual sends embed it
-// via CID; synthetic previews inline it, with a hosted PNG as the fallback.
-function signatureLogoUrl({ logoSrc, logoCid }) {
-  const fallback = "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
-  const candidate = logoSrc || (logoCid ? `cid:${logoCid}` : fallback);
-  return /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(candidate)
+// Real mail uses CID attachments, sample previews use inline data, and each
+// approved image has a hosted PNG fallback produced by the production build.
+function approvedImageUrl({ src, cid }, fallback) {
+  const candidate = src || (cid ? `cid:${cid}` : fallback);
+  return /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+)$/.test(candidate) || candidate === fallback
     ? candidate : fallback;
 }
-
-// Send a separate, fully branded Host notification using the same table-based
-// email design, typography, palette and footer as the Driver confirmation.
-// Do not CC the Host on the Driver email. All booking values are HTML-escaped.
-export function hostBookingNotificationHtml({
-  hostName, address, spotLabel, vehicle, startLabel, endLabel, bookingId,
-  driverName, spotImageCid, spotImageSrc, logoCid, logoSrc, portraitCid, portraitSrc,
-}) {
+function signatureLogoUrl({ logoSrc, logoCid }) {
+  return approvedImageUrl({ src: logoSrc, cid: logoCid }, "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
+}
+function portraitUrl({ portraitSrc, portraitCid }, host = false) {
+  return approvedImageUrl({ src: portraitSrc, cid: portraitCid }, `https://www.myparkshare.ca/email/parkshare-${host ? 'william' : 'parker'}-portrait.png`);
+}
+function actionUrl(value) {
+  return /^https:\/\/[^\s<>]+$/.test(String(value || "")) ? value : "https://www.myparkshare.ca/my-bookings";
+}
+function mapBlock({ spotImageSrc, spotImageCid }, alt) {
+  const src = approvedImageUrl({ src: spotImageSrc, cid: spotImageCid }, "");
+  return src
+    ? `<img class="ps-ticket-map" src="${escapeBookingHtml(src)}" width="180" alt="${escapeBookingHtml(alt)}" style="display:block;width:180px;max-width:100%;height:auto;margin:5px auto 0;border-radius:8px;border:0;">`
+    : '<p style="margin:5px 0 0;font-size:12px;line-height:17px;color:#617080;">Driveway preview unavailable. Refer to the spot label above.</p>';
+}
+function spotLabel(value) {
+  const label = String(value || "").trim().toUpperCase();
+  return /^[A-D]$/.test(label) ? `Spot ${label}` : "Spot not specified";
+}
+function bookingNumber({ confirmationNumber, bookingId }) {
+  return confirmationNumber || (bookingId != null ? `PK-${bookingId}` : "Not provided");
+}
+function driverTicketFields(args) {
   const e = escapeBookingHtml;
-  const label = /^[A-Z]$/.test(String(spotLabel || "").trim().toUpperCase())
-    ? `Spot ${String(spotLabel).trim().toUpperCase()}` : "Spot not specified";
-  const car = [vehicle?.vehicle_make || vehicle?.vehicleMake, vehicle?.vehicle_model || vehicle?.vehicleModel]
-    .filter(Boolean).join(" ") || "Vehicle not specified";
-  const colour = vehicle?.vehicle_colour || vehicle?.vehicleColour || "Colour not specified";
-  const plate = String(vehicle?.license_plate || vehicle?.licensePlate || "Not provided").toUpperCase();
-  // Resend CID attachment in real emails; a PNG data URL is allowed strictly
-  // for a synthetic, preview-only browser render (no real customer data).
-  const imageSrc = spotImageSrc || (spotImageCid ? `cid:${spotImageCid}` : "");
-  const safeSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+)$/.test(imageSrc) ? imageSrc : "";
-  // Hosted email uses an image attachment with content_id (CID).
-  // Visual preview can inline the same PNG as a data URI; neither depends
-  // on Vercel's protected deployment asset URLs loading in a mail client.
-  const safeLogoSrc = signatureLogoUrl({ logoSrc, logoCid });
-  // The approved William waist-up PNG is embedded for email-client reliability.
-  const portraitCandidate = portraitSrc || (portraitCid ? `cid:${portraitCid}` : "https://www.myparkshare.ca/william-v3/masters/ParkShare_William_05_Presenting.png");
-  const safePortraitSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/william-v3\/masters\/ParkShare_William_05_Presenting\.png)$/.test(portraitCandidate)
-    ? portraitCandidate
-    : "https://www.myparkshare.ca/william-v3/masters/ParkShare_William_05_Presenting.png";
-  const mapBlock = safeSrc
-    ? `<img src="${e(safeSrc)}" width="420" alt="Top-down diagram showing the ${e(colour)} ${e(car)} in ${e(label)}" style="display:block;width:420px;max-width:100%;height:auto;margin:0 auto;border:1px solid #e2e6ee;border-radius:8px;">`
-    : '<p style="margin:0;font-size:12px;color:#71695a;">Driveway preview unavailable. Refer to the spot label above.</p>';
-  return fillTemplate(hostBookingTemplate, {
-    HOST_LOGO_URL: e(safeLogoSrc),
-    HOST_PORTRAIT_URL: e(safePortraitSrc),
-    HOST_NAME: e(hostName || "Host"),
-    PROPERTY_ADDRESS: e(address || "Property address unavailable"),
-    DRIVER_NAME: e(driverName || "ParkShare Driver"),
-    SPOT_LABEL: e(label),
-    BOOKING_NUMBER: e(`PK-${bookingId}`),
-    START_DATE_TIME: e(startLabel || "Not provided"),
-    END_DATE_TIME: e(endLabel || "Not provided"),
-    START_TIME_SUMMARY: e(startLabel || "Not provided"),
-    VEHICLE_DETAILS: e(`${car} · ${colour}`),
-    VEHICLE_PLATE: e(plate),
-    SPOT_MAP_BLOCK: mapBlock,
-    HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
-  });
-}
-
-// ---------------------------------------------------------------------
-// Booking confirmation
-// ---------------------------------------------------------------------
-//
-// spotImageCid: if provided, the spot-map image renders via the same
-// `cid:` attachment approach the old design used (the image is generated
-// fresh per booking, so it can't be a static hosted URL). If it's missing
-// (image generation failed upstream), we fall back to hiding the image
-// row entirely rather than leaving a broken image in the email.
-export function confirmationEmailHtml({
-  renterName,
-  hostName,
-  address,
-  locationId,
-  spotLabel,
-  confirmationNumber,
-  startDateLabel,
-  startTimeStr,
-  entryDateFull,
-  endTimeStr,
-  exitDateFull,
-  spotImageCid,
-  vehicleSummary,
-  vehiclePlate,
-  logoCid,
-  logoSrc,
-  directionsUrl,
-  manageReservationUrl,
-  supportEmail,
-  supportPhone,
-}) {
-  // Match the Host email: use a CID-embedded PNG for actual bookings and an
-  // inline image for synthetic previews, with a trusted same-origin fallback.
-  const logoUrl = signatureLogoUrl({ logoSrc, logoCid });
-  return fillTemplate(confirmationTemplate, {
-    BOOKING_LOGO_URL: escapeBookingHtml(logoUrl),
-    CUSTOMER_FIRST_NAME: renterName,
-    HOST_NAME: hostName,
-    GARAGE_ADDRESS: address,
-    LOCATION_ID: locationId,
-    SPOT_LABEL: spotLabel ? `Spot ${spotLabel}` : "—",
-    CONFIRMATION_NUMBER: confirmationNumber,
-    SESSION_START_DATE_LABEL: startDateLabel,
-    SESSION_START_TIME: startTimeStr,
-    ENTRY_DATE_FULL: entryDateFull,
-    SESSION_END_TIME: endTimeStr,
-    EXIT_DATE_FULL: exitDateFull,
-    SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
-    BOOKED_VEHICLE_SUMMARY: escapeBookingHtml(vehicleSummary || "Vehicle not specified"),
-    BOOKED_VEHICLE_PLATE: escapeBookingHtml(vehiclePlate || "Not provided"),
-    DIRECTIONS_URL: directionsUrl,
-    MANAGE_RESERVATION_URL: manageReservationUrl,
-    SUPPORT_EMAIL: supportEmail,
-    SUPPORT_PHONE: supportPhone,
-    CURRENT_YEAR: new Date().getFullYear(),
-  });
-}
-
-// ---------------------------------------------------------------------
-// Shared field-mapping for the two reminder emails — same shape, just a
-// different template and different framing of TIME_REMAINING.
-// ---------------------------------------------------------------------
-function reminderFields({
-  logoCid,
-  logoSrc,
-  renterName,
-  hostName,
-  address,
-  locationId,
-  spotLabel,
-  timeRemaining,
-  endDateLabel,
-  endTimeStr,
-  exitDateFull,
-  spotImageCid,
-  directionsUrl,
-  manageReservationUrl,
-  extendUrl,
-  supportEmail,
-  supportPhone,
-}) {
+  const label = spotLabel(args.spotLabel);
+  const vehicle = args.vehicleSummary || "Vehicle not specified";
   return {
-    BOOKING_LOGO_URL: escapeBookingHtml(signatureLogoUrl({ logoSrc, logoCid })),
-    CUSTOMER_FIRST_NAME: renterName,
-    HOST_NAME: hostName,
-    GARAGE_ADDRESS: address,
-    LOCATION_ID: locationId,
-    SPOT_LABEL: spotLabel ? `Spot ${spotLabel}` : "—",
-    TIME_REMAINING: timeRemaining,
-    SESSION_END_DATE_LABEL: endDateLabel,
-    SESSION_END_TIME: endTimeStr,
-    EXIT_DATE_FULL: exitDateFull,
-    SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
-    DIRECTIONS_URL: directionsUrl,
-    MANAGE_RESERVATION_URL: manageReservationUrl,
-    EXTEND_URL: extendUrl,
-    SUPPORT_EMAIL: supportEmail,
-    SUPPORT_PHONE: supportPhone,
-    CURRENT_YEAR: new Date().getFullYear(),
+    BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
+    DRIVER_PORTRAIT_URL: e(portraitUrl(args)),
+    CUSTOMER_FIRST_NAME: e(args.renterName || "there"),
+    HOST_NAME: e(args.hostName || "Your host"),
+    GARAGE_ADDRESS: e(args.address || "Parking address unavailable"),
+    LOCATION_ID: e(args.locationId || "Not provided"),
+    SPOT_LABEL: e(label),
+    CONFIRMATION_NUMBER: e(bookingNumber(args)),
+    SESSION_START_TIME: e(args.startTimeStr || "Not provided"),
+    ENTRY_DATE_FULL: e(args.entryDateFull || ""),
+    SESSION_END_TIME: e(args.endTimeStr || "Not provided"),
+    EXIT_DATE_FULL: e(args.exitDateFull || ""),
+    TIME_REMAINING: e(args.timeRemaining || "Not provided"),
+    ADDED_TIME: e(args.addedTime || "Not provided"),
+    AMOUNT_CHARGED: e(args.amountCharged || "Not provided"),
+    NEW_END_TIME: e(args.newEndTime || "Not provided"),
+    NEW_END_DATE_FULL: e(args.newEndDateFull || ""),
+    BOOKED_VEHICLE_SUMMARY: e(vehicle),
+    BOOKED_VEHICLE_PLATE: e(String(args.vehiclePlate || "Not provided").toUpperCase()),
+    SPOT_MAP_BLOCK: mapBlock(args, `Top-down diagram showing ${vehicle} in ${label}`),
+    DIRECTIONS_URL: e(actionUrl(args.directionsUrl)),
+    MANAGE_RESERVATION_URL: e(actionUrl(args.manageReservationUrl)),
+    EXTEND_URL: e(actionUrl(args.extendUrl)),
   };
 }
 
-// ---------------------------------------------------------------------
-// Ending-soon reminder
-// ---------------------------------------------------------------------
-export function endingReminderHtml(args) {
-  return fillTemplate(endingReminderTemplate, reminderFields(args));
-}
-
-// ---------------------------------------------------------------------
-// Halfway reminder — now matches the confirmation/ending-reminder design.
-// ---------------------------------------------------------------------
-export function halfwayReminderHtml(args) {
-  return fillTemplate(halfwayReminderTemplate, reminderFields(args));
-}
-
-// ---------------------------------------------------------------------
-// Extension confirmed — sent after a successful "Add Additional Time"
-// payment. See stripe-webhook.js's confirmExtension() for the call site.
-// ---------------------------------------------------------------------
-export function extensionConfirmedHtml({
-  logoCid,
-  logoSrc,
-  renterName,
-  hostName,
-  address,
-  locationId,
-  spotLabel,
-  addedTime,
-  amountCharged,
-  newEndTime,
-  newEndDateFull,
-  spotImageCid,
-  directionsUrl,
-  manageReservationUrl,
-  extendUrl,
-  supportEmail,
-  supportPhone,
-}) {
-  return fillTemplate(extensionConfirmedTemplate, {
-    BOOKING_LOGO_URL: escapeBookingHtml(signatureLogoUrl({ logoSrc, logoCid })),
-    CUSTOMER_FIRST_NAME: renterName,
-    HOST_NAME: hostName,
-    GARAGE_ADDRESS: address,
-    LOCATION_ID: locationId,
-    SPOT_LABEL: spotLabel ? `Spot ${spotLabel}` : "—",
-    ADDED_TIME: addedTime,
-    AMOUNT_CHARGED: amountCharged,
-    NEW_END_TIME: newEndTime,
-    NEW_END_DATE_FULL: newEndDateFull,
-    SPOT_MAP_IMAGE_URL: spotImageCid ? `cid:${spotImageCid}` : "",
-    DIRECTIONS_URL: directionsUrl,
-    MANAGE_RESERVATION_URL: manageReservationUrl,
-    EXTEND_URL: extendUrl,
-    SUPPORT_EMAIL: supportEmail,
-    SUPPORT_PHONE: supportPhone,
-    CURRENT_YEAR: new Date().getFullYear(),
+export function hostBookingNotificationHtml(args) {
+  const e = escapeBookingHtml;
+  const label = spotLabel(args.spotLabel);
+  const vehicle = args.vehicle || {};
+  const car = [vehicle.vehicle_make || vehicle.vehicleMake, vehicle.vehicle_model || vehicle.vehicleModel].filter(Boolean).join(" ") || "Vehicle not specified";
+  const colour = vehicle.vehicle_colour || vehicle.vehicleColour || "Colour not specified";
+  const plate = String(vehicle.license_plate || vehicle.licensePlate || "Not provided").toUpperCase();
+  return fillTemplate(hostBookingTemplate, {
+    BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
+    HOST_PORTRAIT_URL: e(portraitUrl(args, true)),
+    HOST_NAME: e(args.hostName || "Host"),
+    PROPERTY_ADDRESS: e(args.address || "Property address unavailable"),
+    DRIVER_NAME: e(args.driverName || "ParkShare Driver"),
+    SPOT_LABEL: e(label),
+    BOOKING_NUMBER: e(`PK-${args.bookingId}`),
+    // Older callers may pass combined labels; new sends use separate times
+    // and dates so both columns stay compact, including overnight bookings.
+    HOST_START_TIME: e(args.startTimeStr || args.startLabel || "Not provided"),
+    HOST_START_DATE: e(args.entryDateFull || ""),
+    HOST_END_TIME: e(args.endTimeStr || args.endLabel || "Not provided"),
+    HOST_END_DATE: e(args.exitDateFull || ""),
+    VEHICLE_DETAILS: e(`${car} · ${colour}`),
+    VEHICLE_PLATE: e(plate),
+    SPOT_MAP_BLOCK: mapBlock(args, `Top-down diagram showing the ${colour} ${car} in ${label}`),
+    HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
   });
 }
-
+export function confirmationEmailHtml(args) {
+  return fillTemplate(confirmationTemplate, driverTicketFields(args));
+}
+export function halfwayReminderHtml(args) {
+  return fillTemplate(halfwayReminderTemplate, driverTicketFields(args));
+}
+export function endingReminderHtml(args) {
+  return fillTemplate(endingReminderTemplate, driverTicketFields(args));
+}
+export function extensionConfirmedHtml(args) {
+  return fillTemplate(extensionConfirmedTemplate, driverTicketFields(args));
+}

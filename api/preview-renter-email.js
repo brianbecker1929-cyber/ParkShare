@@ -3,7 +3,7 @@
 // Vercel preview deployments only: no customer records, payments, or emails.
 import { confirmationEmailHtml, extensionConfirmedHtml, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
-import { renderHostLogoPng } from "./_host-logo.js";
+import { renderHostLogoPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 import { sampleEmailBooking } from "./_email-preview.js";
 
@@ -22,9 +22,11 @@ export default async function handler(req, res) {
     const start = new Date("2026-10-09T23:36:00.000Z");
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const labels = formatBookingEmailTimes(start, end, start);
-    const [mapPng, signatureLogo] = await Promise.all([
+    const extended = formatBookingEmailTimes(start, new Date(end.getTime() + 60 * 60 * 1000), start);
+    const [mapPng, signatureLogo, parkerPortrait] = await Promise.all([
       renderParkingSpotImage(spotStates, chosenIndex, sampleVehicle),
       renderHostLogoPng(),
+      renderDriverPortraitPng(),
     ]);
 
     const fields = {
@@ -41,6 +43,7 @@ export default async function handler(req, res) {
       exitDateFull: labels.exitDateFull,
       spotImageCid: "parking-spot-demo",
       logoSrc: `data:image/png;base64,${signatureLogo.toString("base64")}`,
+      portraitSrc: `data:image/png;base64,${parkerPortrait.toString("base64")}`,
       vehicleSummary: `${sampleVehicle.vehicle_make} ${sampleVehicle.vehicle_model} · ${sampleVehicle.vehicle_colour}`,
       vehiclePlate: "DEMO 123",
       directionsUrl: "https://www.myparkshare.ca/parking",
@@ -50,8 +53,8 @@ export default async function handler(req, res) {
       endDateLabel: labels.startDateLabel,
       addedTime: "1 hour",
       amountCharged: "$5.00 CAD",
-      newEndTime: labels.endTimeStr,
-      newEndDateFull: labels.exitDateFull,
+      newEndTime: extended.endTimeStr,
+      newEndDateFull: extended.exitDateFull,
       supportEmail: "info@myparkshare.ca",
       supportPhone: "Not provided",
     };

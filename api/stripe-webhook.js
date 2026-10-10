@@ -7,7 +7,7 @@ import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
-import { renderHostLogoPng, renderHostPortraitPng } from "./_host-logo.js";
+import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
@@ -254,12 +254,11 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   // updated it before calling this function), so getSessionWindow() here
   // gives the NEW end time directly — no separate "add addedHours" math
   // needed.
-  const { end } = getSessionWindow(booking);
-  const timeFmt = { hour: "numeric", minute: "2-digit" };
-  const fullDateFmt = { weekday: "short", month: "long", day: "numeric", year: "numeric" };
+  const { start, end } = getSessionWindow(booking);
+  const times = formatBookingEmailTimes(start, end);
 
   const addedTimeStr = addedHours === 0.5 ? "30 minutes" : `${addedHours} hour${addedHours === 1 ? "" : "s"}`;
-  const amountChargedStr = (totalCents / 100).toLocaleString(undefined, { style: "currency", currency: "CAD" });
+  const amountChargedStr = `${(totalCents / 100).toLocaleString("en-CA", { style: "currency", currency: "CAD" })} CAD`;
 
   const chosenIndex = booking.spot_label
     ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
@@ -267,7 +266,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
 
   const attachments = [];
-  let logoCid;
+  let logoCid, portraitCid;
   let spotImageCid;
   try {
     const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
@@ -288,6 +287,13 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   } catch (err) {
     console.error("Using hosted signature logo for extension email:", err);
   }
+  try {
+    const portrait = await renderDriverPortraitPng();
+    portraitCid = "parkshare-parker-portrait-ext-" + booking.id;
+    attachments.push({ filename: "parkshare-parker-portrait.png", content: portrait.toString("base64"), content_id: portraitCid });
+  } catch (err) {
+    console.error("Using hosted Parker portrait for extension email:", err);
+  }
 
   const address = listing?.address || "";
 
@@ -296,6 +302,8 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
     subject: `Extension confirmed — +${addedTimeStr} added`,
     html: extensionConfirmedHtml({
       logoCid,
+      portraitCid,
+      bookingId: booking.id,
       renterName: renter.name || "there",
       hostName,
       address,
@@ -303,8 +311,10 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
       spotLabel: booking.spot_label,
       addedTime: addedTimeStr,
       amountCharged: amountChargedStr,
-      newEndTime: end.toLocaleTimeString(undefined, timeFmt),
-      newEndDateFull: end.toLocaleDateString(undefined, fullDateFmt),
+      newEndTime: times.endTimeStr,
+      newEndDateFull: times.exitDateFull,
+      vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
+      vehiclePlate: booking.license_plate || "Not provided",
       spotImageCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,
@@ -382,6 +392,17 @@ async function sendBookingConfirmationEmail(booking) {
   } catch (err) {
     console.error("Unable to embed booking signature logo; using hosted PNG fallback:", err);
   }
+  let driverPortraitCid;
+  const driverAttachments = [...bookingAttachments];
+  if (renter?.email) {
+    try {
+      const portrait = await renderDriverPortraitPng();
+      driverPortraitCid = "parkshare-parker-portrait-" + booking.id;
+      driverAttachments.push({ filename: "parkshare-parker-portrait.png", content: portrait.toString("base64"), content_id: driverPortraitCid });
+    } catch (err) {
+      console.error("Unable to embed Driver Parker portrait; using hosted fallback:", err);
+    }
+  }
 
   // Separate host notification prevents exposing renter email and unrelated
   // confirmation content through CC.
@@ -405,6 +426,7 @@ async function sendBookingConfirmationEmail(booking) {
       vehiclePlate: booking.license_plate || "Not provided",
       spotImageCid,
       logoCid: hostLogoCid,
+      portraitCid: driverPortraitCid,
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       // TODO: confirm this route actually exists in your app — this is a
       // guess based on common patterns, not read from your frontend router.
@@ -412,7 +434,7 @@ async function sendBookingConfirmationEmail(booking) {
       supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
-    attachments: bookingAttachments,
+    attachments: driverAttachments,
   }));
   if (hostEmail && hostEmail.toLowerCase() !== renter?.email?.toLowerCase()) {
     // The Host receives the shared brand logo and their separate William
@@ -441,6 +463,10 @@ async function sendBookingConfirmationEmail(booking) {
         vehicle: booking,
         startLabel: formattedTimes.hostStartLabel,
         endLabel: formattedTimes.hostEndLabel,
+        startTimeStr: formattedTimes.startTimeStr,
+        entryDateFull: formattedTimes.entryDateFull,
+        endTimeStr: formattedTimes.endTimeStr,
+        exitDateFull: formattedTimes.exitDateFull,
         bookingId: booking.id,
         spotImageCid,
         logoCid: hostLogoCid,

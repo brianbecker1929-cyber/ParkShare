@@ -3,7 +3,29 @@ import assert from "node:assert/strict";
 import sharp from "sharp";
 import { formatBookingEmailTimes } from "../api/_booking-email-times.js";
 import { renderParkingSpotImage } from "../api/_driveway-image.js";
-import { confirmationEmailHtml } from "../api/_email.js";
+import { confirmationEmailHtml, extensionConfirmedHtml, halfwayReminderHtml, endingReminderHtml } from "../api/_email.js";
+
+test("all Driver tickets escape customer fields and reject unsafe image and action URLs", () => {
+  const fields = {
+    renterName: '<img src=x onerror="alert(1)">', hostName: 'Host & Co',
+    address: '12 <Example> Crescent', vehicleSummary: 'BMW <X4> · Silver', vehiclePlate: 'demo 123',
+    spotLabel: 'B', bookingId: 42, portraitSrc: 'javascript:alert(1)', logoSrc: 'javascript:alert(1)',
+    spotImageSrc: 'javascript:alert(1)', directionsUrl: 'javascript:alert(1)',
+    manageReservationUrl: 'https://www.myparkshare.ca/?view_booking=42&source=email', extendUrl: 'javascript:alert(1)',
+  };
+  for (const render of [confirmationEmailHtml, extensionConfirmedHtml, halfwayReminderHtml, endingReminderHtml]) {
+    const html = render(fields);
+    assert.match(html, /&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+    assert.match(html, /Host &amp; Co/);
+    assert.match(html, /BMW &lt;X4&gt; · Silver/);
+    assert.match(html, /DEMO 123/);
+    if (render !== endingReminderHtml) assert.match(html, /view_booking=42&amp;source=email/);
+    assert.match(html, /Driveway preview unavailable/);
+    assert.match(html, /parkshare-parker-portrait\.png/);
+    assert.doesNotMatch(html, /src="javascript:|href="javascript:|<img src=x/);
+    assert.doesNotMatch(html, /\[[A-Z_]+\]/);
+  }
+});
 
 test("October booking email matches Toronto daylight time, not the server's UTC clock", () => {
   const start = new Date("2026-10-09T11:20:00.000Z"); // 7:20 a.m. EDT
@@ -86,10 +108,8 @@ test("driver confirmation names booked vehicle and renders matched CID image", (
 test("Renter uses the same signature logo as Host without changing reservation details", async () => {
   const { readFile } = await import("node:fs/promises");
   const template = await readFile(new URL("../api/emails/templates/_parking-confirmation.template.js", import.meta.url), "utf8");
-  assert.match(template, /\[BOOKING_LOGO_URL\]/);
-  assert.doesNotMatch(template, /https:\/\/www\.myparkshare\.ca\/email\/logo\.png/);
-  assert.match(template, /BOOKING\/CONFIRMED|BOOKING CONFIRMED|confirmation-headline\.png/);
-  assert.match(template, /ParkShare_Parker_04_ParkShare_App\.png/);
+  assert.match(template, /bookingTicketTemplate/);
+  assert.match(template, /title: "Booking"/);
 
   const details = {
     renterName: "Sample Driver", hostName: "Sample Host", address: "12 Example Crescent",
@@ -102,7 +122,7 @@ test("Renter uses the same signature logo as Host without changing reservation d
   };
   const email = confirmationEmailHtml({ ...details, logoCid: "parkshare-signature-logo-22" });
   assert.match(email, /src="cid:parkshare-signature-logo-22"/);
-  assert.match(email, /width="260"/);
+  assert.match(email, /width="190"/);
   assert.match(email, /cid:parking-spot-22/);
   assert.match(email, /Lexus LC · Orange/);
   assert.match(email, /7:36 p\.m\./);
@@ -113,7 +133,7 @@ test("Renter uses the same signature logo as Host without changing reservation d
   const webhook = await readFile(new URL("../api/stripe-webhook.js", import.meta.url), "utf8");
   assert.match(webhook, /const logoBuffer = await renderHostLogoPng\(\)/);
   assert.match(webhook, /content_id: hostLogoCid/);
-  assert.match(webhook, /attachments: bookingAttachments/);
+  assert.match(webhook, /attachments: driverAttachments/);
   assert.match(webhook, /logoCid: hostLogoCid/);
   assert.match(webhook, /attachments: hostAttachments/);
 });

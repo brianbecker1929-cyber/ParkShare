@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { renderParkingSpotImage } from "../api/_driveway-image.js";
-import { renderHostLogoPng } from "../api/_host-logo.js";
+import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "../api/_host-logo.js";
 
 function response() {
   return {
@@ -116,7 +116,19 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     }
     const expected = await renderParkingSpotImage([false, true, false, false], 1, booking);
     const expectedLogo = await renderHostLogoPng();
+    const expectedHostPortrait = await renderHostPortraitPng();
+    const expectedDriverPortrait = await renderDriverPortraitPng();
     for (const email of sent) {
+      const isHost = email.subject.startsWith("New driveway reservation");
+      const portrait = email.attachments.find(a => a.filename === `parkshare-${isHost ? "william" : "parker"}-portrait.png`);
+      assert.ok(portrait, email.subject + " must embed the correct mascot");
+      assert.deepEqual(Buffer.from(portrait.content, "base64"), isHost ? expectedHostPortrait : expectedDriverPortrait);
+      assert.ok(email.html.includes(`cid:${portrait.content_id}`));
+      assert.equal(email.attachments.some(a => a.filename === `parkshare-${isHost ? "parker" : "william"}-portrait.png`), false);
+      assert.match(email.html, /Q30/);
+      assert.match(email.html, /DEMO 123/);
+      assert.match(email.html, /PK-42/);
+      assert.match(email.html, /Toronto local time/);
       const logo = email.attachments.find(a => a.filename === "parkshare-signature-logo.png");
       assert.ok(logo, email.subject + " missing the approved inline logo");
       assert.deepEqual(Buffer.from(logo.content, "base64"), expectedLogo);
@@ -126,7 +138,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.ok(map, email.subject + " missing the inline driveway");
       assert.deepEqual(Buffer.from(map.content, "base64"), expected, email.subject + " changed the saved vehicle or private bays");
       assert.ok(email.html.includes(`cid:${map.content_id}`));
-      assert.match(email.html, /width="420"/);
+      assert.match(email.html, /width="180"/);
       assert.doesNotMatch(email.html, /height:260px; width:auto/);
     }
   } finally {

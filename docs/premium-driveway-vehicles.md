@@ -91,9 +91,9 @@ confirmation, halfway reminder and ending-soon reminder.
 - All send paths use `deriveEmailSpotStates` with the listing's configured
   `spots`, preventing a private Spot A from appearing available when only B
   is rentable.
-- The email PNG is 1000px wide and displayed at up to 420 CSS pixels in every
-  template, shrinking to the available width on mobile with its aspect ratio
-  preserved. CID delivery is retained.
+- The email PNG is 1000px wide. The approved Booking Ticket layout displays
+  it at 180 CSS pixels on desktop and 145 on mobile, alongside vehicle details,
+  with its aspect ratio preserved. CID delivery is retained.
 - The selected bay uses the website's orange `#E2571C` border and pale green
   fill. Its protected A-D label sits above a 96%-wide / 83%-high vehicle window
   beginning 13% down the bay. No selected-bay footer reduces the car's height.
@@ -111,3 +111,19 @@ Validation exercises the real cron and signed Stripe webhook against a fake
 transport, honours database SELECT projections, and compares all five actual
 CID attachments with the same saved yellow vehicle in configured Spot B.
 No production merge until Brian reviews the previews.
+
+## Approved Booking Ticket layout
+
+Brian approved Booking Ticket for all five email types. A shared table-based
+template now keeps the signature logo, compact greeting, status/reference strip,
+address, two-column time band, driveway/vehicle ticket and actions consistent.
+William introduces the Host notification; Parker introduces the four Driver
+emails. Both portraits and the signature logo are inline CID PNGs with generated
+hosted fallbacks. The build prepares all three fallback assets.
+
+The ticket includes the saved vehicle make/model/colour and licence plate for
+extensions and reminders as well as confirmations. Times and calendar dates use
+Toronto local time, including extended departures. Halfway Check-in and Parking
+Ending Soon remain distinct; a late cron run inside the final 15 minutes sends
+only the ending reminder. Sample previews use 30 minutes at halfway, 15 minutes
+at ending soon, and an extension from 8:36 p.m. to 9:36 p.m.
