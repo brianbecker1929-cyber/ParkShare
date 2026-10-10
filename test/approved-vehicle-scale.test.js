@@ -43,7 +43,7 @@ test("email approved image expands ~12% while Spot and RESERVED labels remain cl
   const width = Number(email.match(/const carWidth\s*=\s*Math.max\(1,\s*Math.round\(booked.w\s*\*\s*(\.\d+)\)/)?.[1]);
   const height = Number(email.match(/const carHeight\s*=\s*Math.max\(1,\s*Math.round\(booked.h\s*\*\s*(\.\d+)\)/)?.[1]);
   const top = Number(email.match(/const carY\s*=\s*Math.round\(booked.y\s*\+\s*booked.h\s*\*\s*(\.\d+)\)/)?.[1]);
-  const bottomText = Number(email.match(/pixelLabel\("RESERVED",\s*cx,\s*b.y\s*\+\s*b.h\s*\*\s*(\.\d+)/)?.[1]);
+  const bottomText = Number(email.match(/pixelLabel\("RESERVED",\s*cx,\s*b.y\s*\+\s*b.h\s*\*\s*(0?\.\d+)/)?.[1]);
   const topText = Number(email.match(/isChosen\s*\?\s*(0\.\d+)\s*:\s*0\.16/)?.[1]);
   enlarged(.83, width, "Email image width");
   enlarged(.59, height, "Email image height");
