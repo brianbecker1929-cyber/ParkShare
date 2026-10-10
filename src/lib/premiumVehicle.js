@@ -14,7 +14,10 @@ export const PREMIUM_MASTER_COLOURS = Object.freeze({
 });
 
 export function premiumVehicleSpec(vehicle = {}) {
-  const rawBody = getVehicleBodyType(vehicle);
+  // The image endpoint supplies a whitelisted body class directly;
+  // real booking data instead resolves the selected vehicle's make/model.
+  const rawBody = PREMIUM_VEHICLE_TYPES.includes(vehicle.vehicle_body_type)
+    ? vehicle.vehicle_body_type : getVehicleBodyType(vehicle);
   const bodyType = PREMIUM_VEHICLE_TYPES.includes(rawBody) ? rawBody : "sedan";
   const colour = getVehicleColourName(vehicle);
   return { bodyType, colour, masterColour: PREMIUM_MASTER_COLOURS[bodyType] };
