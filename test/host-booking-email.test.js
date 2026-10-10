@@ -19,7 +19,9 @@ const example = {
 
 test("Host booking email has Driver-quality branding with William and host-specific information", () => {
   const html = hostBookingNotificationHtml(example);
-  assert.match(html, /https:\/\/www\.myparkshare\.ca\/email\/logo\.png/);
+  assert.match(html, /https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png/);
+  assert.doesNotMatch(html, /https:\/\/www\.myparkshare\.ca\/email\/logo\.png/);
+  assert.match(html, /ParkShare — William and Parker with the signature wordmark/);
   assert.match(html, /william-v3\/masters\/ParkShare_William_05_Presenting\.png/);
   assert.match(html, /NEW BOOKING/);
   assert.match(html, /CONFIRMED!/);
@@ -116,4 +118,16 @@ test("non-production preview renders a synthetic email and does not send notific
     if (previous === undefined) delete process.env.VERCEL_ENV;
     else process.env.VERCEL_ENV = previous;
   }
+});
+
+test("approved website William-and-Parker art is the source for the email-safe PNG", async () => {
+  const source = new URL("../public/brand/parkshare-william-parker-logo.webp", import.meta.url);
+  const metadata = await sharp(await readFile(source)).metadata();
+  assert.equal(metadata.format, "webp");
+  assert.ok(metadata.width > 0 && metadata.height > 0);
+  const script = await readFile(new URL("../scripts/prepare-email-logo.mjs", import.meta.url), "utf8");
+  const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(script, /public\/brand\/parkshare-william-parker-logo\.webp/);
+  assert.match(script, /public\/email\/parkshare-signature-logo\.png/);
+  assert.match(pkg.scripts.build, /node scripts\/prepare-email-logo\.mjs && vite build/);
 });
