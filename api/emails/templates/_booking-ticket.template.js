@@ -13,7 +13,7 @@ export function bookingTicketTemplate({
   leftLabel, leftValue, leftDate, rightLabel, rightValue, rightDate,
   partyLabel = "Host", partyName = "[HOST_NAME]", location = true,
   vehicleLabel = "Your vehicle", vehicle = "[BOOKED_VEHICLE_SUMMARY]", plate = "[BOOKED_VEHICLE_PLATE]",
-  payment = false, primaryLabel, primaryUrl, secondaryLabel, secondaryUrl, actionNote,
+  payment = false, paymentLabel = "Amount charged", primaryLabel, primaryUrl, secondaryLabel, secondaryUrl, actionNote,
 }) {
   const buttons = secondaryLabel
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;"><tr><td width="50%" style="padding-right:5px;">${action(primaryLabel, primaryUrl)}</td><td width="50%" style="padding-left:5px;">${action(secondaryLabel, secondaryUrl, true)}</td></tr></table>`
@@ -56,7 +56,7 @@ export function bookingTicketTemplate({
  <td width="50%" valign="top" style="padding-left:6px;vertical-align:top;word-wrap:break-word;"><p style="margin:0 0 3px;font-size:11px;line-height:15px;letter-spacing:.5px;text-transform:uppercase;color:#d7e0e9;">${rightLabel}</p><p class="ps-ticket-time" style="margin:0;font-size:18px;line-height:24px;font-weight:bold;color:#ffffff;">${rightValue}</p><p style="margin:2px 0 0;font-size:12px;line-height:17px;color:#d7e0e9;">${rightDate}</p></td>
  </tr></table>
 </td></tr>
-<tr><td class="ps-ticket-inset" style="padding:5px 16px 0;"><p style="margin:0;font-size:11px;line-height:15px;color:#617080;">Toronto local time</p>${payment ? '<p style="margin:7px 0 0;font-size:12px;line-height:17px;color:#617080;">Amount charged: <strong style="color:#0e1b2e;">[AMOUNT_CHARGED]</strong></p>' : ''}</td></tr>
+<tr><td class="ps-ticket-inset" style="padding:5px 16px 0;"><p style="margin:0;font-size:11px;line-height:15px;color:#617080;">Toronto local time</p>${payment ? `<p style="margin:7px 0 0;font-size:12px;line-height:17px;color:#617080;">${paymentLabel}: <strong style="color:#0e1b2e;">[AMOUNT_CHARGED]</strong></p>` : ''}</td></tr>
 <tr><td class="ps-ticket-inset" style="padding:12px 16px 14px;">
  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;border-top:1px dashed #b9c1cd;border-bottom:1px dashed #b9c1cd;"><tr>
  <td class="ps-ticket-map-col" width="197" valign="middle" style="width:197px;padding:12px 17px 12px 0;vertical-align:middle;"><p style="${labelStyle}text-align:center;">Reserved space · [SPOT_LABEL]</p>[SPOT_MAP_BLOCK]</td>

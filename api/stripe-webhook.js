@@ -348,12 +348,11 @@ async function sendBookingConfirmationEmail(booking) {
   const { start, end, isAdvance } = getSessionWindow(booking);
   const formattedTimes = formatBookingEmailTimes(start, end);
 
-  // NOTE: the new confirmation template has no price/payment summary and no
-  // "booked in advance" vs. "already started" copy distinction — both of
-  // which the previous design showed. isAdvance is still used below for the
-  // email SUBJECT line only. If you want price shown in the email body,
-  // that requires adding a placeholder to parking_confirmation.html — ask
-  // for that change explicitly rather than having it silently reappear here.
+  // Show the saved checkout total, including the service fee, to both
+  // recipients. This is the Driver's charge, rather than the Host's payout.
+  const amountCharged = booking.total != null && Number.isFinite(Number(booking.total))
+    ? `${Number(booking.total).toLocaleString("en-CA", { style: "currency", currency: "CAD" })} CAD`
+    : "Not provided";
   const spaces = listing?.spaces || 1;
   const chosenIndex = booking.spot_label
     ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
@@ -417,6 +416,7 @@ async function sendBookingConfirmationEmail(booking) {
       locationId: booking.listing_id,
       spotLabel: booking.spot_label,
       confirmationNumber: "PK-" + booking.id,
+      amountCharged,
       startDateLabel: formattedTimes.startDateLabel,
       startTimeStr: formattedTimes.startTimeStr,
       entryDateFull: formattedTimes.entryDateFull,
@@ -468,6 +468,7 @@ async function sendBookingConfirmationEmail(booking) {
         endTimeStr: formattedTimes.endTimeStr,
         exitDateFull: formattedTimes.exitDateFull,
         bookingId: booking.id,
+        amountCharged,
         spotImageCid,
         logoCid: hostLogoCid,
         portraitCid: hostPortraitCid,

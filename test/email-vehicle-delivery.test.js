@@ -95,11 +95,20 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.equal(res.code, 200);
     }
     await deliver({ type: "extension", booking_id: "42", added_hours: "1", total_cents: "500" });
-    await deliver({ listing_id: "7", renter_id: "sample-renter", hours: "1", total_cents: "500",
+    await deliver({ listing_id: "7", renter_id: "sample-renter", hours: "1", total_cents: "1235",
+      subtotal_cents: "1000", service_fee_cents: "235",
       spot_label: "B", vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
       vehicle_colour: "Yellow", license_plate: "DEMO 123", start_hour: "", end_hour: "",
     });
     assert.equal(sent.length, 5, "Halfway, ending, extension, Driver and Host confirmations");
+    for (const [index, label, amount] of [[2, "Amount charged", "5.00"], [3, "Total charged", "12.35"], [4, "Total charged to Driver", "12.35"]]) {
+      const html = sent[index].html;
+      const charge = `${label}: <strong style="color:#0e1b2e;">$${amount} CAD</strong>`;
+      assert.ok(html.includes(charge), "Display the full checkout total, not the parking subtotal or payout");
+      assert.ok(html.indexOf(charge) > html.indexOf("Toronto local time"));
+      assert.ok(html.indexOf(charge) < html.indexOf("Reserved space ·"));
+    }
+    for (const email of sent.slice(0, 2)) assert.doesNotMatch(email.html, /Total charged:|Amount charged:/);
 
     // When a late run misses halfway, or a 30-minute session reaches its
     // midpoint, both thresholds are due. Only send the ending-soon email.

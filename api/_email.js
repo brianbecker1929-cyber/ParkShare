@@ -134,6 +134,7 @@ export function hostBookingNotificationHtml(args) {
     DRIVER_NAME: e(args.driverName || "ParkShare Driver"),
     SPOT_LABEL: e(label),
     BOOKING_NUMBER: e(`PK-${args.bookingId}`),
+    AMOUNT_CHARGED: e(args.amountCharged || "Not provided"),
     // Older callers may pass combined labels; new sends use separate times
     // and dates so both columns stay compact, including overnight bookings.
     HOST_START_TIME: e(args.startTimeStr || args.startLabel || "Not provided"),

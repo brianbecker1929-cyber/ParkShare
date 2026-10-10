@@ -127,3 +127,8 @@ Toronto local time, including extended departures. Halfway Check-in and Parking
 Ending Soon remain distinct; a late cron run inside the final 15 minutes sends
 only the ending reminder. Sample previews use 30 minutes at halfway, 15 minutes
 at ending soon, and an extension from 8:36 p.m. to 9:36 p.m.
+
+Host and Driver booking confirmations also show the saved full checkout total
+(including the service fee) below Toronto local time, matching the extension's
+charge row. The Host label is "Total charged to Driver" to distinguish this
+amount from Host earnings or payout. Sample confirmations show $5.00 CAD.
