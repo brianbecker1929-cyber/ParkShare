@@ -3,8 +3,9 @@
 // public/email/parkshare-signature-logo.png is served by Vercel as a static
 // asset. Keep the website's approved WebP unchanged.
 import sharp from "sharp";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { renderHostPortraitPng, renderDriverPortraitPng } from "../api/_host-logo.js";
 
 const source = path.resolve("public/brand/parkshare-william-parker-logo.webp");
 const target = path.resolve("public/email/parkshare-signature-logo.png");
@@ -20,3 +21,9 @@ if (info.format !== "png" || !info.width || !info.height) {
   throw new Error("Failed to generate ParkShare's email-safe signature logo");
 }
 console.log(`Created approved ParkShare email logo: ${info.width} × ${info.height}`);
+
+for (const [name, render] of [["william", renderHostPortraitPng], ["parker", renderDriverPortraitPng]]) {
+  const portrait = await render();
+  await writeFile(path.resolve(`public/email/parkshare-${name}-portrait.png`), portrait);
+  console.log(`Created approved ${name} email portrait`);
+}

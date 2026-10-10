@@ -44,3 +44,16 @@ export async function renderHostPortraitPng() {
     .png({ compressionLevel: 9 })
     .toBuffer();
 }
+
+// Parker uses the same email-safe treatment as William. Crop the approved
+// phone pose before attaching it, avoiding CSS clipping in Outlook/Gmail.
+const APPROVED_PARKER = path.join(process.cwd(), "public", "parker-v3", "masters", "ParkShare_Parker_04_ParkShare_App.png");
+export async function renderDriverPortraitPng() {
+  const trimmed = await sharp(readFileSync(APPROVED_PARKER))
+    .trim({ threshold: 12 }).ensureAlpha().png().toBuffer();
+  const { width, height } = await sharp(trimmed).metadata();
+  if (!width || !height) throw new Error("Approved Parker mascot could not be trimmed");
+  const waistHeight = Math.max(1, Math.min(height, Math.round(height * 0.555)));
+  return sharp(trimmed).extract({ left: 0, top: 0, width, height: waistHeight })
+    .resize({ width: 340, withoutEnlargement: true }).png({ compressionLevel: 9 }).toBuffer();
+}

@@ -27,6 +27,8 @@
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
+import { renderHostLogoPng, renderDriverPortraitPng } from "./_host-logo.js";
+import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 const ENDING_SOON_MINUTES = 15;
 
@@ -78,7 +80,9 @@ export default async function handler(req, res) {
     const halfway = startMs + (endMs - startMs) / 2;
     const endingAt = endMs - ENDING_SOON_MINUTES * 60 * 1000;
 
-    if (!b.reminder_halfway_sent_at && nowMs >= halfway) dueHalfway.push({ ...b, end: endMs });
+    // A late cron run or short session can cross both thresholds together.
+    // In the ending-soon window, send only the actionable final reminder.
+    if (!b.reminder_halfway_sent_at && nowMs >= halfway && nowMs < endingAt) dueHalfway.push({ ...b, end: endMs });
     if (!b.reminder_ending_sent_at && nowMs >= endingAt) dueEnding.push({ ...b, end: endMs });
   }
 
@@ -107,17 +111,6 @@ export default async function handler(req, res) {
   return res.status(200).json(results);
 }
 
-// "Today" if the date is today in the server's local time, otherwise a
-// full weekday/month/day label — matches [SESSION_END_DATE_LABEL]'s
-// "Today" example in both reminder templates.
-function dayLabel(date, now) {
-  const sameDay = date.getFullYear() === now.getFullYear()
-    && date.getMonth() === now.getMonth()
-    && date.getDate() === now.getDate();
-  if (sameDay) return "Today";
-  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-}
-
 async function sendReminder(booking, kind) {
   const { data: listing } = await supabaseAdmin
     .from("listings")
@@ -142,8 +135,8 @@ async function sendReminder(booking, kind) {
   const nowDate = new Date();
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
   const endDate = new Date(booking.end);
-  const endDateStr = endDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  const endTimeStr = endDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const { start } = getSessionWindow(booking);
+  const times = formatBookingEmailTimes(start, endDate, nowDate);
   const address = listing?.address || "";
   const renterName = renter.name || "there";
 
@@ -152,7 +145,8 @@ async function sendReminder(booking, kind) {
   // change, but there's no image saved anywhere to reuse. Best-effort: if
   // this fails, the reminder still sends, just without the image. Used by
   // BOTH reminder kinds now, since both templates have an image slot.
-  let spotImageCid, attachments;
+  let spotImageCid, logoCid, portraitCid;
+  const attachments = [];
   try {
     const chosenIndex = booking.spot_label
       ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
@@ -160,25 +154,44 @@ async function sendReminder(booking, kind) {
     const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
     const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-" + booking.id;
-    attachments = [{
+    attachments.push({
       filename: "parking-spot.png",
       content: imageBuffer.toString("base64"),
       content_id: spotImageCid,
-    }];
+    });
   } catch (err) {
     console.error("send-reminders: failed to generate parking spot image (sending without it):", err);
   }
 
+  try {
+    const logoBuffer = await renderHostLogoPng();
+    logoCid = "parkshare-signature-logo-" + booking.id;
+    attachments.push({ filename: "parkshare-signature-logo.png", content: logoBuffer.toString("base64"), content_id: logoCid });
+  } catch (err) {
+    console.error("send-reminders: using hosted signature logo:", err);
+  }
+  try {
+    const portrait = await renderDriverPortraitPng();
+    portraitCid = "parkshare-parker-portrait-" + booking.id;
+    attachments.push({ filename: "parkshare-parker-portrait.png", content: portrait.toString("base64"), content_id: portraitCid });
+  } catch (err) {
+    console.error("send-reminders: using hosted Parker portrait:", err);
+  }
+
   const commonFields = {
+    logoCid,
+    portraitCid,
+    bookingId: booking.id,
     renterName,
     hostName,
     address,
     locationId: booking.listing_id,
     spotLabel: booking.spot_label,
     timeRemaining: `${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}`,
-    endDateLabel: dayLabel(endDate, nowDate),
-    endTimeStr,
-    exitDateFull: endDateStr,
+    endTimeStr: times.endTimeStr,
+    exitDateFull: times.exitDateFull,
+    vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
+    vehiclePlate: booking.license_plate || "Not provided",
     spotImageCid,
     directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
     manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,

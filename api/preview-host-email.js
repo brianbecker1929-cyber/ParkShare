@@ -33,7 +33,12 @@ export default async function handler(req, res) {
       vehicle,
       startLabel: times.hostStartLabel,
       endLabel: times.hostEndLabel,
+      startTimeStr: times.startTimeStr,
+      entryDateFull: times.entryDateFull,
+      endTimeStr: times.endTimeStr,
+      exitDateFull: times.exitDateFull,
       bookingId: "DEMO",
+      amountCharged: "$5.00 CAD",
       driverName: "Sample Driver",
       // Use the actual approved PNG inline for preview so the logo works
       // even if Vercel's preview host blocks cross-origin image requests.
