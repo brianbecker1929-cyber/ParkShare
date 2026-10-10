@@ -9056,27 +9056,29 @@ div:has(> button[aria-label="ParkShare help"])
   }
 }
 
-/* Vehicle-in-spot preview: same roof shape and booking colour on every screen. */
+/* Premium top-down booked vehicles, same shared colour/body SVG on every
+   booking view and the server-generated emails. Large but never clipped:
+   label/header and RESERVED remain readable on desktop and mobile. */
 .ps-driveway-car-roof {
   display: block;
-  width: 65%;
-  height: 54%;
-  max-width: 86px;
+  width: 83%;
+  height: 66%;
+  max-width: 132px;
   min-height: 0;
-  flex: 0 1 54%;
+  flex: 0 1 66%;
   object-fit: contain;
-  filter: drop-shadow(0 2px 3px rgba(14, 27, 46, .28));
+  filter: drop-shadow(0 3px 4px rgba(14, 27, 46, .25));
 }
 .ps-booked-spot > img.ps-driveway-car-roof {
-  width: 66%;
-  height: 60%;
-  max-width: 75px;
-  max-height: 65%;
+  width: 82%;
+  height: 67%;
+  max-width: 115px;
+  max-height: 68%;
 }
 .ps-booking-parking-details.is-compact .ps-booked-spot > img.ps-driveway-car-roof {
-  width: 73%;
-  height: 58%;
-  max-width: 40px;
+  width: 80%;
+  height: 64%;
+  max-width: 70px;
 }
 .ps-satellite-booked-car .ps-driveway-car-roof {
   width: 100%;

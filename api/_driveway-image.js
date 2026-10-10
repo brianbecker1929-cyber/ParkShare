@@ -170,9 +170,12 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
         : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
           + pixelLabel("RENT", cx, b.y + b.h * 0.85, 3.2, COLORS.muted);
 
-    const scale = Math.min(b.w * 0.62 / 96, b.h * 0.46 / 188);
+    // Match the enlarged, premium car shown in the browser's chosen spot.
+    // Reserve the label band above and RESERVED below: no text overlap.
+    // 65% of the bay height keeps an SUV/pickup/van inside its outline.
+    const scale = Math.min(b.w * 0.80 / 96, b.h * 0.65 / 188);
     const carX = cx - (96 * scale) / 2;
-    const carY = b.y + b.h * 0.34;
+    const carY = b.y + b.h * 0.19;
     const carGlyph = `<g transform="translate(${carX} ${carY}) scale(${scale})">${drivewayCarShapes(vehicle || {})}</g>`;
     const symbol = isChosen && hasDrivewayVehicle(vehicle)
       ? carGlyph
