@@ -1605,8 +1605,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
   const chooseSpot = (index) => {
+    // Automatically preview the Driver Profile's complete primary vehicle
+    // when first choosing a bay. Preserve an explicitly selected guest
+    // vehicle on subsequent spot changes. No red cartoon car in the chosen
+    // bay while a saved, bookable vehicle exists.
+    const existingVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId);
+    const defaultVehicle = existingVehicle
+      || bookableVehicles.find(vehicle => vehicle.id === "primary")
+      || bookableVehicles[0] || null;
     setChosenSpot(index);
-    setSpotVehiclePickerOpen(true);
+    if (!existingVehicle && defaultVehicle) setSelectedVehicleId(defaultVehicle.id);
+    // Switch vehicle is always available; don't force a dropdown open
+    // when the renter already has a usable default vehicle.
+    setSpotVehiclePickerOpen(!defaultVehicle);
   };
   useEffect(() => {
     if (showSpotPicker && chosenSpot !== null && spotVehiclePickerOpen) {
@@ -3715,13 +3726,17 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
               gridTemplateRows: isChosen ? "min-content minmax(0, 1fr)" : undefined,
               flexDirection: "column", alignItems: "center",
               justifyContent: isChosen ? "stretch" : "center",
-              gap: isChosen ? 1 : 4, padding: "3% 3%", overflow: "hidden",
+              // Reserve breathing room above the selected label so the
+              // 4px orange border can't clip "Spot A" or "Spot B".
+              gap: isChosen ? 1 : 4, padding: isChosen ? "10px 5px 5px" : "3% 3%", overflow: "hidden",
               fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
+              <span className="ps-spot-picker-label" style={{ fontWeight: 800, fontSize: isChosen ? 12 : 13, lineHeight: 1.25, textAlign: "center", width: "100%", whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
               {isChosen && hasDrivewayVehicle(vehicle) ? (
                 <DrivewayCarVisual vehicle={vehicle} />
+              ) : isChosen ? (
+                <span className="ps-spot-picker-no-vehicle">Select vehicle</span>
               ) : isAvailable ? (
                 <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
               ) : (
