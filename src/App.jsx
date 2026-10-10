@@ -27,7 +27,8 @@ import {
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
-import { drivewayCarDataUrl, hasDrivewayVehicle } from "./lib/drivewayCar";
+import { hasDrivewayVehicle } from "./lib/drivewayCar";
+import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
 
@@ -98,7 +99,7 @@ function VehicleBadge({ vehicle, compact = false }) {
 // The same colour-accurate top-down artwork used in the email image renderer.
 function DrivewayCarVisual({ vehicle }) {
   if (!hasDrivewayVehicle(vehicle)) return null;
-  return <img className="ps-driveway-car-roof" src={drivewayCarDataUrl(vehicle)} alt={`Top-down view of ${formatVehicleVisualSummary(vehicle) || "selected car"}`} draggable={false} />;
+  return <img className="ps-driveway-car-roof" src={premiumVehicleUrl(vehicle)} alt={`Premium top-down view of ${formatVehicleVisualSummary(vehicle) || "selected car"}`} draggable={false} loading="lazy" decoding="async" />;
 }
 
 function BookingVehicleVisual({ vehicle }) {
@@ -3749,7 +3750,7 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel, vehicle }) {
               {isSelected ? (
                 hasDrivewayVehicle(vehicle)
                   ? <DrivewayCarVisual vehicle={vehicle} />
-                  : <img className="ps-driveway-car-roof" src={drivewayCarDataUrl({})} alt="Neutral car illustration; booked vehicle details unavailable" draggable={false} />
+                  : <img className="ps-driveway-car-roof" src={premiumVehicleUrl({})} alt="Neutral car illustration; booked vehicle details unavailable" draggable={false} />
               ) : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
               <small>{isSelected ? "RESERVED" : isRentable ? "" : "NOT FOR RENT"}</small>
             </div>
