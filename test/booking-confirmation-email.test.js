@@ -82,3 +82,38 @@ test("driver confirmation names booked vehicle and renders matched CID image", (
   assert.match(html, /cid:parking-spot-22/);
   assert.match(html, /7:20 a\.m\./);
 });
+
+test("Renter uses the same signature logo as Host without changing reservation details", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const template = await readFile(new URL("../api/emails/templates/_parking-confirmation.template.js", import.meta.url), "utf8");
+  assert.match(template, /\[BOOKING_LOGO_URL\]/);
+  assert.doesNotMatch(template, /https:\/\/www\.myparkshare\.ca\/email\/logo\.png/);
+  assert.match(template, /BOOKING\/CONFIRMED|BOOKING CONFIRMED|confirmation-headline\.png/);
+  assert.match(template, /ParkShare_Parker_04_ParkShare_App\.png/);
+
+  const details = {
+    renterName: "Sample Driver", hostName: "Sample Host", address: "12 Example Crescent",
+    locationId: "14", spotLabel: "B", confirmationNumber: "PK-22",
+    startDateLabel: "Today", startTimeStr: "7:36 p.m.", entryDateFull: "Fri, October 9, 2026",
+    endTimeStr: "8:36 p.m.", exitDateFull: "Fri, October 9, 2026",
+    spotImageCid: "parking-spot-22", vehicleSummary: "Lexus LC · Orange",
+    vehiclePlate: "DEMO 123", directionsUrl: "https://www.myparkshare.ca/parking",
+    manageReservationUrl: "https://www.myparkshare.ca/my-bookings",
+  };
+  const email = confirmationEmailHtml({ ...details, logoCid: "parkshare-signature-logo-22" });
+  assert.match(email, /src="cid:parkshare-signature-logo-22"/);
+  assert.match(email, /width="260"/);
+  assert.match(email, /cid:parking-spot-22/);
+  assert.match(email, /Lexus LC · Orange/);
+  assert.match(email, /7:36 p\.m\./);
+  assert.match(email, /8:36 p\.m\./);
+  assert.doesNotMatch(email, /\[BOOKING_LOGO_URL\]/);
+  assert.doesNotMatch(email, /email\/logo\.png/);
+
+  const webhook = await readFile(new URL("../api/stripe-webhook.js", import.meta.url), "utf8");
+  assert.match(webhook, /const logoBuffer = await renderHostLogoPng\(\)/);
+  assert.match(webhook, /content_id: hostLogoCid/);
+  assert.match(webhook, /attachments: bookingAttachments/);
+  assert.match(webhook, /logoCid: hostLogoCid/);
+  assert.match(webhook, /attachments: hostAttachments/);
+});
