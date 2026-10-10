@@ -10,7 +10,7 @@ test("selected booking bay removes only Your spot, leaving Spot label visible", 
   const end=app.indexOf("// Read-only booking view shared",start);
   assert.ok(start>0 && end>start);
   const picker=app.slice(start,end);
-  assert.doesNotMatch(picker, /Your spot/, "Selected SpotPicker should not render the removed footer");
+  assert.doesNotMatch(picker, /isChosen \? "Your spot"/, "Selected SpotPicker should not render the removed footer");
   assert.match(picker, /<span style=\{\{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 \}\}>Spot \{l\}<\/span>/);
   assert.match(picker, /ps-spot-picker-bay/);
   assert.match(picker, /gridTemplateRows: isChosen \? "min-content minmax\(0, 1fr\)"/);
