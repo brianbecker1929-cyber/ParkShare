@@ -7,7 +7,7 @@ import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
-import { renderHostLogoPng } from "./_host-logo.js";
+import { renderHostLogoPng, renderHostPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export const config = { api: { bodyParser: false } };
@@ -392,17 +392,21 @@ async function sendBookingConfirmationEmail(booking) {
     // email, rather than loading a deployment-specific asset URL. The
     // driver email's existing assets/attachments remain untouched.
     let hostLogoCid;
+    let hostPortraitCid;
     const hostAttachments = [...(attachments || [])];
     try {
-      const logoBuffer = await renderHostLogoPng();
+      const [logoBuffer, portraitBuffer] = await Promise.all([
+        renderHostLogoPng(),
+        renderHostPortraitPng(),
+      ]);
       hostLogoCid = "parkshare-signature-logo-" + booking.id;
-      hostAttachments.push({
-        filename: "parkshare-signature-logo.png",
-        content: logoBuffer.toString("base64"),
-        content_id: hostLogoCid,
-      });
+      hostPortraitCid = "parkshare-william-portrait-" + booking.id;
+      hostAttachments.push(
+        { filename: "parkshare-signature-logo.png", content: logoBuffer.toString("base64"), content_id: hostLogoCid },
+        { filename: "parkshare-william-portrait.png", content: portraitBuffer.toString("base64"), content_id: hostPortraitCid },
+      );
     } catch (err) {
-      console.error("Unable to embed Host signature logo; using hosted PNG fallback:", err);
+      console.error("Unable to embed Host email artwork; falling back to hosted images:", err);
     }
     notifications.push(sendEmail({
       to: hostEmail,
@@ -418,6 +422,7 @@ async function sendBookingConfirmationEmail(booking) {
         bookingId: booking.id,
         spotImageCid,
         logoCid: hostLogoCid,
+        portraitCid: hostPortraitCid,
       }),
       attachments: hostAttachments,
     }));
