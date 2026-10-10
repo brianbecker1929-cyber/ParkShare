@@ -27,9 +27,11 @@ export default `<!DOCTYPE html>
 @media only screen and (max-width:640px) {
   .ps-email-wrap { width:100% !important; }
   .ps-email-inset { padding-left:16px !important; padding-right:16px !important; }
-  .ps-host-portrait-col { width:155px !important; min-width:155px !important; } 
-  .ps-host-portrait { width:155px !important; max-width:155px !important; }
-  .ps-host-copy { font-size:13px !important; }
+  /* Mobile keeps the headline readable while William fills the right side. */
+  .ps-host-portrait-col { width:181px !important; min-width:181px !important; }
+  .ps-host-portrait { width:181px !important; max-width:181px !important; height:auto !important; }
+  .ps-host-title { font-size:18px !important; line-height:23px !important; }
+  .ps-host-copy { font-size:12px !important; line-height:17px !important; }
 }
 </style>
 </head>
@@ -45,19 +47,20 @@ export default `<!DOCTYPE html>
     </td></tr>
 
     <!-- Host variant of the Driver confirmation headline and mascot greeting -->
-    <tr><td class="ps-email-inset" style="padding:14px 29px 0 29px;">
+    <tr><td class="ps-email-inset" style="padding:14px 29px 0 29px;line-height:0;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;width:100%;">
         <tr>
           <td valign="middle" style="padding:0 9px 0 0;vertical-align:middle;">
-            <p style="margin:0;font-size:22px;line-height:27px;font-weight:900;letter-spacing:-.5px;color:#1c2b4a;">NEW BOOKING<br><span style="color:#e8a400;">CONFIRMED!</span></p>
+            <p class="ps-host-title" style="margin:0;font-size:22px;line-height:27px;font-weight:900;letter-spacing:-.5px;color:#1c2b4a;">NEW BOOKING<br><span style="color:#e8a400;">CONFIRMED!</span></p>
             <p class="ps-host-copy" style="margin:13px 0 4px;font-size:14px;line-height:20px;color:#1c2b4a;">Hi <strong>[HOST_NAME]</strong>,</p>
             <p class="ps-host-copy" style="margin:7px 0 0;font-size:13px;line-height:20px;color:#4a5568;">A driver has reserved a space at your property. Here's what to expect.</p>
           </td>
-          <!-- The PNG is physically cropped waist-up. Bottom-aligned table
-               cell and zero hero bottom padding anchor William flush with
-               the navy reservation banner, including in Outlook/Gmail. -->
-          <td class="ps-host-portrait-col" valign="bottom" width="194" align="right" style="width:194px;min-width:155px;vertical-align:bottom;padding:0;line-height:0;font-size:0;">
-            <img class="ps-host-portrait" src="[HOST_PORTRAIT_URL]" width="194" alt="William, your ParkShare hosting guide" style="display:block;width:194px;max-width:100%;height:auto;border:0;padding:0;margin:0;">
+          <!-- The PNG ends at William's yellow belt. The crop is flush against
+               the banner below, giving the illusion he continues BEHIND
+               the perfectly straight top edge. No negative margin, CSS
+               positioning or overlapping image layers in email clients. -->
+          <td class="ps-host-portrait-col" valign="bottom" width="260" align="right" style="width:260px;min-width:181px;vertical-align:bottom;padding:0;line-height:0;font-size:0;">
+            <img class="ps-host-portrait" src="[HOST_PORTRAIT_URL]" width="260" alt="William welcoming a new ParkShare host reservation" style="display:block;width:260px;max-width:100%;height:auto;border:0;padding:0;margin:0;">
           </td>
         </tr>
       </table>
@@ -66,7 +69,7 @@ export default `<!DOCTYPE html>
     <!-- Consistent navy booking status banner -->
     <tr><td class="ps-email-inset" style="padding:0 29px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-        <tr><td style="background:#1b2b3a;padding:12px 19px;border-radius:8px 8px 0 0;">
+        <tr><td style="background:#1b2b3a;padding:12px 19px;border-radius:0;">
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
             <td width="38" valign="middle"><img src="${asset}/icon-clock.png" alt="" width="29" height="29" style="display:block;border:0;"></td>
             <td valign="middle" style="padding-left:5px;">
