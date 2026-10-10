@@ -68,16 +68,23 @@ const VEHICLE_ASSET_ROOT = "/vehicles";
 const DEDICATED_COLOUR_ASSETS = new Set(["White", "Silver", "Gold", "Yellow"]);
 
 export function getVehicleBodyType(vehicle = {}) {
-  const model = String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim();
-  const make = String(vehicle.vehicleMake || vehicle.vehicle_make || "").trim();
+  // Booking snapshots use snake_case; editable profile vehicles use camelCase.
+  // Case-insensitive matching avoids changing body shape after checkout.
+  const model = String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim().toLowerCase();
+  const make = String(vehicle.vehicleMake || vehicle.vehicle_make || "").trim().toLowerCase();
 
   for (const [bodyType, models] of Object.entries(BODY_MODEL_GROUPS)) {
-    if (models.includes(model)) return bodyType;
+    if (models.some(name => name.toLowerCase() === model)) return bodyType;
   }
 
-  if (make === "Polestar" && /^(3|4)$/.test(model)) return "suv";
-  if (/^(Q[3-8]|X[1-7]|GL[A-S]|EQ[AB]|GV\d|GX|LX|NX|RX|RZ|TX|UX|QX\d|XT\d)$/.test(model)) return "suv";
-  if (make === "Jeep" || make === "Hummer" || make === "Land Rover") return "suv";
+  // BMW X4 and X4 M use the same crossover silhouette. Match other common
+  // named prefixes without misidentifying arbitrary 'X' model names.
+  if (make === "bmw" && /^x[1-7](?:\b|\s|m\b)/i.test(model)) return "suv";
+  if (make === "polestar" && /^(3|4)$/.test(model)) return "suv";
+  if (/^(q[3-8]|x[1-7]|gl[a-s]|eq[ab]|gv\d|gx|lx|nx|rx|rz|tx|ux|qx\d|xt\d)$/.test(model)) return "suv";
+  if (["jeep", "hummer", "land rover"].includes(make)) return "suv";
+  // Unrecognised make/models are represented honestly as a neutral sedan
+  // silhouette rather than inventing a specific model.
   return "sedan";
 }
 
@@ -86,8 +93,9 @@ export function getVehicleColourHex(vehicle = {}) {
 }
 
 export function getVehicleColourName(vehicle = {}) {
-  const colour = String(vehicle.vehicleColour || vehicle.vehicle_colour || "").trim();
-  return Object.hasOwn(COLOUR_HEX, colour) ? colour : "Other";
+  const raw = String(vehicle.vehicleColour || vehicle.vehicle_colour || "").trim().toLowerCase();
+  const colour = raw === "gray" ? "grey" : raw;
+  return Object.keys(COLOUR_HEX).find(name => name.toLowerCase() === colour) || "Other";
 }
 
 export function hasDedicatedVehicleColourAsset(vehicle = {}) {
