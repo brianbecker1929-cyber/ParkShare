@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { hostBookingNotificationHtml } from "../api/_email.js";
+import { renderHostLogoPng } from "../api/_host-logo.js";
 import { deriveEmailSpotStates, renderParkingSpotImage } from "../api/_driveway-image.js";
 import { formatBookingEmailTimes } from "../api/_booking-email-times.js";
 import previewHandler from "../api/preview-host-email.js";
@@ -112,7 +113,9 @@ test("non-production preview renders a synthetic email and does not send notific
     assert.equal(preview.code, 200);
     assert.match(preview.body, /SAMPLE BOOKING/);
     assert.match(preview.body, /DEMO 123/);
-    assert.match(preview.body, /data:image\/png;base64,/);
+    const inlinePngs = preview.body.match(/data:image\/png;base64,/g) || [];
+    assert.equal(inlinePngs.length, 2, "Both approved logo and driveway must render inline");
+    assert.match(preview.body, /alt="ParkShare — William and Parker with the signature wordmark"/);
     assert.equal(preview.headers["X-Robots-Tag"], "noindex, nofollow");
   } finally {
     if (previous === undefined) delete process.env.VERCEL_ENV;
@@ -130,4 +133,21 @@ test("approved website William-and-Parker art is the source for the email-safe P
   assert.match(script, /public\/brand\/parkshare-william-parker-logo\.webp/);
   assert.match(script, /public\/email\/parkshare-signature-logo\.png/);
   assert.match(pkg.scripts.build, /node scripts\/prepare-email-logo\.mjs && vite build/);
+});
+
+test("Host email embeds approved signature PNG via CID for reliable mail delivery", async () => {
+  const png = await renderHostLogoPng();
+  const meta = await sharp(png).metadata();
+  assert.equal(meta.format, "png");
+  assert.ok(meta.width > 200 && meta.height > 0);
+  assert.ok(png.length > 10_000);
+  const email = hostBookingNotificationHtml({ ...example, logoCid: "parkshare-signature-logo-24" });
+  assert.match(email, /src="cid:parkshare-signature-logo-24"/);
+  assert.doesNotMatch(email, /src="https:\/\/www\.myparkshare\.ca\/email\/logo\.png"/);
+
+  const webhook = await readFile(new URL("../api/stripe-webhook.js", import.meta.url), "utf8");
+  assert.match(webhook, /const logoBuffer = await renderHostLogoPng\(\)/);
+  assert.match(webhook, /content_id: hostLogoCid/);
+  assert.match(webhook, /attachments: hostAttachments/);
+  assert.match(webhook, /logoCid: hostLogoCid/);
 });
