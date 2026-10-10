@@ -14,10 +14,8 @@ export default async function handler(req,res) {
     return res.status(400).end("Unsupported vehicle");
   }
   try{
-    const image=await premiumVehicleBuffer({vehicle_model:"",vehicle_colour:colour,vehicle_body_type:type});
-    // Resolve explicit body type through the known API type, never trust an
-    // arbitrary user-controlled filesystem path or body name.
-    const file=await premiumVehicleBuffer({vehicle_model:"",vehicle_colour:colour,vehicle_body_type:type});
+    // The explicit class is checked against the fixed six-class allowlist.
+    const file=await premiumVehicleBuffer({vehicle_colour:colour,vehicle_body_type:type});
     res.setHeader("Content-Type","image/webp");
     res.setHeader("Cache-Control","public, s-maxage=86400, stale-while-revalidate=604800");
     res.setHeader("X-Content-Type-Options","nosniff");
