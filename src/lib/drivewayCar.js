@@ -52,7 +52,7 @@ export function drivewayCarShapes(vehicle = {}) {
   const rearGlassPath = `M${cabinL + 3} ${cb - 6} Q48 ${cb - 2} ${cabinR - 3} ${cb - 6} L${cabinR - 3} ${wr - 1} Q48 ${wr + (isCoupe ? 12 : 5)} ${cabinL + 3} ${wr - 1} Z`;
   const contour = `M48 ${t + 2} C${x2 - 12} ${t + 3} ${x2} ${t + 11} ${x2} ${t + r} L${x2} ${b - r} C${x2} ${b - 8} ${x2 - 10} ${b} 48 ${b} C${x1 + 10} ${b} ${x1} ${b - 8} ${x1} ${b - r} L${x1} ${t + r} C${x1} ${t + 9} ${x1 + 13} ${t + 2} 48 ${t + 2} Z`;
   const bed = isPickup ? `
-    <rect x="${cabinL - 1}" y="111" width="${cabinWidth + 2}" height="53" rx="5" fill="#0D253C" opacity=".37" />
+    <rect data-ps-pickup-bed="true" x="${cabinL - 1}" y="111" width="${cabinWidth + 2}" height="53" rx="5" fill="#0D253C" opacity=".37" />
     <rect x="${cabinL + 2}" y="114" width="${cabinWidth - 4}" height="45" rx="3" fill="url(#ps-glass)" opacity=".45" />
     <path d="M${cabinL + 7} 116 V154 M48 116 V154 M${cabinR - 7} 116 V154 M${cabinL + 2} 160 H${cabinR - 2}" stroke="#DCE8F0" opacity=".35" stroke-width="1.8"/>
   ` : "";
