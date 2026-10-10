@@ -66,8 +66,8 @@ test("email PNG uses exact shared SVG and enlarges booked vehicle inside Spot B"
   assert.notDeepEqual(silverImg, orangeImg);
   const email = await readFile(new URL("../api/_driveway-image.js", import.meta.url), "utf8");
   assert.match(email, /premiumVehicleBuffer\(vehicle\)/);
-  assert.match(email, /booked\.w \* \.93/);
-  assert.match(email, /booked\.h \* \.66/);
+  assert.match(email, /booked\.w \* \.96/);
+  assert.match(email, /booked\.h \* \.76/);
   assert.match(email, /pixelLabel\("RESERVED"/);
   assert.match(email, /pixelLabel\(`SPOT/);
 });
@@ -80,8 +80,8 @@ test("App's SpotPicker and both booking dashboards reuse the premium shared car"
   assert.match(app, /<SpotPicker/);
   assert.match(app, /<BookingParkingDetails listing=\{b\.listingDetails\} spotLabel=\{b\.spotLabel\} vehicle=\{b\.vehicle\} \/>/);
   assert.match(app, /<BookingParkingDetails listing=\{b\.listing\} spotLabel=\{b\.spotLabel\} vehicle=\{b\.vehicle\}/);
-  assert.match(styles, /\.ps-driveway-car-roof\s*\{[\s\S]*?height: 74%/);
-  assert.match(styles, /\.ps-booked-spot > img\.ps-driveway-car-roof\s*\{[\s\S]*?height: 75%/);
+  assert.match(styles, /\.ps-driveway-car-roof\s*\{[\s\S]*?height: 79%/);
+  assert.match(styles, /\.ps-booked-spot > img\.ps-driveway-car-roof\s*\{[\s\S]*?height: 79%/);
 });
 
 function fakeResponse() {
