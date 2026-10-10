@@ -21,10 +21,25 @@ export function bookingTicketTemplate({
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light only"><title>${title} ${accent}</title>
 <style>
+.ps-header-title-col{width:42.431507%!important;}
+@media only screen and (max-width:560px){
+ .ps-header-title{font-size:11px!important;letter-spacing:-.85px!important;}
+}
+@media only screen and (max-width:460px){
+ .ps-header-logo{width:207.48px!important;}
+ .ps-header-title-col{width:42.299465%!important;}
+ .ps-title-frame{height:37.8px!important;}
+ .ps-header-title{height:30.8px!important;line-height:28px!important;padding:0 4.9px!important;}
+}
+@media only screen and (max-width:360px){
+ .ps-header-logo{width:141.778px!important;}
+ .ps-header-title-col{width:47.434211%!important;}
+ .ps-title-frame{height:36.4px!important;}
+ .ps-header-title{height:29.4px!important;line-height:26.6px!important;padding:0 3.5px!important;letter-spacing:-1.2px!important;}
+}
 @media only screen and (max-width:460px){
  .ps-ticket-inset{padding-left:16px!important;padding-right:16px!important;}
  .ps-ticket-portrait-col,.ps-ticket-portrait{width:96px!important;}
- .ps-ticket-title{font-size:20px!important;line-height:24px!important;}
  .ps-ticket-map-col{width:145px!important;padding-right:12px!important;}
  .ps-ticket-map{width:145px!important;}
  .ps-ticket-time{font-size:17px!important;line-height:22px!important;}
@@ -34,11 +49,18 @@ export function bookingTicketTemplate({
 <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${preheader}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;background:#ffffff;border-collapse:collapse;"><tr><td align="center" style="padding:12px 0;">
 <table role="presentation" class="ps-booking-ticket" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-collapse:collapse;">
-<tr><td align="center" style="padding:8px 18px;background:#1b2b3a;border-bottom:3px solid #f5a623;"><img src="[BOOKING_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="190" style="display:block;width:190px;max-width:100%;height:auto;border:0;margin:0 auto;"></td></tr>
+<tr><td class="ps-header-inset" style="padding:14px 8px;background:#1b2b3a;border-bottom:3px solid #f5a623;">
+ <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;table-layout:fixed;"><tr>
+ <td class="ps-header-logo-col" valign="middle" style="padding-right:6px;vertical-align:middle;"><img class="ps-header-logo" src="[BOOKING_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="329" style="display:block;width:328.51px;max-width:100%;height:auto;border:0;margin:0;"></td>
+ <td class="ps-header-title-col" width="248" valign="middle" style="width:42.431507%;vertical-align:middle;">
+  <div class="ps-title-frame" style="width:100%;height:43.4px;border:1.4px solid #ffffff;border-radius:9.1px;padding:2.1px;background:#0e1b2e;box-sizing:border-box;">
+   <h1 class="ps-header-title" style="margin:0;height:36.4px;line-height:33.6px;box-sizing:border-box;border:1.4px solid #FFC107;border-radius:5.6px;padding:0 7px;white-space:nowrap;text-align:center;font-size:15.4px;font-weight:bold;letter-spacing:-.21px;color:#ffffff;">${title} <span style="color:#FFC107;">${accent}</span></h1>
+  </div>
+ </td></tr></table>
+</td></tr>
 <tr><td class="ps-ticket-inset" style="padding:14px 16px 0;">
  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;"><tr>
  <td valign="middle" style="vertical-align:middle;padding-right:10px;word-wrap:break-word;">
-  <p class="ps-ticket-title" style="margin:0;font-size:23px;line-height:27px;font-weight:bold;letter-spacing:-.4px;color:#0e1b2e;">${title} <span style="color:#b57b00;">${accent}</span></p>
   <p style="margin:8px 0 0;font-size:13px;line-height:18px;color:#0e1b2e;">Hi <strong>${name}</strong>,</p>
   <p style="margin:4px 0 10px;font-size:12px;line-height:17px;color:#617080;">${message}</p>
  </td><td class="ps-ticket-portrait-col" width="112" valign="bottom" style="width:112px;vertical-align:bottom;padding:0;line-height:0;"><img class="ps-ticket-portrait" src="${portrait}" width="112" alt="${portraitAlt}" style="display:block;width:112px;max-width:100%;height:auto;border:0;margin:0;"></td>
