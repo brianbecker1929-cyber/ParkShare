@@ -2,7 +2,7 @@
 // deployments, never production. Does not send email or access customer data.
 import { hostBookingNotificationHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
-import { renderHostLogoPng } from "./_host-logo.js";
+import { renderHostLogoPng, renderHostPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
 export default async function handler(req, res) {
@@ -25,9 +25,10 @@ export default async function handler(req, res) {
     const start = new Date("2026-10-09T23:36:00.000Z");
     const end = new Date(start.getTime() + 60 * 60 * 1000);
     const times = formatBookingEmailTimes(start, end, start);
-    const [image, signatureLogo] = await Promise.all([
+    const [image, signatureLogo, williamPortrait] = await Promise.all([
       renderParkingSpotImage([false, true, false, false], 1, vehicle),
       renderHostLogoPng(),
+      renderHostPortraitPng(),
     ]);
     const html = hostBookingNotificationHtml({
       hostName: "Sample Host",
@@ -41,6 +42,7 @@ export default async function handler(req, res) {
       // Use the actual approved PNG inline for preview so the logo works
       // even if Vercel's preview host blocks cross-origin image requests.
       logoSrc: `data:image/png;base64,${signatureLogo.toString("base64")}`,
+      portraitSrc: `data:image/png;base64,${williamPortrait.toString("base64")}`,
       spotImageSrc: `data:image/png;base64,${image.toString("base64")}`,
     });
     return res.status(200).send(html.replace(
