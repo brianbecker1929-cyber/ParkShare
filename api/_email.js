@@ -149,12 +149,21 @@ export function confirmationEmailHtml({
   spotImageCid,
   vehicleSummary,
   vehiclePlate,
+  logoCid,
+  logoSrc,
   directionsUrl,
   manageReservationUrl,
   supportEmail,
   supportPhone,
 }) {
+  // Match the Host email: use a CID-embedded PNG for actual bookings and an
+  // inline image for synthetic previews, with a trusted same-origin fallback.
+  const logoCandidate = logoSrc || (logoCid ? `cid:${logoCid}` : "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
+  const logoUrl = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(logoCandidate)
+    ? logoCandidate
+    : "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
   return fillTemplate(confirmationTemplate, {
+    BOOKING_LOGO_URL: escapeBookingHtml(logoUrl),
     CUSTOMER_FIRST_NAME: renterName,
     HOST_NAME: hostName,
     GARAGE_ADDRESS: address,
