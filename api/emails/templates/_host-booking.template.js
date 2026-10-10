@@ -40,7 +40,7 @@ export default `<!DOCTYPE html>
 
     <!-- ParkShare brand: same header as the Driver booking confirmation -->
     <tr><td align="center" class="ps-email-inset" style="padding:18px 29px;background:#1b2b3a;border-bottom:3px solid #f5a623;">
-      <img src="${asset}/logo.png" alt="ParkShare" width="240" style="display:block;width:240px;max-width:100%;height:auto;border:0;">
+      <img src="[HOST_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="360" style="display:block;width:360px;max-width:100%;height:auto;border:0;">
     </td></tr>
 
     <!-- Host variant of the Driver confirmation headline and mascot greeting -->
