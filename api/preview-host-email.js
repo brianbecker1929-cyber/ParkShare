@@ -34,6 +34,11 @@ export default async function handler(req, res) {
       endLabel: times.hostEndLabel,
       bookingId: "DEMO",
       driverName: "Sample Driver",
+      // The approved PNG is built into this Vercel preview deployment.
+      // Production still points to www.myparkshare.ca after merge.
+      logoUrl: process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}/email/parkshare-signature-logo.png`
+        : "https://www.myparkshare.ca/brand/parkshare-william-parker-logo.webp",
       spotImageSrc: `data:image/png;base64,${image.toString("base64")}`,
     });
     return res.status(200).send(html.replace(
