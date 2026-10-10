@@ -393,6 +393,7 @@ async function sendBookingConfirmationEmail(booking) {
       html: hostBookingNotificationHtml({
         hostName,
         address,
+        driverName: renter?.name || "ParkShare Driver",
         spotLabel: booking.spot_label,
         vehicle: booking,
         startLabel: formattedTimes.hostStartLabel,
