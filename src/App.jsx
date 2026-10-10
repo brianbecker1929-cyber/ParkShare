@@ -27,7 +27,8 @@ import {
 import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, normaliseDriverProfile, validateDriverProfile } from "./lib/driverProfile";
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
-import { drivewayCarDataUrl, hasDrivewayVehicle } from "./lib/drivewayCar";
+import { hasDrivewayVehicle } from "./lib/drivewayCar";
+import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
 
@@ -98,7 +99,7 @@ function VehicleBadge({ vehicle, compact = false }) {
 // The same colour-accurate top-down artwork used in the email image renderer.
 function DrivewayCarVisual({ vehicle }) {
   if (!hasDrivewayVehicle(vehicle)) return null;
-  return <img className="ps-driveway-car-roof" src={drivewayCarDataUrl(vehicle)} alt={`Top-down view of ${formatVehicleVisualSummary(vehicle) || "selected car"}`} draggable={false} />;
+  return <img className="ps-driveway-car-roof" src={premiumVehicleUrl(vehicle)} alt={`Premium top-down view of ${formatVehicleVisualSummary(vehicle) || "selected car"}`} draggable={false} loading="lazy" decoding="async" />;
 }
 
 function BookingVehicleVisual({ vehicle }) {
@@ -1604,8 +1605,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
   const chooseSpot = (index) => {
+    // Automatically preview the Driver Profile's complete primary vehicle
+    // when first choosing a bay. Preserve an explicitly selected guest
+    // vehicle on subsequent spot changes. No red cartoon car in the chosen
+    // bay while a saved, bookable vehicle exists.
+    const existingVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId);
+    const defaultVehicle = existingVehicle
+      || bookableVehicles.find(vehicle => vehicle.id === "primary")
+      || bookableVehicles[0] || null;
     setChosenSpot(index);
-    setSpotVehiclePickerOpen(true);
+    if (!existingVehicle && defaultVehicle) setSelectedVehicleId(defaultVehicle.id);
+    // Switch vehicle is always available; don't force a dropdown open
+    // when the renter already has a usable default vehicle.
+    setSpotVehiclePickerOpen(!defaultVehicle);
   };
   useEffect(() => {
     if (showSpotPicker && chosenSpot !== null && spotVehiclePickerOpen) {
@@ -3702,23 +3714,49 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
           const isAvailable = hostEnabled && liveFree;
           const isChosen = chosen === i;
           return (
-            <button key={l} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
+            <button key={l} className={`ps-spot-picker-bay${isChosen ? " is-selected" : ""}`} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
               borderRadius: 10, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
               border: isChosen ? "4px solid " + C.hazard : "3px solid " + (isAvailable ? C.moss : "#B0AA9C"),
               background: isChosen ? C.mossLight : isAvailable ? "#F7F3E7" : "#EAE6DA", opacity: isAvailable ? 1 : 0.8,
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, padding: "3% 3%", overflow: "hidden",
+              // Selected spots use two dedicated rows: readable Spot label,
+              // then the remaining bay entirely for the approved vehicle.
+              // Unselected availability/unavailable spots keep their layout.
+              display: isChosen ? "grid" : "flex",
+              gridTemplateColumns: isChosen ? "minmax(0, 1fr)" : undefined,
+              gridTemplateRows: isChosen ? "min-content minmax(0, 1fr)" : undefined,
+              flexDirection: "column", alignItems: "center",
+              justifyContent: isChosen ? "stretch" : "center",
+              // Reserve breathing room above the selected label so the
+              // 4px orange border can't clip "Spot A" or "Spot B".
+              gap: isChosen ? 1 : 4, padding: isChosen ? "10px 5px 5px" : "3% 3%", overflow: "hidden",
               fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
-              <span style={{ fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }}>Spot {l}</span>
+              <span className="ps-spot-picker-label" style={{
+                fontWeight: 800, fontSize: isChosen ? 12 : 13, lineHeight: 1.25,
+                textAlign: "center", width: "100%", boxSizing: "border-box",
+                whiteSpace: "nowrap", flexShrink: 0,
+                // Selected labels (A-D) must stay inside even the narrowest mobile
+                // orange outline. Right-side inset nudges text left; horizontal
+                // compression adds clearance without changing the label row's
+                // height, vehicle footprint, or surrounding driveway layout.
+                paddingRight: isChosen ? 4 : 0,
+                transform: isChosen ? "scaleX(0.86)" : undefined,
+              }}>Spot {l}</span>
               {isChosen && hasDrivewayVehicle(vehicle) ? (
                 <DrivewayCarVisual vehicle={vehicle} />
+              ) : isChosen ? (
+                <span className="ps-spot-picker-no-vehicle">Select vehicle</span>
               ) : isAvailable ? (
                 <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
               ) : (
                 <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
               )}
-              <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isChosen ? C.hazard : isAvailable ? C.moss : C.muted }}>{isChosen ? "Your spot" : isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
+              {/* Selection is conveyed by the orange bay outline and vehicle.
+                  No "Your spot" label stealing height from the car. */}
+              {!isChosen && (
+                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
+              )}
             </button>
           );
         })}
@@ -3749,7 +3787,7 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel, vehicle }) {
               {isSelected ? (
                 hasDrivewayVehicle(vehicle)
                   ? <DrivewayCarVisual vehicle={vehicle} />
-                  : <img className="ps-driveway-car-roof" src={drivewayCarDataUrl({})} alt="Neutral car illustration; booked vehicle details unavailable" draggable={false} />
+                  : <img className="ps-driveway-car-roof" src={premiumVehicleUrl({})} alt="Neutral car illustration; booked vehicle details unavailable" draggable={false} />
               ) : <span aria-hidden="true">{isRentable ? "" : "🚫"}</span>}
               <small>{isSelected ? "RESERVED" : isRentable ? "" : "NOT FOR RENT"}</small>
             </div>

@@ -1,25 +1,80 @@
-# Premium dynamically rendered vehicles in ParkShare
+# ParkShare approved premium vehicle artwork — production-ready library
 
-Implementation: shared `src/lib/drivewayCar.js` is used by the Driver spot selector, payment review, Driver My Bookings, Host Upcoming Bookings, and server `api/_driveway-image.js` for both booking emails. **One renderer**, no separate hard-coded car illustration per channel.
+## Source artwork
 
-## Vehicle selection and source of truth
-- During checkout, driver selects one of the saved vehicles. Booking snapshot stores its make, model, colour and plate.
-- All confirmed-booking views use this snapshot (`b.vehicle` or booking fields) and do not silently substitute the account's current primary vehicle.
-- The server email renderer draws from the same booked snapshot, so later profile edits cannot retroactively change a confirmed reservation.
+These six transparent WebPs are resized and optimized **from the exact six approved image-generation outputs**, not drawn from a substitute icon set:
 
-## Visual implementation
-Six deterministic vector body classes: sedan, crossover/SUV, coupe, hatchback, pickup truck, van. The renderer changes front/rear window geometry, wheel and body proportions, cab/roof, cargo bed and reflective surfaces by body class. A normalized approved colour map avoids inserting arbitrary profile text into SVG. Unknown models/colours have a neutral fallback; no real brand badge or exact factory-specific likeness is claimed. These are premium *representative* body-class vehicles, not photorealistic depictions of every unique make/model.
+| File in repository | Original approved image | Master colour |
+| --- | --- | --- |
+| `public/vehicles-premium/masters/suv.webp` | `silver_luxury_crossover_top_view.png` | Silver |
+| `public/vehicles-premium/masters/coupe.webp` | `top_down_orange_luxury_sports_coupe.png` | Orange |
+| `public/vehicles-premium/masters/sedan.webp` | `top_down_metallic_navy_sedan.png` | Blue |
+| `public/vehicles-premium/masters/hatchback.webp` | `overhead_yellow_sport_hatchback_cutout.png` | Yellow |
+| `public/vehicles-premium/masters/pickup.webp` | `top_down_white_pickup_truck.png` | White |
+| `public/vehicles-premium/masters/van.webp` | `top_down_metallic_cargo_van.png` | Grey |
 
-The SVG viewbox is 96×188 and reusable in browser and email rendering. Vehicle size is increased in all selected bay components without hiding Spot A/B/C/D labels or RESERVED status. Both email notifications use Sharp to rasterize the same shapes into attached PNGs; the live app uses the SVG data URL.
+Master images have transparent backgrounds and 390-pixel width (700–753 pixels tall), optimized for the size actually used in driveway diagrams and emails. For future branding at very large sizes, retain the original high-resolution PNGs separately.
 
-## QA samples
-- Silver BMW X4 → silver crossover/SUV
-- Orange Lexus LC → orange sports coupe
-- Black Honda Civic → black sedan
-- White MINI Cooper → white hatchback
-- Red Ford F-150 → red pickup
-- Blue Toyota Sienna → blue van
+## Dynamic booking linkage
 
-Preview-only six-car gallery: `/api/preview-premium-vehicles` (no charges, emails or private customer data). To compare in booking emails, use existing `/api/preview-host-email` and `/api/preview-renter-email` routes, which also use the updated email image renderer.
+- `src/lib/premiumVehicle.js`: derives body type + colour from the **specific vehicle selected for that reservation** (not necessarily the account's primary vehicle). Only six allowlisted body types and named supported colours appear in the URL.
+- `api/_premium-vehicle.js`: loads one of the six approved masters; when the renter's colour differs from that image's original paint, recolours painted areas while preserving dark glass, lamps and reflections as closely as possible. The result is a colour-matched *representative* vehicle, **not** an exact model photo or OEM paint calibration.
+- `api/vehicle-topdown.js`: public cacheable WebP endpoint with strict known-type and colour validation, allowing reuse in website booking cards and selected spaces.
+- `src/App.jsx`: `DrivewayCarVisual` now loads approved artwork in SpotPicker and Driver/Host booking/reservation displays; original layout, labels and highlighted spot remain.
+- `api/_driveway-image.js`: composes exactly the same selected vehicle image at full resolution in the booked spot before downsampling the PNG to 500 pixels for **both Renter and Host confirmation emails**. Existing photos, landscape, road, garage, spot labels and reservation status are preserved.
 
-Changes are stacked on PR #121's Host/Renter email work, so PR #121 must be merged or integrated first. Never merge directly to `main` without UI approval.
+## Preview and testing
+
+Use the feature branch's Vercel preview:
+- `/api/preview-premium-vehicles`: six approved images and each one inside the real driveway diagram (synthetic booking data)
+- `/api/preview-renter-email`: confirmed renter email with selected vehicle
+- `/api/preview-host-email`: host notification with identical selected vehicle
+- Driver and Host booking screens on the Vercel deployment
+
+Sample combinations: Silver BMW X4, Orange Lexus LC, Black Honda Civic, White MINI Cooper, Red Ford F-150 and Blue Toyota Sienna.
+
+No database migrations, payment changes, or booking write-side changes. These changes are stacked on PR #123, which is stacked on unmerged email PR #121. **Do not merge into main until explicit approval.**
+
+
+## Approved 12% scale enhancement (October 10, 2026)
+
+The original six approved transparent WebP masters are unchanged; the **displayed vehicle** is approximately 12% larger on each axis, while its parking bay and the driveway's spot labels remain unchanged.
+
+- SpotPicker / checkout: `83% × 66%` → `93% × 74%`
+- Driver and Host booked-space cards: `82% × 67%` → `92% × 75%`
+- Compact cards: `80% × 64%` → `90% × 72%`
+- Shared confirmation email PNG: `83% × 59%` → `93% × 66%` of the selected spot. Image top moves upward to 19.5% of the bay; selected `SPOT B` label sits at 10% and `RESERVED` at 89% so neither is covered.
+
+The bookable area, reserved outline, car colour/body selection, host/driver booking snapshots and email branding are unchanged. All images still use `object-fit:contain` / Sharp `fit:contain` to avoid distortion and leave a small margin.
+
+See `test/approved-vehicle-scale.test.js` for numeric growth bounds and label-clearance checks.
+
+
+## Final locked orange Lexus reference footprint (October 10, 2026)
+
+The later approved Spot B orange Lexus screenshot supersedes the earlier incremental 12% sizing experiment. The issue was not image quality; limiting the vehicle to 66% of the parking-bay height (plus hard CSS pixel caps) kept it visibly undersized.
+
+**Final bay-relative placement:**
+
+- Website SpotPicker and checkout selected vehicle: **96% available width / 79% available height**, `object-fit:contain`, no 148px image-width cap.
+- Driver and Host full booking cards: **96% available width / 79% available height**, no 129px cap.
+- Compact booking cards: **96% available width / 78% available height**, no 78px cap.
+- Shared Host/Renter email driveway PNG: **96% bay width / 76% bay height**, centred at 12% below the selected bay top. Actual art's visible footprint is subject to transparent-image aspect ratio, with the coupe expected to occupy about 73–76% of bay height.
+- Email selected SPOT label begins 3.5% down the bay, with RESERVED at 91.5%. The image region runs from 12% to 88%, giving clear gap between all three. Unselected bay labels and driveway texture remain unchanged.
+
+The **same six approved WebP masters, vehicle class/colour resolver, booking-selected vehicle snapshot and rendered confirmation image** remain in service. This is a rendering-only scale update, not a data-flow or booking change.
+
+Regression coverage includes the final bay-relative dimensions, no tiny pixel caps, label boundaries and PNG output for all six selected body types (`test/approved-vehicle-scale.test.js`). Review the actual Vercel preview before any merge.
+
+
+## October 10 visual QA: photo assets were still too small on the website
+
+Actual mobile screenshots showed a **silver BMW X4 in Spot A** with a small visual footprint, while the Renter and Host email previews showed an **orange Lexus LC in Spot B**. These are two different bookings/vehicles, not a mismatch in which car the emails selected.
+
+Root cause: some approved master WebPs contained substantial **transparent padding around the visible vehicle**. The browser's `object-fit:contain` was correctly fitting the *canvas*, but that canvas could contain a visibly smaller vehicle even with 96% × 79% CSS sizing. Further percentage growth alone could not fix it.
+
+Correction: `api/_premium-vehicle.js` now generates a **tight visible-alpha crop** from each approved master (alpha threshold 32), with ~2% artwork margin to protect mirrors/tyres/shadows. The result is cached per body class and reused by the public vehicle URL and the Sharp email diagrams. The original six WebP source files, profile colour mapping and model/body silhouettes are unchanged. Recolouring happens *after* cropping so a silver BMW X4 and blue BMW X4 have identical properly filled bounding boxes.
+
+QA: `test/premium-vehicle-alpha-crop.test.js` asserts the visible car occupies at least 91% of the *image's* width and height for all six body classes and for recoloured variants, while email diagrams remain renderable.
+
+The next preview review should check that the **silver BMW X4 in the Spot A website flow** now appears close to the approved orange Lexus footprint, without overlapping 'Spot A' or 'Your spot'. The website and confirmation email previews are synthetic/review-only. Do not merge until approved.

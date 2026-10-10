@@ -16,7 +16,8 @@
 import sharp from "sharp";
 import { readFileSync } from "fs";
 import path from "path";
-import { drivewayCarShapes, hasDrivewayVehicle } from "../src/lib/drivewayCar.js";
+import { hasDrivewayVehicle } from "../src/lib/drivewayCar.js";
+import { premiumVehicleBuffer } from "./_premium-vehicle.js";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "public", "driveway-template.png");
 const IMG_W = 1065;
@@ -162,23 +163,20 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
     const stroke = isChosen ? "#FFC107" : isAvailable ? COLORS.moss : "#B0AA9C";
     const strokeWidth = isChosen ? 10 : 4;
     const cx = b.x + b.w / 2;
-    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * 0.16, 4.2, COLORS.navy);
+    // The selected car is larger, so move ONLY its text bands outward:
+    // label remains at the top; RESERVED remains below the vehicle.
+    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * (isChosen ? 0.035 : 0.16), 4.2, COLORS.navy);
     const status = isChosen
-      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.84, 3.1, COLORS.navy)
+      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.915, 3.1, COLORS.navy)
       : isAvailable
         ? pixelLabel("AVAILABLE", cx, b.y + b.h * 0.83, 2.9, COLORS.moss)
         : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
           + pixelLabel("RENT", cx, b.y + b.h * 0.85, 3.2, COLORS.muted);
 
-    // Match the enlarged, premium car shown in the browser's chosen spot.
-    // Reserve the label band above and RESERVED below: no text overlap.
-    // 65% of the bay height keeps an SUV/pickup/van inside its outline.
-    const scale = Math.min(b.w * 0.80 / 96, b.h * 0.65 / 188);
-    const carX = cx - (96 * scale) / 2;
-    const carY = b.y + b.h * 0.19;
-    const carGlyph = `<g transform="translate(${carX} ${carY}) scale(${scale})">${drivewayCarShapes(vehicle || {})}</g>`;
+    // The actual PNG/WebP vehicle asset is composited AFTER the spot labels.
+    // Reserve its own vertical band: the label is above and RESERVED below.
     const symbol = isChosen && hasDrivewayVehicle(vehicle)
-      ? carGlyph
+      ? ""
       : isAvailable
         ? `<g><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="19" fill="${COLORS.moss}" opacity=".88"/>${pixelLabel("P", cx, b.y + b.h * 0.58 - 12, 3.6, "#FFFFFF")}</g>`
         : `<g fill="none" stroke="#B6AFA3" stroke-width="7" stroke-linecap="round"><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="25"/><path d="M${cx - 16} ${b.y + b.h * 0.58 - 16}L${cx + 16} ${b.y + b.h * 0.58 + 16}"/></g>`;
@@ -205,7 +203,30 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
     .png()
     .toBuffer();
 
-  return sharp(composited)
+  let withCar = composited;
+  const booked = Number.isInteger(chosenIndex) ? boxes[chosenIndex] : null;
+  if (booked && hasDrivewayVehicle(vehicle)) {
+    // Final approved orange Lexus footprint: size the REAL transparent
+    // WebP relative to its reserved bay, not a fixed icon pixel width.
+    // The image is contained inside a 96%-wide, 76%-high central window.
+    // TOP 'SPOT B' runs ~3.5–10.7%; car ~12.0–88.0%;
+    // RESERVED starts at 91.5%. Car/text/border never overlap.
+    // Works for all six body classes without changing vehicle colour mapping.
+    const carWidth = Math.max(1, Math.round(booked.w * .96));
+    const carHeight = Math.max(1, Math.round(booked.h * .76));
+    const carX = Math.round(booked.x + (booked.w - carWidth) / 2);
+    const carY = Math.round(booked.y + booked.h * .12);
+    const photo = await sharp(await premiumVehicleBuffer(vehicle))
+      .resize(carWidth, carHeight, { fit: "contain", background: "#00000000" })
+      .png()
+      .toBuffer();
+    withCar = await sharp(composited)
+      .composite([{ input: photo, top: carY, left: carX }])
+      .png()
+      .toBuffer();
+  }
+
+  return sharp(withCar)
     .resize(500) // email-appropriate width, keeps the template's aspect ratio
     .png({ quality: 85 })
     .toBuffer();

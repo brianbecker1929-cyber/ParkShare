@@ -46,9 +46,9 @@ test("Stripe email uses the same parked car graphic and sends a separate host no
   const renderer = await read("../api/_driveway-image.js");
   const webhook = await read("../api/stripe-webhook.js");
   const email = await read("../api/_email.js");
-  assert.match(renderer, /import \{ drivewayCarShapes, hasDrivewayVehicle \} from/);
+  assert.match(renderer, /import \{ premiumVehicleBuffer \} from/);
   assert.match(renderer, /renderParkingSpotImage\(spotStates, chosenIndex, vehicle = null\)/);
-  assert.match(renderer, /drivewayCarShapes\(vehicle \|\| \{\}\)/);
+  assert.match(renderer, /premiumVehicleBuffer\(vehicle\)/);
   assert.match(webhook, /renderParkingSpotImage\(spotStates, chosenIndex, booking\)/);
   assert.match(webhook, /hostEmail && hostEmail.toLowerCase\(\)/);
   assert.match(webhook, /hostBookingNotificationHtml/);
@@ -59,7 +59,13 @@ test("Stripe email uses the same parked car graphic and sends a separate host no
 
 test("spot selection expands saved vehicle cards and blocks confirmation until selected", async () => {
   const app = await read("../src/App.jsx");
-  assert.match(app, /const chooseSpot = \(index\) => \{\s*setChosenSpot\(index\);\s*setSpotVehiclePickerOpen\(true\);/);
+  // Selecting a spot defaults to a complete primary vehicle immediately.
+  // A deliberately selected guest remains selected until the renter switches.
+  assert.match(app, /const chooseSpot = \(index\) => \{/);
+  assert.match(app, /bookableVehicles\.find\(vehicle => vehicle\.id === "primary"\)/);
+  assert.match(app, /const defaultVehicle = existingVehicle/);
+  assert.match(app, /if \(!existingVehicle && defaultVehicle\) setSelectedVehicleId\(defaultVehicle\.id\)/);
+  assert.match(app, /setSpotVehiclePickerOpen\(!defaultVehicle\)/);
   assert.match(app, /<section className="ps-spot-vehicle-panel" ref=\{spotVehiclePickerRef\}/);
   assert.match(app, /Select your vehicle to preview it in the driveway/);
   assert.match(app, /role="radiogroup" aria-label="Select your parking vehicle"/);
@@ -115,7 +121,7 @@ test("confirmed-space diagram never misidentifies a vehicle as generic red", asy
   const diagram = app.slice(from, to);
   assert.ok(from >= 0 && to > from);
   assert.match(diagram, /<DrivewayCarVisual vehicle=\{vehicle\} \/>/);
-  assert.match(diagram, /src=\{drivewayCarDataUrl\(\{\}\)\}/);
+  assert.match(diagram, /src=\{premiumVehicleUrl\(\{\}\)\}/);
   assert.match(diagram, /Neutral car illustration; booked vehicle details unavailable/);
   assert.doesNotMatch(diagram, /src="\/car-icon\.png"/);
 });
