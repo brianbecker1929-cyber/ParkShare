@@ -55,11 +55,27 @@ test("all five email previews display the same high-resolution silver vehicle PN
   process.env.VERCEL_ENV = "preview";
   try {
     let expectedMap;
+    let expectedLogo;
     for (const template of ["host", "confirmation", "extension", "halfway", "ending"]) {
       const res = response();
       const handler = template === "host" ? previewHostEmail : previewRenterEmail;
       await handler({ method: "GET", query: { template, vehicle: "silver", spot: "D" } }, res);
       assert.equal(res.statusCode, 200, template);
+      const logos = [...res.html.matchAll(/<img[^>]*src="(data:image\/png;base64,[^"]+)"[^>]*alt="ParkShare — William and Parker with the signature wordmark"[^>]*width="260"/g)];
+      assert.equal(logos.length, 1, template + " must include the approved logo");
+      expectedLogo ||= logos[0][1];
+      assert.equal(logos[0][1], expectedLogo, template + " must match the Host logo");
+      assert.doesNotMatch(res.html, /email\/logo\.png/);
+      if (template === "halfway") {
+        assert.match(res.html, /HALFWAY<br>/);
+        assert.match(res.html, /CHECK-IN/);
+        assert.match(res.html, /30 minutes remaining/);
+        assert.doesNotMatch(res.html, /15 minutes|ENDING SOON/);
+      } else if (template === "ending") {
+        assert.match(res.html, /ENDING SOON/);
+        assert.match(res.html, /Ends in 15 minutes/);
+        assert.doesNotMatch(res.html, /HALFWAY|30 minutes/);
+      }
       const maps = [...res.html.matchAll(/<img[^>]*src="(data:image\/png;base64,[^"]+)"[^>]*width="420"/g)];
       assert.equal(maps.length, 1, template + " must include one enlarged driveway");
       expectedMap ||= maps[0][1];

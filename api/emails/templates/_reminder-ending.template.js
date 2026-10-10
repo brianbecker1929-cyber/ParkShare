@@ -6,7 +6,7 @@ export default `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your Parker Reservation is Coming Up</title>
+<title>Your parking session is ending soon</title>
 <meta name="color-scheme" content="light only">
 <meta name="supported-color-schemes" content="light only">
 </head>
@@ -19,14 +19,14 @@ export default `<!DOCTYPE html>
         <!-- ===== STATIC: HEADER / LOGO ===== -->
         <tr>
           <td style="background-color:#1b2b3a; padding:18px 29px 18px 29px; border-bottom:3px solid #f5a623;" align="center">
-            <img src="https://www.myparkshare.ca/email/logo.png" alt="ParkShare" width="240" style="display:block; border:0; margin:0;">
+            <img src="[BOOKING_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="260" style="display:block; width:260px; max-width:100%; height:auto; border:0; margin:0;">
           </td>
         </tr>
 
         <!-- ===== STATIC: PARKING REMINDER LOGO ===== -->
         <tr>
           <td style="padding:8px 29px 0 29px;" align="left">
-            <img src="https://www.myparkshare.ca/email/reminder-headline.png" width="192" height="91" alt="Parking Reminder" style="display:block; border:0;">
+            <h1 style="margin:0; font-size:30px; line-height:1.05; font-weight:800; letter-spacing:0.3px; color:#001d3d;">PARKING<br><span style="color:#f5a623;">ENDING SOON</span></h1>
           </td>
         </tr>
 
@@ -38,7 +38,7 @@ export default `<!DOCTYPE html>
                 <td valign="middle" style="padding-right:14px; padding-bottom:14px; vertical-align:middle;">
                   <p style="margin:0; font-size:14px; color:#1c2b4a;">Hi [CUSTOMER_FIRST_NAME],</p>
                   <p style="margin:11px 0 0 0; font-size:14px; color:#4a5568; line-height:1.5;">
-                    Your parking reservation is ending soon. Here's a quick recap.
+                    Your parking session ends in [TIME_REMAINING]. Please return to your vehicle or add time before your reservation ends.
                   </p>
                 </td>
                 <td width="164" valign="bottom" align="right" style="width:164px; min-width:164px; padding:0; vertical-align:bottom; line-height:0; font-size:0;">
@@ -60,7 +60,7 @@ export default `<!DOCTYPE html>
                         <img src="https://www.myparkshare.ca/email/icon-clock.png" width="29" height="29" alt="Clock" style="display:block; border:0;">
                       </td>
                       <td valign="middle" style="padding-left:7px;">
-                        <p style="margin:0; font-size:7px; font-weight:bold; letter-spacing:0.3px; text-transform:uppercase; color:#f5a623;">Your Parking Session</p>
+                        <p style="margin:0; font-size:7px; font-weight:bold; letter-spacing:0.3px; text-transform:uppercase; color:#f5a623;">Parking ending soon</p>
                         <p style="margin:1px 0 0 0; font-size:11px; font-weight:bold; color:#ffffff;">Ends in [TIME_REMAINING]</p>
                         <p style="margin:1px 0 0 0; font-size:8px; color:#c3ccd9;">[SESSION_END_DATE_LABEL] at [SESSION_END_TIME]</p>
                       </td>

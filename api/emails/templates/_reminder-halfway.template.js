@@ -6,7 +6,7 @@ export default `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Your Parker Session is Halfway Done</title>
+<title>Halfway through your parking session</title>
 <meta name="color-scheme" content="light only">
 <meta name="supported-color-schemes" content="light only">
 </head>
@@ -19,14 +19,14 @@ export default `<!DOCTYPE html>
         <!-- ===== STATIC: HEADER / LOGO ===== -->
         <tr>
           <td style="background-color:#1b2b3a; padding:18px 29px 18px 29px; border-bottom:3px solid #f5a623;" align="center">
-            <img src="https://www.myparkshare.ca/email/logo.png" alt="ParkShare" width="240" style="display:block; border:0; margin:0;">
+            <img src="[BOOKING_LOGO_URL]" alt="ParkShare — William and Parker with the signature wordmark" width="260" style="display:block; width:260px; max-width:100%; height:auto; border:0; margin:0;">
           </td>
         </tr>
 
         <!-- ===== STATIC: PARKING REMINDER LOGO ===== -->
         <tr>
           <td style="padding:8px 29px 0 29px;" align="left">
-            <img src="https://www.myparkshare.ca/email/reminder-headline.png" width="192" height="91" alt="Parking Reminder" style="display:block; border:0;">
+            <h1 style="margin:0; font-size:30px; line-height:1.05; font-weight:800; letter-spacing:0.3px; color:#001d3d;">HALFWAY<br><span style="color:#f5a623;">CHECK-IN</span></h1>
           </td>
         </tr>
 
@@ -38,7 +38,7 @@ export default `<!DOCTYPE html>
                 <td valign="middle" style="padding-right:10px; padding-bottom:10px; vertical-align:middle;">
                   <p style="margin:0; font-size:14px; color:#1c2b4a;">Hi [CUSTOMER_FIRST_NAME],</p>
                   <p style="margin:11px 0 0 0; font-size:14px; color:#4a5568; line-height:1.5;">
-                    You're about halfway through your parking session. Here's a quick recap.
+                    You're halfway through your parking session. Check your end time below and plan the rest of your stay.
                   </p>
                 </td>
                 <td width="128" valign="bottom" align="right" style="width:128px; min-width:128px; padding:0; vertical-align:bottom; line-height:0; font-size:0;">
@@ -60,7 +60,7 @@ export default `<!DOCTYPE html>
                         <img src="https://www.myparkshare.ca/email/icon-clock.png" width="29" height="29" alt="Clock" style="display:block; border:0;">
                       </td>
                       <td valign="middle" style="padding-left:7px;">
-                        <p style="margin:0; font-size:7px; font-weight:bold; letter-spacing:0.3px; text-transform:uppercase; color:#f5a623;">Your Parking Session</p>
+                        <p style="margin:0; font-size:7px; font-weight:bold; letter-spacing:0.3px; text-transform:uppercase; color:#f5a623;">Halfway through your session</p>
                         <p style="margin:1px 0 0 0; font-size:11px; font-weight:bold; color:#ffffff;">[TIME_REMAINING] remaining</p>
                         <p style="margin:1px 0 0 0; font-size:8px; color:#c3ccd9;">Ends [SESSION_END_DATE_LABEL] at [SESSION_END_TIME]</p>
                       </td>
@@ -154,7 +154,7 @@ export default `<!DOCTYPE html>
             <a href="[EXTEND_URL]" style="display:block; background-color:#f5a623; border:3px solid #001d3d; color:#001d3d; text-decoration:none; font-size:16px; font-weight:bold; padding:14px 25px; border-radius:10px; text-align:center;">
               Add Additional Time
             </a>
-            <p style="margin:6px 0 0 0; font-size:11px; color:#8a94a6; text-align:center;">Extend your session before it ends</p>
+            <p style="margin:6px 0 0 0; font-size:11px; color:#8a94a6; text-align:center;">Need a longer stay? Add time now</p>
           </td>
         </tr>
         <tr>

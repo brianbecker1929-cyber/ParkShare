@@ -74,6 +74,15 @@ function escapeBookingHtml(value) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// All five templates use the approved signature logo. Actual sends embed it
+// via CID; synthetic previews inline it, with a hosted PNG as the fallback.
+function signatureLogoUrl({ logoSrc, logoCid }) {
+  const fallback = "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
+  const candidate = logoSrc || (logoCid ? `cid:${logoCid}` : fallback);
+  return /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(candidate)
+    ? candidate : fallback;
+}
+
 // Send a separate, fully branded Host notification using the same table-based
 // email design, typography, palette and footer as the Driver confirmation.
 // Do not CC the Host on the Driver email. All booking values are HTML-escaped.
@@ -95,10 +104,7 @@ export function hostBookingNotificationHtml({
   // Hosted email uses an image attachment with content_id (CID).
   // Visual preview can inline the same PNG as a data URI; neither depends
   // on Vercel's protected deployment asset URLs loading in a mail client.
-  const logoCandidate = logoSrc || (logoCid ? `cid:${logoCid}` : "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
-  const safeLogoSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(logoCandidate)
-    ? logoCandidate
-    : "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
+  const safeLogoSrc = signatureLogoUrl({ logoSrc, logoCid });
   // The approved William waist-up PNG is embedded for email-client reliability.
   const portraitCandidate = portraitSrc || (portraitCid ? `cid:${portraitCid}` : "https://www.myparkshare.ca/william-v3/masters/ParkShare_William_05_Presenting.png");
   const safePortraitSrc = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/william-v3\/masters\/ParkShare_William_05_Presenting\.png)$/.test(portraitCandidate)
@@ -158,10 +164,7 @@ export function confirmationEmailHtml({
 }) {
   // Match the Host email: use a CID-embedded PNG for actual bookings and an
   // inline image for synthetic previews, with a trusted same-origin fallback.
-  const logoCandidate = logoSrc || (logoCid ? `cid:${logoCid}` : "https://www.myparkshare.ca/email/parkshare-signature-logo.png");
-  const logoUrl = /^(?:cid:[a-zA-Z0-9_-]+|data:image\/png;base64,[a-zA-Z0-9+/=]+|https:\/\/www\.myparkshare\.ca\/email\/parkshare-signature-logo\.png)$/.test(logoCandidate)
-    ? logoCandidate
-    : "https://www.myparkshare.ca/email/parkshare-signature-logo.png";
+  const logoUrl = signatureLogoUrl({ logoSrc, logoCid });
   return fillTemplate(confirmationTemplate, {
     BOOKING_LOGO_URL: escapeBookingHtml(logoUrl),
     CUSTOMER_FIRST_NAME: renterName,
@@ -191,6 +194,8 @@ export function confirmationEmailHtml({
 // different template and different framing of TIME_REMAINING.
 // ---------------------------------------------------------------------
 function reminderFields({
+  logoCid,
+  logoSrc,
   renterName,
   hostName,
   address,
@@ -208,6 +213,7 @@ function reminderFields({
   supportPhone,
 }) {
   return {
+    BOOKING_LOGO_URL: escapeBookingHtml(signatureLogoUrl({ logoSrc, logoCid })),
     CUSTOMER_FIRST_NAME: renterName,
     HOST_NAME: hostName,
     GARAGE_ADDRESS: address,
@@ -246,6 +252,8 @@ export function halfwayReminderHtml(args) {
 // payment. See stripe-webhook.js's confirmExtension() for the call site.
 // ---------------------------------------------------------------------
 export function extensionConfirmedHtml({
+  logoCid,
+  logoSrc,
   renterName,
   hostName,
   address,
@@ -263,6 +271,7 @@ export function extensionConfirmedHtml({
   supportPhone,
 }) {
   return fillTemplate(extensionConfirmedTemplate, {
+    BOOKING_LOGO_URL: escapeBookingHtml(signatureLogoUrl({ logoSrc, logoCid })),
     CUSTOMER_FIRST_NAME: renterName,
     HOST_NAME: hostName,
     GARAGE_ADDRESS: address,

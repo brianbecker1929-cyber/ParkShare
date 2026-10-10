@@ -266,18 +266,27 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
     : null;
   const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
 
-  let attachments;
+  const attachments = [];
+  let logoCid;
   let spotImageCid;
   try {
     const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-ext-" + booking.id;
-    attachments = [{
+    attachments.push({
       filename: "parking-spot.png",
       content: imageBuffer.toString("base64"),
       content_id: spotImageCid,
-    }];
+    });
   } catch (err) {
     console.error("Failed to generate parking spot image for extension email (sending without it):", err);
+  }
+
+  try {
+    const logoBuffer = await renderHostLogoPng();
+    logoCid = "parkshare-signature-logo-ext-" + booking.id;
+    attachments.push({ filename: "parkshare-signature-logo.png", content: logoBuffer.toString("base64"), content_id: logoCid });
+  } catch (err) {
+    console.error("Using hosted signature logo for extension email:", err);
   }
 
   const address = listing?.address || "";
@@ -286,6 +295,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
     to: renter.email,
     subject: `Extension confirmed — +${addedTimeStr} added`,
     html: extensionConfirmedHtml({
+      logoCid,
       renterName: renter.name || "there",
       hostName,
       address,

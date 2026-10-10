@@ -62,6 +62,8 @@ export default async function handler(req, res) {
       ending: endingReminderHtml,
     };
     const kind = typeof req.query?.template === "string" && Object.hasOwn(templates, req.query.template) ? req.query.template : "confirmation";
+    // One-hour sample: halfway means 30 minutes left; ending soon means 15.
+    fields.timeRemaining = kind === "halfway" ? "30 minutes" : "15 minutes";
     const html = templates[kind](fields);
     const inlineImage = `data:image/png;base64,${mapPng.toString("base64")}`;
     const withImage = html.replaceAll("cid:parking-spot-demo", inlineImage);

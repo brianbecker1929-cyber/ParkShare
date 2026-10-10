@@ -27,6 +27,7 @@
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
+import { renderHostLogoPng } from "./_host-logo.js";
 
 const ENDING_SOON_MINUTES = 15;
 
@@ -78,7 +79,9 @@ export default async function handler(req, res) {
     const halfway = startMs + (endMs - startMs) / 2;
     const endingAt = endMs - ENDING_SOON_MINUTES * 60 * 1000;
 
-    if (!b.reminder_halfway_sent_at && nowMs >= halfway) dueHalfway.push({ ...b, end: endMs });
+    // A late cron run or short session can cross both thresholds together.
+    // In the ending-soon window, send only the actionable final reminder.
+    if (!b.reminder_halfway_sent_at && nowMs >= halfway && nowMs < endingAt) dueHalfway.push({ ...b, end: endMs });
     if (!b.reminder_ending_sent_at && nowMs >= endingAt) dueEnding.push({ ...b, end: endMs });
   }
 
@@ -152,7 +155,8 @@ async function sendReminder(booking, kind) {
   // change, but there's no image saved anywhere to reuse. Best-effort: if
   // this fails, the reminder still sends, just without the image. Used by
   // BOTH reminder kinds now, since both templates have an image slot.
-  let spotImageCid, attachments;
+  let spotImageCid, logoCid;
+  const attachments = [];
   try {
     const chosenIndex = booking.spot_label
       ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
@@ -160,16 +164,25 @@ async function sendReminder(booking, kind) {
     const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
     const imageBuffer = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     spotImageCid = "parking-spot-" + booking.id;
-    attachments = [{
+    attachments.push({
       filename: "parking-spot.png",
       content: imageBuffer.toString("base64"),
       content_id: spotImageCid,
-    }];
+    });
   } catch (err) {
     console.error("send-reminders: failed to generate parking spot image (sending without it):", err);
   }
 
+  try {
+    const logoBuffer = await renderHostLogoPng();
+    logoCid = "parkshare-signature-logo-" + booking.id;
+    attachments.push({ filename: "parkshare-signature-logo.png", content: logoBuffer.toString("base64"), content_id: logoCid });
+  } catch (err) {
+    console.error("send-reminders: using hosted signature logo:", err);
+  }
+
   const commonFields = {
+    logoCid,
     renterName,
     hostName,
     address,
