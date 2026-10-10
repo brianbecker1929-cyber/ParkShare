@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { hostBookingNotificationHtml } from "../api/_email.js";
-import { renderHostLogoPng } from "../api/_host-logo.js";
+import { renderHostLogoPng, renderHostPortraitPng } from "../api/_host-logo.js";
 import { deriveEmailSpotStates, renderParkingSpotImage } from "../api/_driveway-image.js";
 import { formatBookingEmailTimes } from "../api/_booking-email-times.js";
 import previewHandler from "../api/preview-host-email.js";
@@ -25,7 +25,10 @@ test("Host booking email has Driver-quality branding with William and host-speci
   assert.match(html, /ParkShare — William and Parker with the signature wordmark/);
   assert.match(html, /width="260" style="display:block;width:260px;max-width:100%;height:auto;border:0;"/);
   assert.match(html, /padding:10px 29px;background:#1b2b3a;border-bottom:3px solid #f5a623/);
-  assert.match(html, /william-v3\/masters\/ParkShare_William_05_Presenting\.png/);
+  assert.match(html, /class="ps-host-portrait" src="https:\/\/www\.myparkshare\.ca\/william-v3\/masters\/ParkShare_William_05_Presenting\.png"/);
+  assert.match(html, /width="194" alt="William, your ParkShare hosting guide"/);
+  assert.match(html, /padding:14px 29px 0 29px/);
+  assert.match(html, /min-width:155px;vertical-align:bottom;padding:0;line-height:0;font-size:0/);
   assert.match(html, /NEW BOOKING/);
   assert.match(html, /CONFIRMED!/);
   assert.match(html, /Hi <strong>Sample Host<\/strong>/);
@@ -116,7 +119,7 @@ test("non-production preview renders a synthetic email and does not send notific
     assert.match(preview.body, /SAMPLE BOOKING/);
     assert.match(preview.body, /DEMO 123/);
     const inlinePngs = preview.body.match(/data:image\/png;base64,/g) || [];
-    assert.equal(inlinePngs.length, 2, "Both approved logo and driveway must render inline");
+    assert.equal(inlinePngs.length, 3, "Signature logo, William portrait and driveway must render inline");
     assert.match(preview.body, /alt="ParkShare — William and Parker with the signature wordmark"/);
     assert.equal(preview.headers["X-Robots-Tag"], "noindex, nofollow");
   } finally {
@@ -152,4 +155,22 @@ test("Host email embeds approved signature PNG via CID for reliable mail deliver
   assert.match(webhook, /content_id: hostLogoCid/);
   assert.match(webhook, /attachments: hostAttachments/);
   assert.match(webhook, /logoCid: hostLogoCid/);
+});
+
+test("Waist-up William portrait is an approved transparent crop with email-safe dimensions", async () => {
+  const original = await sharp(await readFile(new URL("../public/william-v3/masters/ParkShare_William_05_Presenting.png", import.meta.url))).metadata();
+  const result = await renderHostPortraitPng();
+  const meta = await sharp(result).metadata();
+  assert.equal(meta.format, "png");
+  assert.equal(meta.channels, 4);
+  assert.ok(meta.width > 100 && meta.height > 100);
+  assert.ok(meta.height < original.height, "William's lower body must be cropped rather than scaled down");
+  assert.ok(result.length > 10000);
+  const email = hostBookingNotificationHtml({ ...example, portraitCid: "parkshare-william-portrait-24" });
+  assert.match(email, /src="cid:parkshare-william-portrait-24"/);
+  assert.doesNotMatch(email, /src="https:\/\/www\.myparkshare\.ca\/william-v3\/masters\/ParkShare_William_05_Presenting\.png"/);
+  const webhook = await readFile(new URL("../api/stripe-webhook.js", import.meta.url), "utf8");
+  assert.match(webhook, /renderHostPortraitPng\(\)/);
+  assert.match(webhook, /portraitCid: hostPortraitCid/);
+  assert.match(webhook, /parkshare-william-portrait\.png/);
 });
