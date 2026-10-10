@@ -163,9 +163,11 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
     const stroke = isChosen ? "#FFC107" : isAvailable ? COLORS.moss : "#B0AA9C";
     const strokeWidth = isChosen ? 10 : 4;
     const cx = b.x + b.w / 2;
-    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * 0.16, 4.2, COLORS.navy);
+    // The selected car is larger, so move ONLY its text bands outward:
+    // label remains at the top; RESERVED remains below the vehicle.
+    const label = pixelLabel(`SPOT ${b.label}`, cx, b.y + b.h * (isChosen ? 0.10 : 0.16), 4.2, COLORS.navy);
     const status = isChosen
-      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.84, 3.1, COLORS.navy)
+      ? pixelLabel("RESERVED", cx, b.y + b.h * 0.89, 3.1, COLORS.navy)
       : isAvailable
         ? pixelLabel("AVAILABLE", cx, b.y + b.h * 0.83, 2.9, COLORS.moss)
         : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
@@ -204,13 +206,14 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
   let withCar = composited;
   const booked = Number.isInteger(chosenIndex) ? boxes[chosenIndex] : null;
   if (booked && hasDrivewayVehicle(vehicle)) {
-    // A full-resolution approved transparent photo asset, not the earlier
-    // cartoon SVG. It occupies the central 59% of the parking bay, with
-    // safe room above/below for Spot B and RESERVED.
-    const carWidth = Math.max(1, Math.round(booked.w * .83));
-    const carHeight = Math.max(1, Math.round(booked.h * .59));
+    // Same approved transparent WebP asset as the website, enlarged by
+    // ~12% on each axis (.83→.93 wide; .59→.66 high). Keep the car
+    // centred between the top spot label and lower RESERVED text.
+    // Safe bands: label 10–18%, car 19.5–85.5%, RESERVED 89–95%.
+    const carWidth = Math.max(1, Math.round(booked.w * .93));
+    const carHeight = Math.max(1, Math.round(booked.h * .66));
     const carX = Math.round(booked.x + (booked.w - carWidth) / 2);
-    const carY = Math.round(booked.y + booked.h * .245);
+    const carY = Math.round(booked.y + booked.h * .195);
     const photo = await sharp(await premiumVehicleBuffer(vehicle))
       .resize(carWidth, carHeight, { fit: "contain", background: "#00000000" })
       .png()
