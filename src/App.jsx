@@ -3836,7 +3836,7 @@ function BookedSpotDiagram({ listing, selectedIndex, selectedLabel, vehicle }) {
   );
 }
 
-function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false, vehicle = null }) {
+function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = false, vehicle = null, children = null }) {
   const previewDialog = useRef(null);
   const previewTitleId = useId();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -3863,8 +3863,8 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = 
 
   return (
     <>
-    <section className={`ps-booking-parking-details${compact ? " is-compact" : ""}`} aria-label="Property and reserved parking space">
-      <div className="ps-booking-parking-panel">
+    <section className={`ps-booking-parking-details${compact ? " is-compact" : ""}${children ? " has-controls" : ""}`} aria-label="Property and reserved parking space">
+      <div className="ps-booking-parking-panel ps-booking-property-panel">
         <div className="ps-booking-parking-heading">
           <span>Property photo</span>
           <small>Match this property when you arrive</small>
@@ -3874,6 +3874,7 @@ function BookingParkingDetails({ listing, spotLabel: bookedSpotLabel, compact = 
         ) : (
           <div className="ps-booking-property-placeholder" role="img" aria-label="Property photo unavailable">🏠<span>Property photo unavailable</span></div>
         )}
+        {children}
       </div>
       <div className="ps-booking-parking-panel">
         <div className="ps-booking-parking-heading">
@@ -5246,6 +5247,41 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         const isActive = displayStatus === "Active" && !hasEnded;
         const canReview = displayStatus === "Completed";
         const detailsId = `booking-details-${b.rawId}`;
+        const bookingFollowup = (
+              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+              <BookingVehicleVisual vehicle={b.vehicle} />
+              <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+                <div className="ps-driver-booking-controls">
+              <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {isRideshareEligible && (
+                  <div className="ps-booking-navigation-group">
+                    <Btn small variant="amber" onClick={() => onNavigateToParking(b.listing)}>🧭 Navigate to parking</Btn>
+                    <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(b.listing)}>Change app</button>
+                  </div>
+                )}
+                {isActive && <Btn small variant="primary" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
+                <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
+                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
+                {canReview && !reviewed[b.id] && (
+                  <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
+                )}
+                {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
+              </div>
+                </div>
+              {displayStatus === "Completed" && (
+                <div className="ps-booking-completion-mascot" aria-hidden="true">
+                  <ResponsiveMascot
+                    family="parker-v3"
+                    name="ParkShare_Parker_30_Success_Celebration"
+                    className="ps-mascot-booking-complete"
+                    sizes="(max-width: 360px) 128px, (max-width: 620px) 148px, 140px"
+                    decorative
+                  />
+                </div>
+              )}
+              </div>
+              </div>
+        );
         return (
         <div
           className={`ps-driver-booking-card${isPast ? " is-past" : ""}${isExpanded ? " is-expanded" : " is-collapsed"}`}
@@ -5301,40 +5337,10 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
-              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} vehicle={b.vehicle} compact={isPast} />
-              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
-              <BookingVehicleVisual vehicle={b.vehicle} />
-              <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
-                <div className="ps-driver-booking-controls">
-              <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {isRideshareEligible && (
-                  <div className="ps-booking-navigation-group">
-                    <Btn small variant="amber" onClick={() => onNavigateToParking(b.listing)}>🧭 Navigate to parking</Btn>
-                    <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(b.listing)}>Change app</button>
-                  </div>
-                )}
-                {isActive && <Btn small variant="moss" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
-                <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
-                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
-                {canReview && !reviewed[b.id] && (
-                  <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
-                )}
-                {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
-              </div>
-                </div>
-              {displayStatus === "Completed" && (
-                <div className="ps-booking-completion-mascot" aria-hidden="true">
-                  <ResponsiveMascot
-                    family="parker-v3"
-                    name="ParkShare_Parker_30_Success_Celebration"
-                    className="ps-mascot-booking-complete"
-                    sizes="(max-width: 360px) 128px, (max-width: 620px) 148px, 140px"
-                    decorative
-                  />
-                </div>
-              )}
-              </div>
-              </div>
+              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} vehicle={b.vehicle} compact={isPast}>
+                {!isPast && bookingFollowup}
+              </BookingParkingDetails>
+              {isPast && bookingFollowup}
               {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
               {isRideshareEligible && (
                 <div className="ps-driver-arrival-instructions">
@@ -10006,3 +10012,4 @@ export default function App() {
     </>
   );
 }
+
