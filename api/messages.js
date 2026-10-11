@@ -34,6 +34,33 @@ export default async function handler(req, res) {
     const user = await requireUser(req, res);
     if (!user) return;
 
+    if (req.method === "GET" && req.query?.contextBookingId !== undefined) {
+      const value = String(req.query.contextBookingId);
+      const bookingId = Number(value);
+      if (!/^\d+$/.test(value) || !Number.isSafeInteger(bookingId) || bookingId <= 0) {
+        return res.status(400).json({ error: "A valid booking is required." });
+      }
+      const booking = await bookingFor(bookingId);
+      const { data: listing, error } = await supabaseAdmin.from("listings")
+        .select("id, host_id, title, address, price, spaces, features, description, img, photos, lat, lng, spots, availability")
+        .eq("id", booking.listing_id).single();
+      if (error || !listing) return res.status(404).json({ error: "Listing not found." });
+      if (user.id !== booking.renter_id && user.id !== listing.host_id) {
+        return res.status(403).json({ error: "You are not part of this booking conversation." });
+      }
+      const isHost = user.id === listing.host_id;
+      const recipientId = isHost ? booking.renter_id : listing.host_id;
+      const { data: people, error: profileError } = await supabaseAdmin.from("profiles")
+        .select("id, name").in("id", [listing.host_id, booking.renter_id]);
+      if (profileError) throw profileError;
+      const recipient = (people || []).find(person => person.id === recipientId);
+      return res.status(200).json({
+        bookingId, listing,
+        hostName: (people || []).find(person => person.id === listing.host_id)?.name || "Host",
+        recipient: { id: recipientId, name: recipient?.name || (isHost ? "Driver" : "Host"), role: isHost ? "Driver" : "Host" },
+      });
+    }
+
     if (req.method === "POST") {
       const listingId = Number(req.body?.listingId);
       const bookingId = req.body?.bookingId ? Number(req.body.bookingId) : null;

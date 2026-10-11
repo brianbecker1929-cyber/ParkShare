@@ -410,6 +410,7 @@ async function sendBookingConfirmationEmail(booking) {
     to: renter.email,
     subject: isAdvance ? "Booking confirmed — " + (listing?.title || "ParkShare") : "Parking authorized — " + (listing?.title || "ParkShare"),
     html: confirmationEmailHtml({
+      bookingId: booking.id,
       renterName: renter.name || "there",
       hostName,
       address,

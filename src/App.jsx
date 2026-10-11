@@ -12,6 +12,7 @@ import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDE
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
 import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
 import { matchesBookingDateRange } from "./lib/bookingDateFilter";
+import { parseMessageBookingId, bookingMessageListing, bookingMessageThread } from "./lib/bookingMessage";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
@@ -950,13 +951,13 @@ function MessagingPanel({ listing, onClose, user }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000, fontFamily: "'Poppins', sans-serif" }}>
-      <div style={{ background: C.white, width: "100%", maxWidth: 500, borderRadius: "16px 16px 0 0", display: "flex", flexDirection: "column", maxHeight: "80vh", minHeight: 380, boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 2000, fontFamily: "'Poppins', sans-serif" }}>
+      <div role="dialog" aria-modal="true" aria-label={`Message ${otherParty}`} style={{ background: C.white, width: "100%", maxWidth: 500, borderRadius: "16px 16px 0 0", display: "flex", flexDirection: "column", maxHeight: "80vh", minHeight: 380, boxShadow: "0 -8px 40px rgba(0,0,0,0.18)" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid "+C.concrete, display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>{listing.hostImg}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{otherParty}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>Host · {listing.title}</div>
+            <div style={{ fontSize: 11, color: C.muted }}>{listing.partyRole || "Host"} · {listing.title}</div>
           </div>
           <button onClick={onClose} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
@@ -1558,7 +1559,7 @@ const formatHour = (h) => {
   const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
   return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, initialSpotPickerOpen = true }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1598,7 +1599,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
-  const [showSpotPicker, setShowSpotPicker] = useState(true);
+  const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
@@ -1999,6 +2000,43 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       {bookingError && <p style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{bookingError}</p>}
     </div>
   );
+}
+
+// The email opens the actual booked listing, with its authenticated
+// conversation ready to compose. Opening the link never sends a message.
+function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRoute, onNavigateToParking, onChangeNavigationApp }) {
+  const [context, setContext] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    setContext(null);
+    setError("");
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw new Error("Please sign in again to open this conversation.");
+        const response = await fetch(`/api/messages?contextBookingId=${bookingId}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Couldn't open this booking conversation.");
+        if (active) {
+          setContext(data);
+          onMessage(bookingMessageThread(data));
+        }
+      } catch (err) {
+        if (active) setError(err.message || "Couldn't open this booking conversation.");
+      }
+    })();
+    return () => { active = false; };
+  }, [bookingId, user?.id, onMessage]);
+
+  if (error) return <div style={{ padding: "40px 24px", textAlign: "center" }}><p role="alert" style={{ color: C.red }}>{error}</p><Btn variant="outline" onClick={onBack}>Back to parking</Btn></div>;
+  if (!context) return <div role="status" style={{ padding: "40px 24px", textAlign: "center", color: C.muted }}>{user ? "Opening your booked listing…" : "Sign in to message your Host or Driver."}</div>;
+  return <ListingDetail listing={bookingMessageListing(context)} user={user} onBack={onBack} initialSpotPickerOpen={false}
+    onMessage={() => onMessage(bookingMessageThread(context))}
+    onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} />;
 }
 
 // Fetches host-created listings from Supabase. Browse keeps loading, error,
@@ -5746,7 +5784,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
 }
 
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
-function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
+function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true }) {
   const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -5797,7 +5835,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
         return;
       }
       onAuth(buildAppUser(profile, data.user));
-      onClose();
+      if (closeOnAuth) onClose();
       return;
     }
 
@@ -5843,7 +5881,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing" }) {
       return;
     }
     onAuth(buildAppUser(profile, data.user));
-    onClose();
+    if (closeOnAuth) onClose();
   };
 
   const resetPassword = async () => {
@@ -9431,6 +9469,7 @@ export default function App() {
   const [tab, setTab] = useState(initialRouteRef.current.tab || "Browse");
   const [legalSection, setLegalSection] = useState(initialRouteRef.current.anchor || "terms");
   const [messageThread, setMessageThread] = useState(null);
+  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(window.location.search));
   const [user, setUser] = useState(null);
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState("landing");
@@ -9497,6 +9536,7 @@ export default function App() {
       setTab(route.tab || "Browse");
       setLegalSection(route.anchor || "terms");
       setMessageThread(null);
+      setMessageBookingId(parseMessageBookingId(window.location.search));
       setNavigationRequest(null);
     };
     window.addEventListener("popstate", handlePopState);
@@ -9530,7 +9570,10 @@ export default function App() {
   // then strip the query params so refreshing doesn't re-show it.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("legal")) {
+    if (parseMessageBookingId(window.location.search)) {
+      setScreen("app");
+      setTab("Browse");
+    } else if (params.get("legal")) {
       const section = params.get("legal") === "privacy" ? "privacy" : "terms";
       navigationAnchorRef.current = section;
       setLegalSection(section);
@@ -9595,6 +9638,11 @@ export default function App() {
 
   const handleAuth = (u) => {
     setUser(u);
+    if (messageBookingId) {
+      setScreen("app");
+      setTab("Browse");
+      return;
+    }
     const requestedRoute = getRouteForState(screen, tab, legalSection);
     if (screen === "app" && requestedRoute.private) return;
     moveToRoute("app", u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
@@ -9606,6 +9654,7 @@ export default function App() {
     setCheckoutBanner(null);
     setConnectBanner(null);
     setMessageThread(null);
+    setMessageBookingId(null);
     moveToRoute("app", "Browse");
   };
 
@@ -9641,6 +9690,8 @@ export default function App() {
   }, []);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
+    setMessageBookingId(null);
+    setMessageThread(null);
     const nextRoute = getRouteForState(nextScreen, tab, anchor);
     if (screen === nextScreen && window.location.pathname === nextRoute.path) {
       const target = anchor ? document.getElementById(anchor) : null;
@@ -9653,6 +9704,8 @@ export default function App() {
   };
 
   const goHome = () => {
+    setMessageBookingId(null);
+    setMessageThread(null);
     navigationAnchorRef.current = null;
     if (screen === "landing") window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     moveToRoute("landing", "Browse");
@@ -9667,7 +9720,13 @@ export default function App() {
   const openHelp = () => navigateToScreen("help");
   // Shared by both the landing page's header and the main app header — tapping
   // any nav tab always exits landing mode (harmless no-op if already in the app).
-  const changeTab = (t) => { navigationAnchorRef.current = null; moveToRoute("app", t); };
+  const changeTab = (t) => { navigationAnchorRef.current = null; setMessageBookingId(null); setMessageThread(null); moveToRoute("app", t, null, { replace: Boolean(messageBookingId) }); };
+
+  const closeEmailListing = () => {
+    setMessageBookingId(null);
+    setMessageThread(null);
+    moveToRoute("app", "Browse", null, { replace: true });
+  };
 
   const requireAuth = (content, msg) => {
     if (!user) return (
@@ -9909,7 +9968,9 @@ export default function App() {
               <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
             </div>
           )}
-          {tab === "Browse" && <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />}
+          {tab === "Browse" && (messageBookingId
+            ? <EmailMessageListing bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
+            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
@@ -9923,6 +9984,7 @@ export default function App() {
         </div>
       )}
       {showAuth && <SignInModal initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
+      {messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
       {navigationRequest && (
         <NavigationChooser
           request={navigationRequest}

@@ -88,6 +88,12 @@ function spotLabel(value) {
 function bookingNumber({ confirmationNumber, bookingId }) {
   return confirmationNumber || (bookingId != null ? `PK-${bookingId}` : "Not provided");
 }
+function bookingMessageUrl({ bookingId }) {
+  const id = String(bookingId ?? "");
+  return /^\d+$/.test(id) && Number.isSafeInteger(Number(id)) && Number(id) > 0
+    ? `https://www.myparkshare.ca/parking?message_booking=${id}`
+    : "https://www.myparkshare.ca/messages";
+}
 function driverTicketFields(args) {
   const e = escapeBookingHtml;
   const label = spotLabel(args.spotLabel);
@@ -116,6 +122,7 @@ function driverTicketFields(args) {
     DIRECTIONS_URL: e(actionUrl(args.directionsUrl)),
     MANAGE_RESERVATION_URL: e(actionUrl(args.manageReservationUrl)),
     EXTEND_URL: e(actionUrl(args.extendUrl)),
+    MESSAGE_URL: e(bookingMessageUrl(args)),
   };
 }
 
@@ -145,6 +152,7 @@ export function hostBookingNotificationHtml(args) {
     VEHICLE_PLATE: e(plate),
     SPOT_MAP_BLOCK: mapBlock(args, `Top-down diagram showing the ${colour} ${car} in ${label}`),
     HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
+    MESSAGE_URL: e(bookingMessageUrl(args)),
   });
 }
 export function confirmationEmailHtml(args) {

@@ -101,6 +101,13 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       vehicle_colour: "Yellow", license_plate: "DEMO 123", start_hour: "", end_hour: "",
     });
     assert.equal(sent.length, 5, "Halfway, ending, extension, Driver and Host confirmations");
+    for (const [index, email] of sent.entries()) {
+      assert.match(email.html, /href="https:\/\/www\.myparkshare\.ca\/parking\?message_booking=42"/,
+        "Every delivered email opens its booked listing conversation");
+      const label = index === 4 ? "Message Driver" : index < 2 ? "Message" : "Message Host";
+      assert.ok(email.html.includes(`>${label}</a>`));
+      assert.doesNotMatch(email.html, /\[MESSAGE_URL\]/);
+    }
     for (const [index, label, amount] of [[2, "Amount charged", "5.00"], [3, "Total charged", "12.35"], [4, "Total charged to Driver", "12.35"]]) {
       const html = sent[index].html;
       const charge = `${label}: <strong style="color:#0e1b2e;">$${amount} CAD</strong>`;
