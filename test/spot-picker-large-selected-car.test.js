@@ -34,7 +34,8 @@ test("selected car uses all of remaining bay without overflow or pixel caps", as
   for(const declaration of [
     "width: 100%", "height: 100%", "max-height: 100%",
     "max-width: none", "object-fit: contain", "min-height: 0",
-    "justify-self: center", "align-self: center"
+    "justify-self: center", "align-self: center",
+    "transform: scale(1.08)", "transform-origin: center center"
   ])assert.ok(styles.includes(declaration),declaration);
   const app=await read("../src/App.jsx");
   const picker=app.slice(app.indexOf("function SpotPicker("),app.indexOf("// Read-only booking view shared"));
@@ -80,6 +81,6 @@ test("orange selected outline cannot obscure the Spot A or Spot B heading", asyn
   assert.match(picker,/lineHeight: 1\.25,/, "Keep the original label row height and vehicle area");
   assert.match(picker,/textAlign: "center", width: "100%", boxSizing: "border-box"/, "Keep selected label within the bay's inner width");
   assert.match(picker,/paddingRight: isChosen \? 4 : 0/, "Nudge text to the left only on selected spots");
-  assert.match(picker,/transform: isChosen \? "translateX\(-1\.5px\) scaleX\(0\.86\)" : undefined/, "Keep selected A-D labels visually centered with a 1.5px left correction and existing border clearance");
+  assert.match(picker,/transform: isChosen \? "translate\(-1\.5px, -4px\) scaleX\(0\.86\)" : undefined/, "Selected A-D labels rise 4px without losing their approved horizontal centering or border clearance");
   assert.match(picker,/gridTemplateRows: isChosen \? "min-content minmax\(0, 1fr\)"/);
 });
