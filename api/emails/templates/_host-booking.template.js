@@ -11,4 +11,5 @@ export default bookingTicketTemplate({
   partyLabel: "Driver", partyName: "[DRIVER_NAME]", location: false,
   vehicleLabel: "Vehicle to expect", vehicle: "[VEHICLE_DETAILS]", plate: "[VEHICLE_PLATE]",
   primaryLabel: "Open Host Dashboard", primaryUrl: "[HOST_DASHBOARD_URL]", actionNote: "View reservations and manage listings.",
+  messageLabel: "Message Driver",
 });

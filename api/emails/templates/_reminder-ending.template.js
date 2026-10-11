@@ -7,4 +7,5 @@ export default bookingTicketTemplate({
   rightLabel: "Departure / End", rightValue: "[SESSION_END_TIME]", rightDate: "[EXIT_DATE_FULL]",
   primaryLabel: "Add Additional Time", primaryUrl: "[EXTEND_URL]", secondaryLabel: "Get Directions", secondaryUrl: "[DIRECTIONS_URL]",
   actionNote: "Leave the space by [SESSION_END_TIME] unless your extension is confirmed.",
+  messageLabel: "Message",
 });

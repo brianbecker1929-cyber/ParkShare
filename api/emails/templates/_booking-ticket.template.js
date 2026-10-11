@@ -14,6 +14,7 @@ export function bookingTicketTemplate({
   partyLabel = "Host", partyName = "[HOST_NAME]", location = true,
   vehicleLabel = "Your vehicle", vehicle = "[BOOKED_VEHICLE_SUMMARY]", plate = "[BOOKED_VEHICLE_PLATE]",
   payment = false, paymentLabel = "Amount charged", primaryLabel, primaryUrl, secondaryLabel, secondaryUrl, actionNote,
+  messageLabel = "Message Host",
 }) {
   const buttons = secondaryLabel
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;table-layout:fixed;"><tr><td width="50%" style="padding-right:5px;">${action(primaryLabel, primaryUrl)}</td><td width="50%" style="padding-left:5px;">${action(secondaryLabel, secondaryUrl, true)}</td></tr></table>`
@@ -90,7 +91,7 @@ export function bookingTicketTemplate({
  <p style="margin:12px 0 0;font-size:11px;line-height:15px;color:#617080;">Reserved space and vehicle reference, not confirmation that the vehicle has arrived.</p>
  </td></tr></table>
 </td></tr>
-<tr><td class="ps-ticket-inset" style="padding:0 16px 16px;">${buttons}<p style="margin:6px 0 0;font-size:11px;line-height:16px;text-align:center;color:#617080;">${actionNote}</p></td></tr>
+<tr><td class="ps-ticket-inset" style="padding:0 16px 16px;">${buttons}<p style="margin:6px 0 0;font-size:11px;line-height:16px;text-align:center;color:#617080;">${actionNote}</p><div style="margin-top:10px;">${action(messageLabel, "[MESSAGE_URL]", true)}</div><p style="margin:6px 0 0;font-size:11px;line-height:16px;text-align:center;color:#617080;">Continue the conversation on ParkShare.</p></td></tr>
 <tr><td align="center" style="padding:13px 18px;background:#1b2b3a;border-top:3px solid #f5a623;">
  <p style="margin:0;font-size:12px;line-height:18px;color:#ffd46e;"><a href="mailto:info@myparkshare.ca" style="color:#ffd46e;text-decoration:none;">info@myparkshare.ca</a> · <a href="https://www.myparkshare.ca" style="color:#ffd46e;text-decoration:none;">www.myparkshare.ca</a></p>
  <p style="margin:5px 0 0;font-size:11px;line-height:17px;color:#d7e0e9;"><a href="https://facebook.com/myparkshare" style="color:#d7e0e9;text-decoration:none;">Facebook</a> · <a href="https://twitter.com/myparkshare" style="color:#d7e0e9;text-decoration:none;">Twitter</a> · <a href="https://youtube.com/@myparkshare" style="color:#d7e0e9;text-decoration:none;">YouTube</a> · <a href="https://linkedin.com/company/myparkshare" style="color:#d7e0e9;text-decoration:none;">LinkedIn</a></p>
