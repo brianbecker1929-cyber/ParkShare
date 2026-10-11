@@ -9073,9 +9073,9 @@ div:has(> button[aria-label="ParkShare help"])
 }
 
 /* Selected SpotPicker bays intentionally omit the "Your spot" footer.
-   The car uses the remaining row beneath "Spot A/B/C/D", with the existing
-   3% internal button padding providing clean borders on mobile and desktop.
-   Other booked-space and email illustrations keep their own layout. */
+   Lift only the selected label 4px and gently enlarge its car by 8%,
+   using the extra visual clearance while retaining orange-border margins.
+   Keep all unselected bays, booking summaries, and email cars unchanged. */
 .ps-spot-picker-bay.is-selected > img.ps-driveway-car-roof {
   display: block;
   width: 100%;
@@ -9088,6 +9088,8 @@ div:has(> button[aria-label="ParkShare help"])
   object-fit: contain;
   justify-self: center;
   align-self: center;
+  transform: scale(1.08);
+  transform-origin: center center;
 }
 
 .ps-booked-spot > img.ps-driveway-car-roof {

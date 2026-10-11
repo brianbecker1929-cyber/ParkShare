@@ -3736,12 +3736,11 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
                 fontWeight: 800, fontSize: isChosen ? 12 : 13, lineHeight: 1.25,
                 textAlign: "center", width: "100%", boxSizing: "border-box",
                 whiteSpace: "nowrap", flexShrink: 0,
-                // Selected A-D labels stay inside the narrow mobile orange border.
-                // A subtle 1.5px left offset visually centers the label after
-                // mobile review (3.5px right of the previous preview setting).
-                // Preserve the inset/compression and approved car footprint.
+                // Move the selected label 4px up to make room for a slightly
+                // larger car. Keep its approved 1.5px horizontal centering and
+                // compression, so the text clears the orange ring on mobile.
                 paddingRight: isChosen ? 4 : 0,
-                transform: isChosen ? "translateX(-1.5px) scaleX(0.86)" : undefined,
+                transform: isChosen ? "translate(-1.5px, -4px) scaleX(0.86)" : undefined,
               }}>Spot {l}</span>
               {isChosen && hasDrivewayVehicle(vehicle) ? (
                 <DrivewayCarVisual vehicle={vehicle} />
