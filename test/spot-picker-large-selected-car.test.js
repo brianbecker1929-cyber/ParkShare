@@ -80,6 +80,6 @@ test("orange selected outline cannot obscure the Spot A or Spot B heading", asyn
   assert.match(picker,/lineHeight: 1\.25,/, "Keep the original label row height and vehicle area");
   assert.match(picker,/textAlign: "center", width: "100%", boxSizing: "border-box"/, "Keep selected label within the bay's inner width");
   assert.match(picker,/paddingRight: isChosen \? 4 : 0/, "Nudge text to the left only on selected spots");
-  assert.match(picker,/transform: isChosen \? "scaleX\(0\.86\)" : undefined/, "Condense only selected spot text to leave clearance around orange ring");
+  assert.match(picker,/transform: isChosen \? "translateX\(-1\.5px\) scaleX\(0\.86\)" : undefined/, "Keep selected A-D labels visually centered with a 1.5px left correction and existing border clearance");
   assert.match(picker,/gridTemplateRows: isChosen \? "min-content minmax\(0, 1fr\)"/);
 });
