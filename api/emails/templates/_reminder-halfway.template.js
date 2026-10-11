@@ -1,5 +1,6 @@
 import { bookingTicketTemplate } from "./_booking-ticket.template.js";
 export default bookingTicketTemplate({
+  header: "halfway",
   title: "Halfway", accent: "check-in", preheader: "Halfway through your parking session — [TIME_REMAINING] remaining.",
   name: "[CUSTOMER_FIRST_NAME]", message: "You're halfway through your stay. Plan the rest of your session below.",
   status: "Halfway through your session", reference: "Reservation #[CONFIRMATION_NUMBER]",
@@ -9,3 +10,4 @@ export default bookingTicketTemplate({
   actionNote: "Need a longer stay? Add time before your booking ends.",
   messageLabel: "Message",
 });
+

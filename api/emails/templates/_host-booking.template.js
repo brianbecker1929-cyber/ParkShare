@@ -1,5 +1,6 @@
 import { bookingTicketTemplate } from "./_booking-ticket.template.js";
 export default bookingTicketTemplate({
+  header: "host",
   title: "New booking", accent: "confirmed!", preheader: "A driver has reserved [SPOT_LABEL]. See the vehicle and arrival time.",
   name: "[HOST_NAME]", message: "A driver has reserved your driveway.",
   status: "New driveway reservation", reference: "Confirmation #[BOOKING_NUMBER]",
@@ -13,3 +14,4 @@ export default bookingTicketTemplate({
   primaryLabel: "Open Host Dashboard", primaryUrl: "[HOST_DASHBOARD_URL]", actionNote: "View reservations and manage listings.",
   messageLabel: "Message Driver",
 });
+
