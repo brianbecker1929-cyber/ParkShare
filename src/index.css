@@ -9193,3 +9193,61 @@ div:has(> button[aria-label="ParkShare help"])
   .ps-spot-vehicle-panel { padding: 12px; }
   .ps-spot-vehicle-heading strong { font-size: 13px; }
 }
+
+/* Approved booking card: vehicle and actions belong with the property photo. */
+.ps-booking-parking-details.has-controls .ps-booking-property-panel {
+  display: flex;
+  flex-direction: column;
+}
+.ps-booking-parking-details.has-controls .ps-booking-property-photo,
+.ps-booking-parking-details.has-controls .ps-booking-property-placeholder {
+  box-sizing: border-box;
+  height: 180px;
+  min-height: 180px;
+  flex: 0 0 180px;
+}
+.ps-booking-property-panel > .ps-driver-booking-followup {
+  display: grid;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+.ps-booking-property-panel .ps-booking-vehicle-visual {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+}
+.ps-booking-property-panel .ps-vehicle-badge.is-compact {
+  width: 76px;
+  height: 62px;
+  flex-shrink: 0;
+}
+.ps-booking-property-panel .ps-driver-booking-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px !important;
+}
+.ps-booking-property-panel .ps-booking-navigation-group {
+  grid-column: 1 / -1;
+  display: flex;
+  width: 100%;
+}
+.ps-booking-property-panel .ps-driver-booking-actions > button,
+.ps-booking-property-panel .ps-booking-navigation-group > button:first-child {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ps-booking-property-panel .ps-booking-navigation-group > button:first-child {
+  color: #0E1B2E !important;
+  font-size: 12px !important;
+}
+.ps-booking-property-panel .ps-change-navigation-app { min-height: 28px; }
+.ps-booking-property-panel button:focus-visible { outline: 3px solid #FFC107; outline-offset: 3px; }
+
