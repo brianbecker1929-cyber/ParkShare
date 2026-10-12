@@ -7614,6 +7614,16 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             </article>
 
             <article className="ps-about-audience-card ps-about-driver-card">
+              <img
+                className="ps-about-card-parker"
+                src="/parker-v3/web/768px/ParkShare_Parker_16_Reading_A_Map-768.webp"
+                srcSet="/parker-v3/web/480px/ParkShare_Parker_16_Reading_A_Map-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_16_Reading_A_Map-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_16_Reading_A_Map-1122.webp 1122w"
+                sizes="(max-width: 819px) 38vw, 224px"
+                alt="Parker holding a map to help ParkShare Drivers find parking"
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
               <div>
                 <div className="ps-about-audience-label">FOR DRIVERS</div>
                 <h3>Know where you&apos;re going to park.</h3>
