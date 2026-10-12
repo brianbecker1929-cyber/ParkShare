@@ -9251,3 +9251,24 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-booking-property-panel .ps-change-navigation-app { min-height: 28px; }
 .ps-booking-property-panel button:focus-visible { outline: 3px solid #FFC107; outline-offset: 3px; }
 
+/* Booked vehicle: a clear, standalone three-quarter view beside the plate. */
+.ps-vehicle-badge.is-standalone {
+  width: 116px;
+  max-width: 100%;
+  height: 84px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.ps-vehicle-badge.is-standalone img {
+  width: 100%;
+  height: 100%;
+  transform: none;
+}
+@media (max-width: 380px) {
+  .ps-vehicle-badge.is-standalone { width: clamp(88px, 28vw, 106px); height: 76px; }
+  .ps-booking-property-panel .ps-booking-vehicle-visual { gap: 8px; }
+}
+
