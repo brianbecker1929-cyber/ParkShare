@@ -9329,3 +9329,61 @@ div:has(> button[aria-label="ParkShare help"])
   justify-content: center;
 }
 
+/* One connected desktop section; the approved mobile groups stay separate. */
+.ps-completed-booking-panel { display: contents; }
+@media (min-width: 621px) {
+  .ps-completed-booking-panel {
+    display: block;
+    padding: 12px;
+    border: 1px solid #E3DDC9;
+    border-radius: 10px;
+    background: #FAF7F0;
+  }
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact {
+    gap: 8px 12px;
+    margin: 0;
+  }
+  .ps-completed-booking-panel .ps-booking-parking-panel {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact .ps-booking-parking-heading {
+    min-height: 34px;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact .ps-booking-property-photo,
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact .ps-booking-property-placeholder {
+    height: 160px;
+    min-height: 160px;
+    box-sizing: border-box;
+  }
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact .ps-booking-space-preview { height: 160px; }
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact .ps-booking-space-preview > div[style*="aspect-ratio"] {
+    max-width: 115.4px !important;
+  }
+  .ps-completed-booking-panel .ps-listing-satellite-preview {
+    width: 100%;
+    height: 160px !important;
+    box-sizing: border-box;
+  }
+  .ps-completed-booking-panel .ps-listing-satellite-preview > div { height: 100% !important; }
+  .ps-completed-booking-panel .ps-booking-parking-details.is-compact .ps-booking-preview-button {
+    justify-self: stretch;
+    text-align: center;
+  }
+  .ps-driver-booking-card.is-past .ps-completed-booking-panel .ps-driver-booking-followup.is-completed {
+    max-width: none;
+    margin: 8px 0 0;
+    padding: 12px 0 0;
+    border: 0;
+    border-top: 1px solid #E3DDC9;
+    border-radius: 0;
+    background: transparent;
+  }
+}
+
