@@ -1188,7 +1188,7 @@ button, input, select, textarea { font: inherit; }
 
 .ps-about-parker { background:#fff; border:1.5px solid #E3DDC9; border-radius:20px; padding:25px 22px; }
 .ps-about-parker-art { display:flex; justify-content:center; margin-bottom:17px; }
-.ps-about-parker-art img { width:min(210px,58%); height:auto; object-fit:contain; }
+.ps-about-parker-art img { width:min(280px,84%); height:auto; object-fit:contain; }
 
 .ps-about-canadian { background:#FFC107; border-radius:20px; padding:25px 22px; position:relative; overflow:hidden; }
 .ps-about-canadian img { display:none; }
