@@ -36,7 +36,7 @@ test("booking vehicle migration preserves existing rows and adds private snapsho
 
 test("Driver and Host booking cards use the booked vehicle artwork instead of a text description", () => {
   assert.match(app, /function BookingVehicleVisual\(\{ vehicle \}\)/);
-  assert.match(app, /<VehicleBadge vehicle=\{vehicle\} compact \/>/);
+  assert.match(app, /<VehicleBadge vehicle=\{vehicle\} compact standalone \/>/);
   assert.match(app, /vehicleMake: row\.vehicle_make/);
   assert.match(app, /vehicleModel: row\.vehicle_model/);
   assert.match(app, /vehicleColour: row\.vehicle_colour/);
@@ -51,3 +51,4 @@ test("Driver and Host booking cards render the selected navy-and-amber license p
   assert.match(app, /ps-booking-license-plate-bottom">RESERVED VEHICLE/);
   assert.match(app, /<strong>\{plate\}<\/strong>/);
 });
+

@@ -77,7 +77,7 @@ function ResponsiveMascot({
   );
 }
 
-function VehicleBadge({ vehicle, compact = false }) {
+function VehicleBadge({ vehicle, compact = false, standalone = false }) {
   const bodyType = getVehicleBodyType(vehicle);
   const colour = getVehicleColourName(vehicle);
   const hasDedicatedColourAsset = hasDedicatedVehicleColourAsset(vehicle);
@@ -85,7 +85,7 @@ function VehicleBadge({ vehicle, compact = false }) {
 
   return (
     <span
-      className={`ps-vehicle-badge${compact ? " is-compact" : ""}`}
+      className={`ps-vehicle-badge${standalone ? " is-standalone" : compact ? " is-compact" : ""}`}
       data-vehicle-body={bodyType}
       data-vehicle-colour={colour}
       data-vehicle-artwork={hasDedicatedColourAsset ? "dedicated" : "filtered"}
@@ -117,7 +117,7 @@ function BookingVehicleVisual({ vehicle }) {
 
   return (
     <div className="ps-booking-vehicle-visual" aria-label={`${label}${plate ? `, licence plate ${plate}` : ""}`}>
-      <VehicleBadge vehicle={vehicle} compact />
+      <VehicleBadge vehicle={vehicle} compact standalone />
       {plate && (
         <div className="ps-booking-license-plate" aria-hidden="true">
           <span className="ps-booking-license-plate-top">PARKSHARE</span>
