@@ -1444,11 +1444,11 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
 
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY || typeof lat !== "number" || typeof lng !== "number" || loadError) return null;
   if (!isLoaded) {
-    return <div style={{ width: "100%", height, borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>Loading satellite photo…</div>;
+    return <div className="ps-listing-satellite-preview" style={{ width: "100%", height, borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>Loading satellite photo…</div>;
   }
 
   return (
-    <div style={{ borderRadius: 12, overflow: "hidden", border: "2px solid " + C.navy, background: "#E3DDC9" }}>
+    <div className="ps-listing-satellite-preview" style={{ borderRadius: 12, overflow: "hidden", border: "2px solid " + C.navy, background: "#E3DDC9" }}>
       <GoogleMap
         mapContainerStyle={{ width: "100%", height }}
         center={{ lat, lng }}
@@ -5248,9 +5248,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         const canReview = displayStatus === "Completed";
         const detailsId = `booking-details-${b.rawId}`;
         const bookingFollowup = (
-              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " is-completed" : ""}`}>
               <BookingVehicleVisual vehicle={b.vehicle} />
-              <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+              <div className="ps-driver-booking-footer">
                 <div className="ps-driver-booking-controls">
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isRideshareEligible && (
@@ -5268,19 +5268,13 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
               </div>
                 </div>
-              {displayStatus === "Completed" && (
-                <div className="ps-booking-completion-mascot" aria-hidden="true">
-                  <ResponsiveMascot
-                    family="parker-v3"
-                    name="ParkShare_Parker_30_Success_Celebration"
-                    className="ps-mascot-booking-complete"
-                    sizes="(max-width: 360px) 128px, (max-width: 620px) 148px, 140px"
-                    decorative
-                  />
-                </div>
-              )}
               </div>
               </div>
+        );
+        const parkingPreview = (
+          <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} vehicle={b.vehicle} compact={isPast}>
+            {!isPast && bookingFollowup}
+          </BookingParkingDetails>
         );
         return (
         <div
@@ -5337,10 +5331,17 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div id={detailsId} className="ps-driver-booking-details">
               <div className="ps-driver-booking-address">📍 {b.listing.address}</div>
               {b.event && <EventDestinationSummary event={b.event} booking />}
-              <BookingParkingDetails listing={b.listing} spotLabel={b.spotLabel} vehicle={b.vehicle} compact={isPast}>
-                {!isPast && bookingFollowup}
-              </BookingParkingDetails>
-              {isPast && bookingFollowup}
+              {displayStatus === "Completed" ? (
+                <div className="ps-completed-booking-panel">
+                  {parkingPreview}
+                  {bookingFollowup}
+                </div>
+              ) : (
+                <>
+                  {parkingPreview}
+                  {isPast && bookingFollowup}
+                </>
+              )}
               {isRideshareEligible && <RidesharePickupCard listing={b.listing} />}
               {isRideshareEligible && (
                 <div className="ps-driver-arrival-instructions">
