@@ -6199,7 +6199,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
 
 // ─── Footer — Contact Us / Legal & T&C, same size/design as the header buttons,
 // left/right aligned to mirror Sign in / Join free above ─────────────────────
-function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick, hostFirst = false }) {
   const socialIconStyle = {
     width: 30, height: 30, borderRadius: "50%", display: "grid", placeItems: "center",
     border: "1px solid rgba(255,255,255,.28)", color: C.white, fontSize: 12,
@@ -6225,8 +6225,13 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
 
         <div className="ps-footer-v2-column">
           <strong>Explore</strong>
-          <button onClick={onDriverClick}>Driver</button>
-          <button onClick={onHostClick}>Host</button>
+          {hostFirst ? <>
+            <button onClick={onHostClick}>Host</button>
+            <button onClick={onDriverClick}>Driver</button>
+          </> : <>
+            <button onClick={onDriverClick}>Driver</button>
+            <button onClick={onHostClick}>Host</button>
+          </>}
           <button onClick={onAboutClick}>About Us</button>
           <button onClick={onTrustClick}>Trust &amp; Safety</button>
         </div>
@@ -6587,9 +6592,10 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             }}
           >
             {[
+              ...(isLandingPage ? [{ label: "Become a Host", onClick: onHostClick, show: !!onHostClick }] : []),
               { label: "Find Parking", onClick: () => onTabChange("Browse"), show: true },
               { label: "Discover", onClick: () => onTabChange("Discover"), show: true },
-              { label: "Become a Host", onClick: onHostClick, show: !!onHostClick },
+              ...(!isLandingPage ? [{ label: "Become a Host", onClick: onHostClick, show: !!onHostClick }] : []),
               { label: "About", onClick: onAboutClick, show: !!onAboutClick },
               { label: "Trust & Safety", onClick: onTrustClick, show: !!onTrustClick },
               { label: "Help", onClick: onHelpClick, show: !!onHelpClick },
@@ -6816,8 +6822,8 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           <h1>Your spot. Their destination. <span>ParkShare.</span></h1>
           <p>Find convenient parking when you need it, or turn your unused driveway into extra income.</p>
           <div className="ps-home-v2-actions">
-            <button className="ps-home-v2-primary" onClick={onDriverClick}>Find Parking</button>
             <button className="ps-home-v2-secondary" onClick={onHostClick}>Become a Host</button>
+            <button className="ps-home-v2-primary" onClick={onDriverClick}>Find Parking</button>
           </div>
         </div>
         <div className="ps-home-v2-hero-art">
@@ -6834,26 +6840,26 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
       </section>
 
-      {/* Section 2 — Driver vs Host */}
+      {/* Section 2 — Host vs Driver */}
       <section className="ps-home-v2-section ps-home-v2-paths">
         <div className="ps-home-v2-section-heading">
           <div className="ps-home-v2-eyebrow">TWO WAYS TO PARKSHARE</div>
           <h2>Choose the path that fits you.</h2>
         </div>
         <div className="ps-home-v2-two-col">
-          <article className="ps-home-v2-path-card ps-home-v2-driver-card">
-            <div className="ps-home-v2-card-icon">🚗</div>
-            <div className="ps-home-v2-card-label">DRIVER</div>
-            <h3>Parking that works for you.</h3>
-            <p>Find available parking near where you're going, reserve your spot, and arrive knowing where you'll park.</p>
-            <button onClick={onDriverClick}>Find Parking →</button>
-          </article>
           <article className="ps-home-v2-path-card ps-home-v2-host-card">
             <div className="ps-home-v2-card-icon">🏠</div>
             <div className="ps-home-v2-card-label">HOST</div>
             <h3>Put your driveway to work.</h3>
             <p>List your available parking space, choose when it's available, and earn extra income when Drivers book.</p>
             <button onClick={onHostClick}>Become a Host →</button>
+          </article>
+          <article className="ps-home-v2-path-card ps-home-v2-driver-card">
+            <div className="ps-home-v2-card-icon">🚗</div>
+            <div className="ps-home-v2-card-label">DRIVER</div>
+            <h3>Parking that works for you.</h3>
+            <p>Find available parking near where you're going, reserve your spot, and arrive knowing where you'll park.</p>
+            <button onClick={onDriverClick}>Find Parking →</button>
           </article>
         </div>
       </section>
@@ -6874,19 +6880,19 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-how-grid">
           <article>
-            <div className="ps-home-v2-how-title"><span>🚗</span><strong>For Drivers</strong></div>
-            <div className="ps-home-v2-steps">
-              <div><b>1</b><strong>Search</strong><p>Enter where you're going and find available parking nearby.</p></div>
-              <div><b>2</b><strong>Book</strong><p>Choose the space that works for you and reserve it.</p></div>
-              <div><b>3</b><strong>Park</strong><p>Follow your booking details, pull in, and you're good to go.</p></div>
-            </div>
-          </article>
-          <article>
             <div className="ps-home-v2-how-title"><span>🏠</span><strong>For Hosts</strong></div>
             <div className="ps-home-v2-steps">
               <div><b>1</b><strong>List</strong><p>Add your driveway or available parking space to ParkShare.</p></div>
               <div><b>2</b><strong>Set</strong><p>Choose your availability and hourly rate.</p></div>
               <div><b>3</b><strong>Earn</strong><p>Get paid when Drivers book your space.</p></div>
+            </div>
+          </article>
+          <article>
+            <div className="ps-home-v2-how-title"><span>🚗</span><strong>For Drivers</strong></div>
+            <div className="ps-home-v2-steps">
+              <div><b>1</b><strong>Search</strong><p>Enter where you're going and find available parking nearby.</p></div>
+              <div><b>2</b><strong>Book</strong><p>Choose the space that works for you and reserve it.</p></div>
+              <div><b>3</b><strong>Park</strong><p>Follow your booking details, pull in, and you're good to go.</p></div>
             </div>
           </article>
         </div>
@@ -6901,9 +6907,9 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           <button onClick={onTrustClick}>Explore Trust &amp; Safety →</button>
         </div>
         <div className="ps-home-v2-trust-grid">
+          <div><span>🎛️</span><strong>Host Control</strong><p>Hosts choose when their space is available and set their own hourly rate.</p></div>
           <div><span>🔒</span><strong>Secure Payments</strong><p>Payments are handled securely through ParkShare.</p></div>
           <div><span>📋</span><strong>Clear Booking Details</strong><p>Drivers know where they're parking and Hosts know when to expect them.</p></div>
-          <div><span>🎛️</span><strong>Host Control</strong><p>Hosts choose when their space is available and set their own hourly rate.</p></div>
           <div><span>⭐</span><strong>Ratings &amp; Reviews</strong><p>Community feedback helps Drivers and Hosts make informed decisions.</p></div>
         </div>
       </section>
@@ -6915,8 +6921,8 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           <h2>A better way to park. A smarter way to share.</h2>
         </div>
         <div className="ps-home-v2-benefits">
-          <article><span>📍</span><h3>More parking options</h3><p>Discover private parking spaces near the places you're going.</p></article>
           <article><span>💰</span><h3>Make unused space valuable</h3><p>Turn an available driveway or parking space into an additional source of income.</p></article>
+          <article><span>📍</span><h3>More parking options</h3><p>Discover private parking spaces near the places you're going.</p></article>
           <article><span>🤝</span><h3>Built for Drivers and Hosts</h3><p>A simple marketplace designed to make sharing private parking easier for everyone.</p></article>
         </div>
       </section>
@@ -6928,16 +6934,16 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
           <h2>Ready when you are.</h2>
           <div className="ps-home-v2-final-grid">
             <article>
-              <span>🚗</span>
-              <h3>I need parking.</h3>
-              <p>Find a convenient spot near where you're going.</p>
-              <button className="ps-home-v2-primary" onClick={onDriverClick}>Find Parking →</button>
-            </article>
-            <article>
               <span>🏠</span>
               <h3>I have parking.</h3>
               <p>Turn your available driveway into extra income.</p>
               <button className="ps-home-v2-amber" onClick={onHostClick}>Become a Host →</button>
+            </article>
+            <article>
+              <span>🚗</span>
+              <h3>I need parking.</h3>
+              <p>Find a convenient spot near where you're going.</p>
+              <button className="ps-home-v2-primary" onClick={onDriverClick}>Find Parking →</button>
             </article>
           </div>
         </div>
@@ -6945,6 +6951,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
 
       {/* Section 7 — Footer */}
       <HomeFooter
+        hostFirst
         onLegalClick={onLegalClick}
         onContactClick={onContactClick}
         onTrustClick={onTrustClick}
