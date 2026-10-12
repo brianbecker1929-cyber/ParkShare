@@ -7510,7 +7510,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
     { id: "mission", icon: "🎯", title: "Mission" },
     { id: "vision", icon: "🔭", title: "Vision" },
     { id: "marketplace", icon: "🤝", title: "Marketplace" },
-    { id: "parker", icon: "🧢", title: "Meet Parker" },
+    { id: "parker", icon: "🧢", title: "William & Parker" },
     { id: "canadian", icon: "🇨🇦", title: "Canadian" },
   ];
 
@@ -7638,23 +7638,23 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         <section id="parker" className="ps-about-parker">
           <div className="ps-about-parker-art">
             <img
-              src="/parker-v3/web/768px/ParkShare_Parker_01_Waving-768.webp"
-              srcSet="/parker-v3/web/480px/ParkShare_Parker_01_Waving-480.webp 480w, /parker-v3/web/768px/ParkShare_Parker_01_Waving-768.webp 768w, /parker-v3/web/1122px/ParkShare_Parker_01_Waving-1122.webp 1122w"
-              sizes="(max-width: 819px) 58vw, 310px"
+              src="/william-parker-v2/web/768px/ParkShare_William_Parker_04_App_Phone_Showcase-768.webp"
+              srcSet="/william-parker-v2/web/480px/ParkShare_William_Parker_04_App_Phone_Showcase-480.webp 480w, /william-parker-v2/web/768px/ParkShare_William_Parker_04_App_Phone_Showcase-768.webp 768w, /william-parker-v2/web/1122px/ParkShare_William_Parker_04_App_Phone_Showcase-1122.webp 1122w"
+              sizes="(max-width: 819px) 70vw, 310px"
               style={{ aspectRatio: "4 / 5" }}
-              alt="Parker, ParkShare's valet parker mascot, waving"
+              alt="William and Parker together, with Parker holding the ParkShare app on a phone"
               loading="lazy"
               decoding="async"
               draggable={false}
             />
           </div>
           <div className="ps-about-parker-copy">
-            <div className="ps-about-eyebrow">MEET PARKER</div>
-            <h2>ParkShare&apos;s friendly valet parker.</h2>
-            <P>Parker isn&apos;t just our mascot — he&apos;s ParkShare&apos;s valet parker and the friendly face of the ParkShare experience.</P>
-            <P>A great valet helps take the uncertainty out of parking. Parker represents that same idea: making the experience feel welcoming, clear and easy from the moment you start looking for a space or listing one of your own.</P>
-            <P>For Drivers, Parker is the friendly guide helping you get from search to parked. For Hosts, he&apos;s the helpful partner showing how an unused driveway can become an opportunity.</P>
-            <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>Friendly. Helpful. Approachable. Always ready to help you park.</P>
+            <div className="ps-about-eyebrow">MEET WILLIAM &amp; PARKER</div>
+            <h2>Your friendly guides to sharing and parking.</h2>
+            <P><strong>William supports our Hosts.</strong> He&apos;s here to help you get started, list your driveway and feel confident offering your available parking space for rent.</P>
+            <P><strong>Parker is ParkShare&apos;s friendly valet parker.</strong> He helps Drivers find the right space, understand their booking and go from searching to parked with confidence.</P>
+            <P>Together, William and Parker bring a friendly, helpful face to both sides of ParkShare—making it easier to share your space and find your place.</P>
+            <P style={{ fontWeight: 800, color: C.navy, marginBottom: 0 }}>Helping Hosts share. Helping Drivers park.</P>
           </div>
         </section>
 
