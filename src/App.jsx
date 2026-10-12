@@ -5248,9 +5248,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         const canReview = displayStatus === "Completed";
         const detailsId = `booking-details-${b.rawId}`;
         const bookingFollowup = (
-              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+              <div className={`ps-driver-booking-followup${displayStatus === "Completed" ? " is-completed" : ""}`}>
               <BookingVehicleVisual vehicle={b.vehicle} />
-              <div className={`ps-driver-booking-footer${displayStatus === "Completed" ? " has-celebration" : ""}`}>
+              <div className="ps-driver-booking-footer">
                 <div className="ps-driver-booking-controls">
               <div className="ps-driver-booking-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isRideshareEligible && (
@@ -5268,17 +5268,6 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 {reviewed[b.id] && <span style={{ fontSize: 11, color: C.moss, fontWeight: 600, alignSelf: "center" }}>✓ Reviewed</span>}
               </div>
                 </div>
-              {displayStatus === "Completed" && (
-                <div className="ps-booking-completion-mascot" aria-hidden="true">
-                  <ResponsiveMascot
-                    family="parker-v3"
-                    name="ParkShare_Parker_30_Success_Celebration"
-                    className="ps-mascot-booking-complete"
-                    sizes="(max-width: 360px) 128px, (max-width: 620px) 148px, 140px"
-                    decorative
-                  />
-                </div>
-              )}
               </div>
               </div>
         );
