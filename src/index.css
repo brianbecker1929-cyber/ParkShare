@@ -9400,6 +9400,7 @@ div:has(> button[aria-label="ParkShare help"])
 /* About marketplace: the Driver map pose mirrors William's Host-card layout. */
 .ps-about-page .ps-about-driver-card .ps-about-card-parker {
   filter: drop-shadow(0 14px 18px rgba(0, 0, 0, .15));
+  transform-origin: center bottom;
 }
 @media (min-width: 820px) {
   .ps-about-driver-card > div { max-width: 68%; }
@@ -9409,7 +9410,7 @@ div:has(> button[aria-label="ParkShare help"])
     height: auto;
     right: -34px;
     top: 56%;
-    transform: translateY(-50%);
+    transform: translate(-6px, -50%) scale(1.06);
     object-fit: contain;
     z-index: 2;
     margin: 0;
@@ -9481,7 +9482,7 @@ div:has(> button[aria-label="ParkShare help"])
     grid-row: 2;
     justify-self: center;
     align-self: center;
-    transform: translate(2px, 24px);
+    transform: translate(2px, 24px) scale(1.06);
     z-index: 2;
     margin: 0;
     object-fit: contain;
@@ -9540,7 +9541,7 @@ div:has(> button[aria-label="ParkShare help"])
   }
   .ps-about-driver-card .ps-about-card-parker {
     width: 154%;
-    transform: translate(4px, 28px);
+    transform: translate(4px, 28px) scale(1.06);
   }
   .ps-about-driver-card > button {
     width: min(286px, calc(100% - 28px));
