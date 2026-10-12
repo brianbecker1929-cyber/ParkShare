@@ -6592,9 +6592,10 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             }}
           >
             {[
+              ...(isLandingPage ? [{ label: "Become a Host", onClick: onHostClick, show: !!onHostClick }] : []),
               { label: "Find Parking", onClick: () => onTabChange("Browse"), show: true },
               { label: "Discover", onClick: () => onTabChange("Discover"), show: true },
-              { label: "Become a Host", onClick: onHostClick, show: !!onHostClick },
+              ...(!isLandingPage ? [{ label: "Become a Host", onClick: onHostClick, show: !!onHostClick }] : []),
               { label: "About", onClick: onAboutClick, show: !!onAboutClick },
               { label: "Trust & Safety", onClick: onTrustClick, show: !!onTrustClick },
               { label: "Help", onClick: onHelpClick, show: !!onHelpClick },
