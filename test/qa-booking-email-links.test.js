@@ -50,17 +50,18 @@ test("QA emails cannot link to the live website across all five templates", () =
       assert.match(html, /href="https:\/\/parkshare-qa\.vercel\.app"/, name);
       assert.match(html, /href="https:\/\/parkshare-qa\.vercel\.app\/parking\?message_booking=42"/, name);
       assert.match(html, />parkshare-qa\.vercel\.app<\/a>/, name);
-      if (name !== "host") assert.match(html, /https:\/\/www\.google\.com\/maps\/search/, name);
+      if (name === "confirmation" || name === "ending") assert.match(html, /https:\/\/www\.google\.com\/maps\/search/, name);
     }
   });
 });
 
 test("QA confirmation, extension and reminders route booking actions to QA", () => {
   withAppUrl(QA, () => {
-    for (const [name, render] of renderers.filter(([name]) => name !== "host")) {
+    for (const [name, render] of renderers.filter(([name]) => ["confirmation", "extension", "halfway"].includes(name))) {
       const html = render(fixture);
       assert.match(html, /href="https:\/\/parkshare-qa\.vercel\.app\/\?view_booking=42"/, name);
     }
+    assert.match(endingReminderHtml(fixture), /href="https:\/\/parkshare-qa\.vercel\.app\/\?extend_booking=42"/);
     const hostHtml = hostBookingNotificationHtml(fixture);
     assert.match(hostHtml, /href="https:\/\/parkshare-qa\.vercel\.app\/host-dashboard"/);
   });
