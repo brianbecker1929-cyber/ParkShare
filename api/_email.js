@@ -54,6 +54,37 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
 }
 
 
+// Preserve production email URLs by default, while routing all QA emails to
+// the separate APP_URL. This also rewrites legacy absolute links in template
+// HTML and passed-in booking URLs, so QA messages cannot link to live bookings.
+const LIVE_EMAIL_ORIGIN = "https://www.myparkshare.ca";
+
+function emailOrigin() {
+  const configured = process.env.APP_URL?.trim();
+  if (!configured) return LIVE_EMAIL_ORIGIN;
+  let url;
+  try {
+    url = new URL(configured);
+  } catch {
+    throw new Error("APP_URL must be an absolute HTTPS website origin");
+  }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password
+      || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("APP_URL must be an HTTPS origin without credentials, paths or query parameters");
+  }
+  return url.origin;
+}
+
+function renderEnvironmentEmail(template, variables) {
+  const html = fillTemplate(template, variables);
+  const origin = emailOrigin();
+  if (origin === LIVE_EMAIL_ORIGIN) return html;
+  // Apply to footer CTA, booking/extension/reminder buttons, host dashboard,
+  // email header and other hosted images in the shared ticket templates.
+  return html.replaceAll(LIVE_EMAIL_ORIGIN, origin)
+    .replace(/>www\\.myparkshare\\.ca<\\/a>/g, `>${new URL(origin).host}</a>`);
+}
+
 function escapeBookingHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -133,7 +164,7 @@ export function hostBookingNotificationHtml(args) {
   const car = [vehicle.vehicle_make || vehicle.vehicleMake, vehicle.vehicle_model || vehicle.vehicleModel].filter(Boolean).join(" ") || "Vehicle not specified";
   const colour = vehicle.vehicle_colour || vehicle.vehicleColour || "Colour not specified";
   const plate = String(vehicle.license_plate || vehicle.licensePlate || "Not provided").toUpperCase();
-  return fillTemplate(hostBookingTemplate, {
+  return renderEnvironmentEmail(hostBookingTemplate, {
     BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
     HOST_PORTRAIT_URL: e(portraitUrl(args, true)),
     HOST_NAME: e(args.hostName || "Host"),
@@ -156,14 +187,14 @@ export function hostBookingNotificationHtml(args) {
   });
 }
 export function confirmationEmailHtml(args) {
-  return fillTemplate(confirmationTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(confirmationTemplate, driverTicketFields(args));
 }
 export function halfwayReminderHtml(args) {
-  return fillTemplate(halfwayReminderTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(halfwayReminderTemplate, driverTicketFields(args));
 }
 export function endingReminderHtml(args) {
-  return fillTemplate(endingReminderTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(endingReminderTemplate, driverTicketFields(args));
 }
 export function extensionConfirmedHtml(args) {
-  return fillTemplate(extensionConfirmedTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(extensionConfirmedTemplate, driverTicketFields(args));
 }
