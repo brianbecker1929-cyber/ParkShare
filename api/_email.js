@@ -82,7 +82,7 @@ function renderEnvironmentEmail(template, variables) {
   // Apply to footer CTA, booking/extension/reminder buttons, host dashboard,
   // email header and other hosted images in the shared ticket templates.
   return html.replaceAll(LIVE_EMAIL_ORIGIN, origin)
-    .replace(/>www\\.myparkshare\\.ca<\\/a>/g, `>${new URL(origin).host}</a>`);
+    .replace(/>www\.myparkshare\.ca<\/a>/g, `>${new URL(origin).host}</a>`);
 }
 
 function escapeBookingHtml(value) {
