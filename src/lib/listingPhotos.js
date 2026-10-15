@@ -45,7 +45,7 @@ export async function removeUploadedListingPhotos(supabase, paths) {
   if (result.error) throw result.error;
 }
 
-export async function uploadListingPhotos(supabase, hostId, photoDrafts, onProgress = () => {}) {
+export async function uploadListingPhotos(supabase, hostId, photoDrafts, onProgress = () => {}, randomId = () => globalThis.crypto?.randomUUID?.()) {
   if (!Array.isArray(photoDrafts) || photoDrafts.length === 0 || photoDrafts.length > MAX_LISTING_PHOTOS) {
     throw new Error("Upload between one and six driveway photos.");
   }
@@ -56,7 +56,7 @@ export async function uploadListingPhotos(supabase, hostId, photoDrafts, onProgr
       const file = photoDrafts[i]?.file;
       const validationError = validateListingPhoto(file);
       if (validationError) throw new Error(`Photo ${i + 1}: ${validationError}`);
-      const uuid = globalThis.crypto?.randomUUID?.();
+      const uuid = randomId();
       const path = listingPhotoPath(hostId, file, uuid);
       onProgress(i + 1, photoDrafts.length);
       const storage = supabase.storage.from(LISTING_PHOTO_BUCKET);
