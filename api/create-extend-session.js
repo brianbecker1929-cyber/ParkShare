@@ -81,6 +81,7 @@ export default async function handler(req, res) {
         renter_id: user.id,
         added_hours: addedHours,
         expected_total_cents: totalCents,
+        expected_service_fee_cents: serviceFeeCents,
         expected_connected_account_id: host.stripe_account_id,
         stripe_checkout_session_id: session.id,
       })
