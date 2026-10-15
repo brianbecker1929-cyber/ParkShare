@@ -40,12 +40,10 @@ test("photo object paths are scoped to one Host account and unique", () => {
 
 test("uploads six-megabyte photos as Files and returns only public URL references", async () => {
   const fixture = mockedStorage();
-  const original = globalThis.crypto;
-  globalThis.crypto = { randomUUID: () => UUID };
   const events = [];
-  try {
+  {
     const data = await uploadListingPhotos(fixture.client, HOST, [{ file: file(6_500_000) }],
-      (current, total) => events.push([current, total]));
+      (current, total) => events.push([current, total]), () => UUID);
     assert.equal(data.paths.length, 1);
     assert.equal(data.urls.length, 1);
     assert.equal(data.urls[0].startsWith("https://"), true);
@@ -54,26 +52,18 @@ test("uploads six-megabyte photos as Files and returns only public URL reference
     assert.equal(fixture.paths[0].options.contentType, "image/jpeg");
     assert.equal(fixture.paths[0].options.upsert, false);
     assert.deepEqual(fixture.removed, []);
-  } finally {
-    if (original === undefined) delete globalThis.crypto;
-    else globalThis.crypto = original;
   }
 });
 
 test("cleans up prior images when the next upload fails", async () => {
   const fixture = mockedStorage({ failAt: 2 });
-  const original = globalThis.crypto;
   let counter = 0;
-  globalThis.crypto = { randomUUID: () => "10000000-0000-4000-8000-" + String(++counter).padStart(12, "0") };
-  try {
+  {
     await assert.rejects(() => uploadListingPhotos(fixture.client, HOST, [
       { file: file(5_000_000) }, { file: file(5_000_000) },
-    ]), /Photo 2 couldn't upload/);
+    ], () => {}, () => "10000000-0000-4000-8000-" + String(++counter).padStart(12, "0")), /Photo 2 couldn't upload/);
     assert.equal(fixture.removed.length, 1);
     assert.equal(fixture.removed[0], fixture.paths[0].path);
-  } finally {
-    if (original === undefined) delete globalThis.crypto;
-    else globalThis.crypto = original;
   }
 });
 
