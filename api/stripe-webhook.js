@@ -85,7 +85,7 @@ async function validatedIntent(session, connectedAccountId, expectedConnectedAcc
 
 // Invalid payments are refunded on the originating Stripe connected account,
 // not promoted into bookings or extensions. Idempotency makes retries safe.
-async function refundUnregisteredCheckout(session, connectedAccountId, cause) {
+async function refundInvalidRegisteredCheckout(session, connectedAccountId, cause) {
   console.error("[checkout-integrity] rejected paid Checkout Session:", {
     sessionId: session?.id,
     reason: cause?.message,
@@ -99,7 +99,7 @@ async function refundUnregisteredCheckout(session, connectedAccountId, cause) {
     payment_intent: paymentIntentId,
     reason: "requested_by_customer",
     refund_application_fee: true,
-    metadata: { parkshare_reason: "unregistered_checkout", checkout_session_id: session.id },
+    metadata: { parkshare_reason: "invalid_registered_checkout", checkout_session_id: session.id },
   }, {
     stripeAccount: connectedAccountId,
     idempotencyKey: `integrity-reject-${session.id}`,
@@ -562,7 +562,7 @@ async function processPaidCheckout(session, connectedAccountId) {
       await confirmBooking(session, connectedAccountId, hold);
     } catch (error) {
       if (!(error instanceof CheckoutIntegrityError)) throw error;
-      await refundUnregisteredCheckout(session, connectedAccountId, error);
+      await refundInvalidRegisteredCheckout(session, connectedAccountId, error);
     }
     return;
   }
@@ -578,13 +578,18 @@ async function processPaidCheckout(session, connectedAccountId) {
       await confirmExtension(session, connectedAccountId, pending);
     } catch (error) {
       if (!(error instanceof CheckoutIntegrityError)) throw error;
-      await refundUnregisteredCheckout(session, connectedAccountId, error);
+      await refundInvalidRegisteredCheckout(session, connectedAccountId, error);
     }
     return;
   }
 
-  await refundUnregisteredCheckout(session, connectedAccountId,
-    new CheckoutIntegrityError("No server-registered booking or extension exists for this paid session"));
+  // Standard connected accounts may process unrelated transactions.
+  // An unknown Stripe Session has NO trustworthy link to ParkShare, so
+  // do not confirm it AND do not refund someone else's business payment.
+  // An orphaned ParkShare Checkout requires separate payment reconciliation.
+  console.warn("[checkout-integrity] ignored unregistered connected-account payment", {
+    sessionId: session.id, connectedAccountId,
+  });
 }
 
 export default async function handler(req, res) {
