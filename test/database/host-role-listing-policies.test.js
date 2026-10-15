@@ -74,6 +74,8 @@ describe("BetterQA BUG-005142 Host-only listing writes", { skip: !databaseUrl, c
   });
 
   test("Hosts can create and manage only their own listings", async () => {
+    const check = await asUser(HOST, "select auth.uid()::text as uid, (select role from public.profiles where id = auth.uid()) as saved_role");
+    assert.deepEqual(check.rows[0], { uid: HOST, saved_role: "host" }, "Auth session can see server-owned Host role");
     const created = await asUser(HOST, "insert into public.listings(host_id,spaces) values ($1,1) returning id", [HOST]);
     const id = created.rows[0].id;
     const updated = await asUser(HOST, "update public.listings set spaces=2 where id=$1 returning spaces", [id]);
