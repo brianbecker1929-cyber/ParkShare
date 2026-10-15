@@ -213,7 +213,7 @@ async function confirmExtension(session, connectedAccountId, pending) {
   const totalCents = Number(pending.expected_total_cents);
   const { data: booking, error: bookingError } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, status, stripe_connected_account_id")
+    .select("id, listing_id, renter_id, status, hours, stripe_connected_account_id")
     .eq("id", bookingId)
     .single();
   if (bookingError || !booking || booking.status !== "confirmed"
@@ -261,13 +261,6 @@ async function confirmExtension(session, connectedAccountId, pending) {
   // each other — low-stakes and unlikely, unlike the cross-renter spot
   // conflict Phase 3 protects against, which is why that one got a real
   // database constraint instead of just application-level care.
-  const { data: booking, error: fetchError } = await supabaseAdmin
-    .from("bookings")
-    .select("hours")
-    .eq("id", bookingId)
-    .single();
-  if (fetchError) throw fetchError;
-
   const { error: updateError } = await supabaseAdmin
     .from("bookings")
     .update({ hours: Number(booking.hours) + addedHours })
