@@ -201,13 +201,22 @@ export default async function handler(req, res) {
       { stripeAccount: stripeAccountId }
       );
 
-      const { error: saveSessionError } = await supabaseAdmin
+      // Stripe metadata is not a source of truth: record the exact session,
+      // connected Host and approved price in a service-role-only hold.
+      const { data: registeredHold, error: saveSessionError } = await supabaseAdmin
         .from("booking_holds")
-        .update({ stripe_checkout_session_id: session.id })
-        .eq("id", holdId);
-      if (saveSessionError) {
+        .update({
+          stripe_checkout_session_id: session.id,
+          expected_total_cents: totalCents,
+          expected_connected_account_id: stripeAccountId,
+          checkout_metadata: metadata,
+        })
+        .eq("id", holdId)
+        .select("id")
+        .maybeSingle();
+      if (saveSessionError || !registeredHold) {
         await stripe.checkout.sessions.expire(session.id, {}, { stripeAccount: stripeAccountId }).catch(() => {});
-        throw saveSessionError;
+        throw saveSessionError || new Error("Unable to register a secure checkout hold.");
       }
     } catch (checkoutError) {
       await supabaseAdmin.from("booking_holds").delete().eq("id", holdId);
