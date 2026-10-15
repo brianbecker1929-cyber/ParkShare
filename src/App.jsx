@@ -6016,15 +6016,36 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
           {/* Sign in */}
           {screen === "signin" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label style={lS}>Email</label><input style={iS(errors.email)} type="email" placeholder="you@example.com" value={form.email} onChange={e => upd("email", e.target.value)} />{errors.email && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}</div>
-              <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="Your password" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
-              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              {authSuccess && <div style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
-              <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
-              <button onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => openAuthScreen("signup")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
-            </div>
+            <form onSubmit={event => { event.preventDefault(); void submit(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="ps-signin-email" style={lS}>Email</label>
+                <input id="ps-signin-email" name="email" autoComplete="username" type="email" required
+                  style={iS(errors.email)} placeholder="you@example.com" value={form.email}
+                  onChange={event => upd("email", event.target.value)}
+                  aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "ps-signin-email-error" : undefined} />
+                {errors.email && <div id="ps-signin-email-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-signin-password" style={lS}>Password</label>
+                <input id="ps-signin-password" name="password" autoComplete="current-password" type="password" required
+                  style={iS(errors.password)} placeholder="Your password" value={form.password}
+                  onChange={event => upd("password", event.target.value)}
+                  aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signin-password-error" : undefined} />
+                {errors.password && <div id="ps-signin-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
+              </div>
+              {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              {isUnconfirmedEmailError(authError) && (
+                <button type="button" onClick={resendConfirmation} disabled={resendLoading}
+                  style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, fontSize: 12, cursor: resendLoading ? "default" : "pointer" }}>
+                  {resendLoading ? "Sending…" : "Resend confirmation email"}
+                </button>
+              )}
+              {resendMessage && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{resendMessage}</div>}
+              {authSuccess && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
+              <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
+              <button type="button" onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button type="button" onClick={() => openAuthScreen("signup")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
+            </form>
           )}
 
           {/* Password recovery */}
@@ -6050,14 +6071,37 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
           {/* Sign up */}
           {screen === "signup" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label style={lS}>Full name</label><input style={iS(errors.name)} placeholder="Jane Smith" value={form.name} onChange={e => upd("name", e.target.value)} />{errors.name && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.name}</div>}</div>
-              <div><label style={lS}>Email</label><input style={iS(errors.email)} type="email" placeholder="you@example.com" value={form.email} onChange={e => upd("email", e.target.value)} />{errors.email && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}</div>
-              <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="At least 6 characters" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
-              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Creating account…" : "Create account →"}</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>Already have an account? <button onClick={() => openAuthScreen("signin")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign in</button></div>
-            </div>
+            <form onSubmit={event => { event.preventDefault(); void submit(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="ps-signup-name" style={lS}>Full name</label>
+                <input id="ps-signup-name" name="name" autoComplete="name" required
+                  style={iS(errors.name)} placeholder="Jane Smith" value={form.name}
+                  onChange={event => upd("name", event.target.value)}
+                  aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? "ps-signup-name-error" : undefined} />
+                {errors.name && <div id="ps-signup-name-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.name}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-signup-email" style={lS}>Email</label>
+                <input id="ps-signup-email" name="email" type="email" autoComplete="email" required
+                  style={iS(errors.email)} placeholder="you@example.com" value={form.email}
+                  onChange={event => upd("email", event.target.value)}
+                  aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "ps-signup-email-error" : undefined} />
+                {errors.email && <div id="ps-signup-email-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-signup-password" style={lS}>Password</label>
+                <input id="ps-signup-password" name="password" type="password" autoComplete="new-password"
+                  minLength={MIN_NEW_PASSWORD_LENGTH} required
+                  style={iS(errors.password)} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`}
+                  value={form.password} onChange={event => upd("password", event.target.value)}
+                  aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signup-password-error" : "ps-signup-password-hint"} />
+                <div id="ps-signup-password-hint" style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Use 12 or more characters; a long passphrase works well.</div>
+                {errors.password && <div id="ps-signup-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
+              </div>
+              {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Creating account…" : "Create account →"}</button>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>Already have an account? <button type="button" onClick={() => openAuthScreen("signin")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign in</button></div>
+            </form>
           )}
 
           {/* Role picker */}
@@ -6118,7 +6162,11 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
           {screen === "verify" && (
             <div style={{ textAlign: "center" }}>
               <p style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>We sent a confirmation link to <strong>{pendingUser?.email}</strong>. Confirm it, then return here to sign in.</p>
-              <button onClick={onClose} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Done</button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button type="button" onClick={resendConfirmation} disabled={resendLoading} style={{ background: C.navy, color: C.white, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: resendLoading ? "default" : "pointer" }}>{resendLoading ? "Sending…" : "Resend confirmation email"}</button>
+                {resendMessage && <div role="status" style={{ fontSize: 12, color: C.moss }}>{resendMessage}</div>}
+                <button type="button" onClick={onClose} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Done</button>
+              </div>
             </div>
           )}
 
