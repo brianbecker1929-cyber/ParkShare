@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { MAX_LISTING_PHOTOS, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -4160,7 +4161,14 @@ function PinAdjustMap({ lat, lng, onChange }) {
 function ListDrivewayView({ user }) {
   const [step, setStep] = useState(1);
   const [publishError, setPublishError] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const photoPreviewUrls = useRef(new Set());
+  useEffect(() => () => {
+    for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+    photoPreviewUrls.current.clear();
+  }, []);
   const [form, setForm] = useState({
     street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false,
     photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
@@ -4206,13 +4214,35 @@ function ListDrivewayView({ user }) {
   };
 
   const addPhotos = (files) => {
-    Array.from(files).slice(0, 6 - form.photos.length).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = e => setForm(f => ({ ...f, photos: [...f.photos, { name: file.name, url: e.target.result }] }));
-      reader.readAsDataURL(file);
+    setPhotoError("");
+    const selected = Array.from(files || []);
+    const remaining = Math.max(0, MAX_LISTING_PHOTOS - form.photos.length);
+    if (selected.length > remaining) {
+      setPhotoError(`You can upload up to ${MAX_LISTING_PHOTOS} photos per listing.`);
+      return;
+    }
+    for (const file of selected) {
+      const message = validateListingPhoto(file);
+      if (message) { setPhotoError(message); return; }
+    }
+    // Browser object URLs show immediate previews without retaining multi-MB
+    // Base64 strings in React state. The actual File is uploaded on Publish.
+    const drafts = selected.map(file => {
+      const url = URL.createObjectURL(file);
+      photoPreviewUrls.current.add(url);
+      return { name: file.name, url, file };
     });
+    setForm(current => ({ ...current, photos: [...current.photos, ...drafts] }));
   };
-  const removePhoto = (i) => setForm(f => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }));
+  const removePhoto = (i) => {
+    const photo = form.photos[i];
+    if (photo?.url) {
+      URL.revokeObjectURL(photo.url);
+      photoPreviewUrls.current.delete(photo.url);
+    }
+    setPhotoError("");
+    setForm(current => ({ ...current, photos: current.photos.filter((_, idx) => idx !== i) }));
+  };
 
   const toggleSpot = (i) => setForm(f => { const s = [...f.selectedSpots]; s[i] = !s[i]; return { ...f, selectedSpots: s }; });
   const setTotalSpots = (n) => setForm(f => {
@@ -4379,38 +4409,66 @@ function ListDrivewayView({ user }) {
   const [submitted, setSubmitted] = useState(false);
 
   const publish = async () => {
+    if (publishing) return;
     setPublishError("");
-    if (!user) {
-      setPublishError("Please sign in as a host before publishing your listing.");
+    setUploadProgress("");
+    if (!user || user.role !== "host") {
+      setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    if (!form.photos.length) {
+      setPublishError("Add at least one driveway photo before publishing.");
       return;
     }
     setPublishing(true);
-    const rentableSpots = rentableSpotCount || 1;
-    const features = listingFeatures;
-    const { error } = await supabase.from("listings").insert({
-      host_id: user.id,
-      title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
-      address: fullAddress,
-      price: Number(form.price) || 12,
-      spaces: rentableSpots,
-      features,
-      description: form.description || "",
-      img: form.photos[0]?.url || "🏠",
-      photos: form.photos.map(p => p.url),
-      lat: form.lat || null,
-      lng: form.lng || null,
-      spots: form.spots || [],
-      availability: normalizedAvailability,
-    });
-    setPublishing(false);
-    if (error) {
-      setPublishError(error.message);
-      return;
+    let uploadedPaths = [];
+    try {
+      const photoUpload = await uploadListingPhotos(supabase, user.id, form.photos, (index, total) => {
+        setUploadProgress(`Uploading photo ${index} of ${total}…`);
+      });
+      uploadedPaths = photoUpload.paths;
+      setUploadProgress("Saving your listing…");
+      const { error } = await supabase.from("listings").insert({
+        host_id: user.id,
+        title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
+        address: fullAddress,
+        price: Number(form.price) || 12,
+        spaces: rentableSpotCount || 1,
+        features: listingFeatures,
+        description: form.description || "",
+        // Keep the existing listing image schema: new listings now persist
+        // short Storage URLs, while historical Base64 listings still render.
+        img: photoUpload.urls[0],
+        photos: photoUpload.urls,
+        lat: form.lat || null,
+        lng: form.lng || null,
+        spots: form.spots || [],
+        availability: normalizedAvailability,
+      });
+      if (error) throw new Error("The listing could not be saved. Your existing listings were not changed. Please try again.");
+      for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+      photoPreviewUrls.current.clear();
+      setSubmitted(true);
+    } catch (error) {
+      if (uploadedPaths.length) {
+        try {
+          await removeUploadedListingPhotos(supabase, uploadedPaths);
+        } catch (cleanupError) {
+          console.warn("Unable to remove unused listing photos after publish failure", cleanupError);
+        }
+      }
+      setPublishError(error?.message || "Unable to publish this listing. Please try again.");
+    } finally {
+      setUploadProgress("");
+      setPublishing(false);
     }
-    setSubmitted(true);
   };
 
   const resetAll = () => {
+    for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+    photoPreviewUrls.current.clear();
+    setPhotoError("");
+    setUploadProgress("");
     setSubmitted(false); setStep(1);
     setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
@@ -4534,6 +4592,7 @@ function ListDrivewayView({ user }) {
       {/* Step 3: Photos */}
       {step === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {photoError && <div role="alert" style={{ background: C.redLight, color: C.red, borderRadius: 8, padding: 11, fontSize: 12 }}>{photoError}</div>}
           <div>
             <label style={{ ...labelStyle, marginBottom: 4 }}>Photos of your driveway ({form.photos.length}/6)</label>
             <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, margin: 0 }}>
@@ -4585,7 +4644,7 @@ function ListDrivewayView({ user }) {
                 <span style={{ fontSize: 24 }} aria-hidden="true">📷</span>
                 <span>{form.photos.length === 0 ? "Add cover photo" : "Add another photo"}</span>
                 {form.photos.length === 0 && <small style={{ color: C.muted, fontSize: 9, fontWeight: 600, lineHeight: 1.35 }}>Street-to-house view<br/><strong style={{ color: C.moss }}>(Required to publish)</strong></small>}
-                <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => addPhotos(e.target.files)} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: "none" }} onChange={e => { addPhotos(e.target.files); e.target.value = ""; }} />
               </label>
             )}
           </div>
@@ -5035,6 +5094,7 @@ function ListDrivewayView({ user }) {
           </div>
 
           {publishError && <div role="alert" style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{publishError}</div>}
+          {uploadProgress && <div role="status" style={{ color: C.moss, fontSize: 12.5, fontWeight: 700 }}>{uploadProgress}</div>}
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" onClick={() => setStep(7)}>← Back to edit</Btn>
