@@ -28,6 +28,10 @@ describe("BetterQA BUG-005142 Host-only listing writes", { skip: !databaseUrl, c
       alter table public.profiles enable row level security;
       create policy "Profiles are viewable by everyone" on public.profiles for select using (true);
       alter table public.listings enable row level security;
+      -- Production allows public listing discovery; INSERT ... RETURNING id
+      -- also needs a SELECT policy under PostgreSQL RLS.
+      create policy "Listings are viewable by everyone" on public.listings
+        for select using (true);
       create policy "Hosts can insert their own listings" on public.listings
         for insert with check (auth.uid() = host_id);
       create policy "Hosts can update their own listings" on public.listings
