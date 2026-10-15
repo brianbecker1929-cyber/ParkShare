@@ -62,7 +62,7 @@ async function hostAccountForListing(listingId) {
   return { hostId: listing.host_id, connectedAccountId: host.stripe_account_id };
 }
 
-async function validatedIntent(session, connectedAccountId, expectedConnectedAccountId, hostConnectedAccountId, expectedTotalCents) {
+async function validatedIntent(session, connectedAccountId, expectedConnectedAccountId, hostConnectedAccountId, expectedTotalCents, expectedApplicationFeeCents) {
   if (!connectedAccountId || connectedAccountId !== expectedConnectedAccountId
       || connectedAccountId !== hostConnectedAccountId) {
     throw new CheckoutIntegrityError("Payment is from the wrong Stripe connected account");
@@ -78,6 +78,7 @@ async function validatedIntent(session, connectedAccountId, expectedConnectedAcc
     expectedConnectedAccountId,
     actualHostAccountId: hostConnectedAccountId,
     expectedTotalCents,
+    expectedApplicationFeeCents,
     paymentIntent: intent,
   });
 }
@@ -119,7 +120,7 @@ async function confirmBooking(session, connectedAccountId, hold) {
   }
   const { paymentIntentId, chargeId } = await validatedIntent(
     session, connectedAccountId, hold.expected_connected_account_id,
-    host.connectedAccountId, totalCents
+    host.connectedAccountId, totalCents, Number(metadata.service_fee_cents)
   );
 
   const row = {
@@ -223,7 +224,7 @@ async function confirmExtension(session, connectedAccountId, pending) {
   const host = await hostAccountForListing(booking.listing_id);
   const { paymentIntentId, chargeId } = await validatedIntent(
     session, connectedAccountId, pending.expected_connected_account_id,
-    host.connectedAccountId, totalCents
+    host.connectedAccountId, totalCents, Number(pending.expected_service_fee_cents)
   );
   if (!Number.isFinite(addedHours) || addedHours <= 0 || addedHours > 24) {
     throw new CheckoutIntegrityError("Extension duration is not a valid trusted value");
@@ -575,7 +576,7 @@ async function processPaidCheckout(session, connectedAccountId) {
 
   const { data: pending, error: pendingError } = await supabaseAdmin
     .from("pending_booking_extensions")
-    .select("booking_id, renter_id, added_hours, expected_total_cents, expected_connected_account_id, stripe_checkout_session_id")
+    .select("booking_id, renter_id, added_hours, expected_total_cents, expected_service_fee_cents, expected_connected_account_id, stripe_checkout_session_id")
     .eq("stripe_checkout_session_id", session.id)
     .maybeSingle();
   if (pendingError) throw pendingError;
