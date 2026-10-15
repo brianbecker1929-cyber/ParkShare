@@ -4,10 +4,10 @@ import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot }
 
 const SESSION_ID = "cs_test_123", HOST_ACCOUNT = "acct_test_host";
 const session = { id: SESSION_ID, mode:"payment", payment_status:"paid", amount_total:1150, currency:"cad", payment_intent:"pi_123" };
-const intent = { id:"pi_123", status:"succeeded", amount_received:1150, currency:"cad", latest_charge:"ch_123" };
+const intent = { id:"pi_123", status:"succeeded", amount_received:1150, application_fee_amount:150, currency:"cad", latest_charge:"ch_123" };
 const context = { session, eventAccount:HOST_ACCOUNT, expectedSessionId:SESSION_ID,
   expectedConnectedAccountId:HOST_ACCOUNT, actualHostAccountId:HOST_ACCOUNT,
-  expectedTotalCents:1150, paymentIntent:intent };
+  expectedTotalCents:1150, expectedApplicationFeeCents:150, paymentIntent:intent };
 const hold = { id:"hold_123", listing_id:20, renter_id:"driver_1", spot_label:"A",
   starts_at:"2026-10-15T13:00:00Z", ends_at:"2026-10-15T15:00:00Z",
   expected_connected_account_id:HOST_ACCOUNT, expected_total_cents:1150,
@@ -30,6 +30,7 @@ test("blocks underpayments, incorrect currency and unconfirmed intent", () => {
   assert.throws(() => verifyPaidCheckout({ ...context, session:{ ...session, amount_total:50 } }), CheckoutIntegrityError);
   assert.throws(() => verifyPaidCheckout({ ...context, session:{ ...session, currency:"usd" } }), CheckoutIntegrityError);
   assert.throws(() => verifyPaidCheckout({ ...context, paymentIntent:{ ...intent, amount_received:50 } }), CheckoutIntegrityError);
+  assert.throws(() => verifyPaidCheckout({ ...context, paymentIntent:{ ...intent, application_fee_amount:0 } }), CheckoutIntegrityError);
   assert.throws(() => verifyPaidCheckout({ ...context, paymentIntent:{ ...intent, status:"processing" } }), CheckoutIntegrityError);
 });
 test("blocks metadata replay onto another reservation or changed duration", () => {
