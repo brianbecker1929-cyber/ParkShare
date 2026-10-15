@@ -47,7 +47,7 @@ create or replace function public.create_booking_hold(
 language plpgsql
 security definer
 set search_path = pg_catalog, public
-as $
+as $$
 declare
   v_capacity integer;
   v_taken integer;
@@ -124,6 +124,6 @@ begin
 
   return v_hold_id;
 end;
-$;
+$$;
 
 commit;
