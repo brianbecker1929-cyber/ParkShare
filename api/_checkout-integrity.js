@@ -14,7 +14,7 @@ function must(condition, message) {
 
 export function verifyPaidCheckout({
   session, eventAccount, expectedSessionId, expectedConnectedAccountId,
-  actualHostAccountId, expectedTotalCents, paymentIntent,
+  actualHostAccountId, expectedTotalCents, expectedApplicationFeeCents, paymentIntent,
 }) {
   must(typeof eventAccount === "string" && eventAccount.startsWith("acct_"),
     "Connected-account identity is missing from Stripe event");
@@ -28,6 +28,9 @@ export function verifyPaidCheckout({
     "Trusted expected amount is missing or invalid");
   must(session.amount_total === expectedTotalCents,
     "Paid amount does not match the trusted Checkout total");
+  must(Number.isSafeInteger(expectedApplicationFeeCents) && expectedApplicationFeeCents >= 0
+    && expectedApplicationFeeCents <= expectedTotalCents,
+    "Trusted application fee is missing or invalid");
   const paymentIntentId = typeof session.payment_intent === "string"
     ? session.payment_intent : session.payment_intent?.id;
   must(paymentIntentId && paymentIntent?.id === paymentIntentId,
@@ -36,6 +39,8 @@ export function verifyPaidCheckout({
     && paymentIntent.currency === "cad"
     && paymentIntent.amount_received === expectedTotalCents,
     "PaymentIntent settlement does not match the trusted total");
+  must(paymentIntent.application_fee_amount === expectedApplicationFeeCents,
+    "ParkShare application fee is different from the trusted amount");
   return { paymentIntentId, chargeId: typeof paymentIntent.latest_charge === "string"
     ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id || null };
 }
