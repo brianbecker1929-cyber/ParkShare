@@ -5833,7 +5833,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
   const resendConfirmation = async () => {
     const email = String(screen === "verify" ? pendingUser?.email || "" : form.email || "").trim();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setResendMessage("Enter the email address you used to register.");
       return;
     }
