@@ -58,18 +58,18 @@ describe("registered checkout database constraints", { skip: !databaseUrl, concu
 
   test("a pending extension is tied to exactly one paid Checkout Session", async () => {
     await pool.query(`insert into public.pending_booking_extensions
-      (booking_id,renter_id,added_hours,expected_total_cents,expected_connected_account_id,stripe_checkout_session_id)
-      values ($1,$2,1,575,'acct_valid','cs_ext_valid')`,[bookingId, RENTER_ID]);
+      (booking_id,renter_id,added_hours,expected_total_cents,expected_service_fee_cents,expected_connected_account_id,stripe_checkout_session_id)
+      values ($1,$2,1,575,75,'acct_valid','cs_ext_valid')`,[bookingId, RENTER_ID]);
     await assert.rejects(
       pool.query(`insert into public.pending_booking_extensions
-       (booking_id,renter_id,added_hours,expected_total_cents,expected_connected_account_id,stripe_checkout_session_id)
-       values ($1,$2,2,575,'acct_valid','cs_ext_valid')`, [bookingId, RENTER_ID]),
+       (booking_id,renter_id,added_hours,expected_total_cents,expected_service_fee_cents,expected_connected_account_id,stripe_checkout_session_id)
+       values ($1,$2,2,575,75,'acct_valid','cs_ext_valid')`, [bookingId, RENTER_ID]),
       e => e.code === "23505"
     );
     await assert.rejects(
       pool.query(`insert into public.pending_booking_extensions
-       (booking_id,renter_id,added_hours,expected_total_cents,expected_connected_account_id,stripe_checkout_session_id)
-       values ($1,$2,1,10,'acct_valid','cs_ext_low')`, [bookingId, RENTER_ID]),
+       (booking_id,renter_id,added_hours,expected_total_cents,expected_service_fee_cents,expected_connected_account_id,stripe_checkout_session_id)
+       values ($1,$2,1,10,2,'acct_valid','cs_ext_low')`, [bookingId, RENTER_ID]),
       e => e.code === "23514"
     );
   });
