@@ -3345,11 +3345,45 @@ function HostDashboard({ user, setTab }) {
 
   const deleteListing = async (rawId, displayId) => {
     setDeletingId(displayId);
-    const { error } = await supabase.from("listings").delete().eq("id", rawId);
-    setDeletingId(null);
-    setConfirmDeleteId(null);
-    if (error) { alert("Couldn't delete listing: " + error.message); return; }
-    setDbListings(prev => prev.filter(l => l.id !== displayId));
+    try {
+      // Never remove a listing with paid, refunded, cancelled, or historical
+      // bookings. The database foreign key provides the authoritative guard
+      // against races and direct API deletion attempts.
+      const { count, error: checkError } = await supabase
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("listing_id", rawId);
+      if (checkError) {
+        alert("Unable to check this driveway's reservations. Nothing was deleted. Please try again or contact ParkShare support.");
+        return;
+      }
+      if ((count ?? 0) > 0) {
+        alert("This driveway has booking history and cannot be deleted. Existing and upcoming reservations must be preserved. Contact ParkShare support for help retiring the listing.");
+        return;
+      }
+
+      const { data: deleted, error } = await supabase
+        .from("listings")
+        .delete()
+        .eq("id", rawId)
+        .select("id");
+      if (error) {
+        if (error.code === "23503") {
+          alert("This driveway has bookings or checkout reservations and cannot be deleted. No reservation was removed.");
+        } else {
+          alert("Couldn't delete listing: " + error.message);
+        }
+        return;
+      }
+      if (!deleted?.length) {
+        alert("The listing could not be deleted. Please refresh and try again or contact ParkShare support.");
+        return;
+      }
+      setDbListings(prev => prev.filter(l => l.id !== displayId));
+    } finally {
+      setDeletingId(null);
+      setConfirmDeleteId(null);
+    }
   };
 
   const saveListingEdit = async (updated) => {
