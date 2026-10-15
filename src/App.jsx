@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
@@ -5793,28 +5794,71 @@ function DriverProfileView({ user, onProfileUpdated }) {
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
 function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true }) {
   const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState(emptyAuthForm);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [pendingUser, setPendingUser] = useState(null);
   const [agreed, setAgreed] = useState(false);
   const [authSuccess, setAuthSuccess] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [lastResendAt, setLastResendAt] = useState(0);
 
   const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
   const lS = { fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 };
 
   const validate = () => {
-    const e = {};
-    if (screen === "signup" && !form.name.trim()) e.name = "Name required";
-    if (!form.email.includes("@")) e.email = "Enter a valid email";
-    if (form.password.length < 6) e.password = "Min 6 characters";
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const nextErrors = validateAuthForm(form, screen);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const [authError, setAuthError] = useState("");
+
+  // Auth screens never inherit credentials, validation or errors from each other.
+  // Keep role/disclaimer navigation separate so an in-progress signup survives.
+  const openAuthScreen = target => {
+    setForm(emptyAuthForm());
+    setConfirmPassword("");
+    setErrors({});
+    setAuthError("");
+    setAuthSuccess("");
+    setResendMessage("");
+    setPendingUser(null);
+    setAgreed(false);
+    setScreen(target);
+  };
+
+  const resendConfirmation = async () => {
+    const email = String(screen === "verify" ? pendingUser?.email || "" : form.email || "").trim();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+      setResendMessage("Enter the email address you used to register.");
+      return;
+    }
+    if (resendLoading) return;
+    if (Date.now() - lastResendAt < 60_000) {
+      setResendMessage("Please wait a minute before requesting another email.");
+      return;
+    }
+    setResendLoading(true);
+    setResendMessage("");
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) throw error;
+      setLastResendAt(Date.now());
+      setResendMessage("If this account still needs verification, a fresh confirmation link has been sent. Check your inbox and spam folder.");
+    } catch (error) {
+      setResendMessage(error?.message || "Unable to resend the email. Please try again later.");
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const submit = async () => {
     if (!validate()) return;
@@ -5872,6 +5916,9 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
       return;
     }
     if (!data.session) {
+      // Never retain the sign-up password after the account has been created.
+      setPendingUser(current => current ? { ...current, password: "" } : null);
+      setForm(emptyAuthForm());
       setScreen("verify");
       return;
     }
@@ -5903,7 +5950,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
   const updatePassword = async () => {
     const recoveryErrors = {};
-    if (form.password.length < 6) recoveryErrors.password = "Min 6 characters";
+    if (form.password.length < MIN_NEW_PASSWORD_LENGTH) recoveryErrors.password = `Use at least ${MIN_NEW_PASSWORD_LENGTH} characters`;
     if (!confirmPassword) recoveryErrors.confirmPassword = "Confirm your new password";
     else if (form.password !== confirmPassword) recoveryErrors.confirmPassword = "Passwords do not match";
     setErrors(recoveryErrors);
@@ -5940,7 +5987,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
             {screen === "recoverySuccess" && "Password updated"}
           </div>
           {screen !== "landing" && screen !== "role" && screen !== "recovery" && screen !== "recoverySuccess" && (
-            <button onClick={() => { setScreen(screen === "disclaimer" ? "role" : "landing"); setErrors({}); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
+            <button onClick={() => { if (screen === "disclaimer") { setScreen("role"); setErrors({}); setAuthError(""); } else openAuthScreen("landing"); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
           )}
           {screen !== "role" && screen !== "disclaimer" && (
             <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
@@ -5961,8 +6008,8 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                   sizes="(min-width: 700px) 128px, 120px"
                 />
               </div>
-              <button onClick={() => setScreen("signup")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Create free account</button>
-              <button onClick={() => setScreen("signin")} style={{ background: "transparent", color: C.navy, border: "2px solid "+C.concrete, borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
+              <button onClick={() => openAuthScreen("signup")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Create free account</button>
+              <button onClick={() => openAuthScreen("signin")} style={{ background: "transparent", color: C.navy, border: "2px solid "+C.concrete, borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 4 }}>Join the ParkShare community.</div>
             </div>
           )}
@@ -5976,7 +6023,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               {authSuccess && <div style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
               <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
               <button onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => { setScreen("signup"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => openAuthScreen("signup")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
             </div>
           )}
 
@@ -6009,7 +6056,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="At least 6 characters" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
               {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
               <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Creating account…" : "Create account →"}</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>Already have an account? <button onClick={() => { setScreen("signin"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign in</button></div>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>Already have an account? <button onClick={() => openAuthScreen("signin")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign in</button></div>
             </div>
           )}
 
