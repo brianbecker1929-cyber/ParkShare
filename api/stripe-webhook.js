@@ -5,6 +5,7 @@
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
+import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
@@ -51,27 +52,80 @@ async function syncConnectedAccount(account) {
   if (error) throw error;
 }
 
-async function confirmBooking(session, connectedAccountId) {
-  if (session.payment_status !== "paid") return;
-  const metadata = session.metadata || {};
-  const listingId = Number(metadata.listing_id);
-  const hours = Number(metadata.hours);
-  const totalCents = Number(metadata.total_cents);
-  const chargeAccountId = connectedAccountId || metadata.connected_account_id || null;
-  if (!Number.isInteger(listingId) || !metadata.renter_id || !Number.isFinite(hours) || !Number.isFinite(totalCents)) {
-    throw new Error("Checkout Session is missing required ParkShare metadata.");
-  }
+async function hostAccountForListing(listingId) {
+  const { data: listing, error: listingError } = await supabaseAdmin
+    .from("listings").select("id, host_id").eq("id", listingId).single();
+  if (listingError || !listing) throw new CheckoutIntegrityError("Listing for paid Checkout is missing");
+  const { data: host, error: hostError } = await supabaseAdmin
+    .from("profiles").select("stripe_account_id").eq("id", listing.host_id).single();
+  if (hostError || !host?.stripe_account_id) throw new CheckoutIntegrityError("Host Stripe account is missing");
+  return { hostId: listing.host_id, connectedAccountId: host.stripe_account_id };
+}
 
-  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
-  let chargeId = null;
-  if (paymentIntentId && chargeAccountId) {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, { stripeAccount: chargeAccountId });
-    chargeId = typeof paymentIntent.latest_charge === "string" ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id || null;
+async function validatedIntent(session, connectedAccountId, expectedConnectedAccountId, hostConnectedAccountId, expectedTotalCents, expectedApplicationFeeCents) {
+  if (!connectedAccountId || connectedAccountId !== expectedConnectedAccountId
+      || connectedAccountId !== hostConnectedAccountId) {
+    throw new CheckoutIntegrityError("Payment is from the wrong Stripe connected account");
   }
+  const intentId = typeof session.payment_intent === "string"
+    ? session.payment_intent : session.payment_intent?.id;
+  if (!intentId) throw new CheckoutIntegrityError("Checkout Session has no PaymentIntent");
+  const intent = await stripe.paymentIntents.retrieve(intentId, {}, { stripeAccount: connectedAccountId });
+  return verifyPaidCheckout({
+    session,
+    eventAccount: connectedAccountId,
+    expectedSessionId: session.id,
+    expectedConnectedAccountId,
+    actualHostAccountId: hostConnectedAccountId,
+    expectedTotalCents,
+    expectedApplicationFeeCents,
+    paymentIntent: intent,
+  });
+}
+
+// Invalid payments are refunded on the originating Stripe connected account,
+// not promoted into bookings or extensions. Idempotency makes retries safe.
+async function refundInvalidRegisteredCheckout(session, connectedAccountId, cause) {
+  console.error("[checkout-integrity] rejected paid Checkout Session:", {
+    sessionId: session?.id,
+    reason: cause?.message,
+  });
+  const paymentIntentId = typeof session?.payment_intent === "string"
+    ? session.payment_intent : session?.payment_intent?.id;
+  if (!connectedAccountId || !paymentIntentId || !session?.id) {
+    throw new CheckoutIntegrityError("Rejected payment requires manual investigation; payment/account details missing");
+  }
+  await stripe.refunds.create({
+    payment_intent: paymentIntentId,
+    reason: "requested_by_customer",
+    refund_application_fee: true,
+    metadata: { parkshare_reason: "invalid_registered_checkout", checkout_session_id: session.id },
+  }, {
+    stripeAccount: connectedAccountId,
+    idempotencyKey: `integrity-reject-${session.id}`,
+  });
+}
+
+async function confirmBooking(session, connectedAccountId, hold) {
+  // NEVER use Stripe-provided metadata as a booking source of truth. A
+  // Standard connected-account Host can create arbitrary paid sessions.
+  const metadata = verifyBookingHoldSnapshot(hold);
+  const listingId = Number(hold.listing_id);
+  const hours = Number(metadata.hours);
+  const totalCents = Number(hold.expected_total_cents);
+  const chargeAccountId = connectedAccountId;
+  const host = await hostAccountForListing(listingId);
+  if (String(metadata.host_id) !== String(host.hostId)) {
+    throw new CheckoutIntegrityError("Checkout listing ownership has changed");
+  }
+  const { paymentIntentId, chargeId } = await validatedIntent(
+    session, connectedAccountId, hold.expected_connected_account_id,
+    host.connectedAccountId, totalCents, Number(metadata.service_fee_cents)
+  );
 
   const row = {
     listing_id: listingId,
-    renter_id: metadata.renter_id,
+    renter_id: hold.renter_id,
     hours,
     total: totalCents / 100,
     subtotal: Number(metadata.subtotal_cents || 0) / 100,
@@ -127,20 +181,20 @@ async function confirmBooking(session, connectedAccountId) {
         {
           payment_intent: paymentIntentId,
           reason: "requested_by_customer",
+          refund_application_fee: true,
           metadata: { parkshare_reason: "booking_conflict", checkout_session_id: session.id },
         },
         { stripeAccount: chargeAccountId, idempotencyKey: `booking-conflict-${session.id}` }
       );
-      await supabaseAdmin.from("booking_holds").delete().eq("id", metadata.hold_id || "00000000-0000-0000-0000-000000000000");
+      await supabaseAdmin.from("booking_holds").delete().eq("id", hold.id).eq("stripe_checkout_session_id", session.id);
       console.error("Automatically refunded conflicting paid checkout", session.id);
       return;
     }
     throw error;
   }
 
-  if (metadata.hold_id) {
-    await supabaseAdmin.from("booking_holds").delete().eq("id", metadata.hold_id);
-  }
+  await supabaseAdmin.from("booking_holds").delete()
+    .eq("id", hold.id).eq("stripe_checkout_session_id", session.id);
 
   if (isNewWebhookInsert(inserted)) {
     await sendBookingConfirmationEmail(inserted[0]).catch(err => {
@@ -151,25 +205,29 @@ async function confirmBooking(session, connectedAccountId) {
   }
 }
 
-// Handles a completed Checkout Session for "Add Additional Time," as
-// distinct from confirmBooking() above (a brand-new booking). Routed here
-// by metadata.type === "extension" — see create-extend-session.js, which
-// is the only thing that ever sets that metadata field.
-async function confirmExtension(session, connectedAccountId) {
-  if (session.payment_status !== "paid") return;
-  const metadata = session.metadata || {};
-  const bookingId = Number(metadata.booking_id);
-  const addedHours = Number(metadata.added_hours);
-  const totalCents = Number(metadata.total_cents);
-  if (!Number.isInteger(bookingId) || !Number.isFinite(addedHours) || !Number.isFinite(totalCents)) {
-    throw new Error("Extension Checkout Session is missing required ParkShare metadata.");
+// Only a server-created pending extension, registered under the actual
+// Stripe Checkout Session ID, can increase a reservation's duration.
+async function confirmExtension(session, connectedAccountId, pending) {
+  const bookingId = Number(pending.booking_id);
+  const addedHours = Number(pending.added_hours);
+  const totalCents = Number(pending.expected_total_cents);
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from("bookings")
+    .select("id, listing_id, renter_id, status, hours, stripe_connected_account_id")
+    .eq("id", bookingId)
+    .single();
+  if (bookingError || !booking || booking.status !== "confirmed"
+      || String(booking.renter_id) !== String(pending.renter_id)
+      || booking.stripe_connected_account_id !== connectedAccountId) {
+    throw new CheckoutIntegrityError("Paid extension does not match an eligible Driver booking");
   }
-
-  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
-  let chargeId = null;
-  if (paymentIntentId && connectedAccountId) {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, { stripeAccount: connectedAccountId });
-    chargeId = typeof paymentIntent.latest_charge === "string" ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id || null;
+  const host = await hostAccountForListing(booking.listing_id);
+  const { paymentIntentId, chargeId } = await validatedIntent(
+    session, connectedAccountId, pending.expected_connected_account_id,
+    host.connectedAccountId, totalCents, Number(pending.expected_service_fee_cents)
+  );
+  if (!Number.isFinite(addedHours) || addedHours <= 0 || addedHours > 24) {
+    throw new CheckoutIntegrityError("Extension duration is not a valid trusted value");
   }
 
   const row = {
@@ -203,13 +261,6 @@ async function confirmExtension(session, connectedAccountId) {
   // each other — low-stakes and unlikely, unlike the cross-renter spot
   // conflict Phase 3 protects against, which is why that one got a real
   // database constraint instead of just application-level care.
-  const { data: booking, error: fetchError } = await supabaseAdmin
-    .from("bookings")
-    .select("hours")
-    .eq("id", bookingId)
-    .single();
-  if (fetchError) throw fetchError;
-
   const { error: updateError } = await supabaseAdmin
     .from("bookings")
     .update({ hours: Number(booking.hours) + addedHours })
@@ -484,6 +535,63 @@ async function sendBookingConfirmationEmail(booking) {
   }
 }
 
+async function processPaidCheckout(session, connectedAccountId) {
+  if (session.payment_status !== "paid") return;
+
+  // Stripe can retry an already handled webhook after its short-lived hold
+  // has been deleted. This check MUST precede the missing-hold rejection.
+  const { data: existingBooking, error: bookedError } = await supabaseAdmin
+    .from("bookings").select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
+  if (bookedError) throw bookedError;
+  if (existingBooking) return;
+  const { data: existingExtension, error: extendedError } = await supabaseAdmin
+    .from("booking_extensions").select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
+  if (extendedError) throw extendedError;
+  if (existingExtension) return;
+
+  // Look up the session ID from trusted database rows. Do NOT select a
+  // booking/extension using event.metadata.type, listing_id or booking_id.
+  const { data: hold, error: holdError } = await supabaseAdmin
+    .from("booking_holds")
+    .select("id, listing_id, renter_id, spot_label, starts_at, ends_at, expected_total_cents, expected_connected_account_id, checkout_metadata, stripe_checkout_session_id")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+  if (holdError) throw holdError;
+  if (hold) {
+    try {
+      await confirmBooking(session, connectedAccountId, hold);
+    } catch (error) {
+      if (!(error instanceof CheckoutIntegrityError)) throw error;
+      await refundInvalidRegisteredCheckout(session, connectedAccountId, error);
+    }
+    return;
+  }
+
+  const { data: pending, error: pendingError } = await supabaseAdmin
+    .from("pending_booking_extensions")
+    .select("booking_id, renter_id, added_hours, expected_total_cents, expected_service_fee_cents, expected_connected_account_id, stripe_checkout_session_id")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+  if (pendingError) throw pendingError;
+  if (pending) {
+    try {
+      await confirmExtension(session, connectedAccountId, pending);
+    } catch (error) {
+      if (!(error instanceof CheckoutIntegrityError)) throw error;
+      await refundInvalidRegisteredCheckout(session, connectedAccountId, error);
+    }
+    return;
+  }
+
+  // Standard connected accounts may process unrelated transactions.
+  // An unknown Stripe Session has NO trustworthy link to ParkShare, so
+  // do not confirm it AND do not refund someone else's business payment.
+  // An orphaned ParkShare Checkout requires separate payment reconciliation.
+  console.warn("[checkout-integrity] ignored unregistered connected-account payment", {
+    sessionId: session.id, connectedAccountId,
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -504,41 +612,28 @@ export default async function handler(req, res) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object;
-        if (session.metadata?.type === "extension") {
-          await confirmExtension(session, event.account || null);
-        } else {
-          await confirmBooking(session, event.account || null);
-        }
+        await processPaidCheckout(session, event.account || null);
         break;
       }
 
       case "checkout.session.async_payment_failed": {
         const session = event.data.object;
-        if (session.metadata?.type === "extension") {
-          // Nothing to roll back — confirmExtension() never ran, so
-          // bookings.hours was never touched. Just mark the row so it
-          // doesn't sit as "pending" forever.
-          await supabaseAdmin
-            .from("booking_extensions")
-            .update({ status: "payment_failed" })
-            .eq("stripe_checkout_session_id", session.id);
-        } else {
-          await supabaseAdmin
-            .from("bookings")
-            .update({ status: "payment_failed" })
-            .eq("stripe_checkout_session_id", session.id);
-          if (session.metadata?.hold_id) {
-            await supabaseAdmin.from("booking_holds").delete().eq("id", session.metadata.hold_id);
-          }
-        }
+        // Never trust a Stripe Host's metadata to target another user's hold.
+        await supabaseAdmin.from("booking_holds").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        await supabaseAdmin.from("pending_booking_extensions").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        await supabaseAdmin.from("bookings").update({ status: "payment_failed" })
+          .eq("stripe_checkout_session_id", session.id);
         break;
       }
 
       case "checkout.session.expired": {
         const session = event.data.object;
-        if (session.metadata?.hold_id) {
-          await supabaseAdmin.from("booking_holds").delete().eq("id", session.metadata.hold_id);
-        }
+        await supabaseAdmin.from("booking_holds").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        await supabaseAdmin.from("pending_booking_extensions").delete()
+          .eq("stripe_checkout_session_id", session.id);
         break;
       }
 

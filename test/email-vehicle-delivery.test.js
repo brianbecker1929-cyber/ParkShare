@@ -34,12 +34,34 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
     vehicle_colour: "Yellow", license_plate: "DEMO 123",
     reminder_halfway_sent_at: null, reminder_ending_sent_at: null,
+    status: "confirmed", stripe_connected_account_id: "acct_sample",
+    stripe_checkout_session_id: "cs_original",
   };
   const listing = {
     title: "Sample driveway", address: "12 Example Crescent", spaces: 1,
     spots: [{ forRent: false }, { forRent: true }, { forRent: false }, { forRent: false }],
     host_id: "sample-host",
   };
+  const trustedHold = {
+    id: "hold_sample", listing_id: 7, renter_id: "sample-renter", spot_label: "B",
+    starts_at: "2026-10-15T13:00:00Z", ends_at: "2026-10-15T14:00:00Z",
+    stripe_checkout_session_id: "cs_booking_sample",
+    expected_total_cents: 1235, expected_connected_account_id: "acct_sample",
+    checkout_metadata: {
+      hold_id: "hold_sample", listing_id: "7", renter_id: "sample-renter", host_id: "sample-host",
+      connected_account_id: "acct_sample", hours: "1", total_cents: "1235",
+      subtotal_cents: "1000", service_fee_cents: "235", spot_label: "B",
+      vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
+      vehicle_colour: "Yellow", license_plate: "DEMO 123", booking_date: "", start_hour: "", end_hour: "",
+    },
+  };
+  const pendingExtension = {
+    booking_id: 42, renter_id: "sample-renter", added_hours: 1,
+    expected_total_cents: 500, expected_service_fee_cents: 65,
+    expected_connected_account_id: "acct_sample",
+    stripe_checkout_session_id: "cs_ext_sample",
+  };
+  let savedExtensionSessionId = null;
   const project = (row, url) => {
     const fields = url.searchParams.get("select");
     return fields ? Object.fromEntries(fields.split(",").map(k => [k, row[k]])) : row;
@@ -57,20 +79,42 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     if (table === "bookings") {
       if (method === "PATCH") Object.assign(booking, JSON.parse(init.body));
       if (method === "POST") booking = { ...booking, ...JSON.parse(init.body) };
-      result = project(booking, url);
+      const requestedSession = url.searchParams.get("stripe_checkout_session_id");
+      result = requestedSession && requestedSession !== "eq." + booking.stripe_checkout_session_id
+        ? null : project(booking, url);
     } else if (table === "listings") result = project(listing, url);
+    else if (table === "booking_holds") {
+      const requested = url.searchParams.get("stripe_checkout_session_id");
+      result = requested === "eq.cs_booking_sample" ? project(trustedHold, url) : null;
+    } else if (table === "pending_booking_extensions") {
+      const requested = url.searchParams.get("stripe_checkout_session_id");
+      result = requested === "eq.cs_ext_sample" ? project(pendingExtension, url) : null;
+    }
     else if (table === "profiles") {
       const isHost = url.searchParams.get("id") === "eq.sample-host";
-      result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: isHost ? "host@example.invalid" : "driver@example.invalid" }, url);
-    } else if (table === "booking_extensions") result = { id: 1, booking_id: 42, added_hours: 1 };
+      result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
+    } else if (table === "booking_extensions") {
+      if (method === "POST") savedExtensionSessionId = JSON.parse(init.body).stripe_checkout_session_id;
+      const requested = url.searchParams.get("stripe_checkout_session_id");
+      result = requested && requested !== "eq." + savedExtensionSessionId
+        ? null : { id: 1, booking_id: 42, added_hours: 1 };
+    }
     else assert.fail("Unexpected table " + table);
     const singular = new Headers(init.headers).get("accept")?.includes("object+json");
-    return Response.json(singular ? result : [result]);
+    return Response.json(singular ? result : (result ? [result] : []));
   };
   try {
     const { default: reminders } = await import("../api/send-reminders.js");
     const { default: webhook } = await import("../api/stripe-webhook.js");
     const { stripe } = await import("../api/_lib.js");
+    const originalRetrieve = stripe.paymentIntents.retrieve;
+    stripe.paymentIntents.retrieve = async id => ({
+      id, currency: "cad", status: "succeeded",
+      amount_received: id === "pi_ext_sample" ? 500 : 1235,
+      application_fee_amount: id === "pi_ext_sample" ? 65 : 235,
+      latest_charge: id === "pi_ext_sample" ? "ch_ext" : "ch_book",
+    });
+    try {
     let res = response();
     await reminders({ method: "GET", headers: { authorization: "Bearer sample-cron" } }, res);
     assert.equal(res.code, 200);
@@ -82,9 +126,10 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     res = response();
     await reminders({ method: "GET", headers: { authorization: "Bearer sample-cron" } }, res);
     assert.deepEqual(res.body, { halfwaySent: 0, endingSent: 0, failed: 0 });
-    async function deliver(metadata) {
-      const payload = JSON.stringify({ type: "checkout.session.completed", data: { object: {
-        id: "cs_sample", payment_status: "paid", metadata,
+    async function deliver(metadata, sessionId, amountCents, paymentIntentId) {
+      const payload = JSON.stringify({ type: "checkout.session.completed", account: "acct_sample", data: { object: {
+        id: sessionId, mode: "payment", payment_status: "paid", amount_total: amountCents,
+        currency: "cad", payment_intent: paymentIntentId, metadata,
       } } });
       const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: env.STRIPE_WEBHOOK_SECRET });
       const req = Readable.from([Buffer.from(payload)]);
@@ -94,12 +139,12 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       await webhook(req, res);
       assert.equal(res.code, 200);
     }
-    await deliver({ type: "extension", booking_id: "42", added_hours: "1", total_cents: "500" });
+    await deliver({ type: "extension", booking_id: "42", added_hours: "1", total_cents: "500" }, "cs_ext_sample", 500, "pi_ext_sample");
     await deliver({ listing_id: "7", renter_id: "sample-renter", hours: "1", total_cents: "1235",
       subtotal_cents: "1000", service_fee_cents: "235",
       spot_label: "B", vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
       vehicle_colour: "Yellow", license_plate: "DEMO 123", start_hour: "", end_hour: "",
-    });
+    }, "cs_booking_sample", 1235, "pi_booking_sample");
     assert.equal(sent.length, 5, "Halfway, ending, extension, Driver and Host confirmations");
     for (const [index, email] of sent.entries()) {
       assert.match(email.html, /href="https:\/\/www\.myparkshare\.ca\/parking\?message_booking=42"/,
@@ -156,6 +201,9 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.ok(email.html.includes(`cid:${map.content_id}`));
       assert.match(email.html, /width="180"/);
       assert.doesNotMatch(email.html, /height:260px; width:auto/);
+    }
+    } finally {
+      stripe.paymentIntents.retrieve = originalRetrieve;
     }
   } finally {
     globalThis.fetch = originalFetch;
