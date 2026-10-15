@@ -1958,7 +1958,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
                   : `All spots are taken for ${bookingMode === "now" ? "right now" : "that time"} — try a different ${bookingMode === "now" ? "duration" : "time"}, or pick a different listing.`)
               : numericIdForAvailability !== null
                 ? (availabilityFailed ? "Availability could not be checked. Please retry later." : "Checking this time slot. Spot selection will unlock when availability is confirmed.")
-                : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`
+                : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`}
           </p>
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
