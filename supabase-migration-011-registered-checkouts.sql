@@ -20,6 +20,7 @@ create table if not exists public.pending_booking_extensions (
   renter_id uuid not null references auth.users(id) on delete restrict,
   added_hours numeric not null check (added_hours > 0 and added_hours <= 24),
   expected_total_cents integer not null check (expected_total_cents >= 50),
+  expected_service_fee_cents integer not null check (expected_service_fee_cents >= 0),
   expected_connected_account_id text not null,
   stripe_checkout_session_id text not null unique,
   created_at timestamptz not null default now()
