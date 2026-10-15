@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -3423,7 +3424,7 @@ function HostDashboard({ user, setTab }) {
     const target = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
     return dt.getFullYear() === target.getFullYear() && dt.getMonth() === target.getMonth();
   };
-  const paidEarned = txData.earned.filter(t => t.status === "confirmed" || t.status === "completed");
+  const paidEarned = txData.earned.filter(t => hostTransactionPresentation(t).isIncome);
   const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
   const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
@@ -3621,7 +3622,10 @@ function HostDashboard({ user, setTab }) {
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{t.description}</div>
                   <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 12, color: C.moss, whiteSpace: "nowrap" }}>+{money(t.net)}</div>
+                <div role="status" aria-label={hostTransactionPresentation(t).isIncome ? `Earned ${money(t.net)}` : hostTransactionPresentation(t).label}
+                  style={{ fontWeight: 700, fontSize: 12, color: hostTransactionPresentation(t).isIncome ? C.moss : t.status === "refunded" ? C.red : C.muted, whiteSpace: "nowrap" }}>
+                  {hostTransactionPresentation(t).isIncome ? `+${money(t.net)}` : hostTransactionPresentation(t).label}
+                </div>
               </div>
             ))}
           </div>
