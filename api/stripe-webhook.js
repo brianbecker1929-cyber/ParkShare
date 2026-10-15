@@ -204,25 +204,29 @@ async function confirmBooking(session, connectedAccountId, hold) {
   }
 }
 
-// Handles a completed Checkout Session for "Add Additional Time," as
-// distinct from confirmBooking() above (a brand-new booking). Routed here
-// by metadata.type === "extension" — see create-extend-session.js, which
-// is the only thing that ever sets that metadata field.
-async function confirmExtension(session, connectedAccountId) {
-  if (session.payment_status !== "paid") return;
-  const metadata = session.metadata || {};
-  const bookingId = Number(metadata.booking_id);
-  const addedHours = Number(metadata.added_hours);
-  const totalCents = Number(metadata.total_cents);
-  if (!Number.isInteger(bookingId) || !Number.isFinite(addedHours) || !Number.isFinite(totalCents)) {
-    throw new Error("Extension Checkout Session is missing required ParkShare metadata.");
+// Only a server-created pending extension, registered under the actual
+// Stripe Checkout Session ID, can increase a reservation's duration.
+async function confirmExtension(session, connectedAccountId, pending) {
+  const bookingId = Number(pending.booking_id);
+  const addedHours = Number(pending.added_hours);
+  const totalCents = Number(pending.expected_total_cents);
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from("bookings")
+    .select("id, listing_id, renter_id, status, stripe_connected_account_id")
+    .eq("id", bookingId)
+    .single();
+  if (bookingError || !booking || booking.status !== "confirmed"
+      || String(booking.renter_id) !== String(pending.renter_id)
+      || booking.stripe_connected_account_id !== connectedAccountId) {
+    throw new CheckoutIntegrityError("Paid extension does not match an eligible Driver booking");
   }
-
-  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
-  let chargeId = null;
-  if (paymentIntentId && connectedAccountId) {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, { stripeAccount: connectedAccountId });
-    chargeId = typeof paymentIntent.latest_charge === "string" ? paymentIntent.latest_charge : paymentIntent.latest_charge?.id || null;
+  const host = await hostAccountForListing(booking.listing_id);
+  const { paymentIntentId, chargeId } = await validatedIntent(
+    session, connectedAccountId, pending.expected_connected_account_id,
+    host.connectedAccountId, totalCents
+  );
+  if (!Number.isFinite(addedHours) || addedHours <= 0 || addedHours > 24) {
+    throw new CheckoutIntegrityError("Extension duration is not a valid trusted value");
   }
 
   const row = {
