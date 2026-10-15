@@ -6463,7 +6463,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
     ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
-    : ["Browse", "Discover", "My Bookings", "Messages", "Profile", "List Your Driveway", "Host Dashboard", "Transactions"];
+    : ["Browse", "Discover", "My Bookings", "Messages", "Profile"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -9881,6 +9881,23 @@ export default function App() {
     moveToRoute("app", "Browse", null, { replace: true });
   };
 
+  const requireHost = (content) => {
+    if (user?.role === "host") return content;
+    return (
+      <div role="alert" style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
+        <h3 style={{ color: C.navy, fontSize: 20 }}>Host account required</h3>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
+          Only registered Hosts can list driveways, manage Host bookings or access Host transactions.
+          {user ? " Your current account is a Driver account." : " Please register or sign in as a Host."}
+        </p>
+        <button type="button" onClick={() => user ? changeTab("Browse") : setShowAuth(true)}
+          style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
+          {user ? "Return to parking search" : "Sign in / Join free"}
+        </button>
+      </div>
+    );
+  };
+
   const requireAuth = (content, msg) => {
     if (!user) return (
       <div style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif" }}>
@@ -9935,7 +9952,13 @@ export default function App() {
   };
   // Host page CTA: straight into the listing flow if already signed in,
   // otherwise open sign-up first (role selection happens in that flow).
-  const handleHostGetStarted = () => { if (user) enterApp("List Your Driveway"); else setShowAuth(true); };
+  const handleHostGetStarted = () => {
+    if (!user) { setShowAuth(true); return; }
+    // Drivers may view the public Host information page, but must use
+    // a separate Host account before creating a driveway listing.
+    if (user.role !== "host") { enterApp("Browse"); return; }
+    enterApp("List Your Driveway");
+  };
   // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
   const handleFindParking = () => {
     setBrowseAutoFocus(false);
@@ -10127,10 +10150,10 @@ export default function App() {
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
-          {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
+          {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={changeTab} />, "Sign in to access your host dashboard.")}
-          {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
+          {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
+          {tab === "Transactions" && requireHost(<TransactionsView user={user} />)}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
