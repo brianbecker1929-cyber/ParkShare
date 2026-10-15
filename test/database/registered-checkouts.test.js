@@ -56,6 +56,18 @@ describe("registered checkout database constraints", { skip: !databaseUrl, concu
     );
   });
 
+  test("recently expired holds retain trusted Checkout evidence for delayed Stripe webhooks", async () => {
+    const old = await pool.query(`insert into public.booking_holds
+      (listing_id,renter_id,starts_at,ends_at,expires_at,stripe_checkout_session_id,expected_total_cents)
+      values ($1,$2,now()-interval '3 hours',now()-interval '2 hours',now()-interval '1 hour','cs_expired_recent',1150)
+      returning id`, [listingId, RENTER_ID]);
+    await pool.query(`select public.create_booking_hold(
+      $1,$2,'B', now()+interval '1 day',now()+interval '1 day 1 hour',now()+interval '15 minutes')`,
+      [listingId, RENTER_ID]);
+    const present = await pool.query(`select id from public.booking_holds where id=$1`, [old.rows[0].id]);
+    assert.equal(present.rowCount, 1, "New reservations must not erase a recent payment's server-side evidence");
+  });
+
   test("a pending extension is tied to exactly one paid Checkout Session", async () => {
     await pool.query(`insert into public.pending_booking_extensions
       (booking_id,renter_id,added_hours,expected_total_cents,expected_service_fee_cents,expected_connected_account_id,stripe_checkout_session_id)
