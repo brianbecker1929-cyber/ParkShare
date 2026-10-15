@@ -70,6 +70,26 @@ export default async function handler(req, res) {
       cancel_url: `${origin}/?extension_cancelled=1&extend_booking=${booking.id}`,
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
     }, { stripeAccount: host.stripe_account_id });
+
+    // A connected Host may create their own Stripe sessions. Record each
+    // ParkShare-created extension under the service role before returning
+    // its payment URL so the webhook never accepts unregistered metadata.
+    const { data: pending, error: pendingError } = await supabaseAdmin
+      .from("pending_booking_extensions")
+      .insert({
+        booking_id: booking.id,
+        renter_id: user.id,
+        added_hours: addedHours,
+        expected_total_cents: totalCents,
+        expected_connected_account_id: host.stripe_account_id,
+        stripe_checkout_session_id: session.id,
+      })
+      .select("id")
+      .maybeSingle();
+    if (pendingError || !pending) {
+      await stripe.checkout.sessions.expire(session.id, {}, { stripeAccount: host.stripe_account_id }).catch(() => {});
+      throw pendingError || new Error("Unable to register a secure booking extension.");
+    }
     return res.status(200).json({ url: session.url });
   } catch (error) {
     console.error("create-extend-session error:", error);
