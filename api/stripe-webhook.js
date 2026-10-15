@@ -541,6 +541,58 @@ async function sendBookingConfirmationEmail(booking) {
   }
 }
 
+async function processPaidCheckout(session, connectedAccountId) {
+  if (session.payment_status !== "paid") return;
+
+  // Stripe can retry an already handled webhook after its short-lived hold
+  // has been deleted. This check MUST precede the missing-hold rejection.
+  const { data: existingBooking, error: bookedError } = await supabaseAdmin
+    .from("bookings").select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
+  if (bookedError) throw bookedError;
+  if (existingBooking) return;
+  const { data: existingExtension, error: extendedError } = await supabaseAdmin
+    .from("booking_extensions").select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
+  if (extendedError) throw extendedError;
+  if (existingExtension) return;
+
+  // Look up the session ID from trusted database rows. Do NOT select a
+  // booking/extension using event.metadata.type, listing_id or booking_id.
+  const { data: hold, error: holdError } = await supabaseAdmin
+    .from("booking_holds")
+    .select("id, listing_id, renter_id, spot_label, starts_at, ends_at, expected_total_cents, expected_connected_account_id, checkout_metadata, stripe_checkout_session_id")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+  if (holdError) throw holdError;
+  if (hold) {
+    try {
+      await confirmBooking(session, connectedAccountId, hold);
+    } catch (error) {
+      if (!(error instanceof CheckoutIntegrityError)) throw error;
+      await refundUnregisteredCheckout(session, connectedAccountId, error);
+    }
+    return;
+  }
+
+  const { data: pending, error: pendingError } = await supabaseAdmin
+    .from("pending_booking_extensions")
+    .select("booking_id, renter_id, added_hours, expected_total_cents, expected_connected_account_id, stripe_checkout_session_id")
+    .eq("stripe_checkout_session_id", session.id)
+    .maybeSingle();
+  if (pendingError) throw pendingError;
+  if (pending) {
+    try {
+      await confirmExtension(session, connectedAccountId, pending);
+    } catch (error) {
+      if (!(error instanceof CheckoutIntegrityError)) throw error;
+      await refundUnregisteredCheckout(session, connectedAccountId, error);
+    }
+    return;
+  }
+
+  await refundUnregisteredCheckout(session, connectedAccountId,
+    new CheckoutIntegrityError("No server-registered booking or extension exists for this paid session"));
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -561,41 +613,28 @@ export default async function handler(req, res) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object;
-        if (session.metadata?.type === "extension") {
-          await confirmExtension(session, event.account || null);
-        } else {
-          await confirmBooking(session, event.account || null);
-        }
+        await processPaidCheckout(session, event.account || null);
         break;
       }
 
       case "checkout.session.async_payment_failed": {
         const session = event.data.object;
-        if (session.metadata?.type === "extension") {
-          // Nothing to roll back — confirmExtension() never ran, so
-          // bookings.hours was never touched. Just mark the row so it
-          // doesn't sit as "pending" forever.
-          await supabaseAdmin
-            .from("booking_extensions")
-            .update({ status: "payment_failed" })
-            .eq("stripe_checkout_session_id", session.id);
-        } else {
-          await supabaseAdmin
-            .from("bookings")
-            .update({ status: "payment_failed" })
-            .eq("stripe_checkout_session_id", session.id);
-          if (session.metadata?.hold_id) {
-            await supabaseAdmin.from("booking_holds").delete().eq("id", session.metadata.hold_id);
-          }
-        }
+        // Never trust a Stripe Host's metadata to target another user's hold.
+        await supabaseAdmin.from("booking_holds").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        await supabaseAdmin.from("pending_booking_extensions").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        await supabaseAdmin.from("bookings").update({ status: "payment_failed" })
+          .eq("stripe_checkout_session_id", session.id);
         break;
       }
 
       case "checkout.session.expired": {
         const session = event.data.object;
-        if (session.metadata?.hold_id) {
-          await supabaseAdmin.from("booking_holds").delete().eq("id", session.metadata.hold_id);
-        }
+        await supabaseAdmin.from("booking_holds").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        await supabaseAdmin.from("pending_booking_extensions").delete()
+          .eq("stripe_checkout_session_id", session.id);
         break;
       }
 
