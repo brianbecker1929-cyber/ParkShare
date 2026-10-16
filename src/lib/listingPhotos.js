@@ -5,6 +5,15 @@
 export const LISTING_PHOTO_BUCKET = "listing-photos";
 export const MAX_LISTING_PHOTO_BYTES = 10 * 1024 * 1024;
 export const MAX_LISTING_PHOTOS = 6;
+
+// Covers both existing Base64 images and the HTTPS public Storage URLs
+// written by this release. Never render a URL as placeholder text.
+export function isListingImageUrl(value) {
+  if (typeof value !== "string") return false;
+  return /^data:image\/(?:jpeg|png|webp);base64,/i.test(value)
+    || /^https:\/\/[^\s]+$/i.test(value);
+}
+
 export const ALLOWED_LISTING_PHOTO_TYPES = Object.freeze({
   "image/jpeg": "jpg",
   "image/png": "png",
