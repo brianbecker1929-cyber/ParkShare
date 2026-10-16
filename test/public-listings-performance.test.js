@@ -5,6 +5,7 @@ import {
   PUBLIC_LISTING_SELECT, embeddedPhotoData,
   publicListingCoverUrl, trustedListingStorageUrl,
 } from "../src/lib/publicListings.js";
+import { isListingImageUrl } from "../src/lib/listingPhotos.js";
 
 test("public search projects only lightweight listing fields (never Base64 images)", async () => {
   const names = PUBLIC_LISTING_SELECT.split(",");
@@ -78,4 +79,12 @@ test("image conversion to small WebP succeeds on representative PNG", async () =
   assert.equal(m.format,"webp");
   assert.ok(m.width <= 800 && m.height <= 800);
   assert.ok(thumb.length < sample.length);
+});
+
+test("existing thumbnail recognizer renders internal lazy listing covers as images", () => {
+  assert.equal(isListingImageUrl("/api/listing-cover?listingId=25"), true);
+  assert.equal(isListingImageUrl("/api/listing-cover?listingId=0"), false);
+  assert.equal(isListingImageUrl("/api/listing-cover?listingId=25&evil=1"), false);
+  assert.equal(isListingImageUrl("https://example.com/regular.webp"), true);
+  assert.equal(isListingImageUrl("data:image/png;base64,iVBORw0KGgo="), true);
 });
