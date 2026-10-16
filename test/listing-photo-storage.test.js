@@ -4,6 +4,7 @@ import {
   LISTING_PHOTO_BUCKET,
   MAX_LISTING_PHOTO_BYTES,
   validateListingPhoto,
+  isListingImageUrl,
   listingPhotoPath,
   uploadListingPhotos,
 } from "../src/lib/listingPhotos.js";
@@ -72,4 +73,18 @@ test("rejects attempts to upload missing or more than six photos", async () => {
   await assert.rejects(() => uploadListingPhotos(fixture.client, HOST, []), /between one and six/);
   await assert.rejects(() => uploadListingPhotos(fixture.client, HOST, Array(7).fill({ file: file(5000) })), /between one and six/);
   assert.equal(fixture.paths.length, 0);
+});
+
+test("listing thumbnails treat HTTPS Storage references and legacy Base64 as images", async () => {
+  assert.equal(isListingImageUrl("https://qa.supabase.co/storage/v1/object/public/listing-photos/id/photo.webp"), true);
+  assert.equal(isListingImageUrl("data:image/jpeg;base64,AAECAw=="), true);
+  assert.equal(isListingImageUrl("data:image/png;base64,AAECAw=="), true);
+  assert.equal(isListingImageUrl("https://"), false);
+  assert.equal(isListingImageUrl("javascript:alert(1)"), false);
+  assert.equal(isListingImageUrl("🏠"), false);
+  assert.equal(isListingImageUrl(null), false);
+  const { readFile } = await import("node:fs/promises");
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /const isPhoto = isListingImageUrl\(listing\.img\);/);
+  assert.match(app, /isListingImageUrl\(listing\.img\) && \(/);
 });
