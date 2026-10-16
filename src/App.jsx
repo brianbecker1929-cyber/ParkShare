@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { deleteHostListing } from "./lib/listingDeletion";
+import { hostTransactionPresentation } from "./lib/hostTransactions";
+import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
+import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -281,7 +285,7 @@ const INITIAL_THREADS = {
 // Renders the host's actual first uploaded photo when there is one, falling
 // back to the simple emoji icon for listings that don't have a photo yet.
 function ListingThumb({ listing, size, fontSize, style }) {
-  const isPhoto = typeof listing.img === "string" && listing.img.startsWith("data:");
+  const isPhoto = isListingImageUrl(listing.img);
   if (isPhoto) {
     return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
@@ -1607,6 +1611,15 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
   const chooseSpot = (index) => {
+    const hostRentable = Array.isArray(listing.spots) && listing.spots.length
+      ? listing.spots[index]?.forRent === true
+      : index < Math.min(Math.max(Number(listing.spaces) || 1, 1), 4);
+    if (!canChooseListingSpot({
+      isRealListing: numericIdForAvailability !== null,
+      hostRentable,
+      availableData: selectedAvailability,
+      label: String.fromCharCode(65 + index),
+    })) return;
     // Automatically preview the Driver Profile's complete primary vehicle
     // when first choosing a bay. Preserve an explicitly selected guest
     // vehicle on subsequent spot changes. No red cartoon car in the chosen
@@ -1659,22 +1672,50 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // checkout, not just at the final payment step. Uses the same
   // getSessionWindow logic server-side as the actual booking enforcement, so
   // this can never show "available" for something that then gets rejected.
-  const [selectedAvailability, setSelectedAvailability] = useState(null);
+  const selectedWindowKey = availabilityRequestKey({
+    listingId: numericIdForAvailability,
+    mode: bookingMode,
+    hours,
+    bookingDate: bookingMode === "advance" ? date.toISOString() : "",
+    startHour,
+  });
+  const [availabilityResult, setAvailabilityResult] = useState(null);
+  // A result for the *previous* day, mode or duration can never unlock a bay.
+  const selectedAvailability = availabilityResult?.key === selectedWindowKey
+    ? availabilityResult.data : null;
+  const availabilityFailed = availabilityResult?.key === selectedWindowKey
+    && availabilityResult.error;
   useEffect(() => {
     if (numericIdForAvailability === null) return;
     let cancelled = false;
-    setSelectedAvailability(null); // clear stale result immediately while the new one loads
+    setChosenSpot(null);
+    setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
     if (bookingMode === "advance") {
       params.set("bookingDate", date.toISOString());
       params.set("startHour", String(startHour));
     }
     fetch(`/api/listing-availability?${params.toString()}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (!cancelled && data) setSelectedAvailability(data); })
-      .catch(() => {});
+      .then(async res => {
+        if (!res.ok) throw new Error("Availability service unavailable");
+        return res.json();
+      })
+      .then(data => {
+        if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data, error: false });
+      })
+      .catch(() => {
+        if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data: null, error: true });
+      });
     return () => { cancelled = true; };
-  }, [numericIdForAvailability, bookingMode, hours, bookingMode === "advance" ? date.getTime() : null, bookingMode === "advance" ? startHour : null]);
+  }, [selectedWindowKey, numericIdForAvailability]);
+  const chosenSpotAvailable = chosenSpot !== null && canChooseListingSpot({
+    isRealListing: numericIdForAvailability !== null,
+    hostRentable: Array.isArray(listing.spots) && listing.spots.length > 0
+      ? listing.spots[chosenSpot]?.forRent === true
+      : chosenSpot < Math.min(Math.max(Number(listing.spaces) || 1, 1), 4),
+    availableData: selectedAvailability,
+    label: chosenSpot !== null ? String.fromCharCode(65 + chosenSpot) : "",
+  });
 
   const confirmBooking = async () => {
     // Only reached for demo listings — real (host-listed) bookings are now
@@ -1862,7 +1903,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               what's actually being booked. */}
           {numericIdForAvailability !== null && (
             selectedAvailability === null ? (
-              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>Checking availability…</div>
+              <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed ? "Unable to verify availability. Try again shortly." : "Checking availability… Spot selection is temporarily disabled."}</div>
             ) : selectedAvailability.available ? (
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🟢</span>
@@ -1897,7 +1938,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
               <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle}>Reserve & pay →</Btn>
           </div>
         </div>
       )}
@@ -1908,7 +1949,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       )}
       {showSpotPicker && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
-          {typeof listing.img === "string" && listing.img.startsWith("data:") && (
+          {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
               <ListingThumb listing={listing} size="100%" />
             </div>
@@ -1918,16 +1959,18 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               ? (selectedAvailability.available
                   ? `${selectedAvailability.spacesFree} of ${selectedAvailability.spacesTotal} spot${selectedAvailability.spacesTotal === 1 ? "" : "s"} free for ${bookingMode === "now" ? "right now" : "that time"}. Tap the one you'd like to park in.`
                   : `All spots are taken for ${bookingMode === "now" ? "right now" : "that time"} — try a different ${bookingMode === "now" ? "duration" : "time"}, or pick a different listing.`)
-              : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
+              : numericIdForAvailability !== null
+                ? (availabilityFailed ? "Availability could not be checked. Please retry later." : "Checking this time slot. Spot selection will unlock when availability is confirmed.")
+                : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`}
           </p>
           {hasSatelliteSpots ? (
-                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />}>
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
                   </div>
                 </SpotMapBoundary>
               ) : (
-                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />
               )}
           {chosenSpot !== null && (
             <section className="ps-spot-vehicle-panel" ref={spotVehiclePickerRef} aria-label="Choose the vehicle you will park">
@@ -1973,8 +2016,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
             </section>
           )}
           <Btn variant="amber" full
-            onClick={() => { if (chosenSpot !== null && selectedVehicle) setShowSpotPicker(false); }}
-            disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>
+            onClick={() => { if (chosenSpotAvailable && selectedVehicle) setShowSpotPicker(false); }}
+            disabled={!chosenSpotAvailable || !selectedVehicle}>
             {chosenSpot === null ? "Pick a spot to continue" : !selectedVehicle ? "Select a vehicle to continue" : "Confirm Spot " + spotLabel(chosenSpot)}
           </Btn>
         </Modal>
@@ -3344,39 +3387,15 @@ function HostDashboard({ user, setTab }) {
   const [bookingActionId, setBookingActionId] = useState(null);
 
   const deleteListing = async (rawId, displayId) => {
+    if (deletingId) return;
     setDeletingId(displayId);
     try {
-      // Never remove a listing with paid, refunded, cancelled, or historical
-      // bookings. The database foreign key provides the authoritative guard
-      // against races and direct API deletion attempts.
-      const { count, error: checkError } = await supabase
-        .from("bookings")
-        .select("id", { count: "exact", head: true })
-        .eq("listing_id", rawId);
-      if (checkError) {
-        alert("Unable to check this driveway's reservations. Nothing was deleted. Please try again or contact ParkShare support.");
-        return;
-      }
-      if ((count ?? 0) > 0) {
-        alert("This driveway has booking history and cannot be deleted. Existing and upcoming reservations must be preserved. Contact ParkShare support for help retiring the listing.");
-        return;
-      }
-
-      const { data: deleted, error } = await supabase
-        .from("listings")
-        .delete()
-        .eq("id", rawId)
-        .select("id");
-      if (error) {
-        if (error.code === "23503") {
-          alert("This driveway has bookings or checkout reservations and cannot be deleted. No reservation was removed.");
-        } else {
-          alert("Couldn't delete listing: " + error.message);
-        }
-        return;
-      }
-      if (!deleted?.length) {
-        alert("The listing could not be deleted. Please refresh and try again or contact ParkShare support.");
+      // A single Host-scoped DELETE avoids the intermittent 503 from the
+      // preliminary bookings COUNT. DB migration 010 ensures historical
+      // bookings and in-flight checkout holds cannot cascade-delete.
+      const result = await deleteHostListing(supabase, { listingId: rawId, hostId: user?.id });
+      if (!result.ok) {
+        alert(result.message);
         return;
       }
       setDbListings(prev => prev.filter(l => l.id !== displayId));
@@ -3423,7 +3442,7 @@ function HostDashboard({ user, setTab }) {
     const target = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
     return dt.getFullYear() === target.getFullYear() && dt.getMonth() === target.getMonth();
   };
-  const paidEarned = txData.earned.filter(t => t.status === "confirmed" || t.status === "completed");
+  const paidEarned = txData.earned.filter(t => hostTransactionPresentation(t).isIncome);
   const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
   const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
@@ -3621,7 +3640,10 @@ function HostDashboard({ user, setTab }) {
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{t.description}</div>
                   <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 12, color: C.moss, whiteSpace: "nowrap" }}>+{money(t.net)}</div>
+                <div role="status" aria-label={hostTransactionPresentation(t).isIncome ? `Earned ${money(t.net)}` : hostTransactionPresentation(t).label}
+                  style={{ fontWeight: 700, fontSize: 12, color: hostTransactionPresentation(t).isIncome ? C.moss : t.status === "refunded" ? C.red : C.muted, whiteSpace: "nowrap" }}>
+                  {hostTransactionPresentation(t).isIncome ? `+${money(t.net)}` : hostTransactionPresentation(t).label}
+                </div>
               </div>
             ))}
           </div>
@@ -3771,20 +3793,18 @@ function DrivewayFrame({ children }) {
 }
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
-function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, vehicle = null }) {
+function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableData = null, isRealListing = false, vehicle = null }) {
   const labels = ["A", "B", "C", "D"];
   return (
     <DrivewayFrame>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
           const hostEnabled = spotStates ? !!spotStates[i] : i < availableCount;
-          // spotStatus is live, time-window-specific data from
-          // /api/listing-availability — undefined while it's still loading
-          // (or for older callers that don't pass it), in which case we
-          // don't want to flash every spot as unavailable for a moment, so
-          // that case defaults to "no live data yet, don't block."
-          const liveFree = spotStatus ? spotStatus[l] !== false : true;
-          const isAvailable = hostEnabled && liveFree;
+          // A real Spot A/B/C/D cannot be selected before this exact
+          // booking window is verified by the availability API.
+          const isAvailable = canChooseListingSpot({
+            isRealListing, hostRentable: hostEnabled, availableData, label: l,
+          });
           const isChosen = chosen === i;
           return (
             <button key={l} className={`ps-spot-picker-bay${isChosen ? " is-selected" : ""}`} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
@@ -3827,7 +3847,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
               {/* Selection is conveyed by the orange bay outline and vehicle.
                   No "Your spot" label stealing height from the car. */}
               {!isChosen && (
-                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{isAvailable ? "Available" : !hostEnabled ? "Not for rent" : isRealListing && !availableData ? "Checking…" : isRealListing && availableData?.available !== true ? "Unavailable" : "Already booked"}</span>
               )}
             </button>
           );
@@ -4160,7 +4180,14 @@ function PinAdjustMap({ lat, lng, onChange }) {
 function ListDrivewayView({ user }) {
   const [step, setStep] = useState(1);
   const [publishError, setPublishError] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const photoPreviewUrls = useRef(new Set());
+  useEffect(() => () => {
+    for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+    photoPreviewUrls.current.clear();
+  }, []);
   const [form, setForm] = useState({
     street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false,
     photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
@@ -4206,13 +4233,35 @@ function ListDrivewayView({ user }) {
   };
 
   const addPhotos = (files) => {
-    Array.from(files).slice(0, 6 - form.photos.length).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = e => setForm(f => ({ ...f, photos: [...f.photos, { name: file.name, url: e.target.result }] }));
-      reader.readAsDataURL(file);
+    setPhotoError("");
+    const selected = Array.from(files || []);
+    const remaining = Math.max(0, MAX_LISTING_PHOTOS - form.photos.length);
+    if (selected.length > remaining) {
+      setPhotoError(`You can upload up to ${MAX_LISTING_PHOTOS} photos per listing.`);
+      return;
+    }
+    for (const file of selected) {
+      const message = validateListingPhoto(file);
+      if (message) { setPhotoError(message); return; }
+    }
+    // Browser object URLs show immediate previews without retaining multi-MB
+    // Base64 strings in React state. The actual File is uploaded on Publish.
+    const drafts = selected.map(file => {
+      const url = URL.createObjectURL(file);
+      photoPreviewUrls.current.add(url);
+      return { name: file.name, url, file };
     });
+    setForm(current => ({ ...current, photos: [...current.photos, ...drafts] }));
   };
-  const removePhoto = (i) => setForm(f => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }));
+  const removePhoto = (i) => {
+    const photo = form.photos[i];
+    if (photo?.url) {
+      URL.revokeObjectURL(photo.url);
+      photoPreviewUrls.current.delete(photo.url);
+    }
+    setPhotoError("");
+    setForm(current => ({ ...current, photos: current.photos.filter((_, idx) => idx !== i) }));
+  };
 
   const toggleSpot = (i) => setForm(f => { const s = [...f.selectedSpots]; s[i] = !s[i]; return { ...f, selectedSpots: s }; });
   const setTotalSpots = (n) => setForm(f => {
@@ -4379,38 +4428,66 @@ function ListDrivewayView({ user }) {
   const [submitted, setSubmitted] = useState(false);
 
   const publish = async () => {
+    if (publishing) return;
     setPublishError("");
-    if (!user) {
-      setPublishError("Please sign in as a host before publishing your listing.");
+    setUploadProgress("");
+    if (!user || user.role !== "host") {
+      setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    if (!form.photos.length) {
+      setPublishError("Add at least one driveway photo before publishing.");
       return;
     }
     setPublishing(true);
-    const rentableSpots = rentableSpotCount || 1;
-    const features = listingFeatures;
-    const { error } = await supabase.from("listings").insert({
-      host_id: user.id,
-      title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
-      address: fullAddress,
-      price: Number(form.price) || 12,
-      spaces: rentableSpots,
-      features,
-      description: form.description || "",
-      img: form.photos[0]?.url || "🏠",
-      photos: form.photos.map(p => p.url),
-      lat: form.lat || null,
-      lng: form.lng || null,
-      spots: form.spots || [],
-      availability: normalizedAvailability,
-    });
-    setPublishing(false);
-    if (error) {
-      setPublishError(error.message);
-      return;
+    let uploadedPaths = [];
+    try {
+      const photoUpload = await uploadListingPhotos(supabase, user.id, form.photos, (index, total) => {
+        setUploadProgress(`Uploading photo ${index} of ${total}…`);
+      });
+      uploadedPaths = photoUpload.paths;
+      setUploadProgress("Saving your listing…");
+      const { error } = await supabase.from("listings").insert({
+        host_id: user.id,
+        title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
+        address: fullAddress,
+        price: Number(form.price) || 12,
+        spaces: rentableSpotCount || 1,
+        features: listingFeatures,
+        description: form.description || "",
+        // Keep the existing listing image schema: new listings now persist
+        // short Storage URLs, while historical Base64 listings still render.
+        img: photoUpload.urls[0],
+        photos: photoUpload.urls,
+        lat: form.lat || null,
+        lng: form.lng || null,
+        spots: form.spots || [],
+        availability: normalizedAvailability,
+      });
+      if (error) throw new Error("The listing could not be saved. Your existing listings were not changed. Please try again.");
+      for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+      photoPreviewUrls.current.clear();
+      setSubmitted(true);
+    } catch (error) {
+      if (uploadedPaths.length) {
+        try {
+          await removeUploadedListingPhotos(supabase, uploadedPaths);
+        } catch (cleanupError) {
+          console.warn("Unable to remove unused listing photos after publish failure", cleanupError);
+        }
+      }
+      setPublishError(error?.message || "Unable to publish this listing. Please try again.");
+    } finally {
+      setUploadProgress("");
+      setPublishing(false);
     }
-    setSubmitted(true);
   };
 
   const resetAll = () => {
+    for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+    photoPreviewUrls.current.clear();
+    setPhotoError("");
+    setUploadProgress("");
     setSubmitted(false); setStep(1);
     setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
@@ -4534,6 +4611,7 @@ function ListDrivewayView({ user }) {
       {/* Step 3: Photos */}
       {step === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {photoError && <div role="alert" style={{ background: C.redLight, color: C.red, borderRadius: 8, padding: 11, fontSize: 12 }}>{photoError}</div>}
           <div>
             <label style={{ ...labelStyle, marginBottom: 4 }}>Photos of your driveway ({form.photos.length}/6)</label>
             <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, margin: 0 }}>
@@ -4585,7 +4663,7 @@ function ListDrivewayView({ user }) {
                 <span style={{ fontSize: 24 }} aria-hidden="true">📷</span>
                 <span>{form.photos.length === 0 ? "Add cover photo" : "Add another photo"}</span>
                 {form.photos.length === 0 && <small style={{ color: C.muted, fontSize: 9, fontWeight: 600, lineHeight: 1.35 }}>Street-to-house view<br/><strong style={{ color: C.moss }}>(Required to publish)</strong></small>}
-                <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => addPhotos(e.target.files)} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: "none" }} onChange={e => { addPhotos(e.target.files); e.target.value = ""; }} />
               </label>
             )}
           </div>
@@ -5035,6 +5113,7 @@ function ListDrivewayView({ user }) {
           </div>
 
           {publishError && <div role="alert" style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{publishError}</div>}
+          {uploadProgress && <div role="status" style={{ color: C.moss, fontSize: 12.5, fontWeight: 700 }}>{uploadProgress}</div>}
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" onClick={() => setStep(7)}>← Back to edit</Btn>
@@ -6463,7 +6542,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
     ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
-    : ["Browse", "Discover", "My Bookings", "Messages", "Profile", "List Your Driveway", "Host Dashboard", "Transactions"];
+    : ["Browse", "Discover", "My Bookings", "Messages", "Profile"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -9881,6 +9960,23 @@ export default function App() {
     moveToRoute("app", "Browse", null, { replace: true });
   };
 
+  const requireHost = (content) => {
+    if (user?.role === "host") return content;
+    return (
+      <div role="alert" style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
+        <h3 style={{ color: C.navy, fontSize: 20 }}>Host account required</h3>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
+          Only registered Hosts can list driveways, manage Host bookings or access Host transactions.
+          {user ? " Your current account is a Driver account." : " Please register or sign in as a Host."}
+        </p>
+        <button type="button" onClick={() => user ? changeTab("Browse") : setShowAuth(true)}
+          style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
+          {user ? "Return to parking search" : "Sign in / Join free"}
+        </button>
+      </div>
+    );
+  };
+
   const requireAuth = (content, msg) => {
     if (!user) return (
       <div style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif" }}>
@@ -9935,7 +10031,13 @@ export default function App() {
   };
   // Host page CTA: straight into the listing flow if already signed in,
   // otherwise open sign-up first (role selection happens in that flow).
-  const handleHostGetStarted = () => { if (user) enterApp("List Your Driveway"); else setShowAuth(true); };
+  const handleHostGetStarted = () => {
+    if (!user) { setShowAuth(true); return; }
+    // Drivers may view the public Host information page, but must use
+    // a separate Host account before creating a driveway listing.
+    if (user.role !== "host") { enterApp("Browse"); return; }
+    enterApp("List Your Driveway");
+  };
   // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
   const handleFindParking = () => {
     setBrowseAutoFocus(false);
@@ -10127,10 +10229,10 @@ export default function App() {
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
-          {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
+          {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={changeTab} />, "Sign in to access your host dashboard.")}
-          {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
+          {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
+          {tab === "Transactions" && requireHost(<TransactionsView user={user} />)}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
