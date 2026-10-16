@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
-import { MAX_LISTING_PHOTOS, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
+import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -282,7 +282,7 @@ const INITIAL_THREADS = {
 // Renders the host's actual first uploaded photo when there is one, falling
 // back to the simple emoji icon for listings that don't have a photo yet.
 function ListingThumb({ listing, size, fontSize, style }) {
-  const isPhoto = typeof listing.img === "string" && listing.img.startsWith("data:");
+  const isPhoto = isListingImageUrl(listing.img);
   if (isPhoto) {
     return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
@@ -1909,7 +1909,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       )}
       {showSpotPicker && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
-          {typeof listing.img === "string" && listing.img.startsWith("data:") && (
+          {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
               <ListingThumb listing={listing} size="100%" />
             </div>
