@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { PUBLIC_LISTING_SELECT, publicListingCoverUrl } from "./lib/publicListings";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -287,7 +288,7 @@ const INITIAL_THREADS = {
 function ListingThumb({ listing, size, fontSize, style }) {
   const isPhoto = isListingImageUrl(listing.img);
   if (isPhoto) {
-    return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
+    return <img src={listing.img} alt={listing.title || "Driveway"} loading="lazy" decoding="async" style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
   return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{listing.img}</span>;
 }
@@ -2096,7 +2097,7 @@ function useAllListings() {
     setError("");
     supabase
       .from("listings")
-      .select("*, profiles(name), reviews(rating)")
+      .select(PUBLIC_LISTING_SELECT)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
@@ -2116,8 +2117,11 @@ function useAllListings() {
             spaces: row.spaces,
             features: row.features || [],
             description: row.description || "",
-            img: row.img || "🏠",
-            photos: row.photos || [],
+            // No embedded Base64 photo blobs in the public listings response.
+            // Historical covers are served lazily and resized by a dedicated
+            // cacheable endpoint; new Storage URLs redirect to our own bucket.
+            img: publicListingCoverUrl(row.id) || "🏠",
+            photos: [],
             distance: "—",
             lat: row.lat,
             lng: row.lng,
