@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { calculateBookingAmounts } from "../api/_booking-rules.js";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -1002,9 +1003,12 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-const subtotal = listing.price * hours;
-  const serviceFee = Math.round(subtotal * 0.15 * 100) / 100;
-  const total = subtotal + serviceFee;
+// Use the exact integer-cent calculation used by create-checkout-session.
+  // No floating-point/whole-dollar rounding drift between preview and Stripe.
+  const { subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(listing.price, hours);
+  const subtotal = subtotalCents / 100;
+  const serviceFee = serviceFeeCents / 100;
+  const total = totalCents / 100;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
@@ -1936,7 +1940,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
+              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
             </div>
             <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle}>Reserve & pay →</Btn>
           </div>
