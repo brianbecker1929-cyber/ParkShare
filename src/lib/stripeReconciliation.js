@@ -24,7 +24,7 @@ export function reconcilePaidCheckout({ session, eventAccount = null, eventLivem
     return { status: "connected_account_mismatch", severity: "critical" };
   }
 
-  const expectedTotal = Number(session.amount_total);
+  const expectedTotal = session.amount_total == null ? NaN : Number(session.amount_total);
   if (!Number.isSafeInteger(expectedTotal) || expectedTotal < 0) {
     return { status: "missing_stripe_amount", severity: "high" };
   }
