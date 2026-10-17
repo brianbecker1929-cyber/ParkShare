@@ -1,38 +1,36 @@
-# BUG-005156 — Scheduled booking timezone remediation
+# BUG-005156 — Scheduled Booking Time Zone Correction
+**PR #159 — integrated draft, NOT DEPLOYED or MIGRATED — October 17, 2026**
 
-**Status: not fixed or deployed.** The pure helper and its five passing tests are a proposal only. It is **not imported into live checkout, availability, emails or the database**.
+## Confirmed QA database and application mismatch
+The existing PostgreSQL trigger `bookings_compute_session_range()` converts `booking_date + start_hour` as UTC, rather than the driveway's local time. Checkout and availability previously did the same, while confirmation emails displayed Toronto local time. A 2 p.m. Toronto booking on October 20, 2026 must start **18:00Z**, not 14:00Z; in Vancouver it must start 21:00Z. Remote browsers in Greece must not alter this.
 
-## Reproduced mismatch
+Read-only QA inventory on October 17: **12 paid scheduled reservations, 9 dated in the future**. QA has **14 driveway listings, 6 missing lat/lng**. Do NOT silently adjust any booked instants or issue financial changes.
 
-- Driver selects a local calendar date and fractional start hour.
-- Current api/_booking-rules.js#getSessionWindow() constructs that local hour as UTC.
-- Checkout and listing-availability use this same incorrect instant for holds and Host schedules.
-- QA's PostgreSQL session-range trigger also interprets the chosen clock hour as UTC, based on the read-only investigation recorded in issue #158.
-- Booking email formatter renders the result in America/Toronto, irrespective of the property's time zone.
-- At a Toronto property on October 20, 2026, 2:00 p.m. local is 18:00Z, not 14:00Z. At Vancouver, it is 21:00Z.
+## Prepared application repair
+1. `api/_booking-local-time.js` strictly resolves the literal local calendar date, 15-minute hour, and trusted IANA property zone into UTC. It rejects invalid zones, dates and ambiguous/nonexistent DST hours.
+2. **Browse/checkout UI:** `src/lib/bookingCalendarDate.js` preserves the chosen wall-clock calendar day instead of converting via `date.toISOString()`. The same date-only value feeds availability and checkout.
+3. **Checkout and availability:** Both fetch `listings.time_zone` server-side and use the same resolver. They do NOT trust browser timezone or a client-provided zone. Missing/unverified zones fail closed for scheduled reservations, but instant Park Now booking remains supported.
+4. **Authoritative holds:** checkout registers `booking_holds.starts_at` and `ends_at` in UTC, and snapshots `property_time_zone` and `scheduled_starts_at` with approved Checkout metadata. Stripe cannot override the server-held interval.
+5. **Webhook:** newly registered scheduled holds transfer their trusted `starts_at` into `bookings.scheduled_starts_at`; the property zone is stored as a snapshot on the booking. Existing registered legacy pre-rollout holds without canonical metadata keep their original UTC interpretation, without silently migrating paid sessions.
+6. **Database proposal only:** `docs/sql-proposals/bug-005156-property-local-canonical-bookings.sql` adds nullable listing time zone and immutable scheduled-booking UTC start snapshot, and changes the booking session range trigger to prefer canonical start while preserving old `booking_date/start_hour` interpretation when canonical is absent.
+7. **Downstream consumers:** server-side availability, reminder queries, confirmation/reminder email formatting and Host/Driver booking pages prefer canonical UTC starts and format newly scheduled reservation times in the property zone. Legacy booked records retain the old behavior until reconciled.
+8. **Advance booked reservations:** removed `paid_at >= now()-31d` filters from availability and reminder scans; otherwise bookings paid months before their actual scheduled start would be incorrectly omitted.
 
-## Proposed consistent contract (product and BetterQA review required)
+## Coordinated release GATES — do NOT deploy this branch as-is
+- The active production/QA databases do NOT have `listings.time_zone` or `bookings.scheduled_starts_at`/`property_time_zone` columns. Deploying this code without the matching approved schema would break requests.
+- Map each listing to its correct IANA timezone using a **trusted geolocation + timezone service**. Do NOT guess Canada-wide `America/Toronto`. Manually verify missing coordinates and all existing listings; leave `time_zone` NULL to block scheduled checkouts until verified.
+- Reconcile 12 historic QA paid scheduled bookings and inventory **production** history read-only before proposing any move. Retain paid original bookings, Stripe Checkout evidence, spot/session_ranges and existing emails. Obtain Host/Driver consent for any correction that changes a booked slot.
+- Coordinate one atomic QA release window with BetterQA for application + SQL; roll back together on failing integration tests. Keep production and the active BetterQA environment unchanged until explicit approval.
+- Connect PR #159's canonical booking columns with draft PRs #160 (atomic extensions) and #163 (verified review eligibility). Test interactions with PR #161 address privacy before merging into a combined QA release branch.
+- Run paid Stripe TEST flow for a properly zone-backed Host: booked time, hold, webhook, availability, reminder, My Bookings, Host dashboard, email, extension, cancellation/refund. No Stripe transactions were performed in this draft.
 
-1. Resolve and persist each listing's authoritative IANA property timezone server-side based on its location. Validate and backfill existing listings before rollout; do not trust the browser's timezone.
-2. Submit the literal YYYY-MM-DD property calendar date and selected fractional hour; do not turn the chosen date into a browser-dependent ISO UTC date.
-3. Checkout and availability use the same validated wall-clock-to-UTC resolver and the property's timezone. Explicitly reject daylight-saving nonexistent and ambiguous times unless an approved disambiguation interface is provided.
-4. Persist immutable UTC starts_at, ends_at and an IANA property-timezone snapshot on each booking/hold. Calculate elapsed-hour duration from the canonical UTC start; keep chosen local labels for display.
-5. Postgres exclusion/session-range computation, holds, Stripe metadata, payment webhook, emails, Host/Driver views, reminders and extensions must all use the canonical approved instants. The server-registered hold, not untrusted Stripe metadata, is authoritative.
-6. Show all reservation communications in the property's local timezone (with zone identifier where useful), not a fixed Toronto setting.
+## Acceptance tests
+- Toronto 2026-10-20 14:00 ⇒ 18:00Z, Vancouver 14:00 ⇒ 21:00Z, St. John's 14:00 ⇒ 16:30Z; winter offsets and 15-minute increments.
+- Device in Greece, Toronto or Vancouver booking the **same** listing ⇒ identical property date/UTC instant.
+- Spring DST gap and fall DST repeated hour are rejected, not silently remapped.
+- Scheduled hold and confirmed booking `session_range` match the same canonical instant; spot conflict checks and reminder thresholds match.
+- Existing paid future reservations are unmodified through migration; verify row/Stripe audit history.
+- Explicit rejection when property timezone cannot be verified.
+- Existing instant bookings unaffected.
 
-## Historical bookings and release gate
-
-- First perform a read-only inventory of paid scheduled reservations, active holds, Stripe Checkout IDs, booking_date/start_hour, UTC session_range, property coordinates/timezone and potential conflicts.
-- **Never automatically change historic paid reservation instants**, send refunds or replay webhooks. Review individual conflicts and required customer/Host notices before remediation.
-- Coordinate an atomic, versioned API and SQL migration in a BetterQA-approved maintenance/retest window. Do not independently change either layer, and avoid changes to the QA environment while testing is active.
-- Do not merge this helper as a functioning fix. Existing scheduled booking behavior is still a launch blocker until the end-to-end change has been implemented and retested.
-
-## Minimum BetterQA acceptance tests
-
-- Toronto: October 20, 2026, 14:00 = 18:00Z; January 20, 2026, 14:00 = 19:00Z.
-- Vancouver: October 20, 2026, 14:00 = 21:00Z; Newfoundland = 16:30Z.
-- Browsers in Toronto, Greece and Vancouver booking the same property resolve to identical UTC instant and local calendar date.
-- Check midnight/23:45 starts, exact quarter-hour durations, spring-forward gap (March 8, 2026 02:30 Toronto), and fall-back repeated hour (November 1, 2026 01:30 Toronto).
-- Check consistent availability and spot holds, Checkout, Stripe session metadata, Host/Driver dashboards, payment success email and reminders, including cancellation, refund and extension.
-
-Tracked investigation: https://github.com/brianbecker1929-cyber/ParkShare/issues/158
+**This is a draft engineering implementation, not a completed live fix. BUG-005156 stays open until BetterQA end-to-end retesting and controlled deployment.**
