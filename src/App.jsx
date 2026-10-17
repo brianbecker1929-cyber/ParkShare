@@ -1801,11 +1801,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
-          <div className="ps-booking-navigation-group">
-            <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
-            <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
-          </div>
-          <RidesharePickupCard listing={listing} />
+          {listing.locationPrecision === "approximate" ? (
+            <div role="status" style={{ fontSize: 12, color: C.navy, marginBottom: 10 }}>
+              The exact driveway address and navigation unlock in My Bookings after payment is confirmed.
+            </div>
+          ) : (
+            <>
+              <div className="ps-booking-navigation-group">
+                <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
+                <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
+              </div>
+              <RidesharePickupCard listing={listing} />
+            </>
+          )}
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -2675,7 +2683,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
 
   const filtered = allListings
-    .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
+    .filter(l => locatedSearch || !query || l.locationPrecision === "approximate" || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
     .filter(l => {
       if (!selectedEvent) return true;
       const rawListingId = String(l.id).replace(/^db-/, "");
