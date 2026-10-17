@@ -9,8 +9,11 @@ function hasValidScheduledWindow(booking) {
   if (!dateSupplied) return true;
   const localDate = String(booking.booking_date);
   const hour = Number(booking.start_hour);
+  const dateOnly = localDate.slice(0, 10);
+  const parsedDate = new Date(dateOnly + "T00:00:00Z");
   const dateValid = /^\d{4}-\d{2}-\d{2}(?:$|T)/.test(localDate)
-    && !Number.isNaN(new Date(localDate.slice(0, 10) + "T00:00:00Z").getTime());
+    && Number.isFinite(parsedDate.getTime())
+    && parsedDate.toISOString().slice(0, 10) === dateOnly;
   return dateValid && Number.isFinite(hour) && hour >= 0 && hour < 24
     && Math.abs(hour * 4 - Math.round(hour * 4)) < 1e-9;
 }
