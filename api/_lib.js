@@ -126,15 +126,14 @@ export async function checkAvailability(listingId, spaces, start, end) {
   // same 31-day reasoning used in send-reminders.js, keeps this a cheap
   // query even as the table grows. Widen if MAX_HOURS in
   // create-checkout-session.js ever grows past 31 days.
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
     .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    ; // Do NOT use a paid_at recency limit: scheduled stays can be purchased months early.
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
@@ -176,15 +175,14 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
   const label = String(spotLabel || "").trim().toUpperCase();
   if (!label) return { available: true, spotLabel: label }; // no letter requested -> nothing to conflict with
 
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
     .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    ; // Do NOT use a paid_at recency limit: scheduled stays can be purchased months early.
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
@@ -221,14 +219,13 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
 export async function checkAllSpotAvailability(listingId, labels, start, end) {
   const wantedLabels = labels.map((l) => String(l).trim().toUpperCase());
 
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
     .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    ; // Do NOT use a paid_at recency limit: scheduled stays can be purchased months early.
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
