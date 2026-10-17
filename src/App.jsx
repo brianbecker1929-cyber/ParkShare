@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
 import { publicListingCoverUrl } from "./lib/publicListings";
+import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -3267,13 +3268,23 @@ function HostDashboard({ user, setTab }) {
             earnings: 0,
             bookings: 0,
             rating: 5,
-            img: publicListingCoverUrl(row.id) || "🏠",
+            img: "🏠",
             description: row.description || "",
             features: row.features || [],
             spaces: row.spaces || 1,
             spots: row.spots || [],
           }))
         );
+        // Load authorized Host photographs with bearer-token access.
+        for (const listingRow of data) {
+          fetchPrivateCoverDataUrl(listingRow.id, null, session.access_token)
+            .then(image => {
+              if (!image) return;
+              setDbListings(prev => prev.map(l => l.rawId === listingRow.id ? { ...l, img: image } : l));
+              setDbBookings(prev => prev.map(b => b.listingDetails?.id === "db-" + listingRow.id
+                ? { ...b, listingDetails: { ...b.listingDetails, img: image } } : b));
+            }).catch(() => {});
+        }
 
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) {
@@ -3316,7 +3327,7 @@ function HostDashboard({ user, setTab }) {
                     id: "db-" + row.listing_id,
                     title: row.listings?.title || "Driveway",
                     address: row.listings?.address || "",
-                    img: publicListingCoverUrl(row.listing_id) || "🏠",
+                    img: "🏠",
                     photos: [],
                     lat: row.listings?.lat,
                     lng: row.listings?.lng,
@@ -5241,7 +5252,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               id: "db-" + row.listing_id,
               title: row.listings?.title || "Driveway",
               address: row.listings?.address || "",
-              img: publicListingCoverUrl(row.listing_id) || "🏠",
+              img: "🏠",
               photos: [],
               lat: row.listings?.lat,
               lng: row.listings?.lng,
@@ -5274,6 +5285,14 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             canCancel: !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
           });})
         );
+        for (const row of data) {
+          if (!["confirmed", "completed"].includes(String(row.status))) continue;
+          fetchPrivateCoverDataUrl(row.listing_id, row.id, session.access_token)
+            .then(image => {
+              if (image) setDbBookings(prev => prev.map(b => b.rawId === row.id
+                ? { ...b, listing: { ...b.listing, img: image } } : b));
+            }).catch(() => {});
+        }
       });
   }, [user]);
 
