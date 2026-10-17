@@ -9,10 +9,21 @@ export default async function handler(req, res) {
   if (!user) return;
   const listingId = Number(req.body?.listingId);
   const rating = Number(req.body?.rating);
-  const reviewText = String(req.body?.text ?? "").trim();
+  const reviewText = typeof req.body?.text === "string" ? req.body.text.trim() : "";
   const validation = validateReviewInput({ listingId, rating, text: reviewText });
   if (validation) return res.status(400).json({ error: validation });
   try {
+    // A Host must not submit a self-rating, even after a paid test booking.
+    // Confirm the target listing actually exists before checking eligibility.
+    const { data: listing, error: listingError } = await supabaseAdmin
+      .from("listings").select("id,host_id")
+      .eq("id", listingId).maybeSingle();
+    if (listingError) throw listingError;
+    if (!listing) return res.status(404).json({ error: "Parking listing not found." });
+    if (listing.host_id === user.id) {
+      return res.status(403).json({ error: "Hosts cannot review their own parking listing." });
+    }
+
     const { data: reservations, error: bookingError } = await supabaseAdmin
       .from("bookings")
       .select("id,listing_id,renter_id,status,paid_at,stripe_checkout_session_id,booking_date,start_hour,hours")
