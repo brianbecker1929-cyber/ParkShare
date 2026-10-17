@@ -2,6 +2,7 @@
 // Extends an in-progress booking through Stripe Checkout.
 
 import { checkAvailability, checkSpotAvailability, getOrigin, getSessionWindow, jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
+import { validExtensionHours } from "./_extension-safety.js";
 
 const SERVICE_FEE_RATE = 0.15;
 
@@ -12,7 +13,7 @@ export default async function handler(req, res) {
     if (!user) return;
     const bookingId = Number(req.body?.bookingId);
     const addedHours = Number(req.body?.addedHours);
-    if (!Number.isInteger(bookingId) || !Number.isFinite(addedHours) || addedHours <= 0 || addedHours > 24) {
+    if (!Number.isInteger(bookingId) || !validExtensionHours(addedHours)) {
       return res.status(400).json({ error: "Invalid booking or extension duration." });
     }
 
