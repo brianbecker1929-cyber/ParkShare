@@ -19,8 +19,8 @@ export function isTransientSupabaseError(error) {
   const message = String(error.message || "");
   // Do not use a loose "timeout" match: a persistent SQL statement timeout
   // or a foreign-key/permission failure is not a transient connection fault.
-  return /(?:^|\\b)(?:gateway timeout|connection timed out|connection reset|fetch failed|error code 522|error code 524)(?:\\b|$)/i.test(message)
-    || /<title>[^<]*\\b(?:522|524):\\s*Connection timed out<\\/title>/i.test(message);
+  return /(?:^|\b)(?:gateway timeout|connection timed out|connection reset|fetch failed|error code 522|error code 524)(?:\b|$)/i.test(message)
+    || /<title>[^<]*\b(?:522|524):\s*Connection timed out<\/title>/i.test(message);
 }
 
 export function isMissingSupabaseRow(error) {
