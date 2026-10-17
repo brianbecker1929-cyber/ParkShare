@@ -79,7 +79,7 @@ test("the selected car carries from spot confirmation to checkout and remains sw
   const app = await read("../src/App.jsx");
   assert.match(app, /selectedVehicleId=\{selectedVehicleId\}/);
   assert.match(app, /onVehicleChange=\{setSelectedVehicleId\}/);
-  assert.match(app, /function PaymentModal\(\{[^\n]*selectedVehicleId, onVehicleChange \}\)/);
+  assert.match(app, /function PaymentModal\(\{[^\n]*selectedVehicleId, onVehicleChange(?:, availableData = null)? \}\)/);
   assert.match(app, /onClick=\{\(\) => \{ onVehicleChange\(vehicle.id\); setChangeVehicleOpen\(false\); \}\}/);
   assert.match(app, /<SpotPicker[^\n]*vehicle=\{selectedVehicle\}/);
   assert.match(app, /vehicleId: selectedVehicle.id/);

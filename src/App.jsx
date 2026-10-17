@@ -988,7 +988,7 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange, availableData = null }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
@@ -1230,7 +1230,7 @@ const subtotal = listing.price * hours;
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} availableData={availableData} isRealListing={isRealListing} vehicle={selectedVehicle} />
                 <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
@@ -1441,7 +1441,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null, availableData = null, isRealListing = false }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1472,19 +1472,25 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
           // physical space to both host and renter.
           const isRent = s.forRent;
           const myLabel = i;
-          const isChosen = isRent && chosen === myLabel;
+          // A satellite bay follows the same exact-window booking/hold check
+          // as the ordinary picker; free total capacity alone is insufficient.
+          const canPick = isRent && canChooseListingSpot({
+            isRealListing, hostRentable: isRent, availableData,
+            label: String.fromCharCode(65 + myLabel),
+          });
+          const isChosen = canPick && chosen === myLabel;
           return (
             <Rectangle
               key={s.id}
               bounds={s.bounds}
               options={{
-                fillColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                fillColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 fillOpacity: isChosen ? 0.55 : 0.35,
-                strokeColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                strokeColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 strokeWeight: isChosen ? 3 : 2,
-                clickable: interactive && isRent,
+                clickable: interactive && canPick,
               }}
-              onClick={isRent && interactive ? () => onChoose(myLabel) : undefined}
+              onClick={canPick && interactive ? () => onChoose(myLabel) : undefined}
             />
           );
         })}
@@ -1966,7 +1972,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} />
                   </div>
                 </SpotMapBoundary>
               ) : (
@@ -2036,6 +2042,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           selectedEvent={selectedEvent}
           selectedVehicleId={selectedVehicleId}
           onVehicleChange={setSelectedVehicleId}
+          availableData={selectedAvailability}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
