@@ -57,6 +57,7 @@ test("unpaid or delayed Checkout Session is not classified as a paid missing boo
 });
 test("amount and reference inconsistencies are critical", () => {
   assert.equal(audit({session:{...session,amount_total:2800}}).status, "checkout_metadata_amount_mismatch");
+  assert.equal(audit({session:{...session,amount_total:null}}).status, "missing_stripe_amount");
   assert.equal(audit({booking:{...booking,total:27.61}}).status, "booking_record_mismatch");
   assert.equal(audit({booking:{...booking,stripe_payment_intent_id:"pi_other"}}).status, "booking_record_mismatch");
   assert.equal(audit({session:{...session,metadata:{...session.metadata,listing_id:"INVALID"}}}).status, "invalid_booking_metadata");
