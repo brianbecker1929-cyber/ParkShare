@@ -110,7 +110,7 @@ export default async function handler(req, res) {
     // Host schedule is checked server-side immediately before any hold or
     // Stripe session is created. Existing confirmed bookings remain intact if
     // a Host later narrows their schedule; this only blocks NEW bookings.
-    if (!isListingAvailableForWindow(listing.availability, windowStart, windowEnd)) {
+    if (!isListingAvailableForWindow(listing.availability, windowStart, windowEnd, listing.time_zone)) {
       return res.status(409).json({ error: "This driveway is not available during that time. Please choose another time." });
     }
 
