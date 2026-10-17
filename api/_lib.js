@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { getSessionWindow, windowsOverlap } from "./_booking-rules.js";
+import { trustedStripeReturnOrigin } from "./_trusted-stripe-origin.js";
 
 export { getSessionWindow } from "./_booking-rules.js";
 
@@ -73,11 +74,14 @@ export async function requireUser(req, res) {
 }
 
 export function getOrigin(req) {
-  const configured = process.env.APP_URL?.replace(/\/$/, "");
-  if (configured) return configured;
-  const forwardedProto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  return `${forwardedProto}://${host}`;
+  // Stripe Checkout and Stripe Connect redirect origins must never be chosen
+  // by untrusted request headers, which may be spoofed at some proxy layers.
+  return trustedStripeReturnOrigin({
+    appUrl: process.env.APP_URL,
+    vercelUrl: process.env.VERCEL_URL,
+    nodeEnv: process.env.NODE_ENV,
+    requestHost: req?.headers?.host,
+  });
 }
 
 export function jsonMethod(req, res, method = "POST") {
