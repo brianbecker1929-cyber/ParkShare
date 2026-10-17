@@ -6,6 +6,7 @@ import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, getSessionWi
 import { calculateBookingAmounts, isRentableSpot, isValidBookingDuration } from "./_booking-rules.js";
 import { getBookableVehicles } from "../src/lib/driverProfile.js";
 import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
+import { resolveLocalBookingStart } from "./_booking-local-time.js";
 
 const SERVICE_FEE_RATE = 0.15;
 
@@ -48,7 +49,7 @@ export default async function handler(req, res) {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, host_id, title, address, price, spaces, spots, availability")
+      .select("id, host_id, title, address, price, spaces, spots, availability, time_zone")
       .eq("id", listingId)
       .single();
 
@@ -70,17 +71,46 @@ export default async function handler(req, res) {
       bookingEvent = eventRow;
     }
 
+    // The property clock — never the Driver device/browser or UTC clock —
+    // determines when a future reservation begins. The IANA time zone is
+    // stored on the listing by a reviewed server-side geolocation backfill.
+    // No silent Toronto fallback: if zone is unverified, fail closed.
+    let scheduledStartsAt = null;
+    if (bookingDate) {
+      if (startHour === null || endHour === null ||
+          Math.abs(endHour - startHour - hours) > 1e-9) {
+        return res.status(400).json({ error: "Choose a valid scheduled parking window." });
+      }
+      if (!listing.time_zone) {
+        return res.status(409).json({
+          error: "This Host's property time zone must be verified before scheduled checkout. Please choose Park Now or contact support."
+        });
+      }
+      try {
+        scheduledStartsAt = resolveLocalBookingStart({
+          bookingDate, startHour, timeZone: listing.time_zone,
+        }).toISOString();
+      } catch (error) {
+        return res.status(400).json({ error: error.message || "Invalid property-local booking time." });
+      }
+      if (new Date(scheduledStartsAt).getTime() <= Date.now()) {
+        return res.status(400).json({ error: "Scheduled parking must start in the future." });
+      }
+    } else if (startHour !== null || endHour !== null) {
+      return res.status(400).json({ error: "Scheduled hours require a parking date." });
+    }
     const { start: windowStart, end: windowEnd } = getSessionWindow({
       paid_at: new Date().toISOString(),
       booking_date: bookingDate,
       start_hour: startHour,
+      scheduled_starts_at: scheduledStartsAt,
       hours,
     });
 
     // Host schedule is checked server-side immediately before any hold or
     // Stripe session is created. Existing confirmed bookings remain intact if
     // a Host later narrows their schedule; this only blocks NEW bookings.
-    if (!isListingAvailableForWindow(listing.availability, windowStart, windowEnd)) {
+    if (!isListingAvailableForWindow(listing.availability, windowStart, windowEnd, listing.time_zone)) {
       return res.status(409).json({ error: "This driveway is not available during that time. Please choose another time." });
     }
 
@@ -134,6 +164,10 @@ export default async function handler(req, res) {
       total_cents: String(totalCents),
       spot_label: spotLabel,
       booking_date: bookingDate,
+      // The server-owned Checkout hold stores the authoritative interval.
+      // Metadata is a snapshot and MUST NOT override the hold in a webhook.
+      scheduled_starts_at: scheduledStartsAt || "",
+      property_time_zone: bookingDate ? listing.time_zone : "",
       start_hour: startHour === null ? "" : String(startHour),
       end_hour: endHour === null ? "" : String(endHour),
       hold_id: String(holdId),

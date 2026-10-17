@@ -103,11 +103,9 @@ export function jsonMethod(req, res, method = "POST") {
 // derived from start + hours, never from a separately-stored end_hour, so
 // there's one single source of truth for duration.
 //
-// KNOWN LIMITATION: booking_date/start_hour have no timezone attached
-// anywhere in the schema, so this treats them as UTC (Node's default when
-// parsing a date string with no offset on a server). Revisit this once the
-// advance-booking date/time picker UI actually exists and we know what
-// timezone it's collecting in.
+// New booked sessions prefer scheduled_starts_at (canonical UTC). Historical
+// paid sessions without that field keep their old UTC interpretation until
+// individually reconciled. See PR #159 and its release checklist.
 // Capacity-based availability check — this is the ONE place that decides
 // whether a listing has a free spot for a given time window. Used both to
 // show a live "X available now" count to renters browsing, and to enforce
@@ -122,19 +120,16 @@ export function jsonMethod(req, res, method = "POST") {
 // UI is a renter preference, not something this system can authoritatively
 // track per-letter.
 export async function checkAvailability(listingId, spaces, start, end) {
-  // Bounded to bookings that could plausibly overlap `end` — mirrors the
-  // same 31-day reasoning used in send-reminders.js, keeps this a cheap
-  // query even as the table grows. Widen if MAX_HOURS in
-  // create-checkout-session.js ever grows past 31 days.
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
+  // Include all confirmed scheduled bookings, even if paid months earlier.
+// A paid_at recency cutoff misses legitimate future holds. Index the booked
+// session_range for scale after the coordinated database migration.
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    .not("paid_at", "is", null);
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
@@ -176,15 +171,13 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
   const label = String(spotLabel || "").trim().toUpperCase();
   if (!label) return { available: true, spotLabel: label }; // no letter requested -> nothing to conflict with
 
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    .not("paid_at", "is", null);
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
@@ -221,14 +214,12 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
 export async function checkAllSpotAvailability(listingId, labels, start, end) {
   const wantedLabels = labels.map((l) => String(l).trim().toUpperCase());
 
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    .not("paid_at", "is", null);
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
