@@ -175,7 +175,7 @@ test("Host upcoming bookings show the reservation start time", () => {
   const hostDashboard = functionSource("HostDashboard", "MessagesView");
   const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
 
-  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end\)/);
+  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end, row\.property_time_zone\)/);
   assert.match(hostDashboard, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
   assert.match(hostDashboard, /host-dashboard-booking-vehicle[\s\S]*?<BookingVehicleVisual vehicle=\{b\.vehicle\}[\s\S]*?<BookingSchedule/);
   assert.match(hostDashboard, /isActive=\{b\.displayStatus === "Active"\}/);
