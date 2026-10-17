@@ -28,6 +28,9 @@ describe("BUG-005156 canonical booking SQL on disposable Postgres",{skip:!db,con
       [listing,DRIVER]);
     legacyId=legacy.rows[0].id;
     await pool.query(await readFile(new URL("../../docs/sql-proposals/bug-005156-property-local-canonical-bookings.sql",import.meta.url),"utf8"));
+    // Production already has this trigger; the minimal CI fixture does not.
+    await pool.query("CREATE TRIGGER bookings_session_range_trigger BEFORE INSERT OR UPDATE ON public.bookings FOR EACH ROW EXECUTE FUNCTION public.bookings_compute_session_range()");
+ 
   });
   after(async()=>{await pool?.end()});
 
