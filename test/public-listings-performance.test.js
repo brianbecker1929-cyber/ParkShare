@@ -7,26 +7,13 @@ import {
 } from "../src/lib/publicListings.js";
 import { isListingImageUrl } from "../src/lib/listingPhotos.js";
 
-test("public search projects only lightweight listing fields (never Base64 images)", async () => {
-  const names = PUBLIC_LISTING_SELECT.split(",");
-  assert.ok(names.includes("id"));
-  assert.ok(names.includes("title"));
-  assert.ok(names.includes("spots"));
-  assert.ok(names.includes("availability"));
-  assert.ok(names.includes("profiles(name)"));
-  assert.ok(names.includes("reviews(rating)"));
-  for (const prohibited of ["*", "img", "photos", "email", "stripe_account_id"]) {
-    assert.ok(!names.includes(prohibited), `Public browse must not return ${prohibited}`);
-  }
+test("anonymous parking uses server projection, not raw Supabase or photos", async () => {
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
-  const start = app.indexOf("function useAllListings()");
-  assert.ok(start > 0);
-  const end = app.indexOf("function EventSubmissionForm(", start);
-  const source = app.slice(start, end);
-  assert.match(source, /\.select\(PUBLIC_LISTING_SELECT\)/);
-  assert.doesNotMatch(source, /\.select\("\*.*profiles\(name\).*reviews\(rating\)/);
-  assert.match(source, /img: publicListingCoverUrl\(row\.id\)/);
-  assert.match(source, /photos: \[\]/);
+  const browse = app.slice(app.indexOf("function useAllListings()"),app.indexOf("function EventSubmissionForm("));
+  assert.match(browse, /fetch\("\/api\/public-parking"\)/);
+  assert.doesNotMatch(browse, /\.from\("listings"\)/);
+  assert.match(browse, /img: "🏠"/);
+  assert.match(browse, /locationPrecision: "approximate"/);
 });
 
 test("cover URLs use safe identifiers and cannot be arbitrary redirects", () => {
@@ -57,7 +44,9 @@ test("only bounded JPEG/PNG/WebP Base64 data can be transformed", () => {
 
 test("cover endpoint returns resized images, never redirecting to arbitrary hosts", async () => {
   const src = await readFile(new URL("../api/listing-cover.js", import.meta.url), "utf8");
-  assert.match(src, /\.select\("id,img"\)/);
+  assert.match(src, /\.select\("id,img,host_id"\)/);
+  assert.match(src, /requireUser\(req, res\)/);
+  assert.match(src, /canReadPreciseLocation/);
   assert.match(src, /trustedListingStorageUrl/);
   assert.match(src, /sharp\(buffer/);
   assert.match(src, /\.webp\(\{ quality: 75/);
