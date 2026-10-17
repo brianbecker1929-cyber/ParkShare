@@ -5,6 +5,7 @@
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
+import { extensionChargeRefundSnapshot } from "./_extension-safety.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
@@ -230,42 +231,37 @@ async function confirmExtension(session, connectedAccountId, pending) {
     throw new CheckoutIntegrityError("Extension duration is not a valid trusted value");
   }
 
-  const row = {
-    booking_id: bookingId,
-    added_hours: addedHours,
-    added_amount: totalCents / 100,
-    stripe_checkout_session_id: session.id,
-    stripe_payment_intent_id: paymentIntentId,
-    stripe_charge_id: chargeId,
-    stripe_connected_account_id: connectedAccountId || null,
-    status: "confirmed",
-    paid_at: new Date().toISOString(),
-  };
-
-  // Same idempotency pattern as confirmBooking() — upsert keyed on the
-  // unique checkout session id, ignoreDuplicates so a Stripe retry of this
-  // same event can never apply the same extension twice.
-  const { data: inserted, error } = await supabaseAdmin
-    .from("booking_extensions")
-    .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
-    .select("id, booking_id, added_hours");
-  if (error) throw error;
-  if (!isNewWebhookInsert(inserted)) return; // already processed this exact session before
-
-  // Bump the booking's hours so getSessionWindow() — and everything built
-  // on it (reminders, availability, the Phase 3 exclusion constraint) —
-  // picks up the new, longer end time with no further changes needed
-  // anywhere else. Read-then-write rather than an atomic SQL increment:
-  // acceptable here because the only realistic race is the SAME renter
-  // submitting two extensions on the SAME booking within milliseconds of
-  // each other — low-stakes and unlikely, unlike the cross-renter spot
-  // conflict Phase 3 protects against, which is why that one got a real
-  // database constraint instead of just application-level care.
-  const { error: updateError } = await supabaseAdmin
-    .from("bookings")
-    .update({ hours: Number(booking.hours) + addedHours })
-    .eq("id", bookingId);
-  if (updateError) throw updateError;
+  // The service-role-only Postgres function inserts the extension AND extends
+  // bookings.hours under one listing-scoped lock and database transaction.
+  // An update conflict rolls BOTH back. Stripe retries can safely re-enter.
+  // Requires the separately approved SQL proposal before QA deployment.
+  const { data: rpcRows, error: applyError } = await supabaseAdmin.rpc(
+    "apply_paid_booking_extension",
+    {
+      p_checkout_session_id: session.id,
+      p_booking_id: bookingId,
+      p_renter_id: pending.renter_id,
+      p_added_hours: addedHours,
+      p_expected_total_cents: totalCents,
+      p_payment_intent_id: paymentIntentId,
+      p_charge_id: chargeId,
+      p_connected_account_id: connectedAccountId,
+      p_paid_at: new Date().toISOString(),
+    }
+  );
+  if (applyError) {
+    // Return webhook 500 for replay/manual reconciliation; NEVER reply 200
+    // when a paid extension could not be attached to the booking.
+    console.error("[extension-reconciliation] paid extension NOT APPLIED", {
+      sessionId: session.id, bookingId, code: applyError.code,
+    });
+    throw applyError;
+  }
+  const application = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+  if (!application || typeof application.applied !== "boolean") {
+    throw new Error("Paid extension did not return a trustworthy transaction result.");
+  }
+  if (!application.applied) return; // completed atomically in an earlier delivery
 
   await sendExtensionConfirmedEmail(bookingId, addedHours, totalCents).catch(err => {
     // Same non-blocking pattern as the original booking confirmation email —
@@ -641,15 +637,8 @@ export default async function handler(req, res) {
         await syncConnectedAccount(event.data.object);
         break;
 
-      // KNOWN GAP: refunds/disputes below only check the `bookings` table.
-      // An extension's charge has its own separate payment_intent/charge id
-      // (see confirmExtension() above), so a refund issued against just the
-      // extension portion currently matches nothing here and silently
-      // no-ops. Deliberately left unhandled rather than guessing at the
-      // right behavior (e.g. should refunding an extension also decrement
-      // bookings.hours back down? what if it's been extended again since?)
-      // — worth its own explicit decision rather than bundling into this
-      // fix. Ask for it directly if refunding extensions needs to work.
+      // Base booking and extension payments are reconciled by their distinct
+      // Stripe identifiers; extending/refunding time still requires policy.
       case "charge.refunded": {
         const reconciliation = refundReconciliation(event.data.object);
         if (reconciliation) {
@@ -659,6 +648,19 @@ export default async function handler(req, res) {
             .from("bookings")
             .update(update)
             .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
+
+          // Refund of added parking time has a DISTINCT PaymentIntent.
+          // Store the cumulative Stripe charge snapshot, but do not silently
+          // reduce confirmed hours: that requires an explicit refund policy.
+          const extensionSnapshot = extensionChargeRefundSnapshot(event.data.object);
+          if (extensionSnapshot && event.account) {
+            const { error: extensionError } = await supabaseAdmin
+              .from("booking_extensions")
+              .update({ ...extensionSnapshot, refund_reconciled_at: new Date().toISOString() })
+              .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
+              .eq("stripe_connected_account_id", event.account);
+            if (extensionError) throw extensionError;
+          }
         }
         break;
       }
@@ -677,6 +679,20 @@ export default async function handler(req, res) {
               refund_failure_reason: reconciliation.refundFailureReason,
             })
             .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
+          if (event.account) {
+            const { error: extensionError } = await supabaseAdmin
+              .from("booking_extensions")
+              .update({
+                stripe_refund_id: reconciliation.refundId,
+                refund_status: reconciliation.refundStatus,
+                refund_amount: reconciliation.refundAmount,
+                refund_failure_reason: reconciliation.refundFailureReason,
+                refund_reconciled_at: new Date().toISOString(),
+              })
+              .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
+              .eq("stripe_connected_account_id", event.account);
+            if (extensionError) throw extensionError;
+          }
         }
         break;
       }
@@ -688,6 +704,14 @@ export default async function handler(req, res) {
             .from("bookings")
             .update({ status: reconciliation.status })
             .eq("stripe_charge_id", reconciliation.chargeId);
+          if (event.account) {
+            const { error: extensionError } = await supabaseAdmin
+              .from("booking_extensions")
+              .update({ charge_disputed: true })
+              .eq("stripe_charge_id", reconciliation.chargeId)
+              .eq("stripe_connected_account_id", event.account);
+            if (extensionError) throw extensionError;
+          }
         }
         break;
       }
