@@ -3262,7 +3262,7 @@ function HostDashboard({ user, setTab }) {
 
     supabase
       .from("listings")
-      .select("*")
+      .select("id, title, address, price, description, features, spaces, spots")
       .eq("host_id", user.id)
       .then(({ data, error }) => {
         if (error || !data) return;
@@ -3277,7 +3277,7 @@ function HostDashboard({ user, setTab }) {
             earnings: 0,
             bookings: 0,
             rating: 5,
-            img: row.img || "🏠",
+            img: publicListingCoverUrl(row.id) || "🏠",
             description: row.description || "",
             features: row.features || [],
             spaces: row.spaces || 1,
@@ -3311,7 +3311,7 @@ function HostDashboard({ user, setTab }) {
 
         supabase
           .from("bookings")
-          .select("*, listings(*), profiles(name)")
+          .select("*, listings(id, title, address, lat, lng, spots, spaces), profiles(name)")
           .in("listing_id", listingIds)
           .order("created_at", { ascending: false })
           .then(({ data: bookingRows, error: bookingErr }) => {
@@ -3334,8 +3334,8 @@ function HostDashboard({ user, setTab }) {
                     id: "db-" + row.listing_id,
                     title: row.listings?.title || "Driveway",
                     address: row.listings?.address || "",
-                    img: row.listings?.img || "🏠",
-                    photos: row.listings?.photos || [],
+                    img: publicListingCoverUrl(row.listing_id) || "🏠",
+                    photos: [],
                     lat: row.listings?.lat,
                     lng: row.listings?.lng,
                     spots: row.listings?.spots || [],
@@ -5224,7 +5224,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
     if (!user) return;
     supabase
       .from("bookings")
-      .select("*, listings(*, profiles(name))")
+      .select("*, listings(id, title, address, lat, lng, spots, spaces, description, profiles(name))")
       .eq("renter_id", user.id)
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
@@ -5253,8 +5253,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               id: "db-" + row.listing_id,
               title: row.listings?.title || "Driveway",
               address: row.listings?.address || "",
-              img: row.listings?.img || "🏠",
-              photos: row.listings?.photos || [],
+              img: publicListingCoverUrl(row.listing_id) || "🏠",
+              photos: [],
               lat: row.listings?.lat,
               lng: row.listings?.lng,
               spots: row.listings?.spots || [],
