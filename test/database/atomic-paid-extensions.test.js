@@ -31,7 +31,7 @@ BEGIN
 END; $trigger$;
 CREATE TRIGGER bookings_test_session_range BEFORE UPDATE ON public.bookings
 FOR EACH ROW EXECUTE FUNCTION public.test_recompute_session_range();
-`.replace(/\\`/g,"`");
+`;
 
 describe("atomic paid extension database proposal (disposable PostgreSQL only)", { skip: !databaseUrl, concurrency: 1 }, () => {
   let pool;
@@ -41,13 +41,13 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
   before(async () => {
     pool = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 5000, max: 6 });
     const files = [
-      "../booking-holds-fixture.sql",
-      "../../../supabase-migration-005-booking-holds.sql",
-      "../../../supabase-migration-011-registered-checkouts.sql",
+      "./booking-holds-fixture.sql",
+      "../../supabase-migration-005-booking-holds.sql",
+      "../../supabase-migration-011-registered-checkouts.sql",
     ];
     for (const file of files) await pool.query(await read(file));
     await pool.query(setupSchema);
-    await pool.query(await read("../../../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql"));
+    await pool.query(await read("../../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql"));
   });
 
   beforeEach(async () => {
