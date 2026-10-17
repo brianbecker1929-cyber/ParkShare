@@ -82,7 +82,7 @@ export default async function handler(req, res) {
         recipientId = user.id === listing.host_id ? booking.renter_id : listing.host_id;
       } else if (user.id === listing.host_id) {
         if (!participantId || participantId === user.id
-          || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(participantId)) {
+          || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId)) {
           return res.status(400).json({ error: "Choose an existing Driver conversation before replying." });
         }
         // Prior to this fix, Host POST could name ANY user as participantId.
