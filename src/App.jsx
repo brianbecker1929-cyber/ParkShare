@@ -1345,12 +1345,14 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
         return;
       }
       setSubmitting(true);
-      const { error } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating: draft.rating,
-        text: draft.text.trim(),
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = session?.access_token ? await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ listingId: numericId, rating: draft.rating, text: draft.text.trim() }),
+      }) : null;
+      const result = response ? await response.json().catch(() => ({})) : {};
+      const error = response?.ok ? null : { message: result.error || "Please sign in to review." };
       setSubmitting(false);
       if (error) {
         setSubmitError(error.message);
@@ -5505,12 +5507,14 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 
     if (numericId !== null && user) {
       setSubmitting(true);
-      const { error: err } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating,
-        text: text.trim(),
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = session?.access_token ? await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ listingId: numericId, rating, text: text.trim() }),
+      }) : null;
+      const result = response ? await response.json().catch(() => ({})) : {};
+      const err = response?.ok ? null : { message: result.error || "Please sign in to review." };
       setSubmitting(false);
       if (err) {
         setError(err.message);
