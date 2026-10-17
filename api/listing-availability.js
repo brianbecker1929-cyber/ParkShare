@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     });
 
     const labels = rentableSpotLabels(listing);
-    const hostScheduleOpen = isListingAvailableForWindow(listing.availability, start, end);
+    const hostScheduleOpen = isListingAvailableForWindow(listing.availability, start, end, listing.time_zone);
     if (!hostScheduleOpen) {
       const spotStatus = Object.fromEntries(labels.map(label => [label, false]));
       return res.status(200).json({
