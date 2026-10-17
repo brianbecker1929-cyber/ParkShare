@@ -3010,7 +3010,7 @@ function EditListingModal({ listing, onClose, onSave }) {
 // across components; fine at this scale, worth revisiting with a shared
 // cache/context if this page gets hit often enough to matter.
 function useTransactions(user) {
-  const [data, setData] = useState({ spent: [], earned: [], payouts: [] });
+  const [data, setData] = useState({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -3036,7 +3036,7 @@ function useTransactions(user) {
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || "Couldn't load transactions.");
-        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [] });
+        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [], payoutsUnavailable: Boolean(json.payoutsUnavailable) });
       } catch (err) {
         if (!cancelled) setError(err.message || "Something went wrong.");
       } finally {
@@ -3136,7 +3136,12 @@ function TransactionsView({ user }) {
         );
       })}
 
-      {!loading && !error && section === "payouts" && data.payouts.length === 0 && (
+      {!loading && !error && section === "payouts" && data.payoutsUnavailable && (
+        <p role="status" style={{ fontSize: 13, color: C.navy, background: C.amberLight, border: "1px solid " + C.amber, borderRadius: 9, padding: "12px 14px" }}>
+          Stripe payout history is temporarily unavailable. Your booking payments and earnings remain accessible. Please check this tab again later.
+        </p>
+      )}
+      {!loading && !error && section === "payouts" && !data.payoutsUnavailable && data.payouts.length === 0 && (
         <p style={{ fontSize: 13, color: C.muted }}>No payouts yet.</p>
       )}
       {!loading && !error && section === "payouts" && data.payouts.map(p => {
