@@ -50,6 +50,14 @@ GRANT SELECT ON TABLE public.listings TO authenticated;
 GRANT SELECT ON TABLE public.profiles TO authenticated;
 GRANT SELECT ON TABLE public.reviews TO authenticated;
 
+-- Private Storage: PUBLIC bucket metadata currently permits anonymous URL
+-- reads bypassing API controls. Existing stored URL strings remain valid as
+-- lookup keys, but only the server will be authorized to download the object.
+UPDATE storage.buckets SET public = false WHERE id = 'listing-photos';
+-- Review any extra storage.objects SELECT policies before applying. Present
+-- QA policies allow ONLY the owning Host to SELECT objects.
+-- Never grant a blanket anonymous Storage SELECT policy.
+
 -- Never grant service-role privileges to browser/public roles.
 -- Service-role stays server-side and bypasses RLS as already configured.
 COMMIT;
