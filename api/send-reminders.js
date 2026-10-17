@@ -24,6 +24,7 @@
 // spot-map image, where previously only the ending reminder did. See
 // _email.js for the halfwayReminderHtml() design change.
 
+import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
@@ -199,7 +200,7 @@ async function sendReminder(booking, kind) {
     // ExtendSessionModal directly for this booking, same pattern already
     // used for booking_success/booking_cancelled/stripe_onboarding.
     extendUrl: `https://www.myparkshare.ca/?extend_booking=${booking.id}`,
-    supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+    supportEmail: process.env.SUPPORT_EMAIL || SUPPORT_EMAIL,
     supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
   };
 
