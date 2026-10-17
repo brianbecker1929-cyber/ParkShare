@@ -9,6 +9,7 @@
 - **Production** Supabase had 27 bookings (24 confirmed, 3 refunded), with 27 distinct Checkout Session identifiers; all 27 rows have a PaymentIntent and valid listing/renter FK references. Last created booking was October 11. None were created October 14–16.
 - The QA Supabase project has listing IDs 4 and 16; neither exists in production. This suggests checking for **test/QA events delivered to the production webhook**, but does **not** prove the same events belong to those QA listings.
 - These observations do not prove whether any October 14–16 charge succeeded. **Do not mark the incident resolved until the Stripe records are inspected.**
+- Production booking foreign keys still use **ON DELETE CASCADE** for listings and Driver profiles, which can erase related payment history when a parent row is deleted. QA has already changed the listing FK to **ON DELETE RESTRICT**. Do **not** perform production deletions or migrations as part of this audit; schedule a separate review of booking-history retention and the migration rollout.
 
 ## A. Inspect Stripe webhooks — no changes
 
