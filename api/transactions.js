@@ -21,6 +21,7 @@
 // endpoint IS the access-control boundary, same as those.
 
 import { jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
+import { loadTransactionHistory } from "./_transaction-history.js";
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
@@ -29,13 +30,17 @@ export default async function handler(req, res) {
     const user = await requireUser(req, res);
     if (!user) return;
 
-    const [spent, earned, payouts] = await Promise.all([
-      getSpentTransactions(user.id),
-      getEarnedTransactions(user.id),
-      getPayouts(user.id),
-    ]);
+    const result = await loadTransactionHistory({
+      loadSpent: () => getSpentTransactions(user.id),
+      loadEarned: () => getEarnedTransactions(user.id),
+      loadPayouts: () => getPayouts(user.id),
+      onPayoutError: (error) => {
+        // Do not expose Stripe's error details to the browser.
+        console.warn("[transactions] Stripe payouts unavailable:", error?.code || error?.type || "unknown");
+      },
+    });
 
-    return res.status(200).json({ spent, earned, payouts });
+    return res.status(200).json(result);
   } catch (error) {
     console.error("transactions error:", error);
     return res.status(500).json({ error: error.message || "Unable to load transactions." });
