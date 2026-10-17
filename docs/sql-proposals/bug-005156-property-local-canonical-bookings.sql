@@ -21,6 +21,27 @@ ALTER TABLE public.listings
   ADD CONSTRAINT listings_time_zone_max_length
   CHECK (time_zone IS NULL OR length(time_zone) BETWEEN 3 AND 100);
 
+-- Critical: Hosts have direct authenticated UPDATE access to their own
+-- listing rows. Without this trigger they could spoof a different zone via
+-- the Data API. Protect the server-approved IANA time-zone assignment.
+CREATE OR REPLACE FUNCTION public.listings_enforce_trusted_time_zone()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER AS $tz_guard$
+BEGIN
+  IF (
+    (TG_OP = 'INSERT' AND NEW.time_zone IS NOT NULL)
+    OR (TG_OP = 'UPDATE' AND NEW.time_zone IS DISTINCT FROM OLD.time_zone)
+  ) AND current_user NOT IN ('service_role', 'postgres', 'supabase_admin') THEN
+    RAISE EXCEPTION USING ERRCODE='42501',
+      MESSAGE='Only a trusted ParkShare server can assign a property time zone';
+  END IF;
+  RETURN NEW;
+END;
+$tz_guard$;
+DROP TRIGGER IF EXISTS listings_trusted_time_zone_trigger ON public.listings;
+CREATE TRIGGER listings_trusted_time_zone_trigger
+BEFORE INSERT OR UPDATE ON public.listings
+FOR EACH ROW EXECUTE FUNCTION public.listings_enforce_trusted_time_zone();
+
 ALTER TABLE public.bookings
   ADD COLUMN IF NOT EXISTS scheduled_starts_at timestamptz;
 ALTER TABLE public.bookings
