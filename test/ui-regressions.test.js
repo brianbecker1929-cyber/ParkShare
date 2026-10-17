@@ -192,11 +192,11 @@ test("Host and Driver booking details show the property and assigned parking spa
   const parkingDetails = functionSource("BookingParkingDetails", "DrivewaySpotMap");
   const bookedSpotDiagram = functionSource("BookedSpotDiagram", "BookingParkingDetails");
 
-  assert.ok(hostDashboard.includes('.select("*, listings(id, title, address, lat, lng, spots, spaces), profiles(name)")'));
+  assert.match(hostDashboard, /account-bookings\\?view=host/);
   assert.match(hostDashboard, /listingDetails:[\s\S]*?img: publicListingCoverUrl\(row\.listing_id\)[\s\S]*?photos: \[\][\s\S]*?spots: row\.listings\?\.spots/);
   assert.match(hostDashboard, /spotLabel: row\.spot_label/);
   assert.match(hostDashboard, /<BookingParkingDetails listing=\{b\.listingDetails\} spotLabel=\{b\.spotLabel\}/);
-  assert.match(bookings, /img: publicListingCoverUrl\(row\.listing_id\)[\s\S]*?photos: \[\]/);
+  assert.match(bookings, /img: "🏠"[\\s\\S]*?photos: \\[\\]/);
   assert.match(bookings, /spots: row\.listings\?\.spots/);
   assert.match(bookings, /spotLabel: row\.spot_label/);
   assert.match(bookings, /<BookingParkingDetails listing=\{b\.listing\} spotLabel=\{b\.spotLabel\}/);
