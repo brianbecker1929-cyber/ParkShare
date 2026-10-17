@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
-import { PUBLIC_LISTING_SELECT, publicListingCoverUrl } from "./lib/publicListings";
+import { publicListingCoverUrl } from "./lib/publicListings";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -1313,25 +1313,20 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
   const [submitting, setSubmitting] = useState(false);
   const [localReviews, setLocalReviews] = useState(REVIEWS_DATA[listing.id] || []);
 
-  const loadReviews = () => {
+  const loadReviews = async () => {
     if (!isRealListing) return;
-    supabase
-      .from("reviews")
-      .select("*, profiles(name)")
-      .eq("listing_id", numericId)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error || !data) return;
-        setLocalReviews(
-          data.map(row => ({
-            id: row.id,
-            user: row.profiles?.name || "Renter",
-            rating: row.rating,
-            date: new Date(row.created_at).toLocaleDateString(),
-            text: row.text,
-          }))
-        );
-      });
+    try {
+      const response = await fetch("/api/public-reviews?listingId=" + numericId);
+      if (!response.ok) throw new Error("Reviews unavailable");
+      const { reviews } = await response.json();
+      setLocalReviews((reviews || []).map((row, index) => ({
+        id: numericId + "-" + index,
+        user: row.user || "ParkShare driver",
+        rating: row.rating, date: row.date || "", text: row.text || "",
+      })));
+    } catch (error) {
+      console.error("Couldn't load privacy-safe review summary:", error);
+    }
   };
 
   useEffect(() => { loadReviews(); }, [listing.id]);
@@ -1743,7 +1738,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       {listing.walkLabel && <WalkingTimeLabel label={listing.walkLabel} className="ps-listing-detail-walk-time" />}
 
       <div style={{ marginBottom: 14 }}>
-        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview route</Btn>
+        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview approximate route</Btn>
       </div>
 
       {liveAvailability && (
@@ -1781,7 +1776,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Where you'll park</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Approximate parking area</div>
             <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={(listing.spots || []).filter(hasValidBounds)} />
           </div>
         </SpotMapBoundary>
@@ -2092,47 +2087,32 @@ function useAllListings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const refresh = () => {
+  const refresh = async () => {
     setLoading(true);
     setError("");
-    supabase
-      .from("listings")
-      .select(PUBLIC_LISTING_SELECT)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Couldn't load public listings:", error);
-          setError("We couldn't load available driveways right now.");
-          setLoading(false);
-          return;
-        }
-        setDbListings(
-          (data || []).map(row => ({
-            id: "db-" + row.id,
-            title: row.title,
-            address: row.address,
-            price: Number(row.price),
-            rating: row.reviews?.length ? row.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / row.reviews.length : 0,
-            reviewCount: row.reviews?.length || 0,
-            spaces: row.spaces,
-            features: row.features || [],
-            description: row.description || "",
-            // No embedded Base64 photo blobs in the public listings response.
-            // Historical covers are served lazily and resized by a dedicated
-            // cacheable endpoint; new Storage URLs redirect to our own bucket.
-            img: publicListingCoverUrl(row.id) || "🏠",
-            photos: [],
-            distance: "—",
-            lat: row.lat,
-            lng: row.lng,
-            spots: row.spots || [],
-            availability: row.availability || null,
-            host: row.profiles?.name || "Host",
-            hostImg: "🧑",
-          }))
-        );
-        setLoading(false);
-      });
+    try {
+      const response = await fetch("/api/public-parking");
+      if (!response.ok) throw new Error("Public listings unavailable");
+      const payload = await response.json();
+      if (!Array.isArray(payload.listings)) throw new Error("Unexpected parking response");
+      setDbListings(payload.listings.map(row => ({
+        id: "db-" + row.id,
+        title: row.title, address: row.address,
+        price: row.price, rating: row.rating || 0, reviewCount: row.reviewCount || 0,
+        spaces: row.spaces, features: row.features || [], description: "",
+        // Anonymous discovery never loads property photographs which can reveal
+        // house numbers or identifying details.
+        img: "🏠", photos: [], distance: "—",
+        lat: row.lat, lng: row.lng, spots: row.spots || [], availability: null,
+        host: row.host || "ParkShare Host", hostImg: "🧑",
+        locationPrecision: "approximate",
+      })));
+    } catch (error) {
+      console.error("Couldn't load privacy-safe public parking:", error);
+      setError("We couldn't load available driveways right now.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { refresh(); }, []);
@@ -2673,7 +2653,13 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
 
     setWalkingRoutes({});
     setWalkingRoutesLoading(true);
-    computeWalkingRoutes(allListings, userLoc)
+    // Coarse public map coordinates cannot generate exact walking routes.
+    const preciseListings = allListings.filter(l => l.locationPrecision !== "approximate");
+    if (!preciseListings.length) {
+      setWalkingRoutesLoading(false);
+      return () => { cancelled = true; };
+    }
+    computeWalkingRoutes(preciseListings, userLoc)
       .then(routes => {
         if (!cancelled) setWalkingRoutes(routes);
       })
@@ -3260,11 +3246,15 @@ function HostDashboard({ user, setTab }) {
   useEffect(() => {
     if (!user) return;
 
-    supabase
-      .from("listings")
-      .select("id, title, address, price, description, features, spaces, spots")
-      .eq("host_id", user.id)
-      .then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!session?.access_token) return;
+        const response = await fetch("/api/account-bookings?view=host", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const data = payload.listings;
+        const error = null;
         if (error || !data) return;
         setDbListings(
           data.map(row => ({
@@ -3292,11 +3282,7 @@ function HostDashboard({ user, setTab }) {
         }
 
         const listingTitles = Object.fromEntries(data.map(row => [row.id, row.title]));
-        supabase
-          .from("reviews")
-          .select("*, profiles(name)")
-          .in("listing_id", listingIds)
-          .order("created_at", { ascending: false })
+        Promise.resolve({ data: payload.reviews, error: null })
           .then(({ data: reviewRows, error: reviewError }) => {
             if (reviewError || !reviewRows) return;
             setHostReviews(reviewRows.map(row => ({
@@ -3309,11 +3295,7 @@ function HostDashboard({ user, setTab }) {
             })));
           });
 
-        supabase
-          .from("bookings")
-          .select("*, listings(id, title, address, lat, lng, spots, spaces), profiles(name)")
-          .in("listing_id", listingIds)
-          .order("created_at", { ascending: false })
+        Promise.resolve({ data: payload.bookings, error: null })
           .then(({ data: bookingRows, error: bookingErr }) => {
             if (bookingErr || !bookingRows) return;
             const now = Date.now();
@@ -5222,12 +5204,18 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("bookings")
-      .select("*, listings(id, title, address, lat, lng, spots, spaces, description, profiles(name))")
-      .eq("renter_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        let data = null;
+        let error = null;
+        try {
+          if (!session?.access_token) throw new Error("Session expired");
+          const response = await fetch("/api/account-bookings?view=driver", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!response.ok) throw new Error("Bookings unavailable");
+          const payload = await response.json();
+          data = payload.bookings;
+        } catch (err) { error = err; }
         setLoading(false);
         if (error || !data) {
           setLoadError("We couldn't load your bookings right now. Please try again.");
