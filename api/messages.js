@@ -1,4 +1,6 @@
 // Authenticated booking-aware messaging endpoint.
+// The Data API must NOT provide direct message writes: server owns sender
+// and validates the recipient. See review-only SQL proposal in docs/sql-proposals.
 // Keeping participant checks server-side prevents a listing-wide conversation
 // from leaking between unrelated renters and surfaces insert errors to the UI.
 
@@ -79,8 +81,25 @@ export default async function handler(req, res) {
         }
         recipientId = user.id === listing.host_id ? booking.renter_id : listing.host_id;
       } else if (user.id === listing.host_id) {
-        if (!participantId || participantId === user.id) {
-          return res.status(400).json({ error: "Choose a renter conversation before replying." });
+        if (!participantId || participantId === user.id
+          || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(participantId)) {
+          return res.status(400).json({ error: "Choose an existing Driver conversation before replying." });
+        }
+        // Prior to this fix, Host POST could name ANY user as participantId.
+        // Restrict this path to an actual Driver who already messaged this
+        // Host about this SAME listing. Hosts messaging a booked Driver from
+        // a booking card must include bookingId; bookingFor() checks both
+        // party IDs and the listing above.
+        const { data: conversation, error: participantError } = await supabaseAdmin
+          .from("messages")
+          .select("id")
+          .eq("listing_id", listingId)
+          .eq("sender_id", participantId)
+          .eq("recipient_id", user.id)
+          .limit(1);
+        if (participantError) throw participantError;
+        if (!conversation?.length) {
+          return res.status(403).json({ error: "You can reply only to a Driver who contacted you about this listing." });
         }
         recipientId = participantId;
       } else {
