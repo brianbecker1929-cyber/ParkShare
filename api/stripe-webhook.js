@@ -6,6 +6,7 @@ import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
+import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
@@ -53,13 +54,29 @@ async function syncConnectedAccount(account) {
 }
 
 async function hostAccountForListing(listingId) {
-  const { data: listing, error: listingError } = await supabaseAdmin
-    .from("listings").select("id, host_id").eq("id", listingId).single();
-  if (listingError || !listing) throw new CheckoutIntegrityError("Listing for paid Checkout is missing");
-  const { data: host, error: hostError } = await supabaseAdmin
-    .from("profiles").select("stripe_account_id").eq("id", listing.host_id).single();
-  if (hostError || !host?.stripe_account_id) throw new CheckoutIntegrityError("Host Stripe account is missing");
+  const { data: listing, error: listingError } = await readCheckoutDb(
+    () => supabaseAdmin.from("listings")
+      .select("id, host_id").eq("id", listingId).single(),
+    "listing_lookup"
+  );
+  // CRITICAL: a 522/504/PostgREST outage is NOT a payment-integrity
+  // failure and must never be converted into an automatic Stripe refund.
+  if (listingError && !isMissingSupabaseRow(listingError)) throw listingError;
+  if (!listing) throw new CheckoutIntegrityError("Listing for paid Checkout is missing");
+  const { data: host, error: hostError } = await readCheckoutDb(
+    () => supabaseAdmin.from("profiles")
+      .select("stripe_account_id").eq("id", listing.host_id).single(),
+    "host_account_lookup"
+  );
+  if (hostError && !isMissingSupabaseRow(hostError)) throw hostError;
+  if (!host?.stripe_account_id) throw new CheckoutIntegrityError("Host Stripe account is missing");
   return { hostId: listing.host_id, connectedAccountId: host.stripe_account_id };
+}
+
+function readCheckoutDb(query, stage) {
+  return retryTransientSupabaseRead(query, {
+    onRetry: (attempt) => console.warn("[webhook] retrying transient Supabase read", { stage, attempt }),
+  });
 }
 
 async function validatedIntent(session, connectedAccountId, expectedConnectedAccountId, hostConnectedAccountId, expectedTotalCents, expectedApplicationFeeCents) {
@@ -540,22 +557,29 @@ async function processPaidCheckout(session, connectedAccountId) {
 
   // Stripe can retry an already handled webhook after its short-lived hold
   // has been deleted. This check MUST precede the missing-hold rejection.
-  const { data: existingBooking, error: bookedError } = await supabaseAdmin
-    .from("bookings").select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
+  const { data: existingBooking, error: bookedError } = await readCheckoutDb(
+    () => supabaseAdmin.from("bookings").select("id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "booking_idempotency_lookup"
+  );
   if (bookedError) throw bookedError;
   if (existingBooking) return;
-  const { data: existingExtension, error: extendedError } = await supabaseAdmin
-    .from("booking_extensions").select("id").eq("stripe_checkout_session_id", session.id).maybeSingle();
+  const { data: existingExtension, error: extendedError } = await readCheckoutDb(
+    () => supabaseAdmin.from("booking_extensions").select("id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "extension_idempotency_lookup"
+  );
   if (extendedError) throw extendedError;
   if (existingExtension) return;
 
   // Look up the session ID from trusted database rows. Do NOT select a
   // booking/extension using event.metadata.type, listing_id or booking_id.
-  const { data: hold, error: holdError } = await supabaseAdmin
-    .from("booking_holds")
-    .select("id, listing_id, renter_id, spot_label, starts_at, ends_at, expected_total_cents, expected_connected_account_id, checkout_metadata, stripe_checkout_session_id")
-    .eq("stripe_checkout_session_id", session.id)
-    .maybeSingle();
+  const { data: hold, error: holdError } = await readCheckoutDb(
+    () => supabaseAdmin.from("booking_holds")
+      .select("id, listing_id, renter_id, spot_label, starts_at, ends_at, expected_total_cents, expected_connected_account_id, checkout_metadata, stripe_checkout_session_id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "registered_hold_lookup"
+  );
   if (holdError) throw holdError;
   if (hold) {
     try {
@@ -567,11 +591,12 @@ async function processPaidCheckout(session, connectedAccountId) {
     return;
   }
 
-  const { data: pending, error: pendingError } = await supabaseAdmin
-    .from("pending_booking_extensions")
-    .select("booking_id, renter_id, added_hours, expected_total_cents, expected_service_fee_cents, expected_connected_account_id, stripe_checkout_session_id")
-    .eq("stripe_checkout_session_id", session.id)
-    .maybeSingle();
+  const { data: pending, error: pendingError } = await readCheckoutDb(
+    () => supabaseAdmin.from("pending_booking_extensions")
+      .select("booking_id, renter_id, added_hours, expected_total_cents, expected_service_fee_cents, expected_connected_account_id, stripe_checkout_session_id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "pending_extension_lookup"
+  );
   if (pendingError) throw pendingError;
   if (pending) {
     try {
