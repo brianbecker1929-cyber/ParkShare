@@ -23,7 +23,7 @@ test("Host booking queries exclude huge joined listing photos but keep reservati
   const start = app.indexOf("function HostDashboard(");
   const end = app.indexOf("function DrivewayFrame(", start);
   const host = app.slice(start, end);
-  assert.match(host, /\.select\("\*, listings\(id, title, address, lat, lng, spots, spaces\), profiles\(name\)\)"/);
+  assert.ok(host.includes('.select("*, listings(id, title, address, lat, lng, spots, spaces), profiles(name)")'));
   assert.doesNotMatch(host, /listings\(\*\)/);
   assert.match(host, /img: publicListingCoverUrl\(row\.listing_id\)/);
   assert.match(host, /photos: \[\]/);
@@ -37,7 +37,7 @@ test("Driver My Bookings excludes embedded legacy photos without losing Host nam
   const start = app.indexOf("function MyBookingsView(");
   const end = app.indexOf("// Scroll to and briefly highlight", start);
   const driver = app.slice(start, end);
-  assert.match(driver, /\.select\("\*, listings\(id, title, address, lat, lng, spots, spaces, description, profiles\(name\)\)\)"/);
+  assert.ok(driver.includes('.select("*, listings(id, title, address, lat, lng, spots, spaces, description, profiles(name))")'));
   assert.doesNotMatch(driver, /listings\(\*/);
   assert.match(driver, /img: publicListingCoverUrl\(row\.listing_id\)/);
   assert.match(driver, /row\.listings\?\.profiles\?\.name/);
