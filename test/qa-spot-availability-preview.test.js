@@ -35,5 +35,5 @@ test("real satellite picker and payment preview both receive the same window-spe
   assert.match(detail, /<ListingSatelliteView[^>]+availableData=\{selectedAvailability\} isRealListing=\{numericIdForAvailability !== null\}/);
   assert.match(detail, /<PaymentModal[\s\S]*?availableData=\{selectedAvailability\}/);
   assert.match(payment, /function PaymentModal\([^\n]+availableData = null/);
-  assert.match(payment, /<SpotPicker[^>]+availableData=\{availableData\} isRealListing=\{isRealListing\}/);
+  assert.match(payment, /<SpotPicker[^\n]+availableData=\{availableData\} isRealListing=\{isRealListing\}/);
 });
