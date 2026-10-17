@@ -48,22 +48,28 @@ export default async function handler(req, res) {
     })) return res.status(404).end();
     res.setHeader("Cache-Control", "private, no-store");
 
-    // New photos live in the public Storage bucket. Never redirect to
-    // arbitrary Host-controlled URLs or different projects/domains.
-    const redirectUrl = trustedListingStorageUrl(
+    let buffer;
+    const ownStorageUrl = trustedListingStorageUrl(
       listing.img, process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
     );
-    if (redirectUrl) {
-      res.setHeader("Cache-Control", "private, no-store");
-      res.setHeader("Location", redirectUrl);
-      return res.status(302).end();
+    if (ownStorageUrl) {
+      // The listing-photos bucket will be PRIVATE under the coordinated SQL
+      // migration. An authorized server downloads from Storage; do not 302
+      // redirect to a directly accessible public-object URL.
+      const prefix = "/storage/v1/object/public/listing-photos/";
+      const encodedPath = new URL(ownStorageUrl).pathname.slice(prefix.length);
+      const path = decodeURIComponent(encodedPath);
+      if (!/^[0-9a-f-]{36}\\/[0-9a-f-]{36}\\.(?:jpg|png|webp)$/i.test(path)) {
+        return res.status(404).end();
+      }
+      const result = await supabaseAdmin.storage.from("listing-photos").download(path);
+      if (result.error || !result.data) return res.status(404).end();
+      buffer = Buffer.from(await result.data.arrayBuffer());
+    } else {
+      const embedded = embeddedPhotoData(listing.img);
+      if (!embedded) return res.status(404).end();
+      buffer = Buffer.from(embedded.base64, "base64");
     }
-
-    const embedded = embeddedPhotoData(listing.img);
-    if (!embedded) return res.status(404).end();
-
-    // Avoid large serverless responses and cache a small photo instead.
-    const buffer = Buffer.from(embedded.base64, "base64");
     if (!buffer.length || buffer.length > MAX_LEGACY_IMAGE_BYTES) {
       return res.status(413).end();
     }
