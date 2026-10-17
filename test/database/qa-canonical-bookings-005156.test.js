@@ -34,6 +34,25 @@ describe("BUG-005156 canonical booking SQL on disposable Postgres",{skip:!db,con
   });
   after(async()=>{await pool?.end()});
 
+  test("untrusted Host cannot manipulate property timezone, admin can approve verified zone",async()=>{
+    // Direct Data API UPDATE is filtered by PostgreSQL current_user, not
+    // a caller-controlled JWT property or Host-supplied timezone string.
+    await pool.query("GRANT USAGE ON SCHEMA public TO authenticated");
+    await pool.query("GRANT UPDATE ON public.listings TO authenticated");
+    const client=await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SET LOCAL ROLE authenticated");
+      await assert.rejects(client.query(
+        "UPDATE public.listings SET time_zone='Pacific/Honolulu' WHERE id=$1",[listing]),
+        err=>err.code==="42501");
+      await client.query("ROLLBACK");
+    } finally { client.release(); }
+    await pool.query("UPDATE public.listings SET time_zone='America/Toronto' WHERE id=$1",[listing]);
+    const row=await pool.query("SELECT time_zone FROM public.listings WHERE id=$1",[listing]);
+    assert.equal(row.rows[0].time_zone,"America/Toronto");
+  });
+
   test("old paid reservation still has exact same UTC session interval",async()=>{
     const r=await pool.query("SELECT lower(session_range) AS start,upper(session_range) AS finish,scheduled_starts_at FROM public.bookings WHERE id=$1",[legacyId]);
     assert.equal(new Date(r.rows[0].start).toISOString(),"2026-10-20T14:00:00.000Z");
