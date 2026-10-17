@@ -56,7 +56,7 @@ export default async function handler(req, res) {
   const since = new Date(now.getTime() - 31 * 24 * 3600 * 1000).toISOString();
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, reminder_halfway_sent_at, reminder_ending_sent_at")
+    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, reminder_halfway_sent_at, reminder_ending_sent_at")
     .eq("status", "confirmed")
     .not("paid_at", "is", null)
     .gte("paid_at", since)
@@ -136,7 +136,7 @@ async function sendReminder(booking, kind) {
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
   const endDate = new Date(booking.end);
   const { start } = getSessionWindow(booking);
-  const times = formatBookingEmailTimes(start, endDate, nowDate);
+  const times = formatBookingEmailTimes(start, endDate, nowDate, booking.property_time_zone || undefined);
   const address = listing?.address || "";
   const renterName = renter.name || "there";
 
