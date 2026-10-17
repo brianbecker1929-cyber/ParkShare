@@ -287,7 +287,7 @@ const INITIAL_THREADS = {
 function ListingThumb({ listing, size, fontSize, style }) {
   const isPhoto = isListingImageUrl(listing.img);
   if (isPhoto) {
-    return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
+    return <img src={listing.img} alt={listing.title || "Driveway"} loading="lazy" decoding="async" style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
   return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{listing.img}</span>;
 }
@@ -2096,7 +2096,7 @@ function useAllListings() {
     setError("");
     supabase
       .from("listings")
-      .select("*, profiles(name), reviews(rating)")
+      .select("id, title, address, price, spaces, features, description, lat, lng, spots, availability, created_at, profiles(name), reviews(rating)")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
@@ -2116,8 +2116,10 @@ function useAllListings() {
             spaces: row.spaces,
             features: row.features || [],
             description: row.description || "",
-            img: row.img || "🏠",
-            photos: row.photos || [],
+            // Cover image is loaded separately only when displayed.
+            // Never fetch huge legacy Base64 img/photos in the public listing search.
+            img: `/api/listing-cover?listingId=${row.id}`,
+            photos: [],
             distance: "—",
             lat: row.lat,
             lng: row.lng,
