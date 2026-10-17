@@ -38,7 +38,7 @@ describe("BUG-005156 canonical booking SQL on disposable Postgres",{skip:!db,con
     // Direct Data API UPDATE is filtered by PostgreSQL current_user, not
     // a caller-controlled JWT property or Host-supplied timezone string.
     await pool.query("GRANT USAGE ON SCHEMA public TO authenticated");
-    await pool.query("GRANT UPDATE ON public.listings TO authenticated");
+    await pool.query("GRANT SELECT, UPDATE ON public.listings TO authenticated");
     const client=await pool.connect();
     try {
       await client.query("BEGIN");
@@ -49,6 +49,16 @@ describe("BUG-005156 canonical booking SQL on disposable Postgres",{skip:!db,con
       await client.query("ROLLBACK");
     } finally { client.release(); }
     await pool.query("UPDATE public.listings SET time_zone='America/Toronto' WHERE id=$1",[listing]);
+    // Ordinary Host listing edits must remain authorized after zone is set.
+    const client2=await pool.connect();
+    try {
+      await client2.query("BEGIN");
+      await client2.query("SET LOCAL ROLE authenticated");
+      const edited=await client2.query(
+        "UPDATE public.listings SET spaces=3 WHERE id=$1 RETURNING spaces",[listing]);
+      assert.equal(edited.rows[0].spaces,3);
+      await client2.query("COMMIT");
+    } finally { client2.release(); }
     const row=await pool.query("SELECT time_zone FROM public.listings WHERE id=$1",[listing]);
     assert.equal(row.rows[0].time_zone,"America/Toronto");
   });
