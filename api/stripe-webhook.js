@@ -7,6 +7,7 @@ import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
+import { isExpectedCheckoutTermination, matchesRegisteredCheckoutAccount, canFailUnpaidBooking } from "./_checkout-terminal-safety.js";
 import { PaidCheckoutReferenceError, requirePaidCheckoutReference, translatePaidBookingInsertError, paidCheckoutReferenceLog } from "./_paid-checkout-reference.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
@@ -634,6 +635,101 @@ async function processPaidCheckout(session, connectedAccountId) {
   });
 }
 
+// A signed expired/async-failed Checkout notification is NOT permission to
+// mutate a paid booking. Stripe may redeliver or reorder events. Only perform
+// cleanup for a still-unpaid terminal session, on its verified connected
+// account and exact registered service-role hold/pending extension.
+// This is read/cleanup logic only: it never creates charges or refunds.
+async function processCheckoutTermination(event) {
+  const session = event.data?.object;
+  const connectedAccountId = event.account;
+  if (!session?.id || !connectedAccountId) return;
+
+  // The event snapshot may be stale. Fetch the actual Session directly from
+  // the *same* Stripe connected account, before modifying database records.
+  const current = await stripe.checkout.sessions.retrieve(
+    session.id, {}, { stripeAccount: connectedAccountId }
+  );
+  if (typeof event.livemode !== "boolean" ||
+      event.livemode !== session.livemode ||
+      !isExpectedCheckoutTermination(session, current, event.type, connectedAccountId)) {
+    console.warn("[checkout-terminal] ignored nonterminal or mismatched session", {
+      eventId: event.id, sessionId: session.id, eventType: event.type,
+      connectedAccountId,
+    });
+    return;
+  }
+
+  // Never change a confirmed, refunded, disputed or otherwise paid booking
+  // back to "payment_failed". This check also protects already-finalized
+  // Stripe Checkout sessions whose booking hold has been consumed.
+  const { data: booking, error: bookingError } = await readCheckoutDb(
+    () => supabaseAdmin.from("bookings")
+      .select("id, status, paid_at, stripe_connected_account_id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "terminal_booking_lookup"
+  );
+  if (bookingError) throw bookingError;
+  if (booking && !canFailUnpaidBooking(booking, connectedAccountId)) return;
+
+  const { data: hold, error: holdError } = await readCheckoutDb(
+    () => supabaseAdmin.from("booking_holds")
+      .select("id, expected_connected_account_id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "terminal_registered_hold_lookup"
+  );
+  if (holdError) throw holdError;
+
+  const { data: pending, error: pendingError } = await readCheckoutDb(
+    () => supabaseAdmin.from("pending_booking_extensions")
+      .select("id, expected_connected_account_id")
+      .eq("stripe_checkout_session_id", session.id).maybeSingle(),
+    "terminal_pending_extension_lookup"
+  );
+  if (pendingError) throw pendingError;
+
+  // Missing or contradictory registration evidence means no destructive
+  // cleanup. Host-controlled Stripe metadata cannot supply authorization.
+  if (hold && pending) {
+    throw new Error("Ambiguous registered checkout terminal state; manual reconciliation required.");
+  }
+  if (hold && !matchesRegisteredCheckoutAccount(hold, connectedAccountId)) return;
+  if (pending && !matchesRegisteredCheckoutAccount(pending, connectedAccountId)) return;
+  if (booking && !hold && !pending) {
+    // A historic unpaid booking may exist without a current hold. Only
+    // fail it if this same connected account owns it and it is still pending.
+    if (!canFailUnpaidBooking(booking, connectedAccountId)) return;
+  }
+  if (!hold && !pending && !booking) return;
+
+  if (hold) {
+    const { error } = await supabaseAdmin.from("booking_holds").delete()
+      .eq("id", hold.id)
+      .eq("stripe_checkout_session_id", session.id)
+      .eq("expected_connected_account_id", connectedAccountId);
+    if (error) throw error;
+  }
+  if (pending) {
+    const { error } = await supabaseAdmin.from("pending_booking_extensions").delete()
+      .eq("id", pending.id)
+      .eq("stripe_checkout_session_id", session.id)
+      .eq("expected_connected_account_id", connectedAccountId);
+    if (error) throw error;
+  }
+  if (event.type === "checkout.session.async_payment_failed" && booking) {
+    // Defense in depth: second status predicate prevents a paid booking
+    // transitioning if a paid webhook was processed after the initial read.
+    const { error } = await supabaseAdmin.from("bookings")
+      .update({ status: "payment_failed" })
+      .eq("id", booking.id)
+      .eq("stripe_checkout_session_id", session.id)
+      .eq("stripe_connected_account_id", connectedAccountId)
+      .eq("status", "pending")
+      .is("paid_at", null);
+    if (error) throw error;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -658,24 +754,9 @@ export default async function handler(req, res) {
         break;
       }
 
-      case "checkout.session.async_payment_failed": {
-        const session = event.data.object;
-        // Never trust a Stripe Host's metadata to target another user's hold.
-        await supabaseAdmin.from("booking_holds").delete()
-          .eq("stripe_checkout_session_id", session.id);
-        await supabaseAdmin.from("pending_booking_extensions").delete()
-          .eq("stripe_checkout_session_id", session.id);
-        await supabaseAdmin.from("bookings").update({ status: "payment_failed" })
-          .eq("stripe_checkout_session_id", session.id);
-        break;
-      }
-
+      case "checkout.session.async_payment_failed":
       case "checkout.session.expired": {
-        const session = event.data.object;
-        await supabaseAdmin.from("booking_holds").delete()
-          .eq("stripe_checkout_session_id", session.id);
-        await supabaseAdmin.from("pending_booking_extensions").delete()
-          .eq("stripe_checkout_session_id", session.id);
+        await processCheckoutTermination(event);
         break;
       }
 
