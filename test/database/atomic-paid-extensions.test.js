@@ -70,17 +70,13 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
   after(async () => { await pool?.end(); });
 
   async function register(session, hours = 1, total = 115) {
-    const current = await pool.query(
-      "select upper(session_range) as current_end from public.bookings where id=$1", [bookingId]);
-    const start = new Date(current.rows[0].current_end);
-    const end = new Date(start.getTime() + hours * 3600000);
-    // Same service-role RPC used by create-extend-session, serialized on
-    // the listing lock. This MUST happen before Stripe Checkout is made.
+    // Same service-role RPC used by create-extend-session. It reserves
+    // the precise PostgreSQL session_range endpoint without JS ms truncation.
     const { rows: hold } = await pool.query(
-      "select public.create_booking_hold($1,$2,$3,$4,$5,$6) as id",
-      [listingId, RENTER, "A", start.toISOString(), end.toISOString(),
+      "select * from public.reserve_extension_checkout_hold($1,$2,$3,$4)",
+      [bookingId, RENTER, hours,
        new Date(Date.now() + 30 * 60 * 1000).toISOString()]);
-    const holdId = hold[0].id;
+    const holdId = hold[0].hold_id;
     await pool.query("update public.booking_holds set stripe_checkout_session_id=$2 where id=$1", [holdId, session]);
     await pool.query(`insert into public.pending_booking_extensions
       (booking_id,renter_id,added_hours,expected_total_cents,expected_service_fee_cents,
