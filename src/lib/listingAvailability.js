@@ -178,8 +178,19 @@ function isInstantAvailable(availability, instant) {
   return Boolean(day?.enabled && isMinuteInsideWindows(parts.minuteOfDay, day.windows));
 }
 
-export function isListingAvailableForWindow(input, startValue, endValue) {
+export function isListingAvailableForWindow(input, startValue, endValue, propertyTimeZone = null) {
   const availability = normalizeAvailability(input);
+  // A Host may configure a driveway while travelling: the historical
+  // availability.timezone can reflect their browser, not the property.
+  // New booking checks must use the server-verified property timezone when
+  // available, while keeping legacy callers compatible until migration.
+  if (propertyTimeZone !== null && propertyTimeZone !== undefined) {
+    if (typeof propertyTimeZone !== "string" || !propertyTimeZone.trim()) {
+      throw new RangeError("A verified property timezone is required.");
+    }
+    new Intl.DateTimeFormat("en-US", { timeZone: propertyTimeZone });
+    availability.timezone = propertyTimeZone;
+  }
   const start = new Date(startValue);
   const end = new Date(endValue);
   if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return false;
