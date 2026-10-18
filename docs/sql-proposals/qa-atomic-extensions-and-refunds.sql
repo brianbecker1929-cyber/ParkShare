@@ -78,7 +78,7 @@ DECLARE
  p public.pending_booking_extensions%ROWTYPE;
  b public.bookings%ROWTYPE;
  e public.booking_extensions%ROWTYPE;
- h public.booking_holds%ROWTYPE;
+ v_own_hold public.booking_holds%ROWTYPE;
  v_listing_id bigint;
  v_capacity int;
  v_old_end timestamptz;
@@ -137,13 +137,13 @@ BEGIN
  IF p.hold_id IS NULL THEN
   RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Registered extension is missing its reserved hold';
  END IF;
- SELECT * INTO h FROM public.booking_holds x WHERE x.id=p.hold_id FOR UPDATE;
- IF NOT FOUND OR h.listing_id IS DISTINCT FROM v_listing_id
-  OR h.renter_id IS DISTINCT FROM p_renter_id
-  OR h.stripe_checkout_session_id IS DISTINCT FROM p_checkout_session_id
-  OR h.starts_at IS DISTINCT FROM v_old_end
-  OR h.ends_at IS DISTINCT FROM v_new_end
-  OR nullif(upper(trim(h.spot_label)),'') IS DISTINCT FROM v_spot
+ SELECT * INTO v_own_hold FROM public.booking_holds x WHERE x.id=p.hold_id FOR UPDATE;
+ IF NOT FOUND OR v_own_hold.listing_id IS DISTINCT FROM v_listing_id
+  OR v_own_hold.renter_id IS DISTINCT FROM p_renter_id
+  OR v_own_hold.stripe_checkout_session_id IS DISTINCT FROM p_checkout_session_id
+  OR v_own_hold.starts_at IS DISTINCT FROM v_old_end
+  OR v_own_hold.ends_at IS DISTINCT FROM v_new_end
+  OR nullif(upper(trim(v_own_hold.spot_label)),'') IS DISTINCT FROM v_spot
  THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Registered extension hold does not match booking and Checkout'; END IF;
  SELECT greatest(coalesce(l.spaces,1),1) INTO v_capacity FROM public.listings l WHERE l.id=v_listing_id;
  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Listing missing'; END IF;
