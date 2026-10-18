@@ -784,8 +784,7 @@ export default async function handler(req, res) {
             label: "charge_refunded",
             // A stale partial snapshot must not rewrite a fully refunded or
             // disputed booking. Any later dispute/refund policy is manual.
-            excludeStatuses: reconciliation.status === "partially_refunded"
-              ? ["refunded", "disputed"] : ["disputed"],
+            excludeStatuses: ["refunded", "disputed"],
           });
         }
         break;
