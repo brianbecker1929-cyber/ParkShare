@@ -57,23 +57,27 @@ export default async function handler(req, res) {
     if (subtotalCents < 50) return res.status(400).json({ error: "Extension amount is too small." });
     const metadata = { type: "extension", booking_id: String(booking.id), added_hours: String(addedHours), total_cents: String(totalCents) };
     // Reserve the exact additional interval AT CHECKOUT, not only after
-    // payment. create_booking_hold takes the same listing advisory lock used
-    // for new bookings and is the atomic source of availability truth.
+    // payment. Postgres reads the canonical booking end with full timestamp
+    // precision and calls create_booking_hold under the listing advisory lock,
+    // so no JavaScript Date rounding gap can produce a false conflict.
     // Stripe requires >=30 minutes until expiry; 30m45s also fits the DB's
     // 31-minute maximum checkout-hold lease.
     const holdExpiresAt = new Date(Date.now() + 30 * 60 * 1000 + 45 * 1000);
-    const { data: holdId, error: holdError } = await supabaseAdmin.rpc("create_booking_hold", {
-      p_listing_id: listing.id,
+    const { data: reservedRows, error: holdError } = await supabaseAdmin.rpc("reserve_extension_checkout_hold", {
+      p_booking_id: booking.id,
       p_renter_id: user.id,
-      p_spot_label: booking.spot_label || null,
-      p_starts_at: current.end.toISOString(),
-      p_ends_at: extendedEnd.toISOString(),
+      p_added_hours: addedHours,
       p_expires_at: holdExpiresAt.toISOString(),
     });
     if (holdError?.code === "P0001") {
       return res.status(409).json({ error: "That additional parking time is already booked or held. Please choose another time." });
     }
-    if (holdError || !holdId) throw holdError || new Error("Unable to reserve additional time.");
+    if (holdError) throw holdError;
+    const reserved = Array.isArray(reservedRows) ? reservedRows[0] : reservedRows;
+    const holdId = reserved?.hold_id;
+    if (!holdId || !reserved?.starts_at || !reserved?.ends_at) {
+      throw new Error("Unable to reserve additional time.");
+    }
 
     let session;
     try {
