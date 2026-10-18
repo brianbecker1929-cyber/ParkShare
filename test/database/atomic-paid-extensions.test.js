@@ -103,6 +103,17 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
       sessions: extension.map(x=>x.stripe_checkout_session_id) };
   }
 
+  test("extension reservation obtains Driver quota lock before listing lock, matching hold RPC", async () => {
+    const { rows } = await pool.query(
+      "select pg_get_functiondef('public.reserve_extension_checkout_hold(bigint,uuid,numeric,timestamptz)'::regprocedure) as source");
+    const source = rows[0].source;
+    const driverLock = source.indexOf("PERFORM pg_catalog.pg_advisory_xact_lock(5118, hashtext(p_renter_id::text))");
+    const listingLock = source.indexOf("PERFORM pg_catalog.pg_advisory_xact_lock(v_listing_id)");
+    const nestedHold = source.indexOf("RETURN QUERY SELECT public.create_booking_hold(");
+    assert.ok(driverLock >= 0 && listingLock > driverLock && nestedHold > listingLock,
+      "must take Driver quota lock BEFORE listing lock BEFORE calling shared booking hold function");
+  });
+
   test("one payment increases booking hours and is idempotent on Stripe replay", async () => {
     await register("cs_one");
     const before = await state();
