@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
+import { calculateBookingAmounts } from "../api/_booking-rules.js";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { deleteHostListing } from "./lib/listingDeletion";
@@ -9,6 +11,7 @@ import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
 import { localCalendarDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
+import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -991,12 +994,17 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange, availableData = null }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const checkoutModalActive = useRef(false);
+  useEffect(() => {
+    checkoutModalActive.current = true;
+    return () => { checkoutModalActive.current = false; };
+  }, []);
   const bookableVehicles = getBookableVehicles(user || {});
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
@@ -1005,9 +1013,12 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-const subtotal = listing.price * hours;
-  const serviceFee = Math.round(subtotal * 0.15 * 100) / 100;
-  const total = subtotal + serviceFee;
+// Use the exact integer-cent calculation used by create-checkout-session.
+  // No floating-point/whole-dollar rounding drift between preview and Stripe.
+  const { subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(listing.price, hours);
+  const subtotal = subtotalCents / 100;
+  const serviceFee = serviceFeeCents / 100;
+  const total = totalCents / 100;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
@@ -1089,8 +1100,13 @@ const subtotal = listing.price * hours;
         throw new Error("Stripe checkout did not return a payment link.");
       }
 
+      // A sign-out or account switch may close this modal while an already-
+      // submitted Checkout request is in flight. Do not redirect a closed
+      // dialog to Stripe even if the server managed to issue a hold.
+      if (!checkoutModalActive.current) return;
       window.location.assign(data.url); // hand off to Stripe's hosted checkout page
     } catch (err) {
+      if (!checkoutModalActive.current) return;
       console.error("Stripe checkout error:", err);
       setRedirecting(false);
       setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
@@ -1231,7 +1247,7 @@ const subtotal = listing.price * hours;
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} availableData={availableData} isRealListing={isRealListing} vehicle={selectedVehicle} />
                 <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
@@ -1437,7 +1453,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null, availableData = null, isRealListing = false }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1468,19 +1484,25 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
           // physical space to both host and renter.
           const isRent = s.forRent;
           const myLabel = i;
-          const isChosen = isRent && chosen === myLabel;
+          // A satellite bay follows the same exact-window booking/hold check
+          // as the ordinary picker; free total capacity alone is insufficient.
+          const canPick = isRent && canChooseListingSpot({
+            isRealListing, hostRentable: isRent, availableData,
+            label: String.fromCharCode(65 + myLabel),
+          });
+          const isChosen = canPick && chosen === myLabel;
           return (
             <Rectangle
               key={s.id}
               bounds={s.bounds}
               options={{
-                fillColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                fillColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 fillOpacity: isChosen ? 0.55 : 0.35,
-                strokeColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                strokeColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 strokeWeight: isChosen ? 3 : 2,
-                clickable: interactive && isRent,
+                clickable: interactive && canPick,
               }}
-              onClick={isRent && interactive ? () => onChoose(myLabel) : undefined}
+              onClick={canPick && interactive ? () => onChoose(myLabel) : undefined}
             />
           );
         })}
@@ -1560,7 +1582,7 @@ const formatHour = (h) => {
   const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
   return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, initialSpotPickerOpen = true }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onRequestSignIn, user, initialSpotPickerOpen = true }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1603,6 +1625,24 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  // The selected spot and schedule stay in place across another tab's
+  // sign-out/sign-in. Rehydrate a valid saved vehicle when Auth catches up.
+  const lastBookingUserId = useRef(user?.id || null);
+  useEffect(() => {
+    const nextId = user?.id || null;
+    if (lastBookingUserId.current !== nextId) {
+      // A different account should never inherit an open payment dialog.
+      setShowPayment(false);
+      lastBookingUserId.current = nextId;
+    }
+    if (!user) {
+      setShowPayment(false);
+      return;
+    }
+    setSelectedVehicleId(current => bookableVehicles.some(vehicle => vehicle.id === current)
+      ? current
+      : (bookableVehicles.find(vehicle => vehicle.id === "primary") || bookableVehicles[0])?.id || "");
+  }, [user]);
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
@@ -1940,9 +1980,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
+              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
             </div>
             <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle}>Reserve & pay →</Btn>
+          {!user && (
+            <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
+              Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
+              <button type="button" onClick={onRequestSignIn}
+                style={{ marginLeft: 9, fontSize: 12, fontWeight: 700, color: C.navy, border: "none", background: "transparent", textDecoration: "underline", cursor: "pointer" }}>
+                Sign in
+              </button>
+            </div>
+          )}
+
           </div>
         </div>
       )}
@@ -1970,7 +2020,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} />
                   </div>
                 </SpotMapBoundary>
               ) : (
@@ -2040,6 +2090,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           selectedEvent={selectedEvent}
           selectedVehicleId={selectedVehicleId}
           onVehicleChange={setSelectedVehicleId}
+          availableData={selectedAvailability}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
@@ -2472,7 +2523,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
+function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, onRequestSignIn, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -2732,7 +2783,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
+  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} onRequestSignIn={onRequestSignIn} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -2921,6 +2972,8 @@ function EditListingModal({ listing, onClose, onSave }) {
 
   const save = async () => {
     setErr("");
+    const rate = validateHourlyRate(price);
+    if (!rate.valid) { setErr(rate.error); return; }
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
     setSaving(true);
@@ -2935,7 +2988,7 @@ function EditListingModal({ listing, onClose, onSave }) {
     }));
     const ok = await onSave({
       ...listing,
-      price,
+      price: rate.value,
       description,
       features,
       spots: newSpots,
@@ -2950,7 +3003,7 @@ function EditListingModal({ listing, onClose, onSave }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
-          <input type="number" min="1" value={price} onChange={e => setPrice(e.target.value)}
+          <input type="number" min="1" step="0.01" value={price} onChange={e => { setPrice(e.target.value); setErr(""); }} aria-invalid={Boolean(err && !validateHourlyRate(price).valid)}
             style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif" }} />
         </div>
 
@@ -3410,15 +3463,17 @@ function HostDashboard({ user, setTab }) {
   };
 
   const saveListingEdit = async (updated) => {
+    const rate = validateHourlyRate(updated.price);
+    if (!rate.valid) { alert(rate.error); return false; }
     const { error } = await supabase.from("listings").update({
-      price: Number(updated.price) || 1,
+      price: rate.value,
       description: updated.description,
       features: updated.features,
       spots: updated.spots,
       spaces: updated.spaces,
     }).eq("id", updated.rawId);
     if (error) { alert("Couldn't save changes: " + error.message); return false; }
-    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
+    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated, price: rate.value } : l));
     return true;
   };
 
@@ -4426,7 +4481,7 @@ function ListDrivewayView({ user }) {
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
-    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 7 },
+    !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
 
   const [submitted, setSubmitted] = useState(false);
@@ -4437,6 +4492,12 @@ function ListDrivewayView({ user }) {
     setUploadProgress("");
     if (!user || user.role !== "host") {
       setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
+    if (!rate.valid) {
+      setPublishError(rate.error);
+      setStep(7);
       return;
     }
     if (!form.photos.length) {
@@ -4455,7 +4516,7 @@ function ListDrivewayView({ user }) {
         host_id: user.id,
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
-        price: Number(form.price) || 12,
+        price: rate.value,
         spaces: rentableSpotCount || 1,
         features: listingFeatures,
         description: form.description || "",
@@ -4957,18 +5018,19 @@ function ListDrivewayView({ user }) {
             <label style={labelStyle}>Hourly rate (CAD)</label>
             <div style={{ position:"relative" }}>
               <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:C.muted }}>$</span>
-              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" placeholder="e.g. 12" value={form.price} onChange={e => update("price", e.target.value)} />
+              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" step="0.01" placeholder="e.g. 12" value={form.price} aria-invalid={Boolean(form.price && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid)} onChange={e => update("price", e.target.value)} />
             </div>
             <p style={{ fontSize:12, color:C.muted, marginTop:6 }}>Driveways in your area average $11–$18/hr.</p>
+            {form.price !== "" && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && <p role="alert" style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).error}</p>}
           </div>
-          {form.price && (
+          {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && (
             <ParkerTip pose="success">
               This driveway could earn its owner over <strong>{money(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12)}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
             </ParkerTip>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <Btn variant="pill" onClick={() => setStep(6)}>← Back</Btn>
-            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
+            <Btn variant="amber" disabled={!validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid} onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
           </div>
         </div>
       )}
@@ -5036,7 +5098,7 @@ function ListDrivewayView({ user }) {
               {/* Driver listing header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
                 <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, lineHeight: 1.3, margin: 0, flex: 1 }}>{form.street ? `Driveway at ${form.street}` : "New driveway listing"}</h3>
-                {Number(form.price) > 0 ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Rate not set</span>}
+                {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Invalid rate</span>}
               </div>
               <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, margin: "0 0 12px" }}>📍 {fullAddress || "Address not completed"}</p>
 
@@ -9899,7 +9961,9 @@ export default function App() {
       return;
     }
     const requestedRoute = getRouteForState(screen, tab, legalSection);
-    if (screen === "app" && requestedRoute.private) return;
+    // Signing in from the parking detail must not reset the selected
+    // driveway/spot/schedule or navigate away before checkout.
+    if (screen === "app" && (tab === "Browse" || requestedRoute.private)) return;
     moveToRoute("app", u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
   };
 
@@ -9913,36 +9977,19 @@ export default function App() {
     moveToRoute("app", "Browse");
   };
 
-  // Restore session on page load / refresh, and react to future sign-outs
-  // (e.g. token expiry) from anywhere in the app.
-  useEffect(() => {
-    let active = true;
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session || !active) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, name, role")
-        .eq("id", session.user.id)
-        .single();
-      if (profile && active) {
-        setUser(buildAppUser(profile, session.user));
-      }
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setAuthInitialScreen("recovery");
-        setShowAuth(true);
-      }
-      if (!session) setUser(null);
-    });
-
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+  // INITIAL_SESSION restores the saved session. SIGNED_IN / SIGNED_OUT
+  // also arrive across tabs. Defer Supabase reads outside the auth callback
+  // to avoid client deadlocks, and invalidate stale profile queries.
+  useEffect(() => createAuthSessionSynchronizer({
+    client: supabase,
+    buildUser: buildAppUser,
+    onUser: (nextUser) => setUser(nextUser),
+    onRecovery: () => {
+      setAuthInitialScreen("recovery");
+      setShowAuth(true);
+    },
+    onProfileUnavailable: () => console.warn("[auth] Profile unavailable after cross-tab session update"),
+  }), []);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
     setMessageBookingId(null);
@@ -10248,7 +10295,7 @@ export default function App() {
           )}
           {tab === "Browse" && (messageBookingId
             ? <EmailMessageListing bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
-            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
+            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
