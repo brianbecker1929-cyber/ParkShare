@@ -7,6 +7,7 @@ import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
+import { PaidCheckoutReferenceError, requirePaidCheckoutReference, translatePaidBookingInsertError, paidCheckoutReferenceLog } from "./_paid-checkout-reference.js";
 import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
@@ -62,15 +63,20 @@ async function hostAccountForListing(listingId) {
   // CRITICAL: a 522/504/PostgREST outage is NOT a payment-integrity
   // failure and must never be converted into an automatic Stripe refund.
   if (listingError && !isMissingSupabaseRow(listingError)) throw listingError;
-  if (!listing) throw new CheckoutIntegrityError("Listing for paid Checkout is missing");
+  const registeredListing = requirePaidCheckoutReference({ data: listing, error: listingError }, "listing_lookup");
   const { data: host, error: hostError } = await readCheckoutDb(
     () => supabaseAdmin.from("profiles")
-      .select("stripe_account_id").eq("id", listing.host_id).single(),
+      .select("stripe_account_id").eq("id", registeredListing.host_id).single(),
     "host_account_lookup"
   );
   if (hostError && !isMissingSupabaseRow(hostError)) throw hostError;
-  if (!host?.stripe_account_id) throw new CheckoutIntegrityError("Host Stripe account is missing");
-  return { hostId: listing.host_id, connectedAccountId: host.stripe_account_id };
+  const registeredHost = requirePaidCheckoutReference({ data: host, error: hostError }, "host_profile_lookup");
+  // A Host's payout connection may have changed after the Driver paid:
+  // do not automatically refund a paid booking on configuration drift.
+  if (!registeredHost.stripe_account_id) {
+    throw new PaidCheckoutReferenceError("host_account_unavailable", "account_review");
+  }
+  return { hostId: registeredListing.host_id, connectedAccountId: registeredHost.stripe_account_id };
 }
 
 function readCheckoutDb(query, stage) {
@@ -140,6 +146,16 @@ async function confirmBooking(session, connectedAccountId, hold) {
     host.connectedAccountId, totalCents, Number(metadata.service_fee_cents)
   );
 
+  // A paid checkout can arrive after a Driver's profile was deleted or
+  // from a misrouted environment. Check its FK parent before inserting.
+  // Never synthesize profiles or auto-refund a genuine charged customer.
+  const { data: renterProfile, error: renterError } = await readCheckoutDb(
+    () => supabaseAdmin.from("profiles")
+      .select("id").eq("id", hold.renter_id).single(),
+    "paid_renter_reference_lookup"
+  );
+  requirePaidCheckoutReference({ data: renterProfile, error: renterError }, "renter_profile_lookup");
+
   const row = {
     listing_id: listingId,
     renter_id: hold.renter_id,
@@ -207,7 +223,7 @@ async function confirmBooking(session, connectedAccountId, hold) {
       console.error("Automatically refunded conflicting paid checkout", session.id);
       return;
     }
-    throw error;
+    throw translatePaidBookingInsertError(error);
   }
 
   await supabaseAdmin.from("booking_holds").delete()
@@ -233,9 +249,10 @@ async function confirmExtension(session, connectedAccountId, pending) {
     .select("id, listing_id, renter_id, status, hours, stripe_connected_account_id")
     .eq("id", bookingId)
     .single();
-  if (bookingError || !booking || booking.status !== "confirmed"
-      || String(booking.renter_id) !== String(pending.renter_id)
-      || booking.stripe_connected_account_id !== connectedAccountId) {
+  const registeredBooking = requirePaidCheckoutReference({ data: booking, error: bookingError }, "extension_parent_booking");
+  if (registeredBooking.status !== "confirmed"
+      || String(registeredBooking.renter_id) !== String(pending.renter_id)
+      || registeredBooking.stripe_connected_account_id !== connectedAccountId) {
     throw new CheckoutIntegrityError("Paid extension does not match an eligible Driver booking");
   }
   const host = await hostAccountForListing(booking.listing_id);
@@ -723,7 +740,20 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ received: true });
   } catch (error) {
-    console.error(`Webhook handler failed for ${event.type}:`, error);
+    const referenceNotice = paidCheckoutReferenceLog(error, {
+      eventId: event.id,
+      sessionId: event.data?.object?.id,
+      eventType: event.type,
+      connectedAccountId: event.account || null,
+      livemode: event.livemode,
+    });
+    if (referenceNotice) {
+      // A durable payment audit / operator reconciliation is required.
+      // Keep HTTP 500 for signed Stripe retry; no refund or synthetic booking.
+      console.error("[paid-checkout-reference]", referenceNotice);
+    } else {
+      console.error(`Webhook handler failed for ${event.type}:`, error);
+    }
     return res.status(500).json({ error: "Webhook processing failed" });
   }
 }
