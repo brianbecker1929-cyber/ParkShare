@@ -1,0 +1,197 @@
+{
+  "checks": [
+    {
+      "name": "remote/QA source is PostgreSQL 17; local engine also PostgreSQL 17",
+      "status": "passed"
+    },
+    {
+      "name": "all captured tables, columns, constraints, indexes, triggers and policies restored",
+      "status": "passed"
+    },
+    {
+      "name": "existing inherited profile column grants are included in the fixture",
+      "status": "passed"
+    },
+    {
+      "name": "all nine proposals apply consecutively to the complete captured schema",
+      "status": "passed"
+    },
+    {
+      "name": "existing paid booking columns and UTC interval remain unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "legacy listing address and CAD 900 rate are preserved",
+      "status": "passed"
+    },
+    {
+      "name": "new malformed postal suffix and fractional-cent price are rejected",
+      "status": "passed"
+    },
+    {
+      "name": "anon cannot read raw listings or reviews, including address columns",
+      "status": "passed"
+    },
+    {
+      "name": "inherited anon profile name/id/role grants are also revoked by privacy cutover",
+      "status": "passed"
+    },
+    {
+      "name": "unrelated Driver cannot read another Host raw listing or profile",
+      "status": "passed"
+    },
+    {
+      "name": "Host can read own listing and own profile after privacy changes",
+      "status": "passed"
+    },
+    {
+      "name": "paid Driver can read booking but exact raw listing remains API-only",
+      "status": "passed"
+    },
+    {
+      "name": "public photo bucket becomes private; Host object RLS still isolates owners",
+      "status": "passed"
+    },
+    {
+      "name": "browser roles cannot invoke payment RPCs; service_role retains execution",
+      "status": "passed"
+    },
+    {
+      "name": "Host cannot assign a trusted property time zone directly",
+      "status": "passed"
+    },
+    {
+      "name": "canonical property-local booking uses its UTC snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "past or unverified-zone exceptions fail; trusted future dates remain allowed",
+      "status": "passed"
+    },
+    {
+      "name": "review writes are server-only and duplicate reviewer/listing is rejected",
+      "status": "passed"
+    },
+    {
+      "name": "Driver and Host account deletion cannot cascade away financial records",
+      "status": "passed"
+    },
+    {
+      "name": "service-role reserves extension tail with the actual QA schema and trigger",
+      "status": "passed"
+    },
+    {
+      "name": "wrong connected account fails without extending the booking",
+      "status": "passed"
+    },
+    {
+      "name": "paid extension atomically updates hours and audit, consuming its hold",
+      "status": "passed"
+    },
+    {
+      "name": "extension replay is idempotent and does not add another hour or ledger row",
+      "status": "passed"
+    },
+    {
+      "name": "two active unpaid holds block a third reservation with P0058",
+      "status": "passed"
+    },
+    {
+      "name": "reapplying timezone SQL fails atomically: versioned migrations must not be replayed blindly",
+      "status": "passed"
+    },
+    {
+      "name": "spoofed availability timezone cannot bypass property-local exception date",
+      "status": "passed"
+    },
+    {
+      "name": "duplicate review data stops migration 7 and restores its prior policy/grants",
+      "status": "passed"
+    },
+    {
+      "name": "controlled collision recovery resumes only uncommitted proposals 7-9",
+      "status": "passed"
+    }
+  ],
+  "migrations": [
+    {
+      "name": "bug-005118-unpaid-hold-rate-limits.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-atomic-extensions-and-refunds.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005156-property-local-canonical-bookings.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005136-listing-postal-validation.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005137-hourly-price-constraint.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005138-future-exceptions.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-verified-reviews.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005183-restrict-public-data-api.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-account-deletion-booking-retention.sql",
+      "status": "passed"
+    }
+  ],
+  "runtime": "PGlite 0.3.14 (PostgreSQL 17.5), single process; no external services",
+  "engine": "PostgreSQL 17.5 on aarch64-unknown-linux-gnu, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "restored": {
+    "tables": 46,
+    "columns": 511,
+    "constraints": 186,
+    "indexes": 163,
+    "triggers": 9,
+    "policies": 18
+  },
+  "findings": [],
+  "faultInjection": [
+    {
+      "name": "bug-005118-unpaid-hold-rate-limits.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-atomic-extensions-and-refunds.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005156-property-local-canonical-bookings.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005136-listing-postal-validation.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005137-hourly-price-constraint.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005138-future-exceptions.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-verified-reviews.sql",
+      "status": "failed",
+      "code": "23505",
+      "message": "could not create unique index \"reviews_one_per_driver_listing\""
+    }
+  ]
+}

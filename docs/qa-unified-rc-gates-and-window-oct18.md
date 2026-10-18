@@ -29,7 +29,7 @@ Existing underlying schema prerequisites include supabase-migration-005-booking-
 - [x] Combined source, six integrated disposable SQL assertions, 435 automated tests and preview builds passed on exact candidate SHA.
 - [ ] ParkShare owner approve rate-limits/extension counting; multi-partial-refund ledger handling; anonymous listings/photos/reviews policy; account closure/retention policy.
 - [ ] Read-only inventory current QA schema and migration versions, historical payments/holds, policies, triggers, private photo Storage policies, existing review duplicates and rate/exception outliers.
-- [ ] Obtain SANITIZED full QA-schema equivalent in disposable environment and rehearse the entire ordered migration set, including data collisions, idempotence, role authorization and recovery. Capture full test evidence.
+- [x] Capture the complete QA public/Auth/Storage application dependency schema without user rows and rehearse all nine proposals using synthetic data, role probes, review-collision recovery and migration reapply failure. See `qa-full-schema-rehearsal-oct18.md`; local PostgreSQL 17 embedded run passed 28 checks. Dedicated native PostgreSQL 17 CI evidence must also pass on the exact candidate SHA.
 - [ ] Resolve per-listing verified IANA time zones. Do not guess Toronto for all Canadian properties or use browser timezone. Explicitly reconcile historical paid future reservations without changing historical Stripe/booking data automatically.
 - [ ] Test anon, unrelated Driver, paid confirmed Driver, cancelled Driver, Host, service_role, public API, private photo bucket and all legacy image links in isolated environment; audit EXIF and caches.
 - [ ] BetterQA perform genuine Stripe TEST connected-account signed webhook, first-delivery 500/retry, wrong account/amount, parallel bookings and extensions, 409/429, refunds and disputes.
@@ -42,3 +42,9 @@ Please propose a QA maintenance/retest window and confirm who owns (a) the read-
 The privacy SQL revokes public raw reads and therefore cannot safely be promoted by itself while the legacy app remains in service. Database and matching app cutover must be coordinated; Vercel rollback does not reverse SQL migrations or payment changes. If validation fails, STOP and follow the approved recovery plan rather than attempting an ad hoc rollback.
 
 **Hard boundary:** NO merge to main, no active QA alias promotion, no connected Supabase schema/data writes, no live Stripe actions, no paid booking changes. Passing tests and this document do not constitute deployment authority.
+
+## Full application-schema rehearsal follow-up
+
+The October 18 rehearsal reconstructed all 11 QA application tables plus managed Auth/Storage table dependencies (46 tables total). It found and corrected a draft BUG-005138 trust-boundary gap: dated exception validation must use protected `listings.time_zone`, not Host-editable JSON timezone. The updated proposal rejects mismatched/missing trusted zones for dated exceptions. No timezone backfill or live data change occurred.
+
+The eight legacy addresses missing postal suffixes are preserved. No duplicate review pairs or invalid hourly prices were found by the read-only QA preflight. Live data conflict checks, a real QA backup/restore rehearsal, native CI completion, external Stripe/Storage verification and Tudor's coordinated window remain separate release gates. Catalog restoration is not a full managed Supabase service clone.

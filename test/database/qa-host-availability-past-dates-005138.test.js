@@ -25,7 +25,7 @@ describe("BUG-005138 proposed server-side availability exception constraint", { 
   before(async () => {
     pool = new Pool({ connectionString: url, connectionTimeoutMillis: 5000, max: 4 });
     await pool.query(await readFile(new URL("./booking-holds-fixture.sql", import.meta.url), "utf8"));
-    await pool.query("alter table public.listings add column availability jsonb");
+    await pool.query("alter table public.listings add column availability jsonb, add column time_zone text default 'America/Toronto'");
     await pool.query("insert into auth.users(id) values($1)", [HOST_ID]);
     await pool.query("insert into public.profiles(id) values($1)", [HOST_ID]);
     const q = await pool.query("select (clock_timestamp() at time zone 'America/Toronto')::date::text as today");
@@ -85,5 +85,13 @@ describe("BUG-005138 proposed server-side availability exception constraint", { 
   test("trigger function is not directly invokable by untrusted client roles", async () => {
     const q = await pool.query("select has_function_privilege('anon','public.reject_past_listing_exceptions_005138()','EXECUTE') as anon, has_function_privilege('authenticated','public.reject_past_listing_exceptions_005138()','EXECUTE') as authenticated");
     assert.deepEqual(q.rows[0], { anon: false, authenticated: false });
+  });
+
+  test("Host-editable JSON timezone cannot replace the trusted driveway timezone", async () => {
+    await assert.rejects(insert(availability(today,today,'Pacific/Pago_Pago')), error => error.code === '23514');
+    await assert.rejects(pool.query(
+      "insert into public.listings(host_id,spaces,time_zone,availability) values($1,1,null,$2)",
+      [HOST_ID,JSON.stringify(availability(today,today))]
+    ), error => error.code === '23514');
   });
 });

@@ -7,9 +7,11 @@
 -- This trigger only reviews INSERT and actual availability edits; it never
 -- modifies existing exceptions or blocks unrelated edits to legacy listings.
 --
--- Release dependency: BUG-005156 (#159) must confirm the timezone is the
--- DRIVEWAY'S IANA timezone, not the Host browser's timezone. Do not enforce
--- a browser-supplied timezone as authoritative until that change is approved.
+-- Release dependency: BUG-005156 (#159) adds the protected time_zone column.
+-- Exception dates MUST use that server-approved driveway zone. The timezone
+-- string inside Host-editable availability JSON is not authoritative.
+-- Missing trusted zones block new/edited exception dates until resolved;
+-- empty exceptions and unrelated historical metadata edits remain allowed.
 --
 -- Before deployment, inspect all existing past exception windows privately.
 -- Do not backfill, delete, or rewrite any historical availability data.
@@ -46,11 +48,14 @@ begin
   end if;
   if jsonb_array_length(v_exceptions) = 0 then return NEW; end if;
 
-  v_zone := nullif(NEW.availability ->> 'timezone', '');
+  v_zone := nullif(NEW.time_zone, '');
   if v_zone is null or not exists (
     select 1 from pg_catalog.pg_timezone_names where name = v_zone
   ) then
-    raise exception using errcode='23514', message='Listing schedule timezone is invalid';
+    raise exception using errcode='23514', message='A trusted property timezone is required for availability exceptions';
+  end if;
+  if nullif(NEW.availability ->> 'timezone', '') is distinct from v_zone then
+    raise exception using errcode='23514', message='Availability timezone must match the trusted property timezone';
   end if;
   v_today := (clock_timestamp() at time zone v_zone)::date;
 
