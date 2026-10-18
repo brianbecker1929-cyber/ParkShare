@@ -20,6 +20,7 @@ export function paymentReconciliationTarget(event, kind, identifier) {
 
 export async function applyAccountScopedBookingReconciliation(client, target, update, {
   excludeStatuses = [],
+  expectedRefundId,
   label = "refund_dispute",
   logger = console,
 } = {}) {
@@ -30,6 +31,8 @@ export async function applyAccountScopedBookingReconciliation(client, target, up
   // Never regress a fully refunded/disputed booking back to a partially
   // refunded state from an out-of-order charge.refunded notification.
   if (excludeStatuses.length) query = query.not("status", "in", `(${excludeStatuses.join(",")})`);
+  if (expectedRefundId === null) query = query.is("stripe_refund_id", null);
+  else if (typeof expectedRefundId === "string") query = query.eq("stripe_refund_id", expectedRefundId);
   // Without .select(), Supabase returns no rows and can mask a no-match
   // operation. Always inspect Supabase's error even when matched rows = 0.
   const { data, error } = await query.select("id");
