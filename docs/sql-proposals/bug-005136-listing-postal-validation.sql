@@ -26,8 +26,10 @@ set search_path = pg_catalog, public
 as $$
 begin
   -- An existing historical address should not block a metadata-only edit.
-  if TG_OP = 'UPDATE' and NEW.address is not distinct from OLD.address then
-    return NEW;
+  if TG_OP = 'UPDATE' then
+    if NEW.address is not distinct from OLD.address then
+      return NEW;
+    end if;
   end if;
   if NEW.address is null
      or btrim(NEW.address) !~* '[ABCEGHJ-NPRSTVXY][0-9][ABCEGHJ-NPRSTV-Z] [0-9][ABCEGHJ-NPRSTV-Z][0-9]$'
