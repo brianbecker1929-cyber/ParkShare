@@ -17,7 +17,7 @@
 - Rehearse both PR #167 and PR #174 SQL proposals **together in a disposable database first**. Verify advisory-lock order at the installed-function level and run actual concurrent normal checkout vs extension for the same Driver/listing.
 - Review whether extension holds count toward #167's proposed quota of 2 active holds, 4 in 2 hours and 12 in 24 hours. These figures are proposed product limits, not approved policy. Ensure legitimate extension requests are not inadvertently blocked.
 - Verify unrelated Drivers and listings can continue concurrently while one Driver is rate-limited.
-- Test 409 conflict vs 429 rate limit responses before Stripe checkout starts. The new reservation endpoint currently handles `P0001` but may require a separate mapping for `P0058` when #167 is included. **Treat as a remaining integration blocker until addressed.**
+- Test 409 conflict vs 429 rate-limit responses before Stripe checkout starts. This stacked patch maps `P0058` to HTTP 429 in `create-extend-session.js` before creating any Stripe Checkout. Confirm the combined #167 quota SQL returns `P0058` consistently and that BetterQA approves the user-facing limit and retry guidance.
 - Run Stripe TEST on the final combined code and migration, including 30-minute holds, concurrent extension purchases, delayed webhook and refund/dispute events.
 - No standalone deployment of this patch: it depends on PR #174's service-role reservation function and must be reconciled with #167's quota RPC.
 
