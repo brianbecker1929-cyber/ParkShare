@@ -93,6 +93,20 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     else if (table === "profiles") {
       const isHost = url.searchParams.get("id") === "eq.sample-host";
       result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
+    } else if (table === "apply_paid_booking_extension") {
+      // Model the proposed Postgres RPC as an indivisible, idempotent
+      // insert + duration update. No actual Supabase instance is modified.
+      const request = JSON.parse(init.body);
+      assert.equal(request.p_checkout_session_id, "cs_ext_sample");
+      assert.equal(request.p_payment_intent_id, "pi_ext_sample");
+      assert.equal(request.p_connected_account_id, "acct_sample");
+      if (savedExtensionSessionId === request.p_checkout_session_id) {
+        result = { applied: false, resulting_hours: booking.hours };
+      } else {
+        savedExtensionSessionId = request.p_checkout_session_id;
+        booking.hours += request.p_added_hours;
+        result = { applied: true, resulting_hours: booking.hours };
+      }
     } else if (table === "booking_extensions") {
       if (method === "POST") savedExtensionSessionId = JSON.parse(init.body).stripe_checkout_session_id;
       const requested = url.searchParams.get("stripe_checkout_session_id");
