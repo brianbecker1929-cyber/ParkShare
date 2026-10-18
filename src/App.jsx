@@ -37,7 +37,7 @@ import { hasDrivewayVehicle } from "./lib/drivewayCar";
 import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
-import { addCalendarDays, dateInScheduleTimezone, validateHostAvailabilityExceptions, validateHostExceptionDates } from "./lib/availabilityExceptionDates";
+import { addCalendarDays, dateInScheduleTimezone, isCalendarDate, validateHostAvailabilityExceptions, validateHostExceptionDates } from "./lib/availabilityExceptionDates";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -4380,6 +4380,10 @@ function ListDrivewayView({ user }) {
     };
   });
   const updateAvailabilityException = (id, patch) => setForm(current => {
+    // A cleared/unparseable native date input must not silently disappear
+    // when normalizeAvailability() filters non-ISO exception dates.
+    if (("startDate" in patch && !isCalendarDate(patch.startDate))
+        || ("endDate" in patch && !isCalendarDate(patch.endDate))) return current;
     const availability = normalizeAvailability(current.availability);
     return {
       ...current,
