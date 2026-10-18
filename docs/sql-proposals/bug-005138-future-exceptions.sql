@@ -40,7 +40,7 @@ begin
   end if;
 
   v_exceptions := NEW.availability -> 'exceptions';
-  if v_exceptions is null then return NEW; end if;
+  if v_exceptions is null or jsonb_typeof(v_exceptions) = 'null' then return NEW; end if;
   if jsonb_typeof(v_exceptions) <> 'array' then
     raise exception using errcode='23514', message='Invalid availability exceptions list';
   end if;
