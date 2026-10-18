@@ -11,7 +11,7 @@ test("review-only account retention SQL guards exactly Host and Driver profile-l
   assert.match(sql, /ALTER TABLE public\.listings[\s\S]*?DROP CONSTRAINT listings_host_id_fkey;[\s\S]*?ADD CONSTRAINT listings_host_id_fkey[\s\S]*?REFERENCES public\.profiles\(id\)[\s\S]*?ON DELETE RESTRICT;/);
   assert.match(sql, /COMMIT;/);
   assert.doesNotMatch(sql, /ON DELETE CASCADE;\s*\n\s*COMMIT/);
-  assert.doesNotMatch(sql, /\bDELETE FROM\b/i);
+  assert.doesNotMatch(sql.replace(/^--.*$/gm, ""), /\bDELETE FROM\b/i);
 });
 
 test("existing listing retention migration remains separate, without unwanted production data changes", async () => {
