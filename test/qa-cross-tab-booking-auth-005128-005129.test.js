@@ -139,4 +139,10 @@ test("App wires cross-tab login, preserves Browse listing state, and explains si
   assert.match(app, /Sign in\s*<\/button>/);
   assert.match(app, /setSelectedVehicleId\(current => bookableVehicles\.some/);
   assert.match(app, /if \(!user\) \{\s*setShowPayment\(false\)/);
+  assert.match(app, /if \(!checkoutModalActive\.current\) return;/);
+  assert.match(app, /lastBookingUserId\.current !== nextId/);
+  const guardAt = app.indexOf("if (!checkoutModalActive.current) return;");
+  const redirectAt = app.indexOf("window.location.assign(data.url); // hand off to Stripe");
+  assert.ok(guardAt >= 0 && guardAt < redirectAt,
+    "a closed checkout modal must not redirect after cross-tab sign-out");
 });
