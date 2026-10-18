@@ -46,20 +46,14 @@ export default async function handler(req, res) {
 
   const now = new Date();
 
-  // Any booking whose session could plausibly still be running or not yet
-  // started: paid within the last 31 days (MAX_HOURS in
-  // create-checkout-session.js). Filtering on paid_at (not the scheduled
-  // start) is intentional — an advance booking's paid_at can be well before
-  // its actual session, but it's still "recent" by payment date, so it
-  // won't get excluded here. The real start/end math happens per-booking
-  // below via getSessionWindow(), which is what actually matters.
-  const since = new Date(now.getTime() - 31 * 24 * 3600 * 1000).toISOString();
+  // Do not filter on paid_at: Drivers may book and pay MONTHS before an
+  // upcoming session. The canonical start/end, not payment age, decides
+  // whether a reminder is due. Indexing/pagination are rollout QA concerns.
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, reminder_halfway_sent_at, reminder_ending_sent_at")
+    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, reminder_halfway_sent_at, reminder_ending_sent_at")
     .eq("status", "confirmed")
     .not("paid_at", "is", null)
-    .gte("paid_at", since)
     .or("reminder_halfway_sent_at.is.null,reminder_ending_sent_at.is.null");
 
   if (error) {
@@ -136,7 +130,7 @@ async function sendReminder(booking, kind) {
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
   const endDate = new Date(booking.end);
   const { start } = getSessionWindow(booking);
-  const times = formatBookingEmailTimes(start, endDate, nowDate);
+  const times = formatBookingEmailTimes(start, endDate, nowDate, booking.property_time_zone || undefined);
   const address = listing?.address || "";
   const renterName = renter.name || "there";
 

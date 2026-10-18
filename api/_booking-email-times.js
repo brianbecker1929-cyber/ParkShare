@@ -3,13 +3,13 @@
 // Instants remain untouched: this affects presentation, not duration or holds.
 export const PARKING_EMAIL_TIME_ZONE = "America/Toronto";
 
-function torontoCalendarDay(instant) {
+function localCalendarDay(instant, timeZone) {
   return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric", month: "2-digit", day: "2-digit", timeZone: PARKING_EMAIL_TIME_ZONE,
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone,
   }).format(instant);
 }
 
-export function formatBookingEmailTimes(start, end, now = new Date()) {
+export function formatBookingEmailTimes(start, end, now = new Date(), timeZone = PARKING_EMAIL_TIME_ZONE) {
   const startDate = new Date(start);
   const endDate = new Date(end);
   const nowDate = new Date(now);
@@ -17,17 +17,20 @@ export function formatBookingEmailTimes(start, end, now = new Date()) {
     throw new TypeError("Booking email needs valid start, end, and current instants.");
   }
 
-  const timeFmt = { hour: "numeric", minute: "2-digit", timeZone: PARKING_EMAIL_TIME_ZONE };
+  if (typeof timeZone !== "string") throw new RangeError("Property time zone is required.");
+  // Validate the IANA timezone before sending any timed email.
+  new Intl.DateTimeFormat("en-CA", { timeZone }).format(nowDate);
+  const timeFmt = { hour: "numeric", minute: "2-digit", timeZone };
   const dateFmt = {
     weekday: "short", month: "long", day: "numeric", year: "numeric",
-    timeZone: PARKING_EMAIL_TIME_ZONE,
+    timeZone,
   };
-  const dayFmt = { weekday: "short", month: "short", day: "numeric", timeZone: PARKING_EMAIL_TIME_ZONE };
+  const dayFmt = { weekday: "short", month: "short", day: "numeric", timeZone };
   const hostFmt = {
-    dateStyle: "medium", timeStyle: "short", timeZone: PARKING_EMAIL_TIME_ZONE,
+    dateStyle: "medium", timeStyle: "short", timeZone,
   };
   return {
-    startDateLabel: torontoCalendarDay(startDate) === torontoCalendarDay(nowDate)
+    startDateLabel: localCalendarDay(startDate, timeZone) === localCalendarDay(nowDate, timeZone)
       ? "Today"
       : startDate.toLocaleDateString("en-CA", dayFmt),
     startTimeStr: startDate.toLocaleTimeString("en-CA", timeFmt),
