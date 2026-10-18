@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -4200,7 +4201,8 @@ function ListDrivewayView({ user }) {
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "'Poppins', sans-serif", boxSizing: "border-box", outline: "none" };
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
-  const fullAddress = [form.street, form.city, [form.region, form.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const postalCheck = validateCanadianPostalCode(form.postal);
+  const fullAddress = [form.street, form.city, [form.region, postalCheck.normalized || form.postal.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
   const searchAddress = (val) => {
     update("street", val);
@@ -4225,7 +4227,7 @@ function ListDrivewayView({ user }) {
       setLoadingSug(false);
     }, 350);
   };
-  const chooseSuggestion = (s) => { setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: s.postal, lat: s.lat, lng: s.lng })); setSuggestions([]); };
+  const chooseSuggestion = (s) => { const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng })); setSuggestions([]); };
 
   const submitVerification = () => {
     update("verifying", true);
@@ -4418,7 +4420,8 @@ function ListDrivewayView({ user }) {
     && form.spots.every(s => s?.bounds && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(s.bounds[key])))),
   );
   const previewIssues = [
-    (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
+    (!form.street.trim() || !form.city.trim() || !form.region.trim()) && { label: "Complete the driveway address", step: 1 },
+    !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
@@ -4433,6 +4436,11 @@ function ListDrivewayView({ user }) {
     setUploadProgress("");
     if (!user || user.role !== "host") {
       setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    if (!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid) {
+      setPublishError(postalCheck.error || "Complete the driveway address before publishing.");
+      setStep(1);
       return;
     }
     if (!form.photos.length) {
@@ -4554,9 +4562,23 @@ function ListDrivewayView({ user }) {
             <div style={{ flex: 1 }}><label style={labelStyle}>City</label><input style={inputStyle} placeholder="Vaughan" value={form.city} onChange={e => update("city", e.target.value)} /></div>
             <div style={{ flex: 1 }}><label style={labelStyle}>Province</label><input style={inputStyle} placeholder="Ontario" value={form.region} onChange={e => update("region", e.target.value)} /></div>
           </div>
-          <div><label style={labelStyle}>Postal code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
-          {form.street && form.city && form.region && form.postal && suggestions.length === 0 && (
-                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>✓ Address confirmed: {fullAddress}</div>
+          <div>
+            <label htmlFor="host-listing-postal-code" style={labelStyle}>Postal code</label>
+            <input
+              id="host-listing-postal-code" type="text" inputMode="text" autoComplete="postal-code" autoCapitalize="characters"
+              style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1"
+              maxLength={8} value={form.postal} aria-describedby="host-listing-postal-help"
+              aria-invalid={Boolean(form.postal.trim()) && !postalCheck.valid}
+              onChange={e => update("postal", e.target.value.toUpperCase().slice(0, 8))}
+              onBlur={() => { if (postalCheck.valid && form.postal !== postalCheck.normalized) update("postal", postalCheck.normalized); }}
+            />
+            <p id="host-listing-postal-help" role={form.postal.trim() && !postalCheck.valid ? "alert" : undefined}
+              style={{ fontSize: 12, color: form.postal.trim() && !postalCheck.valid ? C.red : C.muted, marginTop: 6 }}>
+              {form.postal.trim() && !postalCheck.valid ? postalCheck.error : "Canadian format: A1A 1A1. Postal format is checked; street address is not verified."}
+            </p>
+          </div>
+          {form.street && form.city && form.region && postalCheck.valid && suggestions.length === 0 && (
+                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>Address details entered (not independently verified): {fullAddress}</div>
               )}
               {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
                 <div>
@@ -4567,7 +4589,7 @@ function ListDrivewayView({ user }) {
               )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-            <Btn onClick={() => setStep(2)} disabled={!form.street || !form.city || !form.region || !form.postal}>Continue →</Btn>
+            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid}>Continue →</Btn>
           </div>
         </div>
       )}
