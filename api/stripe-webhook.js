@@ -5,6 +5,7 @@
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
+import { extensionChargeRefundSnapshot } from "./_extension-safety.js";
 import { paymentReconciliationTarget, applyAccountScopedBookingReconciliation, refundRecordPolicy } from "./_refund-dispute-account-safety.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
@@ -266,42 +267,37 @@ async function confirmExtension(session, connectedAccountId, pending) {
     throw new CheckoutIntegrityError("Extension duration is not a valid trusted value");
   }
 
-  const row = {
-    booking_id: bookingId,
-    added_hours: addedHours,
-    added_amount: totalCents / 100,
-    stripe_checkout_session_id: session.id,
-    stripe_payment_intent_id: paymentIntentId,
-    stripe_charge_id: chargeId,
-    stripe_connected_account_id: connectedAccountId || null,
-    status: "confirmed",
-    paid_at: new Date().toISOString(),
-  };
-
-  // Same idempotency pattern as confirmBooking() — upsert keyed on the
-  // unique checkout session id, ignoreDuplicates so a Stripe retry of this
-  // same event can never apply the same extension twice.
-  const { data: inserted, error } = await supabaseAdmin
-    .from("booking_extensions")
-    .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
-    .select("id, booking_id, added_hours");
-  if (error) throw error;
-  if (!isNewWebhookInsert(inserted)) return; // already processed this exact session before
-
-  // Bump the booking's hours so getSessionWindow() — and everything built
-  // on it (reminders, availability, the Phase 3 exclusion constraint) —
-  // picks up the new, longer end time with no further changes needed
-  // anywhere else. Read-then-write rather than an atomic SQL increment:
-  // acceptable here because the only realistic race is the SAME renter
-  // submitting two extensions on the SAME booking within milliseconds of
-  // each other — low-stakes and unlikely, unlike the cross-renter spot
-  // conflict Phase 3 protects against, which is why that one got a real
-  // database constraint instead of just application-level care.
-  const { error: updateError } = await supabaseAdmin
-    .from("bookings")
-    .update({ hours: Number(booking.hours) + addedHours })
-    .eq("id", bookingId);
-  if (updateError) throw updateError;
+  // The service-role-only Postgres function inserts the extension AND extends
+  // bookings.hours under one listing-scoped lock and database transaction.
+  // An update conflict rolls BOTH back. Stripe retries can safely re-enter.
+  // Requires the separately approved SQL proposal before QA deployment.
+  const { data: rpcRows, error: applyError } = await supabaseAdmin.rpc(
+    "apply_paid_booking_extension",
+    {
+      p_checkout_session_id: session.id,
+      p_booking_id: bookingId,
+      p_renter_id: pending.renter_id,
+      p_added_hours: addedHours,
+      p_expected_total_cents: totalCents,
+      p_payment_intent_id: paymentIntentId,
+      p_charge_id: chargeId,
+      p_connected_account_id: connectedAccountId,
+      p_paid_at: new Date().toISOString(),
+    }
+  );
+  if (applyError) {
+    // Return webhook 500 for replay/manual reconciliation; NEVER reply 200
+    // when a paid extension could not be attached to the booking.
+    console.error("[extension-reconciliation] paid extension NOT APPLIED", {
+      sessionId: session.id, bookingId, code: applyError.code,
+    });
+    throw applyError;
+  }
+  const application = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
+  if (!application || typeof application.applied !== "boolean") {
+    throw new Error("Paid extension did not return a trustworthy transaction result.");
+  }
+  if (!application.applied) return; // completed atomically in an earlier delivery
 
   await sendExtensionConfirmedEmail(bookingId, addedHours, totalCents).catch(err => {
     // Same non-blocking pattern as the original booking confirmation email —
