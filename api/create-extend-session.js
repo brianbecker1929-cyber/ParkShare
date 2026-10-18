@@ -72,6 +72,11 @@ export default async function handler(req, res) {
     if (holdError?.code === "P0001") {
       return res.status(409).json({ error: "That additional parking time is already booked or held. Please choose another time." });
     }
+    // PR #167's per-Driver checkout quotas apply to the shared hold RPC.
+    // Return a meaningful rate-limit response BEFORE Stripe Checkout begins.
+    if (holdError?.code === "P0058") {
+      return res.status(429).json({ error: "Too many active parking checkouts. Please try again later." });
+    }
     if (holdError) throw holdError;
     const reserved = Array.isArray(reservedRows) ? reservedRows[0] : reservedRows;
     const holdId = reserved?.hold_id;
