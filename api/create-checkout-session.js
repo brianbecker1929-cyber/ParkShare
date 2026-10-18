@@ -6,6 +6,7 @@ import { getOrigin, jsonMethod, requireUser, stripe, supabaseAdmin, getSessionWi
 import { calculateBookingAmounts, isRentableSpot, isValidBookingDuration } from "./_booking-rules.js";
 import { getBookableVehicles } from "../src/lib/driverProfile.js";
 import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
+import { validateHourlyRate } from "../src/lib/listingPrice.js";
 import { resolveLocalBookingStart } from "./_booking-local-time.js";
 
 const SERVICE_FEE_RATE = 0.15;
@@ -54,6 +55,13 @@ export default async function handler(req, res) {
       .single();
 
     if (listingError || !listing) return res.status(404).json({ error: "Listing not found." });
+    // Host rates may originate from historical rows or direct Supabase
+    // writes. Never trust a form's min/max or silently coerce negative
+    // prices before creating holds or any Stripe Checkout Session.
+    const rate = validateHourlyRate(listing.price);
+    if (!rate.valid) return res.status(409).json({
+      error: "This parking space has an invalid hourly price. Please choose another listing or contact support.",
+    });
     if (listing.host_id === user.id) return res.status(400).json({ error: "Hosts can't book their own listing." });
     if (!isRentableSpot(listing, spotLabel)) {
       return res.status(400).json({ error: "Please select a valid parking spot before checkout." });
@@ -130,11 +138,14 @@ export default async function handler(req, res) {
     }
 
     const { hourlyCents, subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(
-      listing.price,
+      rate.value,
       hours,
       SERVICE_FEE_RATE
     );
-    if (hourlyCents < 50 || totalCents < 50) return res.status(400).json({ error: "Booking amount is too small." });
+    if (![hourlyCents, subtotalCents, serviceFeeCents, totalCents].every(Number.isSafeInteger)
+        || hourlyCents < 100 || subtotalCents <= 0 || totalCents < 100) {
+      return res.status(409).json({ error: "This listing's booking price cannot be processed. Please contact support." });
+    }
 
     const holdExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
     const { data: holdId, error: holdError } = await supabaseAdmin.rpc("create_booking_hold", {
