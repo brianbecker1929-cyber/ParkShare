@@ -47,10 +47,10 @@ test("BUG-005116 webhook RPC rejects unrelated holds, ignores own hold in capaci
   assert.match(sql, /RETURN QUERY SELECT public\.create_booking_hold/);
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS pending_booking_extensions_hold_id_unique/);
   assert.match(sql, /IF p\.hold_id IS NULL THEN/);
-  assert.match(sql, /h\.stripe_checkout_session_id IS DISTINCT FROM p_checkout_session_id/);
-  assert.match(sql, /h\.renter_id IS DISTINCT FROM p_renter_id/);
-  assert.match(sql, /h\.starts_at IS DISTINCT FROM v_old_end/);
-  assert.match(sql, /h\.ends_at IS DISTINCT FROM v_new_end/);
+  assert.match(sql, /v_own_hold\.stripe_checkout_session_id IS DISTINCT FROM p_checkout_session_id/);
+  assert.match(sql, /v_own_hold\.renter_id IS DISTINCT FROM p_renter_id/);
+  assert.match(sql, /v_own_hold\.starts_at IS DISTINCT FROM v_old_end/);
+  assert.match(sql, /v_own_hold\.ends_at IS DISTINCT FROM v_new_end/);
   assert.match(sql, /AND h\.id<>p\.hold_id/);
   const bookingUpdate = sql.indexOf("UPDATE public.bookings x SET hours=x.hours+p_added_hours");
   const release = sql.indexOf("DELETE FROM public.booking_holds x WHERE x.id=p.hold_id");
