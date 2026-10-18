@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
 import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
 import { calculateBookingAmounts } from "../api/_booking-rules.js";
 import { publicListingCoverUrl } from "./lib/publicListings";
@@ -43,6 +44,7 @@ import { hasDrivewayVehicle } from "./lib/drivewayCar";
 import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
+import { addCalendarDays, dateInScheduleTimezone, isCalendarDate, validateHostAvailabilityExceptions, validateHostExceptionDates } from "./lib/availabilityExceptionDates";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -1357,12 +1359,14 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
         return;
       }
       setSubmitting(true);
-      const { error } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating: draft.rating,
-        text: draft.text.trim(),
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = session?.access_token ? await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ listingId: numericId, rating: draft.rating, text: draft.text.trim() }),
+      }) : null;
+      const result = response ? await response.json().catch(() => ({})) : {};
+      const error = response?.ok ? null : { message: result.error || "Please sign in to review." };
       setSubmitting(false);
       if (error) {
         setSubmitError(error.message);
@@ -4259,7 +4263,8 @@ function ListDrivewayView({ user }) {
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "'Poppins', sans-serif", boxSizing: "border-box", outline: "none" };
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
-  const fullAddress = [form.street, form.city, [form.region, form.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const postalCheck = validateCanadianPostalCode(form.postal);
+  const fullAddress = [form.street, form.city, [form.region, postalCheck.normalized || form.postal.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
   const searchAddress = (val) => {
     update("street", val);
@@ -4284,7 +4289,7 @@ function ListDrivewayView({ user }) {
       setLoadingSug(false);
     }, 350);
   };
-  const chooseSuggestion = (s) => { setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: s.postal, lat: s.lat, lng: s.lng })); setSuggestions([]); };
+  const chooseSuggestion = (s) => { const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng })); setSuggestions([]); };
 
   const submitVerification = () => {
     update("verifying", true);
@@ -4419,9 +4424,10 @@ function ListDrivewayView({ user }) {
   });
   const addAvailabilityException = () => setForm(current => {
     const availability = normalizeAvailability(current.availability);
-    const today = new Date();
-    today.setDate(today.getDate() + 1);
-    const date = today.toISOString().slice(0, 10);
+    // Start tomorrow on the schedule's calendar, not UTC tomorrow. When a
+    // Host is travelling, toISOString() can shift the property's day.
+    const date = addCalendarDays(dateInScheduleTimezone(availability.timezone), 1);
+    if (!date) return current;
     return {
       ...current,
       availability: {
@@ -4437,6 +4443,10 @@ function ListDrivewayView({ user }) {
     };
   });
   const updateAvailabilityException = (id, patch) => setForm(current => {
+    // A cleared/unparseable native date input must not silently disappear
+    // when normalizeAvailability() filters non-ISO exception dates.
+    if (("startDate" in patch && !isCalendarDate(patch.startDate))
+        || ("endDate" in patch && !isCalendarDate(patch.endDate))) return current;
     const availability = normalizeAvailability(current.availability);
     return {
       ...current,
@@ -4459,6 +4469,7 @@ function ListDrivewayView({ user }) {
 
   const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
   const normalizedAvailability = normalizeAvailability(form.availability);
+  const exceptionDateValidation = validateHostAvailabilityExceptions(normalizedAvailability);
   const availabilitySummary = formatAvailabilitySummary(normalizedAvailability);
   const listingFeatures = [
     form.covered && "Covered",
@@ -4477,10 +4488,12 @@ function ListDrivewayView({ user }) {
     && form.spots.every(s => s?.bounds && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(s.bounds[key])))),
   );
   const previewIssues = [
-    (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
+    (!form.street.trim() || !form.city.trim() || !form.region.trim()) && { label: "Complete the driveway address", step: 1 },
+    !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
+    !exceptionDateValidation.valid && { label: exceptionDateValidation.issues[0].error, step: 6 },
     !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
 
@@ -4498,6 +4511,18 @@ function ListDrivewayView({ user }) {
     if (!rate.valid) {
       setPublishError(rate.error);
       setStep(7);
+      return;
+    }
+    if (!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid) {
+      setPublishError(postalCheck.error || "Complete the driveway address before publishing.");
+      setStep(1);
+      return;
+    }
+    // Recompute at submit time: a tab kept open overnight may contain past dates.
+    const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
+    if (!currentExceptionDates.valid) {
+      setPublishError(currentExceptionDates.issues[0].error);
+      setStep(6);
       return;
     }
     if (!form.photos.length) {
@@ -4619,9 +4644,23 @@ function ListDrivewayView({ user }) {
             <div style={{ flex: 1 }}><label style={labelStyle}>City</label><input style={inputStyle} placeholder="Vaughan" value={form.city} onChange={e => update("city", e.target.value)} /></div>
             <div style={{ flex: 1 }}><label style={labelStyle}>Province</label><input style={inputStyle} placeholder="Ontario" value={form.region} onChange={e => update("region", e.target.value)} /></div>
           </div>
-          <div><label style={labelStyle}>Postal code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
-          {form.street && form.city && form.region && form.postal && suggestions.length === 0 && (
-                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>✓ Address confirmed: {fullAddress}</div>
+          <div>
+            <label htmlFor="host-listing-postal-code" style={labelStyle}>Postal code</label>
+            <input
+              id="host-listing-postal-code" type="text" inputMode="text" autoComplete="postal-code" autoCapitalize="characters"
+              style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1"
+              maxLength={8} value={form.postal} aria-describedby="host-listing-postal-help"
+              aria-invalid={Boolean(form.postal.trim()) && !postalCheck.valid}
+              onChange={e => update("postal", e.target.value.toUpperCase().slice(0, 8))}
+              onBlur={() => { if (postalCheck.valid && form.postal !== postalCheck.normalized) update("postal", postalCheck.normalized); }}
+            />
+            <p id="host-listing-postal-help" role={form.postal.trim() && !postalCheck.valid ? "alert" : undefined}
+              style={{ fontSize: 12, color: form.postal.trim() && !postalCheck.valid ? C.red : C.muted, marginTop: 6 }}>
+              {form.postal.trim() && !postalCheck.valid ? postalCheck.error : "Canadian format: A1A 1A1. Postal format is checked; street address is not verified."}
+            </p>
+          </div>
+          {form.street && form.city && form.region && postalCheck.valid && suggestions.length === 0 && (
+                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>Address details entered (not independently verified): {fullAddress}</div>
               )}
               {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
                 <div>
@@ -4632,7 +4671,7 @@ function ListDrivewayView({ user }) {
               )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-            <Btn onClick={() => setStep(2)} disabled={!form.street || !form.city || !form.region || !form.postal}>Continue →</Btn>
+            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -4963,7 +5002,7 @@ function ListDrivewayView({ user }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Special dates & exceptions</div>
-                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours.</div>
+                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours. Dates cannot be in the past.</div>
               </div>
               <button type="button" onClick={addAvailabilityException} style={{ border: 0, borderRadius: 8, padding: "7px 9px", background: C.navy, color: C.white, fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>+ Add exception</button>
             </div>
@@ -4975,9 +5014,14 @@ function ListDrivewayView({ user }) {
                 {normalizedAvailability.exceptions.map(exception => (
                   <div key={exception.id} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: 10 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <label style={labelStyle}>From<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
-                      <label style={labelStyle}>To<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
+                      <label style={labelStyle}>From<input type="date" min={exceptionDateValidation.today || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
+                      <label style={labelStyle}>To<input type="date" min={exception.startDate > (exceptionDateValidation.today || "") ? exception.startDate : (exceptionDateValidation.today || undefined)} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
                     </div>
+                    {!validateHostExceptionDates(exception, exceptionDateValidation.today).valid && (
+                      <p role="alert" style={{ color: C.red, fontSize: 11, fontWeight: 700, margin: "6px 0" }}>
+                        {validateHostExceptionDates(exception, exceptionDateValidation.today).error}
+                      </p>
+                    )}
                     <label style={{ ...labelStyle, marginTop: 8 }}>On these dates
                       <select style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.type} onChange={e => updateAvailabilityException(exception.id, { type: e.target.value })}>
                         <option value="unavailable">Not available</option>
@@ -5006,7 +5050,7 @@ function ListDrivewayView({ user }) {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability)}>Continue →</Btn>
+            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability) || !exceptionDateValidation.valid}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -5590,12 +5634,14 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 
     if (numericId !== null && user) {
       setSubmitting(true);
-      const { error: err } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating,
-        text: text.trim(),
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = session?.access_token ? await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ listingId: numericId, rating, text: text.trim() }),
+      }) : null;
+      const result = response ? await response.json().catch(() => ({})) : {};
+      const err = response?.ok ? null : { message: result.error || "Please sign in to review." };
       setSubmitting(false);
       if (err) {
         setError(err.message);
@@ -6509,7 +6555,10 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
             <a href="https://www.instagram.com/myparkshare/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Instagram" title="Instagram" style={socialIconStyle}>◎</a>
-            <a href="https://www.facebook.com/ParkerParksHere/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Facebook" title="Facebook" style={socialIconStyle}>f</a>
+            {/* BUG-005141: the supplied Facebook destination has not been independently verified.
+                Keep the icon in the footer, but never send visitors to an unconfirmed page.
+                Restore a real <a> only after the official public page is confirmed. */}
+            <span aria-label="ParkShare Facebook link being verified" title="Facebook link being verified" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>f</span>
             <a href="https://www.youtube.com/@ParkerParksHere" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on YouTube" title="YouTube" style={socialIconStyle}>▶</a>
             <span aria-label="X link coming soon" title="X link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>𝕏</span>
             <span aria-label="LinkedIn link coming soon" title="LinkedIn link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>in</span>
