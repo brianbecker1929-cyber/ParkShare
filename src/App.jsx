@@ -6,6 +6,7 @@ import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
+import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -2923,6 +2924,8 @@ function EditListingModal({ listing, onClose, onSave }) {
 
   const save = async () => {
     setErr("");
+    const rate = validateHourlyRate(price);
+    if (!rate.valid) { setErr(rate.error); return; }
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
     setSaving(true);
@@ -2937,7 +2940,7 @@ function EditListingModal({ listing, onClose, onSave }) {
     }));
     const ok = await onSave({
       ...listing,
-      price,
+      price: rate.value,
       description,
       features,
       spots: newSpots,
@@ -2952,7 +2955,7 @@ function EditListingModal({ listing, onClose, onSave }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
-          <input type="number" min="1" value={price} onChange={e => setPrice(e.target.value)}
+          <input type="number" min="1" step="0.01" value={price} onChange={e => { setPrice(e.target.value); setErr(""); }} aria-invalid={Boolean(err && !validateHourlyRate(price).valid)}
             style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif" }} />
         </div>
 
@@ -3406,15 +3409,17 @@ function HostDashboard({ user, setTab }) {
   };
 
   const saveListingEdit = async (updated) => {
+    const rate = validateHourlyRate(updated.price);
+    if (!rate.valid) { alert(rate.error); return false; }
     const { error } = await supabase.from("listings").update({
-      price: Number(updated.price) || 1,
+      price: rate.value,
       description: updated.description,
       features: updated.features,
       spots: updated.spots,
       spaces: updated.spaces,
     }).eq("id", updated.rawId);
     if (error) { alert("Couldn't save changes: " + error.message); return false; }
-    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
+    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated, price: rate.value } : l));
     return true;
   };
 
@@ -4422,7 +4427,7 @@ function ListDrivewayView({ user }) {
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
-    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 7 },
+    !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
 
   const [submitted, setSubmitted] = useState(false);
@@ -4433,6 +4438,12 @@ function ListDrivewayView({ user }) {
     setUploadProgress("");
     if (!user || user.role !== "host") {
       setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
+    if (!rate.valid) {
+      setPublishError(rate.error);
+      setStep(7);
       return;
     }
     if (!form.photos.length) {
@@ -4451,7 +4462,7 @@ function ListDrivewayView({ user }) {
         host_id: user.id,
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
-        price: Number(form.price) || 12,
+        price: rate.value,
         spaces: rentableSpotCount || 1,
         features: listingFeatures,
         description: form.description || "",
@@ -4953,18 +4964,19 @@ function ListDrivewayView({ user }) {
             <label style={labelStyle}>Hourly rate (CAD)</label>
             <div style={{ position:"relative" }}>
               <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:C.muted }}>$</span>
-              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" placeholder="e.g. 12" value={form.price} onChange={e => update("price", e.target.value)} />
+              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" step="0.01" placeholder="e.g. 12" value={form.price} aria-invalid={Boolean(form.price && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid)} onChange={e => update("price", e.target.value)} />
             </div>
             <p style={{ fontSize:12, color:C.muted, marginTop:6 }}>Driveways in your area average $11–$18/hr.</p>
+            {form.price !== "" && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && <p role="alert" style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).error}</p>}
           </div>
-          {form.price && (
+          {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && (
             <ParkerTip pose="success">
               This driveway could earn its owner over <strong>{money(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12)}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
             </ParkerTip>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <Btn variant="pill" onClick={() => setStep(6)}>← Back</Btn>
-            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
+            <Btn variant="amber" disabled={!validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid} onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
           </div>
         </div>
       )}
@@ -5032,7 +5044,7 @@ function ListDrivewayView({ user }) {
               {/* Driver listing header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
                 <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, lineHeight: 1.3, margin: 0, flex: 1 }}>{form.street ? `Driveway at ${form.street}` : "New driveway listing"}</h3>
-                {Number(form.price) > 0 ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Rate not set</span>}
+                {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Invalid rate</span>}
               </div>
               <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, margin: "0 0 12px" }}>📍 {fullAddress || "Address not completed"}</p>
 
