@@ -782,6 +782,18 @@ export default async function handler(req, res) {
             // disputed booking. Any later dispute/refund policy is manual.
             excludeStatuses: ["refunded", "disputed"],
           });
+          // Extension PaymentIntents are separate from the base booking. Audit
+          // refunded amount on its own connected account without auto-revoking
+          // parking time or altering the base booking.
+          const extensionSnapshot = extensionChargeRefundSnapshot(event.data.object);
+          if (extensionSnapshot) {
+            const { error: extensionError } = await supabaseAdmin
+              .from("booking_extensions")
+              .update({ ...extensionSnapshot, refund_reconciled_at: new Date().toISOString() })
+              .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
+              .eq("stripe_connected_account_id", event.account);
+            if (extensionError) throw extensionError;
+          }
         }
         break;
       }
@@ -822,9 +834,46 @@ export default async function handler(req, res) {
           throw new Error("Multiple refunds require manual reconciliation");
         }
         if (policy === "unmatched") {
-          console.warn("[webhook-reconcile] no owner-matched booking for refund", {
-            eventId: event.id, connectedAccountId: target.connectedAccountId,
-          });
+          // Not a base booking refund: the PaymentIntent may belong to an
+          // approved paid parking extension. Preserve its separate audit row.
+          const { data: extension, error: lookupError } = await readCheckoutDb(
+            () => supabaseAdmin.from("booking_extensions")
+              .select("id, stripe_refund_id")
+              .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
+              .eq("stripe_connected_account_id", event.account)
+              .maybeSingle(),
+            "extension_refund_owner_lookup"
+          );
+          if (lookupError) throw lookupError;
+          const extensionPolicy = refundRecordPolicy(extension, reconciliation.refundId);
+          if (extensionPolicy === "manual_reconciliation") {
+            throw new Error("Multiple extension refunds require manual reconciliation");
+          }
+          if (extensionPolicy === "unmatched") {
+            console.warn("[webhook-reconcile] no owner-matched booking or extension refund", {
+              eventId: event.id, connectedAccountId: target.connectedAccountId,
+            });
+            break;
+          }
+          let updateExtension = supabaseAdmin.from("booking_extensions")
+            .update({
+              stripe_refund_id: reconciliation.refundId,
+              refund_status: reconciliation.refundStatus,
+              refund_amount: reconciliation.refundAmount,
+              refund_failure_reason: reconciliation.refundFailureReason,
+              refund_reconciled_at: new Date().toISOString(),
+            })
+            .eq("id", extension.id)
+            .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
+            .eq("stripe_connected_account_id", event.account);
+          updateExtension = extension.stripe_refund_id
+            ? updateExtension.eq("stripe_refund_id", extension.stripe_refund_id)
+            : updateExtension.is("stripe_refund_id", null);
+          const { data: updatedExtension, error: extensionError } = await updateExtension.select("id");
+          if (extensionError) throw extensionError;
+          if (!updatedExtension?.length) {
+            throw new Error("Extension refund changed concurrently; reconcile and retry");
+          }
           break;
         }
         const result = await applyAccountScopedBookingReconciliation(supabaseAdmin, target, {
@@ -852,6 +901,14 @@ export default async function handler(req, res) {
               // Do not overwrite settled refund records with a late dispute.
               excludeStatuses: ["refunded"],
             });
+          // The extension has its own Stripe charge. Record dispute evidence
+          // only for that charge on its originating connected account.
+          const { error: extensionError } = await supabaseAdmin
+            .from("booking_extensions")
+            .update({ charge_disputed: true })
+            .eq("stripe_charge_id", reconciliation.chargeId)
+            .eq("stripe_connected_account_id", event.account);
+          if (extensionError) throw extensionError;
         }
         break;
       }
