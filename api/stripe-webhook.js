@@ -139,6 +139,19 @@ async function confirmBooking(session, connectedAccountId, hold) {
   const listingId = Number(hold.listing_id);
   const hours = Number(metadata.hours);
   const totalCents = Number(hold.expected_total_cents);
+  // New holds carry a trusted property-local time-zone snapshot and a
+  // canonical UTC start. The hold, not connected-account Stripe metadata,
+  // decides the actual reserved interval. Historical pre-rollout holds
+  // retain their existing legacy UTC treatment rather than being moved.
+  const canonicalScheduled = Boolean(metadata.booking_date && metadata.scheduled_starts_at);
+  if (canonicalScheduled) {
+    const heldStart = new Date(hold.starts_at).getTime();
+    const claimedStart = new Date(metadata.scheduled_starts_at).getTime();
+    if (!metadata.property_time_zone || !Number.isFinite(heldStart) ||
+        !Number.isFinite(claimedStart) || claimedStart !== heldStart) {
+      throw new CheckoutIntegrityError("Trusted scheduled start differs from registered hold");
+    }
+  }
   const chargeAccountId = connectedAccountId;
   const host = await hostAccountForListing(listingId);
   if (String(metadata.host_id) !== String(host.hostId)) {
@@ -173,6 +186,9 @@ async function confirmBooking(session, connectedAccountId, hold) {
     stripe_connected_account_id: chargeAccountId,
     spot_label: metadata.spot_label || null,
     booking_date: metadata.booking_date || null,
+    // Write the registered UTC hold start as a canonical booking instant.
+    scheduled_starts_at: canonicalScheduled ? new Date(hold.starts_at).toISOString() : null,
+    property_time_zone: canonicalScheduled ? metadata.property_time_zone : null,
     start_hour: metadata.start_hour === "" ? null : Number(metadata.start_hour),
     end_hour: metadata.end_hour === "" ? null : Number(metadata.end_hour),
     vehicle_profile_id: metadata.vehicle_id || null,
@@ -207,7 +223,7 @@ async function confirmBooking(session, connectedAccountId, hold) {
   const { data: inserted, error } = await supabaseAdmin
     .from("bookings")
     .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
-    .select("id, listing_id, renter_id, hours, total, spot_label, paid_at, booking_date, start_hour, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate");
+    .select("id, listing_id, renter_id, hours, total, spot_label, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate");
   if (error) {
     // A hold should make this exceptionally rare, but a payment can complete
     // at the exact expiry boundary. Never leave that customer charged without
@@ -310,7 +326,7 @@ async function confirmExtension(session, connectedAccountId, pending) {
 async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   const { data: booking, error: bookingError } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, spot_label, paid_at, booking_date, start_hour, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate")
+    .select("id, listing_id, renter_id, hours, spot_label, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate")
     .eq("id", bookingId)
     .single();
   if (bookingError || !booking) throw bookingError || new Error("Booking not found after extension.");
@@ -338,7 +354,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   // gives the NEW end time directly — no separate "add addedHours" math
   // needed.
   const { start, end } = getSessionWindow(booking);
-  const times = formatBookingEmailTimes(start, end);
+  const times = formatBookingEmailTimes(start, end, new Date(), booking.property_time_zone || undefined);
 
   const addedTimeStr = addedHours === 0.5 ? "30 minutes" : `${addedHours} hour${addedHours === 1 ? "" : "s"}`;
   const amountChargedStr = `${(totalCents / 100).toLocaleString("en-CA", { style: "currency", currency: "CAD" })} CAD`;
