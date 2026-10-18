@@ -22,3 +22,11 @@ test("existing paid extension apply RPC continues to lock by listing and never t
   assert.match(apply,/pg_advisory_xact_lock\(v_listing_id\)/);
   assert.doesNotMatch(apply,/pg_advisory_xact_lock\(5118/);
 });
+
+test("extension checkout returns a rate-limit 429 before creating Stripe session when quota RPC denies Driver",async()=>{
+  const code=await readFile(new URL("../api/create-extend-session.js",import.meta.url),"utf8");
+  const quota=code.indexOf('if (holdError?.code === "P0058")');
+  const checkout=code.indexOf("stripe.checkout.sessions.create(");
+  assert.ok(quota>0&&quota<checkout);
+  assert.match(code,/res\.status\(429\)\.json/);
+});
