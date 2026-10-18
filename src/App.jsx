@@ -37,6 +37,7 @@ import { hasDrivewayVehicle } from "./lib/drivewayCar";
 import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
+import { addCalendarDays, dateInScheduleTimezone, isCalendarDate, validateHostAvailabilityExceptions, validateHostExceptionDates } from "./lib/availabilityExceptionDates";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -4360,9 +4361,10 @@ function ListDrivewayView({ user }) {
   });
   const addAvailabilityException = () => setForm(current => {
     const availability = normalizeAvailability(current.availability);
-    const today = new Date();
-    today.setDate(today.getDate() + 1);
-    const date = today.toISOString().slice(0, 10);
+    // Start tomorrow on the schedule's calendar, not UTC tomorrow. When a
+    // Host is travelling, toISOString() can shift the property's day.
+    const date = addCalendarDays(dateInScheduleTimezone(availability.timezone), 1);
+    if (!date) return current;
     return {
       ...current,
       availability: {
@@ -4378,6 +4380,10 @@ function ListDrivewayView({ user }) {
     };
   });
   const updateAvailabilityException = (id, patch) => setForm(current => {
+    // A cleared/unparseable native date input must not silently disappear
+    // when normalizeAvailability() filters non-ISO exception dates.
+    if (("startDate" in patch && !isCalendarDate(patch.startDate))
+        || ("endDate" in patch && !isCalendarDate(patch.endDate))) return current;
     const availability = normalizeAvailability(current.availability);
     return {
       ...current,
@@ -4400,6 +4406,7 @@ function ListDrivewayView({ user }) {
 
   const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
   const normalizedAvailability = normalizeAvailability(form.availability);
+  const exceptionDateValidation = validateHostAvailabilityExceptions(normalizedAvailability);
   const availabilitySummary = formatAvailabilitySummary(normalizedAvailability);
   const listingFeatures = [
     form.covered && "Covered",
@@ -4422,6 +4429,7 @@ function ListDrivewayView({ user }) {
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
+    !exceptionDateValidation.valid && { label: exceptionDateValidation.issues[0].error, step: 6 },
     (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 7 },
   ].filter(Boolean);
 
@@ -4433,6 +4441,14 @@ function ListDrivewayView({ user }) {
     setUploadProgress("");
     if (!user || user.role !== "host") {
       setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    // Recompute with the current clock, not the time the Host opened Step 6.
+    // A tab left open overnight must not publish an already-expired date.
+    const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
+    if (!currentExceptionDates.valid) {
+      setPublishError(currentExceptionDates.issues[0].error);
+      setStep(6);
       return;
     }
     if (!form.photos.length) {
@@ -4898,7 +4914,7 @@ function ListDrivewayView({ user }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Special dates & exceptions</div>
-                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours.</div>
+                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours. Dates cannot be in the past.</div>
               </div>
               <button type="button" onClick={addAvailabilityException} style={{ border: 0, borderRadius: 8, padding: "7px 9px", background: C.navy, color: C.white, fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>+ Add exception</button>
             </div>
@@ -4910,9 +4926,14 @@ function ListDrivewayView({ user }) {
                 {normalizedAvailability.exceptions.map(exception => (
                   <div key={exception.id} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: 10 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <label style={labelStyle}>From<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
-                      <label style={labelStyle}>To<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
+                      <label style={labelStyle}>From<input type="date" min={exceptionDateValidation.today || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
+                      <label style={labelStyle}>To<input type="date" min={exception.startDate > (exceptionDateValidation.today || "") ? exception.startDate : (exceptionDateValidation.today || undefined)} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
                     </div>
+                    {!validateHostExceptionDates(exception, exceptionDateValidation.today).valid && (
+                      <p role="alert" style={{ color: C.red, fontSize: 11, fontWeight: 700, margin: "6px 0" }}>
+                        {validateHostExceptionDates(exception, exceptionDateValidation.today).error}
+                      </p>
+                    )}
                     <label style={{ ...labelStyle, marginTop: 8 }}>On these dates
                       <select style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.type} onChange={e => updateAvailabilityException(exception.id, { type: e.target.value })}>
                         <option value="unavailable">Not available</option>
@@ -4941,7 +4962,7 @@ function ListDrivewayView({ user }) {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability)}>Continue →</Btn>
+            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability) || !exceptionDateValidation.valid}>Continue →</Btn>
           </div>
         </div>
       )}
