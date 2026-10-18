@@ -58,11 +58,20 @@ test("BUG-005116 webhook RPC rejects unrelated holds, ignores own hold in capaci
   assert.match(sql, /IF FOUND THEN[\s\S]*?RETURN QUERY SELECT false,b\.hours/);
 });
 
-test("BUG-005116 failure/expiry webhook continues to release registered session holds", async () => {
+test("BUG-005116 integration: failure/expiry release only own registered and unpaid Checkout holds", async () => {
   const webhook = await source("../api/stripe-webhook.js");
   const start = webhook.indexOf('case "checkout.session.async_payment_failed":');
   assert.ok(start >= 0);
-  const segment = webhook.slice(start, webhook.indexOf('case "account.updated":',start));
-  assert.match(segment, /\.from\("booking_holds"\)\.delete\(\)\s*\.eq\("stripe_checkout_session_id", session\.id\)/);
-  assert.match(segment, /\.from\("pending_booking_extensions"\)\.delete\(\)\s*\.eq\("stripe_checkout_session_id", session\.id\)/);
+  const segment = webhook.slice(start, webhook.indexOf('case "account.updated":', start));
+  assert.match(segment, /processCheckoutTermination\(event\)/);
+  const fn = webhook.slice(
+    webhook.indexOf("async function processCheckoutTermination(event)"),
+    webhook.indexOf("export default async function handler")
+  );
+  assert.match(fn, /isExpectedCheckoutTermination\(session, current, event\.type, connectedAccountId\)/);
+  assert.match(fn, /matchesRegisteredCheckoutAccount\(hold, connectedAccountId\)/);
+  assert.match(fn, /matchesRegisteredCheckoutAccount\(pending, connectedAccountId\)/);
+  assert.match(fn, /\.from\("booking_holds"\)\.delete\(\)[\s\S]*?\.eq\("stripe_checkout_session_id", session\.id\)[\s\S]*?\.eq\("expected_connected_account_id", connectedAccountId\)/);
+  assert.match(fn, /\.from\("pending_booking_extensions"\)\.delete\(\)[\s\S]*?\.eq\("stripe_checkout_session_id", session\.id\)[\s\S]*?\.eq\("expected_connected_account_id", connectedAccountId\)/);
+  assert.match(fn, /if \(booking && !canFailUnpaidBooking\(booking, connectedAccountId\)\) return/);
 });
