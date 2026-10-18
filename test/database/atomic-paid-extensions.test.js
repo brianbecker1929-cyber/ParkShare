@@ -70,11 +70,20 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
   after(async () => { await pool?.end(); });
 
   async function register(session, hours = 1, total = 115) {
+    // Same service-role RPC used by create-extend-session. It reserves
+    // the precise PostgreSQL session_range endpoint without JS ms truncation.
+    const { rows: hold } = await pool.query(
+      "select * from public.reserve_extension_checkout_hold($1,$2,$3,$4)",
+      [bookingId, RENTER, hours,
+       new Date(Date.now() + 30 * 60 * 1000).toISOString()]);
+    const holdId = hold[0].hold_id;
+    await pool.query("update public.booking_holds set stripe_checkout_session_id=$2 where id=$1", [holdId, session]);
     await pool.query(`insert into public.pending_booking_extensions
       (booking_id,renter_id,added_hours,expected_total_cents,expected_service_fee_cents,
-       expected_connected_account_id,stripe_checkout_session_id)
-      values ($1,$2,$3,$4,15,'acct_test',$5)`,
-      [bookingId, RENTER, hours, total, session]);
+       expected_connected_account_id,stripe_checkout_session_id,hold_id)
+      values ($1,$2,$3,$4,15,'acct_test',$5,$6)`,
+      [bookingId, RENTER, hours, total, session, holdId]);
+    return holdId;
   }
 
   function apply(session, hours = 1, total = 115) {
@@ -127,18 +136,54 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
     assert.deepEqual((await state()).sessions,[]);
   });
 
-  test("two simultaneous paid extensions serialize without lost duration", async () => {
+  test("a second concurrent checkout for the same spot/time is denied BEFORE payment", async () => {
     await register("cs_parallel_a");
-    await register("cs_parallel_b");
-    const [a,b] = await Promise.all([
-      apply("cs_parallel_a"),
-      apply("cs_parallel_b"),
+    await assert.rejects(register("cs_parallel_b"), error => error.code === "P0001");
+    assert.equal((await state()).hours, 1);
+    assert.equal((await pool.query("select count(*)::int as n from public.pending_booking_extensions")).rows[0].n, 1);
+    const result = await apply("cs_parallel_a");
+    assert.equal(result.rows[0].applied, true);
+    assert.equal((await state()).hours, 2);
+  });
+
+  test("concurrent duplicate webhook deliveries are idempotent", async () => {
+    await register("cs_parallel_webhook");
+    const results = await Promise.all([
+      apply("cs_parallel_webhook"), apply("cs_parallel_webhook"),
     ]);
-    assert.equal(a.rows[0].applied,true);
-    assert.equal(b.rows[0].applied,true);
-    const after=await state();
-    assert.equal(after.hours,3);
-    assert.deepEqual(after.sessions,["cs_parallel_a","cs_parallel_b"]);
+    assert.deepEqual(results.map(x=>x.rows[0].applied).sort(), [false,true]);
+    assert.equal((await state()).hours, 2);
+    assert.deepEqual((await state()).sessions, ["cs_parallel_webhook"]);
+  });
+
+  test("sequential checkouts safely extend the NEW booked endpoint", async () => {
+    await register("cs_first");
+    await apply("cs_first");
+    await register("cs_second");
+    await apply("cs_second");
+    assert.equal((await state()).hours, 3);
+    assert.deepEqual((await state()).sessions, ["cs_first","cs_second"]);
+  });
+
+  test("paid webhook refuses a forged or missing registered hold", async () => {
+    const originalHold = await register("cs_missing_hold");
+    await pool.query("update public.pending_booking_extensions set hold_id=null where stripe_checkout_session_id='cs_missing_hold'");
+    await assert.rejects(apply("cs_missing_hold"), error => error.code==="22023");
+    assert.equal((await state()).hours, 1);
+
+    await pool.query("update public.pending_booking_extensions set hold_id=$1 where stripe_checkout_session_id='cs_missing_hold'", [originalHold]);
+    await pool.query("update public.booking_holds set stripe_checkout_session_id='cs_different' where id=$1", [originalHold]);
+    await assert.rejects(apply("cs_missing_hold"), error => error.code==="22023");
+    assert.equal((await state()).hours, 1);
+    assert.deepEqual((await state()).sessions, []);
+  });
+
+  test("application releases its OWN hold atomically and keeps new booked time", async () => {
+    const id = await register("cs_release");
+    assert.equal((await pool.query("select count(*)::int as n from public.booking_holds where id=$1",[id])).rows[0].n, 1);
+    await apply("cs_release");
+    assert.equal((await pool.query("select count(*)::int as n from public.booking_holds where id=$1",[id])).rows[0].n, 0);
+    assert.equal((await state()).hours, 2);
   });
 
   test("database failure updating booking rolls back the extension insert", async () => {

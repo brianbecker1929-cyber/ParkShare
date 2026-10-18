@@ -56,8 +56,33 @@ export default async function handler(req, res) {
     const totalCents = subtotalCents + serviceFeeCents;
     if (subtotalCents < 50) return res.status(400).json({ error: "Extension amount is too small." });
     const metadata = { type: "extension", booking_id: String(booking.id), added_hours: String(addedHours), total_cents: String(totalCents) };
-    const origin = getOrigin(req);
-    const session = await stripe.checkout.sessions.create({
+    // Reserve the exact additional interval AT CHECKOUT, not only after
+    // payment. Postgres reads the canonical booking end with full timestamp
+    // precision and calls create_booking_hold under the listing advisory lock,
+    // so no JavaScript Date rounding gap can produce a false conflict.
+    // Stripe requires >=30 minutes until expiry; 30m45s also fits the DB's
+    // 31-minute maximum checkout-hold lease.
+    const holdExpiresAt = new Date(Date.now() + 30 * 60 * 1000 + 45 * 1000);
+    const { data: reservedRows, error: holdError } = await supabaseAdmin.rpc("reserve_extension_checkout_hold", {
+      p_booking_id: booking.id,
+      p_renter_id: user.id,
+      p_added_hours: addedHours,
+      p_expires_at: holdExpiresAt.toISOString(),
+    });
+    if (holdError?.code === "P0001") {
+      return res.status(409).json({ error: "That additional parking time is already booked or held. Please choose another time." });
+    }
+    if (holdError) throw holdError;
+    const reserved = Array.isArray(reservedRows) ? reservedRows[0] : reservedRows;
+    const holdId = reserved?.hold_id;
+    if (!holdId || !reserved?.starts_at || !reserved?.ends_at) {
+      throw new Error("Unable to reserve additional time.");
+    }
+
+    let session;
+    try {
+      const origin = getOrigin(req);
+      session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
       customer_email: user.email || undefined,
@@ -69,30 +94,63 @@ export default async function handler(req, res) {
       metadata,
       success_url: `${origin}/?extension_success=1`,
       cancel_url: `${origin}/?extension_cancelled=1&extend_booking=${booking.id}`,
-      expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
     }, { stripeAccount: host.stripe_account_id });
 
-    // A connected Host may create their own Stripe sessions. Record each
-    // ParkShare-created extension under the service role before returning
-    // its payment URL so the webhook never accepts unregistered metadata.
-    const { data: pending, error: pendingError } = await supabaseAdmin
-      .from("pending_booking_extensions")
-      .insert({
-        booking_id: booking.id,
-        renter_id: user.id,
-        added_hours: addedHours,
-        expected_total_cents: totalCents,
-        expected_service_fee_cents: serviceFeeCents,
-        expected_connected_account_id: host.stripe_account_id,
-        stripe_checkout_session_id: session.id,
-      })
-      .select("id")
-      .maybeSingle();
-    if (pendingError || !pending) {
-      await stripe.checkout.sessions.expire(session.id, {}, { stripeAccount: host.stripe_account_id }).catch(() => {});
-      throw pendingError || new Error("Unable to register a secure booking extension.");
+      // Bind trusted hold evidence to the exact Stripe Checkout session.
+      // A paid webhook will reject a missing/mismatched hold before changing
+      // the booking. The client never provides a trusted hold identifier.
+      const { data: boundHold, error: bindError } = await supabaseAdmin
+        .from("booking_holds")
+        .update({ stripe_checkout_session_id: session.id })
+        .eq("id", holdId)
+        .eq("listing_id", listing.id)
+        .eq("renter_id", user.id)
+        .is("stripe_checkout_session_id", null)
+        .select("id")
+        .maybeSingle();
+      if (bindError || !boundHold) {
+        throw bindError || new Error("Unable to bind reserved time to secure checkout.");
+      }
+
+      const { data: pending, error: pendingError } = await supabaseAdmin
+        .from("pending_booking_extensions")
+        .insert({
+          booking_id: booking.id,
+          renter_id: user.id,
+          added_hours: addedHours,
+          expected_total_cents: totalCents,
+          expected_service_fee_cents: serviceFeeCents,
+          expected_connected_account_id: host.stripe_account_id,
+          stripe_checkout_session_id: session.id,
+          hold_id: holdId,
+        })
+        .select("id")
+        .maybeSingle();
+      if (pendingError || !pending) {
+        throw pendingError || new Error("Unable to register a secure booking extension.");
+      }
+      return res.status(200).json({ url: session.url });
+    } catch (checkoutError) {
+      // Never strand a 30-minute parking hold when Stripe setup or secure
+      // registration fails. Checkout URL was not delivered to the Driver.
+      if (session?.id) {
+        await stripe.checkout.sessions.expire(session.id, {}, {
+          stripeAccount: host.stripe_account_id,
+        }).catch(error => console.error("Could not expire orphan extension checkout:", error));
+        const { error: deletePendingError } = await supabaseAdmin
+          .from("pending_booking_extensions").delete()
+          .eq("stripe_checkout_session_id", session.id);
+        if (deletePendingError) console.error("Extension pending cleanup failed:", deletePendingError);
+      }
+      const { error: releaseError } = await supabaseAdmin
+        .from("booking_holds").delete()
+        .eq("id", holdId)
+        .eq("listing_id", listing.id)
+        .eq("renter_id", user.id);
+      if (releaseError) console.error("Extension hold cleanup failed:", releaseError);
+      throw checkoutError;
     }
-    return res.status(200).json({ url: session.url });
   } catch (error) {
     console.error("create-extend-session error:", error);
     return res.status(500).json({ error: error.message || "Unable to start extension checkout." });

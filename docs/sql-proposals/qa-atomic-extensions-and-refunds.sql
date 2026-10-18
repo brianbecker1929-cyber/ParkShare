@@ -3,6 +3,13 @@
 -- Schema inspected READ-ONLY on ParkShare-QA, October 17, 2026.
 BEGIN;
 
+-- Held extension interval is bound to its registered Checkout session.
+-- Only service_role can access pending_booking_extensions.
+ALTER TABLE public.pending_booking_extensions
+ ADD COLUMN IF NOT EXISTS hold_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS pending_booking_extensions_hold_id_unique
+ ON public.pending_booking_extensions(hold_id) WHERE hold_id IS NOT NULL;
+
 ALTER TABLE public.booking_extensions
  ADD COLUMN IF NOT EXISTS stripe_refund_id text,
  ADD COLUMN IF NOT EXISTS refund_status text,
@@ -12,6 +19,50 @@ ALTER TABLE public.booking_extensions
  ADD COLUMN IF NOT EXISTS charge_fully_refunded boolean,
  ADD COLUMN IF NOT EXISTS charge_disputed boolean NOT NULL DEFAULT false,
  ADD COLUMN IF NOT EXISTS refund_reconciled_at timestamptz;
+
+-- Reserve the extension tail using PostgreSQL's ORIGINAL microsecond-
+-- precision booking endpoint, not JS Date.toISOString() (millisecond
+-- precision). Both hold reservation and paid extension use this same end.
+-- Reuses the existing listing-scoped atomic create_booking_hold RPC.
+CREATE OR REPLACE FUNCTION public.reserve_extension_checkout_hold(
+  p_booking_id bigint, p_renter_id uuid, p_added_hours numeric,
+  p_expires_at timestamptz
+) RETURNS TABLE(hold_id uuid, starts_at timestamptz, ends_at timestamptz)
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=''
+AS $reserve$
+DECLARE
+  b public.bookings%ROWTYPE;
+  v_listing_id bigint;
+  v_start timestamptz;
+  v_end timestamptz;
+BEGIN
+  IF p_booking_id IS NULL OR p_renter_id IS NULL
+     OR p_added_hours IS NULL OR p_added_hours < 0.25 OR p_added_hours > 24
+     OR (p_added_hours * 4) <> trunc(p_added_hours * 4)
+     OR p_expires_at IS NULL
+  THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Invalid extension hold request'; END IF;
+
+  SELECT listing_id INTO v_listing_id FROM public.bookings WHERE id=p_booking_id;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Booking missing'; END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(v_listing_id);
+  SELECT * INTO b FROM public.bookings WHERE id=p_booking_id FOR UPDATE;
+  IF NOT FOUND OR b.listing_id IS DISTINCT FROM v_listing_id
+      OR b.renter_id IS DISTINCT FROM p_renter_id
+      OR b.status <> 'confirmed' OR b.session_range IS NULL
+      OR NOT (lower(b.session_range) <= now() AND now() < upper(b.session_range))
+  THEN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='Booking is not active or does not belong to Driver'; END IF;
+
+  v_start := upper(b.session_range);
+  v_end := v_start + (p_added_hours::text || ' hours')::interval;
+  RETURN QUERY SELECT public.create_booking_hold(
+    b.listing_id, b.renter_id, b.spot_label, v_start, v_end, p_expires_at
+  ), v_start, v_end;
+END;
+$reserve$;
+REVOKE ALL ON FUNCTION public.reserve_extension_checkout_hold(bigint,uuid,numeric,timestamptz)
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.reserve_extension_checkout_hold(bigint,uuid,numeric,timestamptz)
+  TO service_role;
 
 -- Invoked only by the service-role webhook after Stripe PaymentIntent validation.
 -- Insert and increment are ONE transaction. Failure of either rolls back both.
@@ -27,6 +78,7 @@ DECLARE
  p public.pending_booking_extensions%ROWTYPE;
  b public.bookings%ROWTYPE;
  e public.booking_extensions%ROWTYPE;
+ v_own_hold public.booking_holds%ROWTYPE;
  v_listing_id bigint;
  v_capacity int;
  v_old_end timestamptz;
@@ -80,6 +132,19 @@ BEGIN
  v_new_end:=v_old_end+(p_added_hours::text||' hours')::interval;
  v_range:=tstzrange(v_old_end,v_new_end,'[)');
  v_spot:=nullif(upper(trim(b.spot_label)),'');
+ -- Checkout must already have reserved the EXACT extension interval.
+ -- Never trust checkout metadata or a standalone Driver-provided hold ID.
+ IF p.hold_id IS NULL THEN
+  RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Registered extension is missing its reserved hold';
+ END IF;
+ SELECT * INTO v_own_hold FROM public.booking_holds x WHERE x.id=p.hold_id FOR UPDATE;
+ IF NOT FOUND OR v_own_hold.listing_id IS DISTINCT FROM v_listing_id
+  OR v_own_hold.renter_id IS DISTINCT FROM p_renter_id
+  OR v_own_hold.stripe_checkout_session_id IS DISTINCT FROM p_checkout_session_id
+  OR v_own_hold.starts_at IS DISTINCT FROM v_old_end
+  OR v_own_hold.ends_at IS DISTINCT FROM v_new_end
+  OR nullif(upper(trim(v_own_hold.spot_label)),'') IS DISTINCT FROM v_spot
+ THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Registered extension hold does not match booking and Checkout'; END IF;
  SELECT greatest(coalesce(l.spaces,1),1) INTO v_capacity FROM public.listings l WHERE l.id=v_listing_id;
  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Listing missing'; END IF;
  SELECT count(*) INTO v_other_bookings FROM public.bookings x
@@ -87,6 +152,7 @@ BEGIN
  AND x.status='confirmed' AND x.session_range && v_range;
  SELECT count(*) INTO v_other_holds FROM public.booking_holds h
  WHERE h.listing_id=v_listing_id AND h.expires_at>now()
+ AND h.id<>p.hold_id
  AND h.starts_at<v_new_end AND h.ends_at>v_old_end;
  IF v_other_bookings+v_other_holds>=v_capacity
  THEN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='Reconcile paid extension manually: capacity conflict'; END IF;
@@ -95,7 +161,7 @@ BEGIN
   AND x.id<>p_booking_id AND x.status='confirmed'
   AND upper(trim(x.spot_label))=v_spot AND x.session_range && v_range)
  OR EXISTS (SELECT 1 FROM public.booking_holds h WHERE h.listing_id=v_listing_id
-  AND h.expires_at>now() AND upper(trim(h.spot_label))=v_spot
+  AND h.id<>p.hold_id AND h.expires_at>now() AND upper(trim(h.spot_label))=v_spot
   AND h.starts_at<v_new_end AND h.ends_at>v_old_end)
  ) THEN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='Reconcile paid extension manually: spot conflict'; END IF;
 
@@ -110,6 +176,9 @@ BEGIN
  UPDATE public.bookings x SET hours=x.hours+p_added_hours
  WHERE x.id=p_booking_id AND x.status='confirmed';
  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='Reconcile paid extension manually: booking changed'; END IF;
+ -- Releasing the checkout hold happens in the same atomic transaction as
+ -- extending the booking: Stripe replay uses the extension audit row instead.
+ DELETE FROM public.booking_holds x WHERE x.id=p.hold_id;
  RETURN QUERY SELECT true,b.hours+p_added_hours;
 END;
 $func$;
