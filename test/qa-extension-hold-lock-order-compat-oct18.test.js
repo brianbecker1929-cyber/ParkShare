@@ -13,7 +13,7 @@ test("review-only atomic extension function uses Driver -> listing lock order to
   const nested=fn.indexOf("RETURN QUERY SELECT public.create_booking_hold(");
   assert.ok(driver>=0 && listing>driver && nested>listing);
   assert.match(fn,/IF p_booking_id IS NULL OR p_renter_id IS NULL/);
-  assert.match(fn,/REVOKE ALL ON FUNCTION public\.reserve_extension_checkout_hold[\s\S]*?TO service_role/);
+  assert.match(sql,/REVOKE ALL ON FUNCTION public\.reserve_extension_checkout_hold[\s\S]*?TO service_role/);
 });
 
 test("existing paid extension apply RPC continues to lock by listing and never takes new quota locks",async()=>{
