@@ -3,6 +3,7 @@
 // from leaking between unrelated renters and surfaces insert errors to the UI.
 
 import { jsonMethod, requireUser, supabaseAdmin } from "./_lib.js";
+import { canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
 
 async function listingFor(id) {
   const { data, error } = await supabaseAdmin
@@ -17,7 +18,7 @@ async function listingFor(id) {
 async function bookingFor(id) {
   const { data, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id")
+    .select("id, listing_id, renter_id, status, paid_at, stripe_checkout_session_id")
     .eq("id", id)
     .single();
   if (error || !data) throw new Error("Booking not found.");
@@ -45,8 +46,13 @@ export default async function handler(req, res) {
         .select("id, host_id, title, address, price, spaces, features, description, img, photos, lat, lng, spots, availability")
         .eq("id", booking.listing_id).single();
       if (error || !listing) return res.status(404).json({ error: "Listing not found." });
-      if (user.id !== booking.renter_id && user.id !== listing.host_id) {
-        return res.status(403).json({ error: "You are not part of this booking conversation." });
+      // Even a once-created but unpaid/cancelled booking must not expose
+      // the property's exact address via messaging context.
+      if (!canReadPreciseLocation({
+        userId: user.id, hostId: listing.host_id,
+        booking, listingId: listing.id,
+      })) {
+        return res.status(404).json({ error: "Booking details unavailable." });
       }
       const isHost = user.id === listing.host_id;
       const recipientId = isHost ? booking.renter_id : listing.host_id;
