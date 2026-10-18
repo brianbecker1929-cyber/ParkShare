@@ -20,6 +20,50 @@ ALTER TABLE public.booking_extensions
  ADD COLUMN IF NOT EXISTS charge_disputed boolean NOT NULL DEFAULT false,
  ADD COLUMN IF NOT EXISTS refund_reconciled_at timestamptz;
 
+-- Reserve the extension tail using PostgreSQL's ORIGINAL microsecond-
+-- precision booking endpoint, not JS Date.toISOString() (millisecond
+-- precision). Both hold reservation and paid extension use this same end.
+-- Reuses the existing listing-scoped atomic create_booking_hold RPC.
+CREATE OR REPLACE FUNCTION public.reserve_extension_checkout_hold(
+  p_booking_id bigint, p_renter_id uuid, p_added_hours numeric,
+  p_expires_at timestamptz
+) RETURNS TABLE(hold_id uuid, starts_at timestamptz, ends_at timestamptz)
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=''
+AS $reserve$
+DECLARE
+  b public.bookings%ROWTYPE;
+  v_listing_id bigint;
+  v_start timestamptz;
+  v_end timestamptz;
+BEGIN
+  IF p_booking_id IS NULL OR p_renter_id IS NULL
+     OR p_added_hours IS NULL OR p_added_hours < 0.25 OR p_added_hours > 24
+     OR (p_added_hours * 4) <> trunc(p_added_hours * 4)
+     OR p_expires_at IS NULL
+  THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Invalid extension hold request'; END IF;
+
+  SELECT listing_id INTO v_listing_id FROM public.bookings WHERE id=p_booking_id;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Booking missing'; END IF;
+  PERFORM pg_catalog.pg_advisory_xact_lock(v_listing_id);
+  SELECT * INTO b FROM public.bookings WHERE id=p_booking_id FOR UPDATE;
+  IF NOT FOUND OR b.listing_id IS DISTINCT FROM v_listing_id
+      OR b.renter_id IS DISTINCT FROM p_renter_id
+      OR b.status <> 'confirmed' OR b.session_range IS NULL
+      OR NOT (lower(b.session_range) <= now() AND now() < upper(b.session_range))
+  THEN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='Booking is not active or does not belong to Driver'; END IF;
+
+  v_start := upper(b.session_range);
+  v_end := v_start + (p_added_hours::text || ' hours')::interval;
+  RETURN QUERY SELECT public.create_booking_hold(
+    b.listing_id, b.renter_id, b.spot_label, v_start, v_end, p_expires_at
+  ), v_start, v_end;
+END;
+$reserve$;
+REVOKE ALL ON FUNCTION public.reserve_extension_checkout_hold(bigint,uuid,numeric,timestamptz)
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.reserve_extension_checkout_hold(bigint,uuid,numeric,timestamptz)
+  TO service_role;
+
 -- Invoked only by the service-role webhook after Stripe PaymentIntent validation.
 -- Insert and increment are ONE transaction. Failure of either rolls back both.
 CREATE OR REPLACE FUNCTION public.apply_paid_booking_extension(
