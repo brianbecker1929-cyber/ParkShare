@@ -6424,7 +6424,10 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
             <a href="https://www.instagram.com/myparkshare/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Instagram" title="Instagram" style={socialIconStyle}>◎</a>
-            <a href="https://www.facebook.com/ParkerParksHere/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Facebook" title="Facebook" style={socialIconStyle}>f</a>
+            {/* BUG-005141: the supplied Facebook destination has not been independently verified.
+                Keep the icon in the footer, but never send visitors to an unconfirmed page.
+                Restore a real <a> only after the official public page is confirmed. */}
+            <span aria-label="ParkShare Facebook link being verified" title="Facebook link being verified" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>f</span>
             <a href="https://www.youtube.com/@ParkerParksHere" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on YouTube" title="YouTube" style={socialIconStyle}>▶</a>
             <span aria-label="X link coming soon" title="X link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>𝕏</span>
             <span aria-label="LinkedIn link coming soon" title="LinkedIn link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>in</span>
