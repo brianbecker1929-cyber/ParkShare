@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -994,6 +995,11 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const checkoutModalActive = useRef(false);
+  useEffect(() => {
+    checkoutModalActive.current = true;
+    return () => { checkoutModalActive.current = false; };
+  }, []);
   const bookableVehicles = getBookableVehicles(user || {});
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
@@ -1088,8 +1094,13 @@ const subtotal = listing.price * hours;
         throw new Error("Stripe checkout did not return a payment link.");
       }
 
+      // A sign-out or account switch may close this modal while an already-
+      // submitted Checkout request is in flight. Do not redirect a closed
+      // dialog to Stripe even if the server managed to issue a hold.
+      if (!checkoutModalActive.current) return;
       window.location.assign(data.url); // hand off to Stripe's hosted checkout page
     } catch (err) {
+      if (!checkoutModalActive.current) return;
       console.error("Stripe checkout error:", err);
       setRedirecting(false);
       setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
@@ -1564,7 +1575,7 @@ const formatHour = (h) => {
   const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
   return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, initialSpotPickerOpen = true }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onRequestSignIn, user, initialSpotPickerOpen = true }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1607,6 +1618,24 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  // The selected spot and schedule stay in place across another tab's
+  // sign-out/sign-in. Rehydrate a valid saved vehicle when Auth catches up.
+  const lastBookingUserId = useRef(user?.id || null);
+  useEffect(() => {
+    const nextId = user?.id || null;
+    if (lastBookingUserId.current !== nextId) {
+      // A different account should never inherit an open payment dialog.
+      setShowPayment(false);
+      lastBookingUserId.current = nextId;
+    }
+    if (!user) {
+      setShowPayment(false);
+      return;
+    }
+    setSelectedVehicleId(current => bookableVehicles.some(vehicle => vehicle.id === current)
+      ? current
+      : (bookableVehicles.find(vehicle => vehicle.id === "primary") || bookableVehicles[0])?.id || "");
+  }, [user]);
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
@@ -1939,6 +1968,16 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
             </div>
             <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle}>Reserve & pay →</Btn>
+          {!user && (
+            <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
+              Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
+              <button type="button" onClick={onRequestSignIn}
+                style={{ marginLeft: 9, fontSize: 12, fontWeight: 700, color: C.navy, border: "none", background: "transparent", textDecoration: "underline", cursor: "pointer" }}>
+                Sign in
+              </button>
+            </div>
+          )}
+
           </div>
         </div>
       )}
@@ -2480,7 +2519,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
+function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, onRequestSignIn, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -2734,7 +2773,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
+  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} onRequestSignIn={onRequestSignIn} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -9876,7 +9915,9 @@ export default function App() {
       return;
     }
     const requestedRoute = getRouteForState(screen, tab, legalSection);
-    if (screen === "app" && requestedRoute.private) return;
+    // Signing in from the parking detail must not reset the selected
+    // driveway/spot/schedule or navigate away before checkout.
+    if (screen === "app" && (tab === "Browse" || requestedRoute.private)) return;
     moveToRoute("app", u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
   };
 
@@ -9890,36 +9931,19 @@ export default function App() {
     moveToRoute("app", "Browse");
   };
 
-  // Restore session on page load / refresh, and react to future sign-outs
-  // (e.g. token expiry) from anywhere in the app.
-  useEffect(() => {
-    let active = true;
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session || !active) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, name, role")
-        .eq("id", session.user.id)
-        .single();
-      if (profile && active) {
-        setUser(buildAppUser(profile, session.user));
-      }
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setAuthInitialScreen("recovery");
-        setShowAuth(true);
-      }
-      if (!session) setUser(null);
-    });
-
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+  // INITIAL_SESSION restores the saved session. SIGNED_IN / SIGNED_OUT
+  // also arrive across tabs. Defer Supabase reads outside the auth callback
+  // to avoid client deadlocks, and invalidate stale profile queries.
+  useEffect(() => createAuthSessionSynchronizer({
+    client: supabase,
+    buildUser: buildAppUser,
+    onUser: (nextUser) => setUser(nextUser),
+    onRecovery: () => {
+      setAuthInitialScreen("recovery");
+      setShowAuth(true);
+    },
+    onProfileUnavailable: () => console.warn("[auth] Profile unavailable after cross-tab session update"),
+  }), []);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
     setMessageBookingId(null);
@@ -10225,7 +10249,7 @@ export default function App() {
           )}
           {tab === "Browse" && (messageBookingId
             ? <EmailMessageListing bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
-            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
+            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
