@@ -995,6 +995,11 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const checkoutModalActive = useRef(false);
+  useEffect(() => {
+    checkoutModalActive.current = true;
+    return () => { checkoutModalActive.current = false; };
+  }, []);
   const bookableVehicles = getBookableVehicles(user || {});
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
@@ -1089,8 +1094,13 @@ const subtotal = listing.price * hours;
         throw new Error("Stripe checkout did not return a payment link.");
       }
 
+      // A sign-out or account switch may close this modal while an already-
+      // submitted Checkout request is in flight. Do not redirect a closed
+      // dialog to Stripe even if the server managed to issue a hold.
+      if (!checkoutModalActive.current) return;
       window.location.assign(data.url); // hand off to Stripe's hosted checkout page
     } catch (err) {
+      if (!checkoutModalActive.current) return;
       console.error("Stripe checkout error:", err);
       setRedirecting(false);
       setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
@@ -1610,7 +1620,14 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   // The selected spot and schedule stay in place across another tab's
   // sign-out/sign-in. Rehydrate a valid saved vehicle when Auth catches up.
+  const lastBookingUserId = useRef(user?.id || null);
   useEffect(() => {
+    const nextId = user?.id || null;
+    if (lastBookingUserId.current !== nextId) {
+      // A different account should never inherit an open payment dialog.
+      setShowPayment(false);
+      lastBookingUserId.current = nextId;
+    }
     if (!user) {
       setShowPayment(false);
       return;
