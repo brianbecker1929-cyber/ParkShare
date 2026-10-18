@@ -7,6 +7,7 @@ import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
+import { localCalendarDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
@@ -1061,9 +1062,7 @@ const subtotal = listing.price * hours;
           spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
           // Send a date-only value. Sending a full ISO timestamp and later
           // appending another time produced invalid future booking windows.
-          bookingDate: date instanceof Date
-            ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-            : undefined,
+          bookingDate: date instanceof Date ? localCalendarDate(date) : undefined,
           startHour,
           endHour,
           vehicleId: selectedVehicle.id,
@@ -1673,7 +1672,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     listingId: numericIdForAvailability,
     mode: bookingMode,
     hours,
-    bookingDate: bookingMode === "advance" ? date.toISOString() : "",
+    bookingDate: bookingMode === "advance" ? localCalendarDate(date) : "",
     startHour,
   });
   const [availabilityResult, setAvailabilityResult] = useState(null);
@@ -1689,7 +1688,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
     if (bookingMode === "advance") {
-      params.set("bookingDate", date.toISOString());
+      params.set("bookingDate", localCalendarDate(date));
       params.set("startHour", String(startHour));
     }
     fetch(`/api/listing-availability?${params.toString()}`)
@@ -3326,7 +3325,7 @@ function HostDashboard({ user, setTab }) {
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
                 const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-                const display = clientBookingDisplay(window.start, scheduled, window.end);
+                const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
                 return {
                   id: "db-" + row.id,
                   rawId: row.id,
@@ -5133,6 +5132,10 @@ function ListDrivewayView({ user }) {
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function clientBookingWindow(booking) {
   let start;
+  const canonical = booking.scheduled_starts_at ? new Date(booking.scheduled_starts_at) : null;
+  if (canonical && Number.isFinite(canonical.getTime())) {
+    start = canonical;
+  } else {
   const dateOnly = String(booking.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0];
   if (dateOnly && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
     const hour = Number(booking.start_hour);
@@ -5142,12 +5145,13 @@ function clientBookingWindow(booking) {
   } else {
     start = new Date(booking.paid_at || booking.created_at);
   }
+  }
   const end = new Date(start.getTime() + Number(booking.hours || 0) * 3600 * 1000);
   return { start, end };
 }
 
-function clientBookingDisplay(start, scheduled, end = start) {
-  const timeZone = scheduled ? "UTC" : undefined;
+function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = null) {
+  const timeZone = propertyTimeZone || (scheduled ? "UTC" : undefined);
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
   const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
@@ -5249,7 +5253,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
             const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-            const display = clientBookingDisplay(window.start, scheduled, window.end);
+            const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
