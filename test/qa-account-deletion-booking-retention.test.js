@@ -18,6 +18,6 @@ test("existing listing retention migration remains separate, without unwanted pr
   const sql = await readFile(new URL("../supabase-migration-010-preserve-bookings-on-listing-delete.sql", import.meta.url), "utf8");
   assert.match(sql, /bookings_listing_id_fkey/);
   assert.match(sql, /booking_holds_listing_id_fkey/);
-  assert.match(sql, /ON DELETE RESTRICT/);
+  assert.match(sql, /ON DELETE RESTRICT/i);
   assert.doesNotMatch(sql, /bookings_renter_id_fkey|listings_host_id_fkey/);
 });
