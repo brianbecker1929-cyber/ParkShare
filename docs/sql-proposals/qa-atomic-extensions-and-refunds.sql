@@ -44,6 +44,12 @@ BEGIN
 
   SELECT listing_id INTO v_listing_id FROM public.bookings WHERE id=p_booking_id;
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='Booking missing'; END IF;
+  -- PR #167 changes create_booking_hold to acquire the DRIVER quota lock
+  -- before the LISTING lock. An extension must obtain these in that same
+  -- global order before it calls create_booking_hold, or parallel new-booking
+  -- and extension checkouts for this Driver/listing could deadlock.
+  -- pg_advisory_xact_lock is reentrant for this PostgreSQL transaction.
+  PERFORM pg_catalog.pg_advisory_xact_lock(5118, hashtext(p_renter_id::text));
   PERFORM pg_catalog.pg_advisory_xact_lock(v_listing_id);
   SELECT * INTO b FROM public.bookings WHERE id=p_booking_id FOR UPDATE;
   IF NOT FOUND OR b.listing_id IS DISTINCT FROM v_listing_id
