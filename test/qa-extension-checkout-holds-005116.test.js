@@ -6,17 +6,17 @@ const source = path => readFile(new URL(path, import.meta.url), "utf8");
 
 test("BUG-005116 checkout reserves the additional interval before any Stripe session", async () => {
   const code = await source("../api/create-extend-session.js");
-  assert.match(code, /supabaseAdmin\.rpc\("create_booking_hold"/);
-  const reserve = code.indexOf('supabaseAdmin.rpc("create_booking_hold"');
+  assert.match(code, /supabaseAdmin\.rpc\("reserve_extension_checkout_hold"/);
+  const reserve = code.indexOf('supabaseAdmin.rpc("reserve_extension_checkout_hold"');
   const stripeCreate = code.indexOf("stripe.checkout.sessions.create(");
   const bindHold = code.indexOf('update({ stripe_checkout_session_id: session.id })');
   const insertPending = code.indexOf('.from("pending_booking_extensions")\n        .insert(');
   const returnUrl = code.indexOf("res.status(200).json({ url: session.url })");
   assert.ok(reserve > 0 && reserve < stripeCreate && stripeCreate < bindHold);
   assert.ok(bindHold < insertPending && insertPending < returnUrl);
-  assert.match(code, /p_starts_at: current\.end\.toISOString\(\)/);
-  assert.match(code, /p_ends_at: extendedEnd\.toISOString\(\)/);
-  assert.match(code, /p_spot_label: booking\.spot_label \|\| null/);
+  assert.match(code, /p_booking_id: booking\.id/);
+  assert.match(code, /p_added_hours: addedHours/);
+  assert.match(code, /const holdId = reserved\?\.hold_id/);
   assert.match(code, /p_renter_id: user\.id/);
   assert.match(code, /hold_id: holdId/);
   assert.match(code, /expires_at: Math\.floor\(holdExpiresAt\.getTime\(\) \/ 1000\)/);
@@ -42,6 +42,9 @@ test("BUG-005116 checkout failures expire orphan Stripe checkout and release onl
 test("BUG-005116 webhook RPC rejects unrelated holds, ignores own hold in capacity, releases on success", async () => {
   const sql = await source("../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql");
   assert.match(sql, /ADD COLUMN IF NOT EXISTS hold_id uuid/);
+  assert.match(sql, /CREATE OR REPLACE FUNCTION public\.reserve_extension_checkout_hold/);
+  assert.match(sql, /upper\(b\.session_range\)/);
+  assert.match(sql, /RETURN QUERY SELECT public\.create_booking_hold/);
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS pending_booking_extensions_hold_id_unique/);
   assert.match(sql, /IF p\.hold_id IS NULL THEN/);
   assert.match(sql, /h\.stripe_checkout_session_id IS DISTINCT FROM p_checkout_session_id/);
