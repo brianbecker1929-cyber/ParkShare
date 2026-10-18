@@ -5,6 +5,7 @@
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
+import { paymentReconciliationTarget, applyAccountScopedBookingReconciliation, refundRecordPolicy } from "./_refund-dispute-account-safety.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
 import { isExpectedCheckoutTermination, matchesRegisteredCheckoutAccount, canFailUnpaidBooking } from "./_checkout-terminal-safety.js";
@@ -775,13 +776,17 @@ export default async function handler(req, res) {
       // fix. Ask for it directly if refunding extensions needs to work.
       case "charge.refunded": {
         const reconciliation = refundReconciliation(event.data.object);
-        if (reconciliation) {
+        const target = paymentReconciliationTarget(event, "paymentIntent", reconciliation?.paymentIntentId);
+        if (target) {
           const update = { status: reconciliation.status };
           if (reconciliation.status === "refunded") update.cancelled_at = new Date().toISOString();
-          await supabaseAdmin
-            .from("bookings")
-            .update(update)
-            .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
+          await applyAccountScopedBookingReconciliation(supabaseAdmin, target, update, {
+            label: "charge_refunded",
+            // A stale partial snapshot must not rewrite a fully refunded or
+            // disputed booking. Any later dispute/refund policy is manual.
+            excludeStatuses: reconciliation.status === "partially_refunded"
+              ? ["refunded", "disputed"] : ["disputed"],
+          });
         }
         break;
       }
@@ -789,28 +794,69 @@ export default async function handler(req, res) {
       case "refund.created":
       case "refund.updated":
       case "refund.failed": {
-        const reconciliation = refundEventReconciliation(event.data.object);
-        if (reconciliation) {
-          await supabaseAdmin
-            .from("bookings")
-            .update({
-              stripe_refund_id: reconciliation.refundId,
-              refund_status: reconciliation.refundStatus,
-              refund_amount: reconciliation.refundAmount,
-              refund_failure_reason: reconciliation.refundFailureReason,
-            })
-            .eq("stripe_payment_intent_id", reconciliation.paymentIntentId);
+        const submittedRefundId = event.data.object?.id;
+        // Webhook delivery can be out of order; retrieve the CURRENT refund
+        // from the same connected account instead of writing a stale snapshot.
+        if (!/^re_[A-Za-z0-9_]+$/.test(String(submittedRefundId || "")) ||
+            !/^acct_[A-Za-z0-9_]+$/.test(String(event.account || ""))) break;
+        const currentRefund = await stripe.refunds.retrieve(
+          submittedRefundId, {}, { stripeAccount: event.account }
+        );
+        const reconciliation = refundEventReconciliation(currentRefund);
+        const target = paymentReconciliationTarget(event, "paymentIntent", reconciliation?.paymentIntentId);
+        if (!target || reconciliation.refundId !== submittedRefundId) break;
+
+        // Our legacy bookings row can represent one refund identifier, not
+        // multiple partial refunds for the same charge. A second refund
+        // requires an audited ledger/reconciliation, never overwriting the
+        // first ID and pretending financial history is complete.
+        const { data: booking, error: bookingError } = await readCheckoutDb(
+          () => supabaseAdmin.from("bookings")
+            .select("id, stripe_refund_id")
+            .eq(target.key, target.identifier)
+            .eq("stripe_connected_account_id", target.connectedAccountId)
+            .maybeSingle(),
+          "refund_owner_lookup"
+        );
+        if (bookingError) throw bookingError;
+        const policy = refundRecordPolicy(booking, reconciliation.refundId);
+        if (policy === "manual_reconciliation") {
+          console.error("[webhook-reconcile] multiple refunds require support ledger", {
+            eventId: event.id, connectedAccountId: target.connectedAccountId,
+          });
+          throw new Error("Multiple refunds require manual reconciliation");
         }
+        if (policy === "unmatched") {
+          console.warn("[webhook-reconcile] no owner-matched booking for refund", {
+            eventId: event.id, connectedAccountId: target.connectedAccountId,
+          });
+          break;
+        }
+        const result = await applyAccountScopedBookingReconciliation(supabaseAdmin, target, {
+          stripe_refund_id: reconciliation.refundId,
+          refund_status: reconciliation.refundStatus,
+          refund_amount: reconciliation.refundAmount,
+          refund_failure_reason: reconciliation.refundFailureReason,
+        }, {
+          label: "refund_lifecycle",
+          // CAS: if a concurrent refund event wrote another refund ID between
+          // the read and update, fail rather than overwrite its audit trail.
+          expectedRefundId: booking.stripe_refund_id ?? null,
+        });
+        if (!result.applied) throw new Error("Refund booking changed concurrently; reconcile and retry");
         break;
       }
 
       case "charge.dispute.created": {
         const reconciliation = disputeReconciliation(event.data.object);
-        if (reconciliation) {
-          await supabaseAdmin
-            .from("bookings")
-            .update({ status: reconciliation.status })
-            .eq("stripe_charge_id", reconciliation.chargeId);
+        const target = paymentReconciliationTarget(event, "charge", reconciliation?.chargeId);
+        if (target) {
+          await applyAccountScopedBookingReconciliation(supabaseAdmin, target,
+            { status: reconciliation.status }, {
+              label: "charge_dispute_created",
+              // Do not overwrite settled refund records with a late dispute.
+              excludeStatuses: ["refunded"],
+            });
         }
         break;
       }
