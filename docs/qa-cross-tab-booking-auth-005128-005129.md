@@ -20,7 +20,7 @@ The top-level `onAuthStateChange` subscription handles `!session` (sign-out) but
 4. Tab B: switch to another Driver account. Tab A must use the new account's profile only, never render the previous account's vehicle details or launch Checkout as the old user.
 5. Rapid sign-in/sign-out and delayed profile queries must not restore a stale user or allow Checkout without a valid session; invalid/missing profiles should remain unavailable.
 6. Refresh Tab A while signed in; `INITIAL_SESSION` restores the profile. Verify desktop/mobile, Host and Driver nav, messages, reviews and bookings are unaffected.
-7. After a sign-out while checkout is pending, verify the server independently rejects stale JWTs and no unintended Stripe session is created.
+7. After a sign-out before checkout submission, verify the browser disables new payment initiation. An already-submitted request can finish despite sign-out: Supabase access tokens may remain valid until expiry. Verify there is no incorrect success UI or redirect after the payment modal closes, and separately review in-flight checkout/hold expiry behaviour without assuming token revocation.
 8. Confirm compatibility with draft PR #147/154 fail-closed spot availability and PR #159 property-local booking times.
 
 ## Release gates
