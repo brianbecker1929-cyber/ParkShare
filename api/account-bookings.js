@@ -6,7 +6,10 @@ import { privateBookingListing, canReadPreciseLocation } from "../src/lib/privat
 
 const bookingColumns = [
   "id","listing_id","renter_id","hours","total","status","paid_at",
-  "booking_date","start_hour","spot_label","vehicle_make","vehicle_model",
+  // Keep the canonical instant/zone through the privacy-safe projection:
+  // omitting them makes both dashboards reinterpret Toronto local time as UTC.
+  "booking_date","start_hour","scheduled_starts_at","property_time_zone",
+  "spot_label","vehicle_make","vehicle_model",
   "vehicle_colour","license_plate","refund_status","created_at",
   "event_id","event_name","event_category","event_venue_name","event_address",
   "event_lat","event_lng","event_starts_at","event_ends_at","event_timezone",
