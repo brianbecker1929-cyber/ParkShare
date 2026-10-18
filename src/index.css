@@ -9549,3 +9549,114 @@ div:has(> button[aria-label="ParkShare help"])
     margin-top: 20px;
   }
 }
+
+/* ==========================================================================
+   BetterQA BUG-005133 — mobile About Us audience headings / mascot clearance
+   Preserve desktop and approved William/Parker assets, poses and glow.
+   The older mobile layout made the <div> span the mascot's parent grid row,
+   allowing a translated 150% mascot to cover the title. Let heading, text
+   and artwork share one grid with dedicated, non-overlapping rows instead.
+   ========================================================================== */
+@media (max-width: 819px) {
+  .ps-about-page .ps-about-audience-card.ps-about-host-card,
+  .ps-about-page .ps-about-audience-card.ps-about-driver-card {
+    display: grid !important;
+    grid-template-columns: minmax(100px, 38%) minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto auto auto !important;
+    column-gap: clamp(10px, 3vw, 16px) !important;
+    row-gap: 8px !important;
+    align-items: start !important;
+  }
+
+  /* The wrapper is only presentational. Using display:contents prevents its
+     old grid-row:1/3 rule from overlapping the mascot's grid row. */
+  .ps-about-page .ps-about-host-card > div,
+  .ps-about-page .ps-about-driver-card > div {
+    display: contents !important;
+  }
+
+  .ps-about-page .ps-about-host-card .ps-about-audience-label,
+  .ps-about-page .ps-about-driver-card .ps-about-audience-label {
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    justify-self: center !important;
+    text-align: center !important;
+    margin: 0 !important;
+  }
+
+  .ps-about-page .ps-about-host-card h3,
+  .ps-about-page .ps-about-driver-card h3 {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    min-width: 0 !important;
+    margin: 0 0 12px !important;
+    padding: 0 !important;
+    text-align: center !important;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+    line-height: 1.22 !important;
+    position: relative !important;
+    z-index: 3 !important;
+  }
+
+  /* Artwork remains below the heading, beside the Host/Driver copy. No
+     oversized translate/scale may project it into the headline row. */
+  .ps-about-page .ps-about-host-card .ps-about-card-parker,
+  .ps-about-page .ps-about-driver-card .ps-about-card-parker {
+    grid-column: 1 !important;
+    grid-row: 3 / span 2 !important;
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 230px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    justify-self: center !important;
+    align-self: start !important;
+    transform: none !important;
+    margin: 6px 0 0 !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+  }
+
+  .ps-about-page .ps-about-host-card > div > p:first-of-type,
+  .ps-about-page .ps-about-driver-card > div > p:first-of-type {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    align-self: start !important;
+  }
+  .ps-about-page .ps-about-host-card > div > p:last-of-type,
+  .ps-about-page .ps-about-driver-card > div > p:last-of-type {
+    grid-column: 2 !important;
+    grid-row: 4 !important;
+    min-width: 0 !important;
+    margin: 8px 0 0 !important;
+    align-self: start !important;
+  }
+
+  .ps-about-page .ps-about-host-card > button,
+  .ps-about-page .ps-about-driver-card > button {
+    grid-column: 1 / -1 !important;
+    grid-row: 5 !important;
+    justify-self: center !important;
+    margin-top: 18px !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .ps-about-page .ps-about-audience-card.ps-about-host-card,
+  .ps-about-page .ps-about-audience-card.ps-about-driver-card {
+    grid-template-columns: minmax(94px, 35%) minmax(0, 1fr) !important;
+    column-gap: 10px !important;
+  }
+  .ps-about-page .ps-about-host-card h3,
+  .ps-about-page .ps-about-driver-card h3 {
+    font-size: 22px !important;
+  }
+}

@@ -37,7 +37,7 @@ test("listing conversation context is read-only and restricted to the booking pa
     calls.push(url.pathname);
     if (url.pathname === "/auth/v1/user") return Response.json({ id: userId });
     if (url.pathname === "/rest/v1/bookings") {
-      return exists ? Response.json({ id: 42, listing_id: 7, renter_id: "driver-1" })
+      return exists ? Response.json({ id: 42, listing_id: 7, renter_id: "driver-1", status: "confirmed", paid_at: "2026-10-16T09:00:00Z", stripe_checkout_session_id: "cs_paid" })
         : Response.json({ message: "not found" }, { status: 406 });
     }
     if (url.pathname === "/rest/v1/listings") return Response.json({ id: 7, host_id: "host-1", title: "Sample driveway", address: "Sample address", price: 5 });
@@ -63,7 +63,7 @@ test("listing conversation context is read-only and restricted to the booking pa
     userId = "outsider";
     calls.length = 0;
     res = await context();
-    assert.equal(res.code, 403);
+    assert.equal(res.code, 404);
     assert.equal(res.body.listing, undefined);
     assert.equal(calls.includes("/rest/v1/profiles"), false);
     assert.equal((await context("-1")).code, 400);

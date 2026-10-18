@@ -57,6 +57,23 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: "This payment cannot be automatically refunded. Please contact support.", code: "support_required" });
     }
 
+    // This endpoint refunds only the original booking PaymentIntent.
+    // A paid extension has a separate Stripe charge, so the response cannot
+    // truthfully promise a FULL refund until both charges are reconciled.
+    // Fail closed if the extension lookup fails; support must review both.
+    const { data: paidExtensions, error: extensionError } = await supabaseAdmin
+      .from("booking_extensions")
+      .select("id")
+      .eq("booking_id", booking.id)
+      .limit(1);
+    if (extensionError) throw extensionError;
+    if (paidExtensions?.length) {
+      return res.status(409).json({
+        error: "This booking has paid extensions. Please contact ParkShare support to review and refund all associated charges together.",
+        code: "support_required",
+      });
+    }
+
     const requestedAt = new Date().toISOString();
     const refund = await stripe.refunds.create(
       {

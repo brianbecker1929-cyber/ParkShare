@@ -175,7 +175,7 @@ test("Host upcoming bookings show the reservation start time", () => {
   const hostDashboard = functionSource("HostDashboard", "MessagesView");
   const bookingDisplay = functionSource("clientBookingDisplay", "requestBookingCancellation");
 
-  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end\)/);
+  assert.match(hostDashboard, /const display = clientBookingDisplay\(window\.start, scheduled, window\.end, row\.property_time_zone\)/);
   assert.match(hostDashboard, /<BookingSchedule[\s\S]*?date=\{b\.date\}[\s\S]*?startTime=\{b\.startTime\}[\s\S]*?endTime=\{b\.endTime\}[\s\S]*?duration=\{b\.duration\}/);
   assert.match(hostDashboard, /host-dashboard-booking-vehicle[\s\S]*?<BookingVehicleVisual vehicle=\{b\.vehicle\}[\s\S]*?<BookingSchedule/);
   assert.match(hostDashboard, /isActive=\{b\.displayStatus === "Active"\}/);
@@ -192,11 +192,11 @@ test("Host and Driver booking details show the property and assigned parking spa
   const parkingDetails = functionSource("BookingParkingDetails", "DrivewaySpotMap");
   const bookedSpotDiagram = functionSource("BookedSpotDiagram", "BookingParkingDetails");
 
-  assert.match(hostDashboard, /\.select\("\*, listings\(\*\), profiles\(name\)"\)/);
-  assert.match(hostDashboard, /listingDetails:[\s\S]*?photos: row\.listings\?\.photos[\s\S]*?spots: row\.listings\?\.spots/);
+  assert.match(hostDashboard, /account-bookings\?view=host/);
+  assert.match(hostDashboard, /listingDetails:[\s\S]*?img: "🏠"[\s\S]*?photos: \[\][\s\S]*?spots: row\.listings\?\.spots/);
   assert.match(hostDashboard, /spotLabel: row\.spot_label/);
   assert.match(hostDashboard, /<BookingParkingDetails listing=\{b\.listingDetails\} spotLabel=\{b\.spotLabel\}/);
-  assert.match(bookings, /photos: row\.listings\?\.photos/);
+  assert.match(bookings, /img: "🏠"[\s\S]*?photos: \[\]/);
   assert.match(bookings, /spots: row\.listings\?\.spots/);
   assert.match(bookings, /spotLabel: row\.spot_label/);
   assert.match(bookings, /<BookingParkingDetails listing=\{b\.listing\} spotLabel=\{b\.spotLabel\}/);

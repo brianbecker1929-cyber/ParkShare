@@ -44,7 +44,15 @@ export function windowsOverlap(startA, endA, startB, endB) {
 
 export function getSessionWindow(booking) {
   let start;
-  if (booking.booking_date && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
+  // New scheduled bookings have an immutable server-authorized UTC instant.
+  // Legacy paid bookings have no canonical start and retain their historical
+  // UTC interpretation until individually reconciled — do not silently move.
+  if (booking.scheduled_starts_at != null) {
+    start = new Date(booking.scheduled_starts_at);
+    if (!Number.isFinite(start.getTime())) {
+      throw new RangeError("Stored scheduled booking instant is invalid.");
+    }
+  } else if (booking.booking_date && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
     const startHour = Number(booking.start_hour);
     const hh = String(Math.floor(startHour)).padStart(2, "0");
     const mm = String(Math.round((startHour % 1) * 60)).padStart(2, "0");

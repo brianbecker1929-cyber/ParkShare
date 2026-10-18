@@ -2,10 +2,17 @@ import { useState, useEffect, useRef, useId, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
+import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
+import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
+import { calculateBookingAmounts } from "../api/_booking-rules.js";
+import { publicListingCoverUrl } from "./lib/publicListings";
+import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
+import { localCalendarDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
+import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
@@ -37,6 +44,7 @@ import { hasDrivewayVehicle } from "./lib/drivewayCar";
 import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
+import { addCalendarDays, dateInScheduleTimezone, isCalendarDate, validateHostAvailabilityExceptions, validateHostExceptionDates } from "./lib/availabilityExceptionDates";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -287,7 +295,7 @@ const INITIAL_THREADS = {
 function ListingThumb({ listing, size, fontSize, style }) {
   const isPhoto = isListingImageUrl(listing.img);
   if (isPhoto) {
-    return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
+    return <img src={listing.img} alt={listing.title || "Driveway"} loading="lazy" decoding="async" style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
   return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{listing.img}</span>;
 }
@@ -988,12 +996,17 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange }) {
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange, availableData = null }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const checkoutModalActive = useRef(false);
+  useEffect(() => {
+    checkoutModalActive.current = true;
+    return () => { checkoutModalActive.current = false; };
+  }, []);
   const bookableVehicles = getBookableVehicles(user || {});
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
@@ -1002,9 +1015,12 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-const subtotal = listing.price * hours;
-  const serviceFee = Math.round(subtotal * 0.15 * 100) / 100;
-  const total = subtotal + serviceFee;
+// Use the exact integer-cent calculation used by create-checkout-session.
+  // No floating-point/whole-dollar rounding drift between preview and Stripe.
+  const { subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(listing.price, hours);
+  const subtotal = subtotalCents / 100;
+  const serviceFee = serviceFeeCents / 100;
+  const total = totalCents / 100;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
@@ -1059,9 +1075,7 @@ const subtotal = listing.price * hours;
           spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
           // Send a date-only value. Sending a full ISO timestamp and later
           // appending another time produced invalid future booking windows.
-          bookingDate: date instanceof Date
-            ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-            : undefined,
+          bookingDate: date instanceof Date ? localCalendarDate(date) : undefined,
           startHour,
           endHour,
           vehicleId: selectedVehicle.id,
@@ -1088,8 +1102,13 @@ const subtotal = listing.price * hours;
         throw new Error("Stripe checkout did not return a payment link.");
       }
 
+      // A sign-out or account switch may close this modal while an already-
+      // submitted Checkout request is in flight. Do not redirect a closed
+      // dialog to Stripe even if the server managed to issue a hold.
+      if (!checkoutModalActive.current) return;
       window.location.assign(data.url); // hand off to Stripe's hosted checkout page
     } catch (err) {
+      if (!checkoutModalActive.current) return;
       console.error("Stripe checkout error:", err);
       setRedirecting(false);
       setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
@@ -1230,7 +1249,7 @@ const subtotal = listing.price * hours;
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} availableData={availableData} isRealListing={isRealListing} vehicle={selectedVehicle} />
                 <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
@@ -1312,25 +1331,20 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
   const [submitting, setSubmitting] = useState(false);
   const [localReviews, setLocalReviews] = useState(REVIEWS_DATA[listing.id] || []);
 
-  const loadReviews = () => {
+  const loadReviews = async () => {
     if (!isRealListing) return;
-    supabase
-      .from("reviews")
-      .select("*, profiles(name)")
-      .eq("listing_id", numericId)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error || !data) return;
-        setLocalReviews(
-          data.map(row => ({
-            id: row.id,
-            user: row.profiles?.name || "Renter",
-            rating: row.rating,
-            date: new Date(row.created_at).toLocaleDateString(),
-            text: row.text,
-          }))
-        );
-      });
+    try {
+      const response = await fetch("/api/public-reviews?listingId=" + numericId);
+      if (!response.ok) throw new Error("Reviews unavailable");
+      const { reviews } = await response.json();
+      setLocalReviews((reviews || []).map((row, index) => ({
+        id: numericId + "-" + index,
+        user: row.user || "ParkShare driver",
+        rating: row.rating, date: row.date || "", text: row.text || "",
+      })));
+    } catch (error) {
+      console.error("Couldn't load privacy-safe review summary:", error);
+    }
   };
 
   useEffect(() => { loadReviews(); }, [listing.id]);
@@ -1345,12 +1359,14 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
         return;
       }
       setSubmitting(true);
-      const { error } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating: draft.rating,
-        text: draft.text.trim(),
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = session?.access_token ? await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ listingId: numericId, rating: draft.rating, text: draft.text.trim() }),
+      }) : null;
+      const result = response ? await response.json().catch(() => ({})) : {};
+      const error = response?.ok ? null : { message: result.error || "Please sign in to review." };
       setSubmitting(false);
       if (error) {
         setSubmitError(error.message);
@@ -1441,7 +1457,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null, availableData = null, isRealListing = false }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1472,19 +1488,25 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
           // physical space to both host and renter.
           const isRent = s.forRent;
           const myLabel = i;
-          const isChosen = isRent && chosen === myLabel;
+          // A satellite bay follows the same exact-window booking/hold check
+          // as the ordinary picker; free total capacity alone is insufficient.
+          const canPick = isRent && canChooseListingSpot({
+            isRealListing, hostRentable: isRent, availableData,
+            label: String.fromCharCode(65 + myLabel),
+          });
+          const isChosen = canPick && chosen === myLabel;
           return (
             <Rectangle
               key={s.id}
               bounds={s.bounds}
               options={{
-                fillColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                fillColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 fillOpacity: isChosen ? 0.55 : 0.35,
-                strokeColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                strokeColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 strokeWeight: isChosen ? 3 : 2,
-                clickable: interactive && isRent,
+                clickable: interactive && canPick,
               }}
-              onClick={isRent && interactive ? () => onChoose(myLabel) : undefined}
+              onClick={canPick && interactive ? () => onChoose(myLabel) : undefined}
             />
           );
         })}
@@ -1564,7 +1586,7 @@ const formatHour = (h) => {
   const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
   return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, initialSpotPickerOpen = true }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onRequestSignIn, user, initialSpotPickerOpen = true }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1607,6 +1629,24 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  // The selected spot and schedule stay in place across another tab's
+  // sign-out/sign-in. Rehydrate a valid saved vehicle when Auth catches up.
+  const lastBookingUserId = useRef(user?.id || null);
+  useEffect(() => {
+    const nextId = user?.id || null;
+    if (lastBookingUserId.current !== nextId) {
+      // A different account should never inherit an open payment dialog.
+      setShowPayment(false);
+      lastBookingUserId.current = nextId;
+    }
+    if (!user) {
+      setShowPayment(false);
+      return;
+    }
+    setSelectedVehicleId(current => bookableVehicles.some(vehicle => vehicle.id === current)
+      ? current
+      : (bookableVehicles.find(vehicle => vehicle.id === "primary") || bookableVehicles[0])?.id || "");
+  }, [user]);
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
@@ -1676,7 +1716,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     listingId: numericIdForAvailability,
     mode: bookingMode,
     hours,
-    bookingDate: bookingMode === "advance" ? date.toISOString() : "",
+    bookingDate: bookingMode === "advance" ? localCalendarDate(date) : "",
     startHour,
   });
   const [availabilityResult, setAvailabilityResult] = useState(null);
@@ -1692,7 +1732,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
     if (bookingMode === "advance") {
-      params.set("bookingDate", date.toISOString());
+      params.set("bookingDate", localCalendarDate(date));
       params.set("startHour", String(startHour));
     }
     fetch(`/api/listing-availability?${params.toString()}`)
@@ -1742,7 +1782,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       {listing.walkLabel && <WalkingTimeLabel label={listing.walkLabel} className="ps-listing-detail-walk-time" />}
 
       <div style={{ marginBottom: 14 }}>
-        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview route</Btn>
+        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview approximate route</Btn>
       </div>
 
       {liveAvailability && (
@@ -1780,7 +1820,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Where you'll park</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Approximate parking area</div>
             <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={(listing.spots || []).filter(hasValidBounds)} />
           </div>
         </SpotMapBoundary>
@@ -1804,11 +1844,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
-          <div className="ps-booking-navigation-group">
-            <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
-            <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
-          </div>
-          <RidesharePickupCard listing={listing} />
+          {listing.locationPrecision === "approximate" ? (
+            <div role="status" style={{ fontSize: 12, color: C.navy, marginBottom: 10 }}>
+              The exact driveway address and navigation unlock in My Bookings after payment is confirmed.
+            </div>
+          ) : (
+            <>
+              <div className="ps-booking-navigation-group">
+                <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
+                <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
+              </div>
+              <RidesharePickupCard listing={listing} />
+            </>
+          )}
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -1936,9 +1984,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
+              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
             </div>
             <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle}>Reserve & pay →</Btn>
+          {!user && (
+            <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
+              Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
+              <button type="button" onClick={onRequestSignIn}
+                style={{ marginLeft: 9, fontSize: 12, fontWeight: 700, color: C.navy, border: "none", background: "transparent", textDecoration: "underline", cursor: "pointer" }}>
+                Sign in
+              </button>
+            </div>
+          )}
+
           </div>
         </div>
       )}
@@ -1966,7 +2024,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} />
                   </div>
                 </SpotMapBoundary>
               ) : (
@@ -2036,6 +2094,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           selectedEvent={selectedEvent}
           selectedVehicleId={selectedVehicleId}
           onVehicleChange={setSelectedVehicleId}
+          availableData={selectedAvailability}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
@@ -2091,44 +2150,32 @@ function useAllListings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const refresh = () => {
+  const refresh = async () => {
     setLoading(true);
     setError("");
-    supabase
-      .from("listings")
-      .select("*, profiles(name), reviews(rating)")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Couldn't load public listings:", error);
-          setError("We couldn't load available driveways right now.");
-          setLoading(false);
-          return;
-        }
-        setDbListings(
-          (data || []).map(row => ({
-            id: "db-" + row.id,
-            title: row.title,
-            address: row.address,
-            price: Number(row.price),
-            rating: row.reviews?.length ? row.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / row.reviews.length : 0,
-            reviewCount: row.reviews?.length || 0,
-            spaces: row.spaces,
-            features: row.features || [],
-            description: row.description || "",
-            img: row.img || "🏠",
-            photos: row.photos || [],
-            distance: "—",
-            lat: row.lat,
-            lng: row.lng,
-            spots: row.spots || [],
-            availability: row.availability || null,
-            host: row.profiles?.name || "Host",
-            hostImg: "🧑",
-          }))
-        );
-        setLoading(false);
-      });
+    try {
+      const response = await fetch("/api/public-parking");
+      if (!response.ok) throw new Error("Public listings unavailable");
+      const payload = await response.json();
+      if (!Array.isArray(payload.listings)) throw new Error("Unexpected parking response");
+      setDbListings(payload.listings.map(row => ({
+        id: "db-" + row.id,
+        title: row.title, address: row.address,
+        price: row.price, rating: row.rating || 0, reviewCount: row.reviewCount || 0,
+        spaces: row.spaces, features: row.features || [], description: "",
+        // Anonymous discovery never loads property photographs which can reveal
+        // house numbers or identifying details.
+        img: "🏠", photos: [], distance: "—",
+        lat: row.lat, lng: row.lng, spots: row.spots || [], availability: null,
+        host: row.host || "ParkShare Host", hostImg: "🧑",
+        locationPrecision: "approximate",
+      })));
+    } catch (error) {
+      console.error("Couldn't load privacy-safe public parking:", error);
+      setError("We couldn't load available driveways right now.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { refresh(); }, []);
@@ -2480,7 +2527,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
+function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, onRequestSignIn, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -2669,7 +2716,13 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
 
     setWalkingRoutes({});
     setWalkingRoutesLoading(true);
-    computeWalkingRoutes(allListings, userLoc)
+    // Coarse public map coordinates cannot generate exact walking routes.
+    const preciseListings = allListings.filter(l => l.locationPrecision !== "approximate");
+    if (!preciseListings.length) {
+      setWalkingRoutesLoading(false);
+      return () => { cancelled = true; };
+    }
+    computeWalkingRoutes(preciseListings, userLoc)
       .then(routes => {
         if (!cancelled) setWalkingRoutes(routes);
       })
@@ -2684,7 +2737,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
 
   const filtered = allListings
-    .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
+    .filter(l => locatedSearch || !query || l.locationPrecision === "approximate" || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
     .filter(l => {
       if (!selectedEvent) return true;
       const rawListingId = String(l.id).replace(/^db-/, "");
@@ -2734,7 +2787,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
+  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} onRequestSignIn={onRequestSignIn} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -2923,6 +2976,8 @@ function EditListingModal({ listing, onClose, onSave }) {
 
   const save = async () => {
     setErr("");
+    const rate = validateHourlyRate(price);
+    if (!rate.valid) { setErr(rate.error); return; }
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
     setSaving(true);
@@ -2937,7 +2992,7 @@ function EditListingModal({ listing, onClose, onSave }) {
     }));
     const ok = await onSave({
       ...listing,
-      price,
+      price: rate.value,
       description,
       features,
       spots: newSpots,
@@ -2952,7 +3007,7 @@ function EditListingModal({ listing, onClose, onSave }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
-          <input type="number" min="1" value={price} onChange={e => setPrice(e.target.value)}
+          <input type="number" min="1" step="0.01" value={price} onChange={e => { setPrice(e.target.value); setErr(""); }} aria-invalid={Boolean(err && !validateHourlyRate(price).valid)}
             style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif" }} />
         </div>
 
@@ -3256,11 +3311,15 @@ function HostDashboard({ user, setTab }) {
   useEffect(() => {
     if (!user) return;
 
-    supabase
-      .from("listings")
-      .select("*")
-      .eq("host_id", user.id)
-      .then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!session?.access_token) return;
+        const response = await fetch("/api/account-bookings?view=host", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!response.ok) return;
+        const payload = await response.json();
+        const data = payload.listings;
+        const error = null;
         if (error || !data) return;
         setDbListings(
           data.map(row => ({
@@ -3273,13 +3332,23 @@ function HostDashboard({ user, setTab }) {
             earnings: 0,
             bookings: 0,
             rating: 5,
-            img: row.img || "🏠",
+            img: "🏠",
             description: row.description || "",
             features: row.features || [],
             spaces: row.spaces || 1,
             spots: row.spots || [],
           }))
         );
+        // Load authorized Host photographs with bearer-token access.
+        for (const listingRow of data) {
+          fetchPrivateCoverDataUrl(listingRow.id, null, session.access_token)
+            .then(image => {
+              if (!image) return;
+              setDbListings(prev => prev.map(l => l.rawId === listingRow.id ? { ...l, img: image } : l));
+              setDbBookings(prev => prev.map(b => b.listingDetails?.id === "db-" + listingRow.id
+                ? { ...b, listingDetails: { ...b.listingDetails, img: image } } : b));
+            }).catch(() => {});
+        }
 
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) {
@@ -3288,11 +3357,7 @@ function HostDashboard({ user, setTab }) {
         }
 
         const listingTitles = Object.fromEntries(data.map(row => [row.id, row.title]));
-        supabase
-          .from("reviews")
-          .select("*, profiles(name)")
-          .in("listing_id", listingIds)
-          .order("created_at", { ascending: false })
+        Promise.resolve({ data: payload.reviews, error: null })
           .then(({ data: reviewRows, error: reviewError }) => {
             if (reviewError || !reviewRows) return;
             setHostReviews(reviewRows.map(row => ({
@@ -3305,11 +3370,7 @@ function HostDashboard({ user, setTab }) {
             })));
           });
 
-        supabase
-          .from("bookings")
-          .select("*, listings(*), profiles(name)")
-          .in("listing_id", listingIds)
-          .order("created_at", { ascending: false })
+        Promise.resolve({ data: payload.bookings, error: null })
           .then(({ data: bookingRows, error: bookingErr }) => {
             if (bookingErr || !bookingRows) return;
             const now = Date.now();
@@ -3321,7 +3382,7 @@ function HostDashboard({ user, setTab }) {
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
                 const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-                const display = clientBookingDisplay(window.start, scheduled, window.end);
+                const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
                 return {
                   id: "db-" + row.id,
                   rawId: row.id,
@@ -3330,8 +3391,8 @@ function HostDashboard({ user, setTab }) {
                     id: "db-" + row.listing_id,
                     title: row.listings?.title || "Driveway",
                     address: row.listings?.address || "",
-                    img: row.listings?.img || "🏠",
-                    photos: row.listings?.photos || [],
+                    img: "🏠",
+                    photos: [],
                     lat: row.listings?.lat,
                     lng: row.listings?.lng,
                     spots: row.listings?.spots || [],
@@ -3406,15 +3467,17 @@ function HostDashboard({ user, setTab }) {
   };
 
   const saveListingEdit = async (updated) => {
+    const rate = validateHourlyRate(updated.price);
+    if (!rate.valid) { alert(rate.error); return false; }
     const { error } = await supabase.from("listings").update({
-      price: Number(updated.price) || 1,
+      price: rate.value,
       description: updated.description,
       features: updated.features,
       spots: updated.spots,
       spaces: updated.spaces,
     }).eq("id", updated.rawId);
     if (error) { alert("Couldn't save changes: " + error.message); return false; }
-    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
+    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated, price: rate.value } : l));
     return true;
   };
 
@@ -4200,7 +4263,8 @@ function ListDrivewayView({ user }) {
   const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "'Poppins', sans-serif", boxSizing: "border-box", outline: "none" };
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
-  const fullAddress = [form.street, form.city, [form.region, form.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const postalCheck = validateCanadianPostalCode(form.postal);
+  const fullAddress = [form.street, form.city, [form.region, postalCheck.normalized || form.postal.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
   const searchAddress = (val) => {
     update("street", val);
@@ -4225,7 +4289,7 @@ function ListDrivewayView({ user }) {
       setLoadingSug(false);
     }, 350);
   };
-  const chooseSuggestion = (s) => { setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: s.postal, lat: s.lat, lng: s.lng })); setSuggestions([]); };
+  const chooseSuggestion = (s) => { const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng })); setSuggestions([]); };
 
   const submitVerification = () => {
     update("verifying", true);
@@ -4360,9 +4424,10 @@ function ListDrivewayView({ user }) {
   });
   const addAvailabilityException = () => setForm(current => {
     const availability = normalizeAvailability(current.availability);
-    const today = new Date();
-    today.setDate(today.getDate() + 1);
-    const date = today.toISOString().slice(0, 10);
+    // Start tomorrow on the schedule's calendar, not UTC tomorrow. When a
+    // Host is travelling, toISOString() can shift the property's day.
+    const date = addCalendarDays(dateInScheduleTimezone(availability.timezone), 1);
+    if (!date) return current;
     return {
       ...current,
       availability: {
@@ -4378,6 +4443,10 @@ function ListDrivewayView({ user }) {
     };
   });
   const updateAvailabilityException = (id, patch) => setForm(current => {
+    // A cleared/unparseable native date input must not silently disappear
+    // when normalizeAvailability() filters non-ISO exception dates.
+    if (("startDate" in patch && !isCalendarDate(patch.startDate))
+        || ("endDate" in patch && !isCalendarDate(patch.endDate))) return current;
     const availability = normalizeAvailability(current.availability);
     return {
       ...current,
@@ -4400,6 +4469,7 @@ function ListDrivewayView({ user }) {
 
   const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
   const normalizedAvailability = normalizeAvailability(form.availability);
+  const exceptionDateValidation = validateHostAvailabilityExceptions(normalizedAvailability);
   const availabilitySummary = formatAvailabilitySummary(normalizedAvailability);
   const listingFeatures = [
     form.covered && "Covered",
@@ -4418,11 +4488,13 @@ function ListDrivewayView({ user }) {
     && form.spots.every(s => s?.bounds && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(s.bounds[key])))),
   );
   const previewIssues = [
-    (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
+    (!form.street.trim() || !form.city.trim() || !form.region.trim()) && { label: "Complete the driveway address", step: 1 },
+    !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
-    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 7 },
+    !exceptionDateValidation.valid && { label: exceptionDateValidation.issues[0].error, step: 6 },
+    !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
 
   const [submitted, setSubmitted] = useState(false);
@@ -4433,6 +4505,24 @@ function ListDrivewayView({ user }) {
     setUploadProgress("");
     if (!user || user.role !== "host") {
       setPublishError("Please sign in with a Host account before publishing your listing.");
+      return;
+    }
+    const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
+    if (!rate.valid) {
+      setPublishError(rate.error);
+      setStep(7);
+      return;
+    }
+    if (!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid) {
+      setPublishError(postalCheck.error || "Complete the driveway address before publishing.");
+      setStep(1);
+      return;
+    }
+    // Recompute at submit time: a tab kept open overnight may contain past dates.
+    const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
+    if (!currentExceptionDates.valid) {
+      setPublishError(currentExceptionDates.issues[0].error);
+      setStep(6);
       return;
     }
     if (!form.photos.length) {
@@ -4451,7 +4541,7 @@ function ListDrivewayView({ user }) {
         host_id: user.id,
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
-        price: Number(form.price) || 12,
+        price: rate.value,
         spaces: rentableSpotCount || 1,
         features: listingFeatures,
         description: form.description || "",
@@ -4554,9 +4644,23 @@ function ListDrivewayView({ user }) {
             <div style={{ flex: 1 }}><label style={labelStyle}>City</label><input style={inputStyle} placeholder="Vaughan" value={form.city} onChange={e => update("city", e.target.value)} /></div>
             <div style={{ flex: 1 }}><label style={labelStyle}>Province</label><input style={inputStyle} placeholder="Ontario" value={form.region} onChange={e => update("region", e.target.value)} /></div>
           </div>
-          <div><label style={labelStyle}>Postal code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
-          {form.street && form.city && form.region && form.postal && suggestions.length === 0 && (
-                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>✓ Address confirmed: {fullAddress}</div>
+          <div>
+            <label htmlFor="host-listing-postal-code" style={labelStyle}>Postal code</label>
+            <input
+              id="host-listing-postal-code" type="text" inputMode="text" autoComplete="postal-code" autoCapitalize="characters"
+              style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1"
+              maxLength={8} value={form.postal} aria-describedby="host-listing-postal-help"
+              aria-invalid={Boolean(form.postal.trim()) && !postalCheck.valid}
+              onChange={e => update("postal", e.target.value.toUpperCase().slice(0, 8))}
+              onBlur={() => { if (postalCheck.valid && form.postal !== postalCheck.normalized) update("postal", postalCheck.normalized); }}
+            />
+            <p id="host-listing-postal-help" role={form.postal.trim() && !postalCheck.valid ? "alert" : undefined}
+              style={{ fontSize: 12, color: form.postal.trim() && !postalCheck.valid ? C.red : C.muted, marginTop: 6 }}>
+              {form.postal.trim() && !postalCheck.valid ? postalCheck.error : "Canadian format: A1A 1A1. Postal format is checked; street address is not verified."}
+            </p>
+          </div>
+          {form.street && form.city && form.region && postalCheck.valid && suggestions.length === 0 && (
+                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>Address details entered (not independently verified): {fullAddress}</div>
               )}
               {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
                 <div>
@@ -4567,7 +4671,7 @@ function ListDrivewayView({ user }) {
               )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-            <Btn onClick={() => setStep(2)} disabled={!form.street || !form.city || !form.region || !form.postal}>Continue →</Btn>
+            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -4898,7 +5002,7 @@ function ListDrivewayView({ user }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Special dates & exceptions</div>
-                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours.</div>
+                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours. Dates cannot be in the past.</div>
               </div>
               <button type="button" onClick={addAvailabilityException} style={{ border: 0, borderRadius: 8, padding: "7px 9px", background: C.navy, color: C.white, fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>+ Add exception</button>
             </div>
@@ -4910,9 +5014,14 @@ function ListDrivewayView({ user }) {
                 {normalizedAvailability.exceptions.map(exception => (
                   <div key={exception.id} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: 10 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <label style={labelStyle}>From<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
-                      <label style={labelStyle}>To<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
+                      <label style={labelStyle}>From<input type="date" min={exceptionDateValidation.today || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
+                      <label style={labelStyle}>To<input type="date" min={exception.startDate > (exceptionDateValidation.today || "") ? exception.startDate : (exceptionDateValidation.today || undefined)} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
                     </div>
+                    {!validateHostExceptionDates(exception, exceptionDateValidation.today).valid && (
+                      <p role="alert" style={{ color: C.red, fontSize: 11, fontWeight: 700, margin: "6px 0" }}>
+                        {validateHostExceptionDates(exception, exceptionDateValidation.today).error}
+                      </p>
+                    )}
                     <label style={{ ...labelStyle, marginTop: 8 }}>On these dates
                       <select style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.type} onChange={e => updateAvailabilityException(exception.id, { type: e.target.value })}>
                         <option value="unavailable">Not available</option>
@@ -4941,7 +5050,7 @@ function ListDrivewayView({ user }) {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability)}>Continue →</Btn>
+            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability) || !exceptionDateValidation.valid}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -4953,18 +5062,19 @@ function ListDrivewayView({ user }) {
             <label style={labelStyle}>Hourly rate (CAD)</label>
             <div style={{ position:"relative" }}>
               <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:C.muted }}>$</span>
-              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" placeholder="e.g. 12" value={form.price} onChange={e => update("price", e.target.value)} />
+              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" step="0.01" placeholder="e.g. 12" value={form.price} aria-invalid={Boolean(form.price && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid)} onChange={e => update("price", e.target.value)} />
             </div>
             <p style={{ fontSize:12, color:C.muted, marginTop:6 }}>Driveways in your area average $11–$18/hr.</p>
+            {form.price !== "" && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && <p role="alert" style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).error}</p>}
           </div>
-          {form.price && (
+          {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && (
             <ParkerTip pose="success">
               This driveway could earn its owner over <strong>{money(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12)}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
             </ParkerTip>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <Btn variant="pill" onClick={() => setStep(6)}>← Back</Btn>
-            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
+            <Btn variant="amber" disabled={!validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid} onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
           </div>
         </div>
       )}
@@ -5032,7 +5142,7 @@ function ListDrivewayView({ user }) {
               {/* Driver listing header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
                 <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, lineHeight: 1.3, margin: 0, flex: 1 }}>{form.street ? `Driveway at ${form.street}` : "New driveway listing"}</h3>
-                {Number(form.price) > 0 ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Rate not set</span>}
+                {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Invalid rate</span>}
               </div>
               <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, margin: "0 0 12px" }}>📍 {fullAddress || "Address not completed"}</p>
 
@@ -5128,6 +5238,10 @@ function ListDrivewayView({ user }) {
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function clientBookingWindow(booking) {
   let start;
+  const canonical = booking.scheduled_starts_at ? new Date(booking.scheduled_starts_at) : null;
+  if (canonical && Number.isFinite(canonical.getTime())) {
+    start = canonical;
+  } else {
   const dateOnly = String(booking.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0];
   if (dateOnly && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
     const hour = Number(booking.start_hour);
@@ -5137,12 +5251,13 @@ function clientBookingWindow(booking) {
   } else {
     start = new Date(booking.paid_at || booking.created_at);
   }
+  }
   const end = new Date(start.getTime() + Number(booking.hours || 0) * 3600 * 1000);
   return { start, end };
 }
 
-function clientBookingDisplay(start, scheduled, end = start) {
-  const timeZone = scheduled ? "UTC" : undefined;
+function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = null) {
+  const timeZone = propertyTimeZone || (scheduled ? "UTC" : undefined);
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
   const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
@@ -5218,12 +5333,18 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("bookings")
-      .select("*, listings(*, profiles(name))")
-      .eq("renter_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        let data = null;
+        let error = null;
+        try {
+          if (!session?.access_token) throw new Error("Session expired");
+          const response = await fetch("/api/account-bookings?view=driver", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (!response.ok) throw new Error("Bookings unavailable");
+          const payload = await response.json();
+          data = payload.bookings;
+        } catch (err) { error = err; }
         setLoading(false);
         if (error || !data) {
           setLoadError("We couldn't load your bookings right now. Please try again.");
@@ -5238,7 +5359,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
             const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-            const display = clientBookingDisplay(window.start, scheduled, window.end);
+            const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
@@ -5249,8 +5370,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               id: "db-" + row.listing_id,
               title: row.listings?.title || "Driveway",
               address: row.listings?.address || "",
-              img: row.listings?.img || "🏠",
-              photos: row.listings?.photos || [],
+              img: "🏠",
+              photos: [],
               lat: row.listings?.lat,
               lng: row.listings?.lng,
               spots: row.listings?.spots || [],
@@ -5282,6 +5403,14 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             canCancel: !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
           });})
         );
+        for (const row of data) {
+          if (!["confirmed", "completed"].includes(String(row.status))) continue;
+          fetchPrivateCoverDataUrl(row.listing_id, row.id, session.access_token)
+            .then(image => {
+              if (image) setDbBookings(prev => prev.map(b => b.rawId === row.id
+                ? { ...b, listing: { ...b.listing, img: image } } : b));
+            }).catch(() => {});
+        }
       });
   }, [user]);
 
@@ -5505,12 +5634,14 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 
     if (numericId !== null && user) {
       setSubmitting(true);
-      const { error: err } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating,
-        text: text.trim(),
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = session?.access_token ? await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ listingId: numericId, rating, text: text.trim() }),
+      }) : null;
+      const result = response ? await response.json().catch(() => ({})) : {};
+      const err = response?.ok ? null : { message: result.error || "Please sign in to review." };
       setSubmitting(false);
       if (err) {
         setError(err.message);
@@ -6424,7 +6555,10 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
             <a href="https://www.instagram.com/myparkshare/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Instagram" title="Instagram" style={socialIconStyle}>◎</a>
-            <a href="https://www.facebook.com/ParkerParksHere/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Facebook" title="Facebook" style={socialIconStyle}>f</a>
+            {/* BUG-005141: the supplied Facebook destination has not been independently verified.
+                Keep the icon in the footer, but never send visitors to an unconfirmed page.
+                Restore a real <a> only after the official public page is confirmed. */}
+            <span aria-label="ParkShare Facebook link being verified" title="Facebook link being verified" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>f</span>
             <a href="https://www.youtube.com/@ParkerParksHere" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on YouTube" title="YouTube" style={socialIconStyle}>▶</a>
             <span aria-label="X link coming soon" title="X link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>𝕏</span>
             <span aria-label="LinkedIn link coming soon" title="LinkedIn link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>in</span>
@@ -9876,7 +10010,9 @@ export default function App() {
       return;
     }
     const requestedRoute = getRouteForState(screen, tab, legalSection);
-    if (screen === "app" && requestedRoute.private) return;
+    // Signing in from the parking detail must not reset the selected
+    // driveway/spot/schedule or navigate away before checkout.
+    if (screen === "app" && (tab === "Browse" || requestedRoute.private)) return;
     moveToRoute("app", u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
   };
 
@@ -9890,36 +10026,19 @@ export default function App() {
     moveToRoute("app", "Browse");
   };
 
-  // Restore session on page load / refresh, and react to future sign-outs
-  // (e.g. token expiry) from anywhere in the app.
-  useEffect(() => {
-    let active = true;
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session || !active) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, name, role")
-        .eq("id", session.user.id)
-        .single();
-      if (profile && active) {
-        setUser(buildAppUser(profile, session.user));
-      }
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setAuthInitialScreen("recovery");
-        setShowAuth(true);
-      }
-      if (!session) setUser(null);
-    });
-
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+  // INITIAL_SESSION restores the saved session. SIGNED_IN / SIGNED_OUT
+  // also arrive across tabs. Defer Supabase reads outside the auth callback
+  // to avoid client deadlocks, and invalidate stale profile queries.
+  useEffect(() => createAuthSessionSynchronizer({
+    client: supabase,
+    buildUser: buildAppUser,
+    onUser: (nextUser) => setUser(nextUser),
+    onRecovery: () => {
+      setAuthInitialScreen("recovery");
+      setShowAuth(true);
+    },
+    onProfileUnavailable: () => console.warn("[auth] Profile unavailable after cross-tab session update"),
+  }), []);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
     setMessageBookingId(null);
@@ -10225,7 +10344,7 @@ export default function App() {
           )}
           {tab === "Browse" && (messageBookingId
             ? <EmailMessageListing bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
-            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
+            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
