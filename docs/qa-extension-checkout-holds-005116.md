@@ -8,8 +8,8 @@
 
 ## Prepared stacked code
 - This branch builds **on draft PR #160**, not on `main` and not on active BetterQA QA. Its draft PR should target #160's feature branch.
-- `api/create-extend-session.js` now calls service-role `create_booking_hold` **for only [current booking end, requested extended end)** using the authenticated Driver, existing booked spot label and existing listing ID **before creating a Stripe session**.
-- The existing RPC uses a listing-scoped advisory transaction lock, checks capacity and exact spot, and serializes competing new bookings and extension holds. Failure `P0001` becomes HTTP 409, **before charging**.
+- `api/create-extend-session.js` now calls service-role `reserve_extension_checkout_hold` **before creating Stripe Checkout**. This PostgreSQL RPC reads the original `session_range` endpoint under the listing lock and invokes existing `create_booking_hold` for only the additional tail interval, with a verified Driver/booking identity and exact start/end.
+- The new RPC serializes the listing and reads the exact booking end using PostgreSQL microsecond precision; the nested existing `create_booking_hold` checks capacity and spot, competing new bookings, and extension holds. Failure `P0001` becomes HTTP 409, before payment.
 - Checkout hold and Stripe session share an expiry approximately 30m45s from request creation, inside the database's 31-minute maximum lease and Stripe's minimum expiration window.
 - After Stripe session creation, service-role code binds `booking_holds.stripe_checkout_session_id`, inserts `pending_booking_extensions.hold_id` and returns the session URL **only after both trusted snapshots are persisted**.
 - On Stripe setup/binding/registration failure, the code best-effort expires its orphan session and removes **only that Driver's/listing's specific hold** and pending session entry. Cleanup errors are logged rather than hidden.
@@ -26,7 +26,7 @@
 
 ## Migration / dependency gates
 - **DO NOT deploy only the API code.** It requires the updated review-only SQL with `pending_booking_extensions.hold_id` and enhanced `apply_paid_booking_extension` (plus #160's refund/audit changes).
-- The original `create_booking_hold` RPC from migration 011 must exist, with correct service-role execution permissions and listing-lock semantics.
+- `create_booking_hold` from migration 011 must exist with service-role execution and listing advisory locks. The new service-role-only `reserve_extension_checkout_hold` must be approved and installed **before** any API deployment. Database integration tests caught a sub-millisecond false conflict caused by JavaScript Date round-trip precision; the final design derives the tail timestamp entirely inside PostgreSQL.
 - Review conflict/lock interactions with #167 (unpaid hold abuse limits), #154 (spot availability), #166 (webhook DB errors), #143 (payment integrity), #165 (trusted Stripe return URLs), and #159 (property timezone) before integrated QA test.
 - Separately confirm extension Host availability windows and Stripe failure-recovery product policy before public launch.
 - Write an **approved numbered Supabase migration** and rehearse in a disposable database, then authorized isolated QA branch/environment before any BetterQA active QA or production change.
