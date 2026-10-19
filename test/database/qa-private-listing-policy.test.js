@@ -15,7 +15,7 @@ describe("BUG-005183 privacy RLS on disposable PostgreSQL", {skip: !databaseUrl,
   pool=new Pool({connectionString:databaseUrl,connectionTimeoutMillis:5000,max:3});
   await pool.query(await readFile(new URL("./booking-holds-fixture.sql",import.meta.url),"utf8"));
   const sql=[
-   "ALTER TABLE public.profiles ADD COLUMN role text;",
+   "ALTER TABLE public.profiles ADD COLUMN role text, ADD COLUMN name text;",
    "ALTER TABLE public.listings ADD COLUMN address text;",
    "ALTER TABLE public.listings ADD COLUMN lat double precision;",
    "ALTER TABLE public.listings ADD COLUMN lng double precision;",
