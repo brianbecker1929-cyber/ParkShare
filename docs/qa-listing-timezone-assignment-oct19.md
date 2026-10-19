@@ -32,8 +32,14 @@ No real signup, property publication, Storage upload, booking, payment or email 
 
 ## Release procedure and rollback
 
-Require native regression/build and full-schema CI on the exact release commit. Apply the migration only to QA project `biydlfekindgaslgktsx`; record the service-assigned migration version in the repository. Preserve booking/listing digests and counts, extension/refund rows and Storage objects. Deploy only Vercel project `prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC` (`parkshare-qa`) and verify `propertyTimezoneLookupReady` and `propertyTimezoneGuardReady`.
+Require native regression/build and full-schema CI on the exact release commit. Deploy the new verified publication endpoint/client to QA first, then enforce the database guard, so the old client is not left using a newly blocked publication path. Apply the migration only to QA project `biydlfekindgaslgktsx`; record the service-assigned migration version in the repository. Preserve booking/listing digests and counts, extension/refund rows and Storage objects. Deploy only Vercel project `prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC` (`parkshare-qa`) and verify `propertyTimezoneLookupReady` and `propertyTimezoneGuardReady`.
 
 The migration changes a trigger function and adds a server-only readiness function. It performs no listing, booking, payment, refund or Storage backfill. Existing unlocated listings still require a separately reviewed location correction; historical booking snapshots remain intact.
 
 Rollback requires redeploying the previous QA commit AND restoring the previous trusted-zone trigger body from the prior migration so the old client publication path can operate again. Keep prior refund/photo-cleanup/public-feed protections installed. Do not rewind application data. Never apply that rollback to production/main as part of this QA workflow.
+
+## QA application evidence
+
+Initial functional commit `b07056e2f7f6f20f748f474c2f94d3d19f8e8efc` passed 693 native CI tests (0 failures/skips) and build in job 118289782365; native PostgreSQL 17 job 118289782661 passed all 77 checks. Deployment `dpl_6ZS6QKFHnHgxYmTWuYcUt7rHosez` successfully performed real packaged Toronto/Bucharest lookups before guard installation.
+
+QA recorded migration `20261019203117_listing_timezone_assignment.sql`; this repository filename is aligned to the service-assigned version. Afterwards the guard reports ready and denies anonymous/authenticated readiness RPC calls. Counts remain 34 bookings, 0 extensions, 15 listings, 2 storage objects and 0 refund ledger rows. Full booking digest remains `85f04f6f84b56971a153511cfeaa5c40`; listing digest remains `38457635195d30a3373e328d382c0415`. The final migration-tracking commit must also pass native CI before its final QA redeployment.

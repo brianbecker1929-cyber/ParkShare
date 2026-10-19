@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export const listingTimezoneMigration=new URL('../supabase/migrations/20261019201855_listing_timezone_assignment.sql',import.meta.url);
+export const listingTimezoneMigration=new URL('../supabase/migrations/20261019203117_listing_timezone_assignment.sql',import.meta.url);
 export async function runListingTimezoneProbe(db,report={checks:[]}){
  const check=name=>report.checks.push({name:'listing timezone: '+name,status:'passed'});
  const digest=async()=> (await db.query("SELECT md5(coalesce(string_agg(to_jsonb(b)::text,'|' ORDER BY id),'')) digest FROM public.bookings b")).rows[0].digest;
