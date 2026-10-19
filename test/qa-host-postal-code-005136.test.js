@@ -43,7 +43,7 @@ test("Host step 1 and final publication reject invalid postal codes before any p
   assert.match(app, /const postalCheck = validateCanadianPostalCode\(form\.postal\)/);
   assert.match(app, /postalCheck\.normalized \|\| form\.postal\.trim\(\)/);
   assert.match(app, /!postalCheck\.valid && \{ label: "Enter a valid Canadian postal code/);
-  assert.match(app, /disabled=\{!form\.street\.trim\(\) \|\| !form\.city\.trim\(\) \|\| !form\.region\.trim\(\) \|\| !postalCheck\.valid\}/);
+  assert.match(app, /disabled=\{!form\.street\.trim\(\) \|\| !form\.city\.trim\(\) \|\| !form\.region\.trim\(\) \|\| !postalCheck\.valid \|\| !hasListingCoordinates\(form\) \|\| !propertyTimeZone\}/);
   assert.match(app, /if \(!form\.street\.trim\(\) \|\| !form\.city\.trim\(\) \|\| !form\.region\.trim\(\) \|\| !postalCheck\.valid\)/);
   const publish = app.slice(app.indexOf("const publish = async () =>"), app.indexOf("const resetAll =", app.indexOf("const publish = async () =>")));
   assert.ok(publish.indexOf("!postalCheck.valid") < publish.indexOf("uploadListingPhotos("),

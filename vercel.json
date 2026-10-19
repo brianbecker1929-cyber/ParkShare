@@ -18,5 +18,13 @@
       "path": "/api/cleanup-listing-photos",
       "schedule": "0 3 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/host-listings.js": {
+      "includeFiles": "node_modules/geo-tz/data/timezones.geojson.*"
+    },
+    "api/qa-release-status.js": {
+      "includeFiles": "node_modules/geo-tz/data/timezones.geojson.*"
+    }
+  }
 }

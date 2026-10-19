@@ -106,6 +106,6 @@ test("App blocks invalid exceptions before preview, publishing and image uploads
   const publish = app.slice(app.indexOf("const publish = async () =>"), app.indexOf("const resetAll =", app.indexOf("const publish = async () =>")));
   assert.ok(publish.indexOf("validateHostAvailabilityExceptions(normalizeAvailability(form.availability))") >= 0);
   assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf("uploadListingPhotos("));
-  assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf('supabase.from("listings").insert('));
+  assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf('publishHostListing('));
   assert.match(publish, /setStep\(6\)/);
 });

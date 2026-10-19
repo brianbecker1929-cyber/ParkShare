@@ -1,5 +1,6 @@
 // QA-only release readiness. Never returns credentials or customer data.
 import { supabaseAdmin } from "./_lib.js";
+import {resolveListingTimeZone} from "./_listing-time-zone.js";
 const QA_URL = "https://biydlfekindgaslgktsx.supabase.co";
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
@@ -23,6 +24,12 @@ export default async function handler(req, res) {
   checks.refundLedgerReady = !ledgerSchema.error && !bookingLedger.error && !extensionLedger.error;
   const publicParking = await supabaseAdmin.rpc("public_parking_page", {p_before_id: 1});
   checks.boundedPublicParkingReady = !publicParking.error;
+  try {
+    checks.propertyTimezoneLookupReady = resolveListingTimeZone({lat:43.65,lng:-79.38}) === "America/Toronto"
+      && resolveListingTimeZone({lat:46.77,lng:23.59}) === "Europe/Bucharest";
+  } catch { checks.propertyTimezoneLookupReady = false; }
+  const publishingGuard = await supabaseAdmin.rpc("listing_timezone_assignment_ready");
+  checks.propertyTimezoneGuardReady = !publishingGuard.error && publishingGuard.data === true;
   const ready = Object.values(checks).every(Boolean);
   return res.status(ready ? 200 : 503).json({ ready, commit: process.env.VERCEL_GIT_COMMIT_SHA || null, checks });
 }
