@@ -26,3 +26,9 @@ No real account, listing publication, Storage upload/deletion, booking, payment,
 Apply the additive `listing_publication_retries` migration to QA database `biydlfekindgaslgktsx` only after native CI passes. The private RLS-protected receipt table and invoker RPC are service-only with an empty search path; browser roles receive no access. Verify booking/listing digests and booking/extension/listing/refund/Storage counts before and after. Align the filename to the service-recorded version. Deploy the exact final native-tested SHA to QA project `prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC`. Verify the new `listingPublicationReady` readiness flag, previous readiness checks, public browse and authorization responses.
 
 The migration only creates schema objects and is compatible with the prior QA code. Rollback may retain it and its receipts. Reverting to the previous application removes retry protection for new requests, so pause/review uncertain publication attempts before a rollback. Do not drop receipts or rewind application data. The separate production project remains untouched.
+
+## QA migration evidence
+
+Functional commit `980672a1715b2433cc9e7d92ea820ca03f0e38cd` passed 705 native tests (0 failures/skips) and build in GitHub job 118336713896. PostgreSQL 17 job 118336714702 passed 92 full-schema checks, including all three two-connection publication races.
+
+QA recorded migration `20261019221450_listing_publication_retries.sql`. Repository naming now matches that tracked version; SQL is unchanged. Before and after application: 34 bookings, 15 listings, 0 extensions, 2 Storage objects and 0 refund ledger rows. Full booking digest remains `85f04f6f84b56971a153511cfeaa5c40`; full listing digest remains `38457635195d30a3373e328d382c0415`. The six security-advisor categories remain the existing baseline. The final migration-tracking commit must pass native CI before deployment.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createAvailabilityPreset} from '../src/lib/listingAvailability.js';
-export const listingPublicationMigration=new URL('../supabase/migrations/20261019220539_listing_publication_retries.sql',import.meta.url);
+export const listingPublicationMigration=new URL('../supabase/migrations/20261019221450_listing_publication_retries.sql',import.meta.url);
 const HOST='00000000-0000-4000-8000-000000000091',OTHER='00000000-0000-4000-8000-000000000092',DRIVER='00000000-0000-4000-8000-000000000093';
 const ID=n=>`20000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const HASH='a'.repeat(64);
