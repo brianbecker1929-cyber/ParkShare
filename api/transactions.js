@@ -21,6 +21,9 @@
 // endpoint IS the access-control boundary, same as those.
 
 import { jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
+import { hostEarningsForRecord, mapHostEarnings } from "./_host-earnings.js";
+import { loadTransactionHistory } from "./_transaction-history.js";
+import { canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
@@ -29,16 +32,17 @@ export default async function handler(req, res) {
     const user = await requireUser(req, res);
     if (!user) return;
 
-    const [spent, earned, payouts] = await Promise.all([
-      getSpentTransactions(user.id),
-      getEarnedTransactions(user.id),
-      getPayouts(user.id),
-    ]);
-
-    return res.status(200).json({ spent, earned, payouts });
+    const result = await loadTransactionHistory({
+      loadSpent: () => getSpentTransactions(user.id),
+      loadEarned: () => getEarnedTransactions(user.id),
+      loadPayouts: () => getPayouts(user.id),
+      onPayoutError: error => console.warn("[transactions] payouts unavailable", { code: error?.code || "unavailable" }),
+    });
+    res.setHeader("Cache-Control", "private, no-store");
+    return res.status(200).json(result);
   } catch (error) {
-    console.error("transactions error:", error);
-    return res.status(500).json({ error: error.message || "Unable to load transactions." });
+    console.error("transactions error:", { code: error?.code });
+    return res.status(500).json({ error: "Unable to load transactions right now." });
   }
 }
 
@@ -49,7 +53,7 @@ export default async function handler(req, res) {
 async function getSpentTransactions(userId) {
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, hours, total, subtotal, service_fee, status, paid_at, spot_label, listings(title, address)")
+    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, status, paid_at, spot_label, stripe_checkout_session_id, listings(host_id, title, address)")
     .eq("renter_id", userId)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -62,12 +66,13 @@ async function getSpentTransactions(userId) {
 
   const rows = [];
   for (const b of bookings || []) {
+    const precise = canReadPreciseLocation({ userId, hostId: b.listings?.host_id, listingId: b.listing_id, booking: b });
     rows.push({
       type: "booking",
       id: `booking-${b.id}`,
       bookingId: b.id,
-      description: b.listings?.title || "Parking session",
-      address: b.listings?.address || "",
+      description: precise ? b.listings?.title || "Parking session" : "Parking session",
+      address: precise ? b.listings?.address || "" : "",
       amount: Number(b.total || 0),
       status: b.status,
       date: b.paid_at,
@@ -92,9 +97,8 @@ async function getSpentTransactions(userId) {
 
 // ---------------------------------------------------------------------
 // Money the user has EARNED — bookings + extensions on listings they host.
-// Shows the gross amount, the platform fee taken, and the net (what
-// actually gets paid out) separately, since bookings already stores
-// subtotal/service_fee as real numbers — no need to estimate anything.
+// Show remaining booking proceeds before Stripe processing fees, separately
+// from actual payouts. Refund records are verified with read-only Stripe calls.
 // ---------------------------------------------------------------------
 async function getEarnedTransactions(userId) {
   const { data: listings, error: listingsError } = await supabaseAdmin
@@ -109,7 +113,7 @@ async function getEarnedTransactions(userId) {
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, total, subtotal, service_fee, status, paid_at, spot_label")
+    .select("id, listing_id, total, subtotal, service_fee, status, paid_at, spot_label, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount")
     .in("listing_id", listingIds)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -124,62 +128,62 @@ async function getEarnedTransactions(userId) {
   const rows = [];
   for (const b of bookings || []) {
     const listing = listingById[b.listing_id];
-    // subtotal/service_fee are the same numbers already computed at
-    // checkout (create-checkout-session.js) — the host's net is just
-    // subtotal, since service_fee is ParkShare's cut, not theirs.
     rows.push({
-      type: "booking",
-      id: `booking-${b.id}`,
-      bookingId: b.id,
-      description: listing?.title || "Parking session",
-      address: listing?.address || "",
-      gross: Number(b.total || 0),
-      platformFee: Number(b.service_fee || 0),
-      net: Number(b.subtotal || 0),
-      status: b.status,
-      date: b.paid_at,
-      spotLabel: b.spot_label,
+      source: b,
+      isExtension: false,
+      transaction: {
+        type: "booking",
+        id: `booking-${b.id}`,
+        bookingId: b.id,
+        description: listing?.title || "Parking session",
+        address: listing?.address || "",
+        gross: Number(b.total || 0),
+        status: b.status,
+        date: b.paid_at,
+        spotLabel: b.spot_label,
+      },
     });
   }
   for (const ext of extensions) {
     const parentBooking = bookingById[ext.booking_id];
     const listing = parentBooking ? listingById[parentBooking.listing_id] : null;
-    // Extensions don't split out a service fee the way the original
-    // booking does (create-extend-session.js charges the same 15% but
-    // doesn't persist subtotal/service_fee separately on the extension
-    // row) — approximate the split here at the same known rate rather
-    // than leaving it blank. Flagged as an approximation, not stored fact.
-    const grossCents = Math.round(Number(ext.added_amount || 0) * 100);
-    const feeCents = Math.round(grossCents * (0.15 / 1.15)); // back out the fee from a total that already includes it
     rows.push({
-      type: "extension",
-      id: `extension-${ext.id}`,
-      bookingId: ext.booking_id,
-      description: (listing?.title || "Parking session") + " — added time",
-      address: listing?.address || "",
-      gross: Number(ext.added_amount || 0),
-      platformFee: feeCents / 100,
-      net: (grossCents - feeCents) / 100,
-      status: ext.status,
-      date: ext.paid_at,
-      approximateFeeSplit: true,
+      source: ext,
+      isExtension: true,
+      transaction: {
+        type: "extension",
+        id: `extension-${ext.id}`,
+        bookingId: ext.booking_id,
+        description: (listing?.title || "Parking session") + " — added time",
+        address: listing?.address || "",
+        gross: Number(ext.added_amount || 0),
+        status: ext.status,
+        date: ext.paid_at,
+      },
     });
   }
 
-  rows.sort((a, b) => new Date(b.date) - new Date(a.date));
-  return rows;
+  // Bound external work; any records not verified within the shared budget
+  // remain visible under review, rather than timing out the entire history.
+  const deadlineAt = Date.now() + 15_000;
+  const reconciled = await mapHostEarnings(rows, async ({ source, isExtension, transaction }) => ({
+    ...transaction,
+    ...await hostEarningsForRecord(stripe, source, { isExtension, deadlineAt }),
+  }));
+  reconciled.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return reconciled;
 }
 
 async function fetchExtensionsForBookings(bookingIds) {
   const { data, error } = await supabaseAdmin
     .from("booking_extensions")
-    .select("id, booking_id, added_hours, added_amount, status, paid_at")
+    .select("id, booking_id, added_hours, added_amount, status, paid_at, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, charge_amount_refunded, charge_fully_refunded, charge_disputed")
     .in("booking_id", bookingIds)
     .not("paid_at", "is", null);
   // Older deployments may not have applied the extensions migration yet.
   // Original booking history must remain usable while that migration lands.
   if (error) {
-    if (error.code === "PGRST205" || /booking_extensions/i.test(error.message || "")) return [];
+    if (["PGRST205", "42P01"].includes(error.code) && /booking_extensions/i.test(error.message || "")) return [];
     throw error;
   }
   return data || [];
@@ -192,11 +196,12 @@ async function fetchExtensionsForBookings(bookingIds) {
 // Stripe directly.
 // ---------------------------------------------------------------------
 async function getPayouts(userId) {
-  const { data: profile } = await supabaseAdmin
+  const { data: profile, error } = await supabaseAdmin
     .from("profiles")
     .select("stripe_account_id")
     .eq("id", userId)
     .single();
+  if (error) throw error;
 
   const stripeAccountId = profile?.stripe_account_id;
   if (!stripeAccountId) return []; // not a host, or hasn't connected Stripe yet
