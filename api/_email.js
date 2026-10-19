@@ -145,6 +145,7 @@ function driverTicketFields(args) {
     LOCATION_ID: e(args.locationId || "Not provided"),
     SPOT_LABEL: e(label),
     CONFIRMATION_NUMBER: e(bookingNumber(args)),
+    TIME_ZONE_LABEL: e(args.timeZoneLabel || "Time zone not provided"),
     SESSION_START_TIME: e(args.startTimeStr || "Not provided"),
     ENTRY_DATE_FULL: e(args.entryDateFull || ""),
     SESSION_END_TIME: e(args.endTimeStr || "Not provided"),
@@ -182,6 +183,7 @@ export function hostBookingNotificationHtml(args) {
     AMOUNT_CHARGED: e(args.amountCharged || "Not provided"),
     // Older callers may pass combined labels; new sends use separate times
     // and dates so both columns stay compact, including overnight bookings.
+    TIME_ZONE_LABEL: e(args.timeZoneLabel || "Time zone not provided"),
     HOST_START_TIME: e(args.startTimeStr || args.startLabel || "Not provided"),
     HOST_START_DATE: e(args.entryDateFull || ""),
     HOST_END_TIME: e(args.endTimeStr || args.endLabel || "Not provided"),

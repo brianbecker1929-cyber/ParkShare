@@ -195,3 +195,10 @@ test('pin selection scrolls the matching offscreen card inside the desktop list 
   h.map().onSelect(far);h.render();assert.deepEqual(calls,[{block:'nearest',inline:'nearest'}]);
   column.ref.current={scrollHeight:1000,clientHeight:1000};h.map().onSelect(far);h.render();assert.equal(calls.length,1);
 });
+
+test('Nearest uses the panned map centre with My location inactive, without filtering to that point',()=>{
+ const h=harness();assert.deepEqual(h.map().listings.map(l=>l.id),['db-1','db-2']);
+ h.map().onSearchCenterChange({lat:far.lat,lng:far.lng});
+ assert.deepEqual(h.map().listings.map(l=>l.id),['db-2','db-1']);assert.equal(h.map().userLoc,null);
+ h.map().onSearchCenterChange(toronto);assert.deepEqual(h.map().listings.map(l=>l.id),['db-1','db-2']);
+});

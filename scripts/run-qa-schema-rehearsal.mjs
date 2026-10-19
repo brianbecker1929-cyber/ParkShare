@@ -8,6 +8,7 @@ import { assertLocalRehearsalUrl } from './qa-schema-rehearsal.mjs';
 import { runSchemaProbes } from './qa-schema-probes.mjs';
 import { runCompleteQaReleaseProbe } from './qa-complete-release-probe.mjs';
 import { runPhotoCleanupProbe } from './qa-photo-cleanup-probe.mjs';
+import {runPublicParkingProbe} from './qa-public-parking-probe.mjs';
 import { runRefundLedgerProbe } from './qa-refund-ledger-probe.mjs';
 
 const raw=process.env.QA_SCHEMA_REHEARSAL_DATABASE_URL;
@@ -24,6 +25,7 @@ try {
   await runCompleteQaReleaseProbe(db,report);
   await runPhotoCleanupProbe(db,report);
   await runRefundLedgerProbe(db,report);
+  await runPublicParkingProbe(db,report);
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {

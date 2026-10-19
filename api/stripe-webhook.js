@@ -189,9 +189,9 @@ async function confirmBooking(session, connectedAccountId, hold) {
     booking_date: metadata.booking_date || null,
     // Write the registered UTC hold start as a canonical booking instant.
     scheduled_starts_at: canonicalScheduled ? new Date(hold.starts_at).toISOString() : null,
-    property_time_zone: canonicalScheduled ? metadata.property_time_zone : null,
-    start_hour: metadata.start_hour === "" ? null : Number(metadata.start_hour),
-    end_hour: metadata.end_hour === "" ? null : Number(metadata.end_hour),
+    property_time_zone: metadata.property_time_zone || null,
+    start_hour: metadata.booking_date && metadata.start_hour != null && metadata.start_hour !== "" ? Number(metadata.start_hour) : null,
+    end_hour: metadata.booking_date && metadata.end_hour != null && metadata.end_hour !== "" ? Number(metadata.end_hour) : null,
     vehicle_profile_id: metadata.vehicle_id || null,
     vehicle_type: metadata.vehicle_type || null,
     vehicle_make: metadata.vehicle_make || null,
@@ -355,7 +355,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   // gives the NEW end time directly — no separate "add addedHours" math
   // needed.
   const { start, end } = getSessionWindow(booking);
-  const times = formatBookingEmailTimes(start, end, new Date(), booking.property_time_zone || undefined);
+  const times = formatBookingEmailTimes(start, end, new Date(), booking.property_time_zone || "UTC");
 
   const addedTimeStr = addedHours === 0.5 ? "30 minutes" : `${addedHours} hour${addedHours === 1 ? "" : "s"}`;
   const amountChargedStr = `${(totalCents / 100).toLocaleString("en-CA", { style: "currency", currency: "CAD" })} CAD`;
@@ -411,6 +411,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
       spotLabel: booking.spot_label,
       addedTime: addedTimeStr,
       amountCharged: amountChargedStr,
+      timeZoneLabel: times.timeZoneLabel,
       newEndTime: times.endTimeStr,
       newEndDateFull: times.exitDateFull,
       vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
@@ -446,7 +447,7 @@ async function sendBookingConfirmationEmail(booking) {
   }
 
   const { start, end, isAdvance } = getSessionWindow(booking);
-  const formattedTimes = formatBookingEmailTimes(start, end);
+  const formattedTimes = formatBookingEmailTimes(start, end, new Date(), booking.property_time_zone || "UTC");
 
   // Show the saved checkout total, including the service fee, to both
   // recipients. This is the Driver's charge, rather than the Host's payout.
@@ -519,6 +520,7 @@ async function sendBookingConfirmationEmail(booking) {
       confirmationNumber: "PK-" + booking.id,
       amountCharged,
       startDateLabel: formattedTimes.startDateLabel,
+      timeZoneLabel: formattedTimes.timeZoneLabel,
       startTimeStr: formattedTimes.startTimeStr,
       entryDateFull: formattedTimes.entryDateFull,
       endTimeStr: formattedTimes.endTimeStr,
@@ -564,6 +566,7 @@ async function sendBookingConfirmationEmail(booking) {
         vehicle: booking,
         startLabel: formattedTimes.hostStartLabel,
         endLabel: formattedTimes.hostEndLabel,
+        timeZoneLabel: formattedTimes.timeZoneLabel,
         startTimeStr: formattedTimes.startTimeStr,
         entryDateFull: formattedTimes.entryDateFull,
         endTimeStr: formattedTimes.endTimeStr,

@@ -72,7 +72,7 @@ test("cover endpoint requires authorization, proxies private photos and forbids 
 test("anonymous listing reads and raw reviewer profile joins are absent from browser", async () => {
   const app=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");
   const browse=app.slice(app.indexOf("function useAllListings()"),app.indexOf("function EventSubmissionForm("));
-  assert.match(browse,/fetch\("\/api\/public-parking"\)/);
+  assert.match(browse,/fetchPublicParkingPage\(/);
   assert.doesNotMatch(browse,/\.from\("listings"\)/);
   const reviews=app.slice(app.indexOf("function ReviewsSection("),app.indexOf("function ListingDetail("));
   assert.match(reviews,/\/api\/public-reviews/);

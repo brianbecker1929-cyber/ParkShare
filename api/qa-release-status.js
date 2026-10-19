@@ -21,6 +21,8 @@ export default async function handler(req, res) {
   const bookingLedger = await supabaseAdmin.from("bookings").select("refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
   const extensionLedger = await supabaseAdmin.from("booking_extensions").select("refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
   checks.refundLedgerReady = !ledgerSchema.error && !bookingLedger.error && !extensionLedger.error;
+  const publicParking = await supabaseAdmin.rpc("public_parking_page", {p_before_id: 1});
+  checks.boundedPublicParkingReady = !publicParking.error;
   const ready = Object.values(checks).every(Boolean);
   return res.status(ready ? 200 : 503).json({ ready, commit: process.env.VERCEL_GIT_COMMIT_SHA || null, checks });
 }

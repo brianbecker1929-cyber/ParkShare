@@ -5,12 +5,13 @@ import { supabase } from "./lib/supabaseClient";
 import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
 import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
 import { calculateBookingAmounts } from "../api/_booking-rules.js";
+import { fetchPublicParkingPage } from "./lib/publicParkingPage";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
-import { localCalendarDate } from "./lib/bookingCalendarDate";
+import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm } from "./lib/authForm";
@@ -26,7 +27,7 @@ import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/booki
 import { matchesBookingDateRange } from "./lib/bookingDateFilter";
 import { parseMessageBookingId, bookingMessageListing, bookingMessageThread } from "./lib/bookingMessage";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
-import { PARKING_SEARCH_RADIUS_KM, matchesParkingText, nearbyParkingListings, parkingSearchEmptyState, validParkingCoordinate } from "./lib/parkingSearch";
+import { PARKING_SEARCH_RADIUS_KM, matchesParkingText, nearbyParkingListings, parkingSearchEmptyState, validParkingCoordinate, parkingDistanceKm } from "./lib/parkingSearch";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
   EVENT_ARRIVAL_BUFFER_MINUTES,
@@ -749,7 +750,7 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing, onPreviewRo
   );
 }
 
-function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc }) {
+function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc, onSearchCenterChange }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -762,7 +763,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   const initialCenter = useRef(userLoc || (withCoords[0]
     ? { lat: withCoords[0].lat, lng: withCoords[0].lng }
     : { lat: 40.7128, lng: -74.006 }));
-  const coordinateKey = withCoords.map(l => `${l.id}:${l.lat}:${l.lng}`).join("|");
+  const coordinateKey = withCoords.map(l => `${l.id}:${l.lat}:${l.lng}`).sort().join("|");
 
   useEffect(() => {
     if (!map || !window.google) return;
@@ -832,6 +833,10 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
         center={initialCenter.current}
         zoom={13}
         onLoad={setMap}
+        onIdle={() => {
+          const center = map?.getCenter?.();
+          if (center) onSearchCenterChange?.({ lat: center.lat(), lng: center.lng() });
+        }}
         onClick={() => onSelect(null)}
         options={{
           styles: MAP_STYLE,
@@ -1605,7 +1610,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const advanceHours = Math.max(1, endHour - startHour);
   const handleStartChange = (e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(v + 1); };
   const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
-  const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
+  const [date, setDate] = useState(() => futureBookingDate(listing.timeZone));
   const [showCalendar, setShowCalendar] = useState(false);
 
   useEffect(() => {
@@ -1737,14 +1742,16 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     }
     fetch(`/api/listing-availability?${params.toString()}`)
       .then(async res => {
-        if (!res.ok) throw new Error("Availability service unavailable");
-        return res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(res.status >= 400 && res.status < 500 && typeof data.error === "string"
+          ? data.error : "Unable to verify availability. Try again shortly.");
+        return data;
       })
       .then(data => {
         if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data, error: false });
       })
-      .catch(() => {
-        if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data: null, error: true });
+      .catch(error => {
+        if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
       });
     return () => { cancelled = true; };
   }, [selectedWindowKey, numericIdForAvailability]);
@@ -1874,7 +1881,12 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               availability result so nothing shown is ever for the wrong mode. */}
           <div style={{ display: "flex", background: C.concrete, borderRadius: 10, padding: 2, marginBottom: 16 }}>
             {[["now", "⚡ Book Now"], ["advance", "📅 Schedule for Later"]].map(([mode, label]) => (
-              <button key={mode} onClick={() => setBookingMode(mode)} style={{
+              <button key={mode} onClick={() => {
+                if (mode === "advance" && bookingMode !== "advance" && !selectedEvent) {
+                  setDate(futureBookingDate(listing.timeZone)); setStartHour(9); setEndHour(11);
+                }
+                setBookingMode(mode);
+              }} style={{
                 flex: 1, padding: "9px 4px", borderRadius: 8, border: "none", cursor: "pointer",
                 fontFamily: "'Poppins', sans-serif", fontSize: 11, fontWeight: 700,
                 background: bookingMode === mode ? C.white : "transparent",
@@ -1951,7 +1963,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               what's actually being booked. */}
           {numericIdForAvailability !== null && (
             selectedAvailability === null ? (
-              <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed ? "Unable to verify availability. Try again shortly." : "Checking availability… Spot selection is temporarily disabled."}</div>
+              <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed || "Checking availability… Spot selection is temporarily disabled."}</div>
             ) : selectedAvailability.available ? (
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🟢</span>
@@ -2149,38 +2161,36 @@ function useAllListings() {
   const [dbListings, setDbListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const refresh = async () => {
-    setLoading(true);
-    setError("");
+  const [nextCursor, setNextCursor] = useState(null);
+  const request = useRef(null);
+  const refresh = async (append = false) => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true); setError("");
     try {
-      const response = await fetch("/api/public-parking");
-      if (!response.ok) throw new Error("Public listings unavailable");
-      const payload = await response.json();
-      if (!Array.isArray(payload.listings)) throw new Error("Unexpected parking response");
-      setDbListings(payload.listings.map(row => ({
-        id: "db-" + row.id,
+      const payload = await fetchPublicParkingPage(append ? nextCursor : null, controller.signal);
+      if (controller.signal.aborted) return;
+      const rows = payload.listings.map(row => ({
+        ...row, id: "db-" + row.id,
         title: row.title, address: row.address,
         price: row.price, rating: row.rating || 0, reviewCount: row.reviewCount || 0,
         spaces: row.spaces, features: row.features || [], description: "",
-        // Anonymous discovery never loads property photographs which can reveal
-        // house numbers or identifying details.
         img: "🏠", photos: [], distance: "—",
         lat: row.lat, lng: row.lng, spots: row.spots || [], availability: null,
         host: row.host || "ParkShare Host", hostImg: "🧑",
         locationPrecision: "approximate",
-      })));
+      }));
+      setDbListings(current => append ? [...current, ...rows.filter(row => !current.some(old => old.id === row.id))] : rows);
+      setNextCursor(payload.nextCursor || null);
     } catch (error) {
-      console.error("Couldn't load privacy-safe public parking:", error);
-      setError("We couldn't load available driveways right now.");
+      if (!controller.signal.aborted) setError("We couldn't load available driveways right now.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
-
-  useEffect(() => { refresh(); }, []);
-
-  return { listings: dbListings, loading, error, refresh };
+  useEffect(() => { refresh(); return () => request.current?.abort(); }, []);
+  return { listings: dbListings, loading, error, refresh: () => refresh(), hasMore: Boolean(nextCursor), loadMore: () => refresh(true) };
 }
 
 function EventSubmissionForm({ onClose }) {
@@ -2532,7 +2542,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const { listings: allListings, loading: listingsLoading, error: listingsError, refresh: refreshListings } = useAllListings();
+  const { listings: allListings, loading: listingsLoading, error: listingsError, refresh: refreshListings, hasMore, loadMore } = useAllListings();
   const [query, setQuery] = useState("");
   const [locatedSearch, setLocatedSearch] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -2541,6 +2551,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
   const [mapSelectedId, setMapSelectedId] = useState(null);
+  const [mapSearchCenter, setMapSearchCenter] = useState(null);
   const listingColumnRef = useRef(null);
   const listingCardsRef = useRef(new Map());
   // Keep the map and listings together by default on every screen. Desktop
@@ -2803,7 +2814,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       approximateLocation: l.locationPrecision === "approximate",
     }),
   })).sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating
-    : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
+    : (parkingDistanceKm(mapSearchCenter || userLoc, a) ?? Infinity) - (parkingDistanceKm(mapSearchCenter || userLoc, b) ?? Infinity));
   const emptyState = parkingSearchEmptyState({ query, origin: userLoc, destinationSelected: locatedSearch });
   const activeMapListing = filtered.find(l => String(l.id) === mapSelectedId) || null;
   const selectMapListing = (listing) => {
@@ -2926,6 +2937,10 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
+      {hasMore && <div style={{ padding: "8px 12px", background: C.warmWhite, fontSize: 12 }}>
+        Showing {allListings.length} listings. Search and sorting apply to loaded listings. {" "}
+        <button type="button" disabled={listingsLoading} onClick={loadMore}>Load more parking</button>
+      </div>}
       <div className={`ps-browse-content ps-browse-content-${view}`} style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
         {(listingsLoading || listingsError || resolvingDestination || (allListings.length === 0 && !query && !userLoc)) ? (
@@ -2995,6 +3010,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                 onViewListing={setSelected}
                 onPreviewRoute={onPreviewRoute}
                 userLoc={userLoc}
+                onSearchCenterChange={center => setMapSearchCenter(current =>
+                  current && Math.abs(current.lat - center.lat) < 0.000001 && Math.abs(current.lng - center.lng) < 0.000001 ? current : center)}
               />
             </div>
           </div>
@@ -6367,9 +6384,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
           {screen !== "landing" && screen !== "role" && screen !== "recovery" && screen !== "recoverySuccess" && (
             <button onClick={() => { if (screen === "disclaimer") { setScreen("role"); setErrors({}); setAuthError(""); } else openAuthScreen("landing"); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
           )}
-          {screen !== "role" && screen !== "disclaimer" && (
-            <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
-          )}
+          <button type="button" aria-label="Close sign-in dialog" onClick={() => { setForm(emptyAuthForm()); setConfirmPassword(""); setPendingUser(null); setAgreed(false); setErrors({}); setAuthError(""); onClose(); }} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
         </div>
 
         <div style={{ padding: "22px 24px 26px" }}>
