@@ -50,10 +50,23 @@ export default async function handler(req, res) {
 // Money the user has SPENT — their own bookings + extensions on those
 // bookings, regardless of who hosts the listing.
 // ---------------------------------------------------------------------
+function spendingRefundAmounts(row) {
+  if (row.refund_total_amount == null) return {};
+  return { refundedAmount: Number(row.refund_total_amount), refundPendingAmount: Number(row.refund_pending_amount || 0) };
+}
+function spendingRefundStatus(row, gross) {
+  if (row.status === "disputed" || row.charge_disputed) return "disputed";
+  if (row.refund_total_amount == null) return row.status;
+  if (Number(row.refund_total_amount) >= Number(gross)) return "refunded";
+  if (Number(row.refund_pending_amount) > 0) return "refund_pending";
+  if (Number(row.refund_total_amount) > 0) return "partially_refunded";
+  return row.status;
+}
+
 async function getSpentTransactions(userId) {
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, status, paid_at, spot_label, stripe_checkout_session_id, listings(host_id, title, address)")
+    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, status, paid_at, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address)")
     .eq("renter_id", userId)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -74,7 +87,8 @@ async function getSpentTransactions(userId) {
       description: precise ? b.listings?.title || "Parking session" : "Parking session",
       address: precise ? b.listings?.address || "" : "",
       amount: Number(b.total || 0),
-      status: b.status,
+      status: spendingRefundStatus(b, b.total),
+      ...spendingRefundAmounts(b),
       date: b.paid_at,
       spotLabel: b.spot_label,
     });
@@ -86,7 +100,8 @@ async function getSpentTransactions(userId) {
       bookingId: ext.booking_id,
       description: "Added time",
       amount: Number(ext.added_amount || 0),
-      status: ext.status,
+      status: spendingRefundStatus(ext, ext.added_amount),
+      ...spendingRefundAmounts(ext),
       date: ext.paid_at,
     });
   }
@@ -113,7 +128,7 @@ async function getEarnedTransactions(userId) {
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, total, subtotal, service_fee, status, paid_at, spot_label, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount")
+    .select("id, listing_id, total, subtotal, service_fee, status, paid_at, spot_label, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, refund_total_amount, refund_pending_amount")
     .in("listing_id", listingIds)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -177,7 +192,7 @@ async function getEarnedTransactions(userId) {
 async function fetchExtensionsForBookings(bookingIds) {
   const { data, error } = await supabaseAdmin
     .from("booking_extensions")
-    .select("id, booking_id, added_hours, added_amount, status, paid_at, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, charge_amount_refunded, charge_fully_refunded, charge_disputed")
+    .select("id, booking_id, added_hours, added_amount, status, paid_at, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, charge_amount_refunded, charge_fully_refunded, charge_disputed, refund_total_amount, refund_pending_amount")
     .in("booking_id", bookingIds)
     .not("paid_at", "is", null);
   // Older deployments may not have applied the extensions migration yet.

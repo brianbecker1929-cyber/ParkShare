@@ -44,11 +44,3 @@ export async function applyAccountScopedBookingReconciliation(client, target, up
   });
   return { applied, reason: applied ? "updated" : "no_matching_booking" };
 }
-
-// Refund lifecycle rows only hold one refund ID. Never quietly overwrite the
-// reference to a different partial refund; flag for manual reconciliation.
-export function refundRecordPolicy(booking, refundId) {
-  if (!booking) return "unmatched";
-  if (booking.stripe_refund_id && booking.stripe_refund_id !== refundId) return "manual_reconciliation";
-  return "apply";
-}

@@ -54,15 +54,10 @@ test("Stripe extension events write only matching connected-account payment reco
   for (const event of ['case "charge.refunded":', 'case "refund.created":', 'case "charge.dispute.created":']) {
     assert.ok(webhook.includes(event), event);
   }
-  const refunded = webhook.slice(webhook.indexOf('case "charge.refunded":'));
-  const lifecycle = webhook.slice(webhook.indexOf('case "refund.created":'));
+  assert.match(webhook, /reconcilePaymentRefund\(\{ event, stripe, db: supabaseAdmin \}\)/);
   const dispute = webhook.slice(webhook.indexOf('case "charge.dispute.created":'));
-  for (const section of [refunded, lifecycle, dispute]) {
-    assert.match(section, /\.from\("booking_extensions"\)/);
-    assert.match(section, /\.eq\("stripe_connected_account_id", event\.account\)/);
-  }
-  assert.match(refunded, /extensionChargeRefundSnapshot/);
-  assert.match(lifecycle, /stripe_refund_id: reconciliation\.refundId/);
+  assert.match(dispute, /\.from\("booking_extensions"\)/);
+  assert.match(dispute, /\.eq\("stripe_connected_account_id", event\.account\)/);
   assert.match(dispute, /charge_disputed: true/);
 });
 

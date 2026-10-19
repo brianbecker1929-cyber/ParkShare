@@ -3188,6 +3188,7 @@ function transactionStatusLabel(status) {
     case "completed": return { label: "Completed", color: C.moss };
     case "payment_failed": return { label: "Failed", color: C.red };
     case "refunded": return { label: "Refunded", color: C.muted };
+    case "refund_pending": return { label: "Refund pending", color: C.amber };
     case "partially_refunded": return { label: "Partially refunded", color: C.amber };
     case "disputed": return { label: "Disputed", color: C.red };
     case "paid": return { label: "Paid out", color: C.moss };
@@ -3256,6 +3257,11 @@ function TransactionsView({ user }) {
               <div style={{ textAlign: "right" }}>
                 <Badge color={st.color}>{st.label}</Badge>
                 <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{amount == null ? "Under review" : money(amount)}</div>
+                {section === "spent" && t.refundedAmount != null && (
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                    {money(t.refundedAmount)} refunded{t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} refund pending</>}
+                  </div>
+                )}
               </div>
             </div>
             {section === "earned" && (
@@ -3463,7 +3469,7 @@ function HostDashboard({ user, setTab }) {
                 const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
-                const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const refundPending = Boolean(row.cancellation_requested_at) && ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
                 const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
                 return {
@@ -3498,7 +3504,7 @@ function HostDashboard({ user, setTab }) {
                   bookingEnd: window.end.toISOString(),
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
-                  canCancel: !refundPending && !cancelled && !completed && window.start.getTime() > now,
+                  canCancel: !(Number(row.refund_total_amount) > 0) && !refundPending && !cancelled && !completed && window.start.getTime() > now,
                 };
               })
             );
@@ -5457,7 +5463,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
             const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
-            const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+            const refundPending = Boolean(row.cancellation_requested_at) && ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
             const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
             return ({
@@ -5500,7 +5506,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
-            canCancel: !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
+            canCancel: !(Number(row.refund_total_amount) > 0) && !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
           });})
         );
         for (const row of data) {

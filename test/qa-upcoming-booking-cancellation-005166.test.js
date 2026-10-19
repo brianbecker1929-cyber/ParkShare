@@ -20,7 +20,7 @@ const fixture = () => ({
   paid_at: "2026-10-18T10:00:00Z", created_at: "2026-10-18T10:00:00Z",
   scheduled_starts_at: "2026-10-20T18:00:00Z", property_time_zone: "America/Toronto",
   stripe_checkout_session_id: "cs_fixture", stripe_payment_intent_id: "pi_fixture",
-  stripe_connected_account_id: "acct_fixture", refund_status: null,
+  stripe_connected_account_id: "acct_fixture", refund_status: null, refund_ledger_revision: 0,
 });
 
 let accountBookings, cancelBooking, clientWindow, clientDisplay;

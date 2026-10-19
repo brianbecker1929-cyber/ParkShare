@@ -23,6 +23,9 @@ export function evaluateCancellation({ booking, userId, hostId, now = new Date()
   if (FAILED_REFUND_STATUSES.has(refundStatus)) {
     return { allowed: false, code: "support_required", actor, message: "The refund needs ParkShare support review before it can be retried." };
   }
+  if (Number(booking?.refund_total_amount) > 0) {
+    return { allowed: false, code: "support_required", actor, message: "This booking already has a partial refund. Please contact support to cancel and review the remaining payment." };
+  }
   if (status !== "confirmed") {
     return { allowed: false, code: "not_confirmed", actor, message: "Only a confirmed booking can be cancelled." };
   }

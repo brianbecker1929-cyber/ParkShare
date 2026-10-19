@@ -5,9 +5,9 @@
 import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
-import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
-import { extensionChargeRefundSnapshot } from "./_extension-safety.js";
-import { paymentReconciliationTarget, applyAccountScopedBookingReconciliation, refundRecordPolicy } from "./_refund-dispute-account-safety.js";
+import { disputeReconciliation } from "./_refund-rules.js";
+import { reconcilePaymentRefund } from "./_refund-ledger.js";
+import { paymentReconciliationTarget, applyAccountScopedBookingReconciliation } from "./_refund-dispute-account-safety.js";
 import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot } from "./_checkout-integrity.js";
 import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
 import { isExpectedCheckoutTermination, matchesRegisteredCheckoutAccount, canFailUnpaidBooking } from "./_checkout-terminal-safety.js";
@@ -778,133 +778,13 @@ export default async function handler(req, res) {
         await syncConnectedAccount(event.data.object);
         break;
 
-      // KNOWN GAP: refunds/disputes below only check the `bookings` table.
-      // An extension's charge has its own separate payment_intent/charge id
-      // (see confirmExtension() above), so a refund issued against just the
-      // extension portion currently matches nothing here and silently
-      // no-ops. Deliberately left unhandled rather than guessing at the
-      // right behavior (e.g. should refunding an extension also decrement
-      // bookings.hours back down? what if it's been extended again since?)
-      // — worth its own explicit decision rather than bundling into this
-      // fix. Ask for it directly if refunding extensions needs to work.
-      case "charge.refunded": {
-        const reconciliation = refundReconciliation(event.data.object);
-        const target = paymentReconciliationTarget(event, "paymentIntent", reconciliation?.paymentIntentId);
-        if (target) {
-          const update = { status: reconciliation.status };
-          if (reconciliation.status === "refunded") update.cancelled_at = new Date().toISOString();
-          await applyAccountScopedBookingReconciliation(supabaseAdmin, target, update, {
-            label: "charge_refunded",
-            // A stale partial snapshot must not rewrite a fully refunded or
-            // disputed booking. Any later dispute/refund policy is manual.
-            excludeStatuses: ["refunded", "disputed"],
-          });
-          // Extension PaymentIntents are separate from the base booking. Audit
-          // refunded amount on its own connected account without auto-revoking
-          // parking time or altering the base booking.
-          const extensionSnapshot = extensionChargeRefundSnapshot(event.data.object);
-          if (extensionSnapshot) {
-            const { error: extensionError } = await supabaseAdmin
-              .from("booking_extensions")
-              .update({ ...extensionSnapshot, refund_reconciled_at: new Date().toISOString() })
-              .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
-              .eq("stripe_connected_account_id", event.account);
-            if (extensionError) throw extensionError;
-          }
-        }
-        break;
-      }
-
+      // All refund notifications reconcile the same current, account-scoped
+      // history. The ledger and parent totals commit in one SQL transaction.
+      case "charge.refunded":
       case "refund.created":
       case "refund.updated":
       case "refund.failed": {
-        const submittedRefundId = event.data.object?.id;
-        // Webhook delivery can be out of order; retrieve the CURRENT refund
-        // from the same connected account instead of writing a stale snapshot.
-        if (!/^re_[A-Za-z0-9_]+$/.test(String(submittedRefundId || "")) ||
-            !/^acct_[A-Za-z0-9_]+$/.test(String(event.account || ""))) break;
-        const currentRefund = await stripe.refunds.retrieve(
-          submittedRefundId, {}, { stripeAccount: event.account }
-        );
-        const reconciliation = refundEventReconciliation(currentRefund);
-        const target = paymentReconciliationTarget(event, "paymentIntent", reconciliation?.paymentIntentId);
-        if (!target || reconciliation.refundId !== submittedRefundId) break;
-
-        // Our legacy bookings row can represent one refund identifier, not
-        // multiple partial refunds for the same charge. A second refund
-        // requires an audited ledger/reconciliation, never overwriting the
-        // first ID and pretending financial history is complete.
-        const { data: booking, error: bookingError } = await readCheckoutDb(
-          () => supabaseAdmin.from("bookings")
-            .select("id, stripe_refund_id")
-            .eq(target.key, target.identifier)
-            .eq("stripe_connected_account_id", target.connectedAccountId)
-            .maybeSingle(),
-          "refund_owner_lookup"
-        );
-        if (bookingError) throw bookingError;
-        const policy = refundRecordPolicy(booking, reconciliation.refundId);
-        if (policy === "manual_reconciliation") {
-          console.error("[webhook-reconcile] multiple refunds require support ledger", {
-            eventId: event.id, connectedAccountId: target.connectedAccountId,
-          });
-          throw new Error("Multiple refunds require manual reconciliation");
-        }
-        if (policy === "unmatched") {
-          // Not a base booking refund: the PaymentIntent may belong to an
-          // approved paid parking extension. Preserve its separate audit row.
-          const { data: extension, error: lookupError } = await readCheckoutDb(
-            () => supabaseAdmin.from("booking_extensions")
-              .select("id, stripe_refund_id")
-              .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
-              .eq("stripe_connected_account_id", event.account)
-              .maybeSingle(),
-            "extension_refund_owner_lookup"
-          );
-          if (lookupError) throw lookupError;
-          const extensionPolicy = refundRecordPolicy(extension, reconciliation.refundId);
-          if (extensionPolicy === "manual_reconciliation") {
-            throw new Error("Multiple extension refunds require manual reconciliation");
-          }
-          if (extensionPolicy === "unmatched") {
-            console.warn("[webhook-reconcile] no owner-matched booking or extension refund", {
-              eventId: event.id, connectedAccountId: target.connectedAccountId,
-            });
-            break;
-          }
-          let updateExtension = supabaseAdmin.from("booking_extensions")
-            .update({
-              stripe_refund_id: reconciliation.refundId,
-              refund_status: reconciliation.refundStatus,
-              refund_amount: reconciliation.refundAmount,
-              refund_failure_reason: reconciliation.refundFailureReason,
-              refund_reconciled_at: new Date().toISOString(),
-            })
-            .eq("id", extension.id)
-            .eq("stripe_payment_intent_id", reconciliation.paymentIntentId)
-            .eq("stripe_connected_account_id", event.account);
-          updateExtension = extension.stripe_refund_id
-            ? updateExtension.eq("stripe_refund_id", extension.stripe_refund_id)
-            : updateExtension.is("stripe_refund_id", null);
-          const { data: updatedExtension, error: extensionError } = await updateExtension.select("id");
-          if (extensionError) throw extensionError;
-          if (!updatedExtension?.length) {
-            throw new Error("Extension refund changed concurrently; reconcile and retry");
-          }
-          break;
-        }
-        const result = await applyAccountScopedBookingReconciliation(supabaseAdmin, target, {
-          stripe_refund_id: reconciliation.refundId,
-          refund_status: reconciliation.refundStatus,
-          refund_amount: reconciliation.refundAmount,
-          refund_failure_reason: reconciliation.refundFailureReason,
-        }, {
-          label: "refund_lifecycle",
-          // CAS: if a concurrent refund event wrote another refund ID between
-          // the read and update, fail rather than overwrite its audit trail.
-          expectedRefundId: booking.stripe_refund_id ?? null,
-        });
-        if (!result.applied) throw new Error("Refund booking changed concurrently; reconcile and retry");
+        await reconcilePaymentRefund({ event, stripe, db: supabaseAdmin });
         break;
       }
 

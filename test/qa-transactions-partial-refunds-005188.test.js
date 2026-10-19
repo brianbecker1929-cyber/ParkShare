@@ -139,3 +139,11 @@ test('genuinely missing legacy extension table preserves base booking history',a
   tableFailure={table:'booking_extensions',code:'PGRST205'};
   const r=await get();assert.equal(r.code,200);assert.equal(hostEarnedTotal(r.body.earned),90);
 });
+
+test('Driver spending reflects cumulative ledger refunds while the reservation remains confirmed',async()=>{
+ actor=DRIVER;Object.assign(db.bookings[0],{status:'confirmed',refund_total_amount:46,refund_pending_amount:11.5});
+ const r=await get();assert.equal(r.code,200);
+ const t=r.body.spent.find(t=>t.bookingId===1);assert.equal(t.status,'refund_pending');assert.equal(t.refundedAmount,46);assert.equal(t.refundPendingAmount,11.5);assert.equal(t.amount,115);
+ db.bookings[0].refund_pending_amount=0;assert.equal((await get()).body.spent.find(t=>t.bookingId===1).status,'partially_refunded');
+ db.bookings[0].refund_total_amount=115;assert.equal((await get()).body.spent.find(t=>t.bookingId===1).status,'refunded');
+});
