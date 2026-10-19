@@ -8,6 +8,7 @@ import { assertLocalRehearsalUrl } from './qa-schema-rehearsal.mjs';
 import { runSchemaProbes } from './qa-schema-probes.mjs';
 import { runCompleteQaReleaseProbe } from './qa-complete-release-probe.mjs';
 import { runPhotoCleanupProbe } from './qa-photo-cleanup-probe.mjs';
+import {runListingPublicationProbe} from './qa-listing-publication-probe.mjs';
 import {runListingTimezoneProbe} from './qa-listing-timezone-probe.mjs';
 import {runPublicParkingProbe} from './qa-public-parking-probe.mjs';
 import { runRefundLedgerProbe } from './qa-refund-ledger-probe.mjs';
@@ -28,6 +29,7 @@ try {
   await runRefundLedgerProbe(db,report);
   await runPublicParkingProbe(db,report);
   await runListingTimezoneProbe(db,report);
+  await runListingPublicationProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {

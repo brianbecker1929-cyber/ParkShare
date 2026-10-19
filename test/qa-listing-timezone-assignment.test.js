@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {resolveListingTimeZone} from '../api/_listing-time-zone.js';
 import {hostListingRow} from '../api/_host-listing.js';
+import {listingPublicationIdentity} from '../api/_listing-publication.js';
 import {hasListingCoordinates,changeListingAddress} from '../src/lib/listingLocation.js';
 import {publishHostListing,requestPropertyTimeZone} from '../src/lib/hostListingPublish.js';
 import {createAvailabilityPreset} from '../src/lib/listingAvailability.js';
 import {resolveLocalBookingStart} from '../api/_booking-local-time.js';
 import {formatBookingEmailTimes} from '../api/_booking-email-times.js';
 const HOST='00000000-0000-4000-8000-000000000081',PROJECT_URL='https://sample.invalid';
-const payload=()=>({title:'Synthetic driveway',address:'123 Test Street, Toronto ON M5V 2T6',price:12,description:'Synthetic only',features:['Covered'],
+const payload=()=>({requestId:'10000000-0000-4000-8000-000000000011',title:'Synthetic driveway',address:'123 Test Street, Toronto ON M5V 2T6',price:12,description:'Synthetic only',features:['Covered'],
   photos:[PROJECT_URL+'/storage/v1/object/public/listing-photos/'+HOST+'/10000000-0000-4000-8000-000000000001.webp'],lat:43.65,lng:-79.38,spots:[{forRent:true}],availability:createAvailabilityPreset('anytime','Pacific/Auckland')});
 const client={auth:{getSession:async()=>({data:{session:{access_token:'synthetic'}}})}};
 test('server geographic lookup returns Toronto and Bucharest and supports land on zero meridians',()=>{
@@ -40,10 +41,12 @@ test('server validates price, photos, spot geometry, schedule and address before
 const code=readFileSync(new URL('../api/host-listings.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export default async function handler','return async function handler');
 const response=()=>({status(n){this.code=n;return this;},json(body){this.body=body;return this;},setHeader(){}});
 function route({role='host',anonymous=false,dbError=null}={}){
- const writes=[];const db={from(table){if(table==='profiles')return {select:()=>({eq:(key,id)=>{assert.equal(id,HOST);return {maybeSingle:async()=>({data:{role}})};}})};
-  assert.equal(table,'listings');return {insert(row){writes.push(row);return {select:()=>({single:async()=>({data:{id:123,time_zone:row.time_zone},error:dbError})})};}};}};
+ const writes=[];let stored=null;const db={from(table){assert.equal(table,'profiles');return {select:()=>({eq:(key,id)=>{assert.equal(id,HOST);return {maybeSingle:async()=>({data:{role}})};}})};},
+  async rpc(name,args){assert.equal(name,'publish_host_listing');if(stored)return {data:{...stored,replayed:true}};
+   if(args.p_rejection){stored={rejected:true,error:args.p_rejection};return {data:stored};}
+   if(!args.p_listing)return {data:null};writes.push(args.p_listing);if(dbError)return {error:dbError};stored={id:123,timeZone:args.p_listing.time_zone};return {data:{...stored,replayed:false}};}};
  const method=(req,res)=>{if(req.method==='POST')return true;res.status(405).json({});return false;};
- const handler=new Function('jsonMethod','requireUser','supabaseAdmin','resolveListingTimeZone','hostListingRow','process',code)(method,async(req,res)=>{if(anonymous){res.status(401).json({});return null;}return {id:HOST,user_metadata:{role:'host'}};},db,resolveListingTimeZone,hostListingRow,{env:{SUPABASE_URL:PROJECT_URL}});
+ const handler=new Function('jsonMethod','requireUser','supabaseAdmin','resolveListingTimeZone','hostListingRow','listingPublicationIdentity','process',code)(method,async(req,res)=>{if(anonymous){res.status(401).json({});return null;}return {id:HOST,user_metadata:{role:'host'}};},db,resolveListingTimeZone,hostListingRow,listingPublicationIdentity,{env:{SUPABASE_URL:PROJECT_URL}});
  return {writes,async run(body,method='POST'){const res=response();await handler({method,body},res);return res;}};
 }
 test('anonymous, Driver and wrong-method requests never publish even with forged Host claims',async()=>{
@@ -53,7 +56,7 @@ test('anonymous, Driver and wrong-method requests never publish even with forged
 test('Host preview performs no writes; publishing independently recomputes its zone',async()=>{
  const r=route();assert.deepEqual((await r.run({preview:true,lat:46.77,lng:23.59,time_zone:'America/Toronto'})).body,{timeZone:'Europe/Bucharest'});assert.equal(r.writes.length,0);
  const res=await r.run({...payload(),time_zone:'Asia/Tokyo'});assert.equal(res.code,201);assert.equal(r.writes[0].time_zone,'America/Toronto');
- assert.equal((await r.run({...payload(),lat:null})).code,400);assert.equal(r.writes.length,1);
+ const invalid=route();assert.equal((await invalid.run({...payload(),lat:null})).code,400);assert.equal(invalid.writes.length,0);
 });
 test('database insert failure is actionable and does not claim success',async()=>{
  const r=route({dbError:{code:'57014'}});const res=await r.run(payload());assert.equal(res.code,503);assert.match(res.body.error,/Check your Host Dashboard/);
@@ -61,7 +64,7 @@ test('database insert failure is actionable and does not claim success',async()=
 test('frontend publishes only with an authenticated bearer token and handles uncertain outcomes without photo deletion',async()=>{
  let request;const listing=await publishHostListing(client,payload(),async(url,options)=>{request={url,options};return Response.json({listing:{id:123,timeZone:'America/Toronto'}},{status:201});});
  assert.equal(listing.id,123);assert.equal(request.url,'/api/host-listings');assert.equal(request.options.headers.Authorization,'Bearer synthetic');
- await assert.rejects(()=>publishHostListing(client,payload(),async()=>Response.json({error:'Select a pin'},{status:400})),e=>e.cleanupAllowed===true);
+ await assert.rejects(()=>publishHostListing(client,payload(),async()=>Response.json({error:'Select a pin',safeToDiscard:true},{status:400})),e=>e.cleanupAllowed===true);
  for(const failure of [async()=>{throw Error('response lost');},async()=>Response.json({error:'DB unavailable'},{status:503})])await assert.rejects(()=>publishHostListing(client,payload(),failure),e=>!e.cleanupAllowed&&/Check your Host Dashboard/.test(e.message));
  let called=false;await assert.rejects(()=>publishHostListing({auth:{getSession:async()=>({data:{session:null}})}},payload(),async()=>{called=true;}));assert.equal(called,false);
 });
