@@ -11,6 +11,10 @@ export default async function handler(req, res) {
     const user = await requireUser(req, res);
     if (!user) return;
 
+    // Resolve the trusted redirect destination before creating Stripe resources
+    // or database holds, so misconfiguration cannot leave orphaned side effects.
+    const origin = getOrigin(req);
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("id, name, email, role, stripe_account_id")
@@ -44,7 +48,6 @@ export default async function handler(req, res) {
       if (saveError) throw saveError;
     }
 
-    const origin = getOrigin(req);
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${origin}/?stripe_onboarding=refresh`,

@@ -2,6 +2,7 @@
 // Configure this endpoint in Stripe to receive BOTH platform events and
 // events from connected accounts. Direct-charge events include event.account.
 
+import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
 import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation, refundEventReconciliation, refundReconciliation } from "./_refund-rules.js";
@@ -418,7 +419,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
       directionsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
       manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,
       extendUrl: `https://www.myparkshare.ca/?extend_booking=${booking.id}`,
-      supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+      supportEmail: process.env.SUPPORT_EMAIL || SUPPORT_EMAIL,
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
     attachments,
@@ -531,7 +532,7 @@ async function sendBookingConfirmationEmail(booking) {
       // TODO: confirm this route actually exists in your app — this is a
       // guess based on common patterns, not read from your frontend router.
       manageReservationUrl: `https://www.myparkshare.ca/?view_booking=${booking.id}`,
-      supportEmail: process.env.SUPPORT_EMAIL || "support@myparkshare.ca",
+      supportEmail: process.env.SUPPORT_EMAIL || SUPPORT_EMAIL,
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
     }),
     attachments: driverAttachments,

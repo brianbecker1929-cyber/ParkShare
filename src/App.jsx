@@ -42,6 +42,7 @@ import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, no
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
 import { hasDrivewayVehicle } from "./lib/drivewayCar";
+import { SUPPORT_EMAIL } from "./lib/supportContact";
 import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
@@ -7532,7 +7533,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>These Terms are governed by the laws of Ontario, Canada, without regard to conflict of law principles.</LegalP>
 
             <LegalH2>16. Contact</LegalH2>
-            <LegalP>Questions about these Terms: <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
+            <LegalP>Questions about these Terms: <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
         </div>
 
@@ -7571,10 +7572,10 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>We use encrypted data transmission (HTTPS) and secure authentication practices. No system is completely secure, and we cannot guarantee absolute security.</LegalP>
 
             <LegalH2>7. Your Rights and Choices</LegalH2>
-            <LegalP>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink> to exercise these rights.</LegalP>
+            <LegalP>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink> to exercise these rights.</LegalP>
 
             <LegalH2>8. Account Deletion</LegalH2>
-            <LegalP>Request account deletion via <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>. We will delete or anonymize your information within 90 days, except where retention is legally required.</LegalP>
+            <LegalP>Request account deletion via <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>. We will delete or anonymize your information within 90 days, except where retention is legally required.</LegalP>
 
             <LegalH2>9. Children's Privacy</LegalH2>
             <LegalP>The Platform is not intended for anyone under 18. We do not knowingly collect information from children. If we learn that we have collected information from a child under 18, we will delete it.</LegalP>
@@ -7586,7 +7587,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>We may update this Privacy Policy from time to time. Material changes will be reflected with a new "Last updated" date.</LegalP>
 
             <LegalH2>12. Contact Us</LegalH2>
-            <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
+            <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
         </div>
 
@@ -7629,7 +7630,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>ParkShare's liability with respect to payment processing is limited as set out in the <LegalLink href="#terms">Terms of Service</LegalLink> and <LegalLink href="#liability">Liability Disclaimer</LegalLink>. ParkShare is not liable for errors, delays, or failures caused by Stripe, banking networks, or other third-party financial infrastructure outside our control.</LegalP>
 
             <LegalH2>12. Contact</LegalH2>
-            <LegalP>Payment-related questions can be directed to <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>.</LegalP>
+            <LegalP>Payment-related questions can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
         </div>
 
@@ -7683,7 +7684,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>By creating an account, listing a space, or booking a parking spot, you confirm that you have read, understood, and agree to this Disclaimer of Liability, and that all risk of damage, loss, towing, or injury connected to a booking is your responsibility as described above.</LegalP>
 
             <LegalH2>9. Contact</LegalH2>
-            <LegalP>Questions about this Disclaimer can be directed to <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>.</LegalP>
+            <LegalP>Questions about this Disclaimer can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
         </div>
       </div>
@@ -9771,7 +9772,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
             <h2>Reach ParkShare Support</h2>
             <p>For questions about parking, hosting, accounts, payments or reservations.</p>
           </div>
-          <a href="mailto:info@myparkshare.ca">info@myparkshare.ca</a>
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
         </section>
 
         <section className="ps-contact-form-card">

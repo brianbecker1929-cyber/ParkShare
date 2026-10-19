@@ -6,6 +6,7 @@ import { writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { assertLocalRehearsalUrl } from './qa-schema-rehearsal.mjs';
 import { runSchemaProbes } from './qa-schema-probes.mjs';
+import { runCompleteQaReleaseProbe } from './qa-complete-release-probe.mjs';
 
 const raw=process.env.QA_SCHEMA_REHEARSAL_DATABASE_URL;
 assert.ok(raw,'Set QA_SCHEMA_REHEARSAL_DATABASE_URL to LOCAL disposable PostgreSQL 17 /parkshare_test');
@@ -18,6 +19,7 @@ try {
   assert.equal((await client.query('SELECT current_database() db')).rows[0].db,'parkshare_test');
   const db={query:(sql,args)=>client.query(sql,args),exec:sql=>client.query(sql)};
   await runSchemaProbes(db,report);
+  await runCompleteQaReleaseProbe(db,report);
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {
