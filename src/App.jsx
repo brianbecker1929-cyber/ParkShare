@@ -8,6 +8,8 @@ import { calculateBookingAmounts } from "../api/_booking-rules.js";
 import { fetchPublicParkingPage } from "./lib/publicParkingPage";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
+import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
+import { publishHostListing, requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
@@ -4384,10 +4386,34 @@ function ListDrivewayView({ user }) {
     price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "",
     availability: createAvailabilityPreset("anytime"),
   });
+  const [zoneResult, setZoneResult] = useState(null);
+  const [zoneRetry, setZoneRetry] = useState(0);
+  const locationKey = hasListingCoordinates(form) ? `${form.lat}:${form.lng}` : "";
+  const propertyTimeZone = zoneResult?.key === locationKey ? zoneResult.timeZone : null;
+  useEffect(() => {
+    if (!locationKey) return;
+    const controller = new AbortController();
+    setZoneResult(null);
+    requestPropertyTimeZone(supabase, {lat: form.lat, lng: form.lng}, controller.signal)
+      .then(timeZone => {
+        if (controller.signal.aborted) return;
+        setZoneResult({key: locationKey, timeZone});
+        setForm(current => ({...current, availability: {...normalizeAvailability(current.availability), timezone: timeZone}}));
+      }).catch(error => { if (!controller.signal.aborted) setZoneResult({key: locationKey, error: error.message}); });
+    return () => controller.abort();
+  }, [locationKey, user?.id, zoneRetry]);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSug, setLoadingSug] = useState(false);
   const debounceRef = useRef(null);
-  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const addressRequest = useRef(0);
+  const addressAbort = useRef(null);
+  useEffect(() => () => { clearTimeout(debounceRef.current); addressRequest.current++; addressAbort.current?.abort(); }, []);
+  const update = (k, v) => {
+    if (["street", "city", "region", "postal"].includes(k)) {
+      addressRequest.current++; addressAbort.current?.abort(); clearTimeout(debounceRef.current); setSuggestions([]); setLoadingSug(false);
+      setForm(f => changeListingAddress(f, k, v));
+    } else setForm(f => ({ ...f, [k]: v }));
+  };
   const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "'Poppins', sans-serif", boxSizing: "border-box", outline: "none" };
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
   const postalCheck = validateCanadianPostalCode(form.postal);
@@ -4399,11 +4425,15 @@ function ListDrivewayView({ user }) {
     clearTimeout(debounceRef.current);
     if (val.length < 3) { setLoadingSug(false); return; }
     setLoadingSug(true);
+    const requestId = addressRequest.current;
     debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController(); addressAbort.current = controller;
       try {
-        const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" + encodeURIComponent(val), { headers: { "Accept-Language": "en" } });
+        const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" + encodeURIComponent(val), { headers: { "Accept-Language": "en" }, signal: controller.signal });
+        if (!res.ok) throw new Error("Address search unavailable");
         const data = await res.json();
-        setSuggestions(data.map(d => ({
+        if (requestId !== addressRequest.current || controller.signal.aborted) return;
+        setSuggestions(data.filter(d => Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lon))).map(d => ({
           label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb, d.address.state].filter(Boolean).join(", "),
           street: [d.address.house_number, d.address.road].filter(Boolean).join(" "),
           city: d.address.city || d.address.town || d.address.suburb || d.address.village || "",
@@ -4412,11 +4442,11 @@ function ListDrivewayView({ user }) {
           lat: parseFloat(d.lat),
           lng: parseFloat(d.lon),
         })));
-      } catch (e) { setSuggestions([]); }
-      setLoadingSug(false);
+      } catch { if (requestId === addressRequest.current) setSuggestions([]); }
+      if (requestId === addressRequest.current) setLoadingSug(false);
     }, 350);
   };
-  const chooseSuggestion = (s) => { const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng })); setSuggestions([]); };
+  const chooseSuggestion = (s) => { setZoneRetry(n => n + 1); addressRequest.current++; addressAbort.current?.abort(); clearTimeout(debounceRef.current); setLoadingSug(false); const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng, spots: [] })); setSuggestions([]); };
 
   const submitVerification = () => {
     update("verifying", true);
@@ -4608,8 +4638,7 @@ function ListDrivewayView({ user }) {
   ].filter(Boolean);
   const hasPreviewSatelliteSpots = Boolean(
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-    && Number.isFinite(Number(form.lat))
-    && Number.isFinite(Number(form.lng))
+    && hasListingCoordinates(form)
     && Array.isArray(form.spots)
     && form.spots.length > 0
     && form.spots.every(s => s?.bounds && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(s.bounds[key])))),
@@ -4617,6 +4646,8 @@ function ListDrivewayView({ user }) {
   const previewIssues = [
     (!form.street.trim() || !form.city.trim() || !form.region.trim()) && { label: "Complete the driveway address", step: 1 },
     !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
+    !hasListingCoordinates(form) && { label: "Select an address suggestion and confirm the driveway pin", step: 1 },
+    hasListingCoordinates(form) && !propertyTimeZone && { label: zoneResult?.key === locationKey && zoneResult.error || "Confirming the property location…", step: 1 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
@@ -4645,6 +4676,14 @@ function ListDrivewayView({ user }) {
       setStep(1);
       return;
     }
+    if (!hasListingCoordinates(form)) {
+      setPublishError("Select your driveway from the address suggestions and confirm its map pin before publishing.");
+      setStep(1); return;
+    }
+    if (!propertyTimeZone) {
+      setPublishError(zoneResult?.key === locationKey && zoneResult.error || "Please wait while we confirm the property location.");
+      setStep(1); return;
+    }
     // Recompute at submit time: a tab kept open overnight may contain past dates.
     const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
     if (!currentExceptionDates.valid) {
@@ -4664,8 +4703,7 @@ function ListDrivewayView({ user }) {
       });
       uploadedPaths = photoUpload.paths;
       setUploadProgress("Saving your listing…");
-      const { error } = await supabase.from("listings").insert({
-        host_id: user.id,
+      await publishHostListing(supabase, {
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
         price: rate.value,
@@ -4676,17 +4714,16 @@ function ListDrivewayView({ user }) {
         // short Storage URLs, while historical Base64 listings still render.
         img: photoUpload.urls[0],
         photos: photoUpload.urls,
-        lat: form.lat || null,
-        lng: form.lng || null,
-        spots: form.spots || [],
+        lat: form.lat,
+        lng: form.lng,
+        spots: form.spots.length ? form.spots : Array.from({ length: form.totalSpots }, (_, i) => ({ forRent: form.selectedSpots[i] === true, bounds: null })),
         availability: normalizedAvailability,
       });
-      if (error) throw new Error("The listing could not be saved. Your existing listings were not changed. Please try again.");
       for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
       photoPreviewUrls.current.clear();
       setSubmitted(true);
     } catch (error) {
-      if (uploadedPaths.length) {
+      if (uploadedPaths.length && error.cleanupAllowed) {
         try {
           await removeUploadedListingPhotos(supabase, uploadedPaths);
         } catch (cleanupError) {
@@ -4789,16 +4826,21 @@ function ListDrivewayView({ user }) {
           {form.street && form.city && form.region && postalCheck.valid && suggestions.length === 0 && (
                 <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>Address details entered (not independently verified): {fullAddress}</div>
               )}
-              {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
+              {hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
                 <div>
                   <label style={labelStyle}>Fine-tune pin location</label>
                   <p style={{ fontSize: 12, color: C.muted, margin: "0 0 8px" }}>Drag the pin if the satellite view doesn't line up with your driveway.</p>
-                  <PinAdjustMap lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm(f => ({ ...f, lat, lng }))} />
+                  <PinAdjustMap lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm(f => ({ ...f, lat, lng, spots: [] }))} />
                 </div>
               )}
+          {hasListingCoordinates(form) && <p role="status" style={{ color: zoneResult?.error ? C.red : C.muted, fontSize: 12 }}>
+            {propertyTimeZone ? `Booking times use ${propertyTimeZone} local time.` : zoneResult?.key === locationKey && zoneResult.error || "Confirming the property location…"}
+          </p>}
+          {hasListingCoordinates(form) && zoneResult?.key === locationKey && zoneResult.error && <button type="button" onClick={() => setZoneRetry(n => n + 1)}>Check location again</button>}
+          {!hasListingCoordinates(form) && <p role="status" style={{ color: C.muted, fontSize: 12 }}>Select your driveway from the address suggestions to place its map pin. If you edit the address, select a matching suggestion again.</p>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid}>Continue →</Btn>
+            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid || !hasListingCoordinates(form) || !propertyTimeZone}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -4971,7 +5013,7 @@ function ListDrivewayView({ user }) {
       {/* Step 4: Spot template */}
       {step === 4 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
+          {hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
             <SpotMapBoundary fallback={
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
