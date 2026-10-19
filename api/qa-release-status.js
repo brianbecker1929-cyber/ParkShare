@@ -15,6 +15,8 @@ export default async function handler(req, res) {
   };
   const {error} = await supabaseAdmin.from("listings").select("id,time_zone", {count:"exact",head:true});
   checks.schemaReady = !error;
+  const cleanupSchema = await supabaseAdmin.from("listing_photo_cleanup").select("object_path", {head:true});
+  checks.photoCleanupReady = !cleanupSchema.error && Boolean(process.env.CRON_SECRET);
   const ready = Object.values(checks).every(Boolean);
   return res.status(ready ? 200 : 503).json({ ready, commit: process.env.VERCEL_GIT_COMMIT_SHA || null, checks });
 }

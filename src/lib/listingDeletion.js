@@ -1,41 +1,28 @@
-// BUG-005152: delete an unused listing without a fragile preliminary
-// bookings COUNT/HEAD request. Migration 010's Postgres foreign keys are
-// the authoritative safety boundary for booking and hold preservation.
-
+// Database FK RESTRICT protects bookings/holds; successful deletions enqueue
+// photo cleanup atomically. The server starts Storage cleanup with retries.
 export function listingDeletionFailureMessage(error) {
-  const code = String(error?.code || "");
-  if (code === "23503") {
-    return "This driveway has bookings or checkout reservations and cannot be deleted. No reservation was removed.";
-  }
-  if (code === "42501" || code === "PGRST301") {
-    return "Your account is not authorized to delete this listing. Please sign in as its Host.";
-  }
-  return "Couldn't delete listing. Nothing was deleted. Please try again or contact ParkShare support.";
+  const code = String(error?.code || '');
+  if (code === '23503') return 'This driveway has bookings or checkout reservations and cannot be deleted. No reservation was removed.';
+  if (code === '42501' || code === 'PGRST301') return 'Your account is not authorized to delete this listing. Please sign in as its Host.';
+  return "Couldn't delete listing. Please try again or contact ParkShare support.";
 }
 
-export async function deleteHostListing(supabase, { listingId, hostId }) {
-  if (!Number.isSafeInteger(Number(listingId)) || Number(listingId) <= 0 || !hostId) {
-    return { ok: false, message: "Invalid listing or Host account. Nothing was deleted." };
-  }
+export async function deleteHostListing(supabase, { listingId, hostId }, request = fetch) {
+  const id = Number(listingId);
+  if (!Number.isSafeInteger(id) || id <= 0 || !hostId) return { ok: false, message: 'Invalid listing or Host account. Nothing was deleted.' };
   try {
-    // No /bookings?select=id count query here. Postgres ON DELETE RESTRICT
-    // prevents any deletion that would erase booking/checkout records,
-    // including when users call the REST endpoint directly.
-    const { data, error } = await supabase
-      .from("listings")
-      .delete()
-      .eq("id", Number(listingId))
-      .eq("host_id", hostId)
-      .select("id");
-    if (error) return { ok: false, message: listingDeletionFailureMessage(error) };
-    if (!Array.isArray(data) || !data.some(row => Number(row.id) === Number(listingId))) {
-      return {
-        ok: false,
-        message: "The listing was not deleted. Check that you are its Host and try again.",
-      };
-    }
-    return { ok: true };
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data?.session?.access_token) return { ok: false, message: 'Sign in as the Host to delete this listing.' };
+    const response = await request('/api/delete-listing', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` },
+      body: JSON.stringify({ listingId: id }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.deleted) return { ok: false, message: result.error || 'The listing was not deleted. Please try again.' };
+    return { ok: true, photoCleanupPending: Boolean(result.photoCleanupPending) };
   } catch {
-    return { ok: false, message: "Unable to reach the database. Nothing was deleted. Please try again." };
+    // The response could have been lost after the deletion committed. Do not
+    // promise "nothing deleted" when its actual outcome is unknown.
+    return { ok: false, message: 'Unable to confirm deletion. Refresh your listings before trying again.' };
   }
 }

@@ -13,7 +13,7 @@ import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailabi
 import { localCalendarDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
-import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, validateAuthForm } from "./lib/authForm";
+import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
@@ -3530,15 +3530,15 @@ function HostDashboard({ user, setTab }) {
     if (deletingId) return;
     setDeletingId(displayId);
     try {
-      // A single Host-scoped DELETE avoids the intermittent 503 from the
-      // preliminary bookings COUNT. DB migration 010 ensures historical
-      // bookings and in-flight checkout holds cannot cascade-delete.
+      // The authenticated API keeps FK booking protections and starts the
+      // durable photo cleanup queued by the successful database deletion.
       const result = await deleteHostListing(supabase, { listingId: rawId, hostId: user?.id });
       if (!result.ok) {
         alert(result.message);
         return;
       }
       setDbListings(prev => prev.filter(l => l.id !== displayId));
+      if (result.photoCleanupPending) alert("Listing deleted. Photo cleanup is queued and will retry automatically.");
     } finally {
       setDeletingId(null);
       setConfirmDeleteId(null);
@@ -6234,20 +6234,30 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   const finalizeSignup = async () => {
-    if (!agreed || !pendingUser) return;
+    if (!agreed || !pendingUser || loading) return;
+    setAuthError("");
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: pendingUser.email,
-      password: pendingUser.password,
-      options: { data: { name: pendingUser.name, role: pendingUser.role, legal_agreed_at: new Date().toISOString() } },
-    });
-    setLoading(false);
-    if (error) {
-      setAuthError(error.message);
+    let data, error;
+    try {
+      ({ data, error } = await supabase.auth.signUp({
+        email: pendingUser.email,
+        password: pendingUser.password,
+        options: { data: { name: pendingUser.name, role: pendingUser.role, legal_agreed_at: new Date().toISOString() } },
+      }));
+    } catch {
+      setAuthError("Unable to reach sign-up. Please try again.");
+      return;
+    } finally {
+      setLoading(false);
+    }
+    const outcome = signupOutcome(data, error);
+    if (outcome.kind === "error") {
+      setAuthError(outcome.message);
       return;
     }
-    if (!data.session) {
-      // Never retain the sign-up password after the account has been created.
+    if (outcome.kind === "pending") {
+      // No-session responses also cover obfuscated duplicate registrations.
+      // Clear the password and offer recovery without claiming account creation.
       setPendingUser(current => current ? { ...current, password: "" } : null);
       setForm(emptyAuthForm());
       setScreen("verify");
@@ -6269,14 +6279,19 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     if (closeOnAuth) onClose();
   };
 
-  const resetPassword = async () => {
+  const resetPassword = async (emailOverride) => {
+    const email = typeof emailOverride === "string" ? emailOverride : form.email;
     setAuthError("");
     setAuthSuccess("");
-    if (!form.email.includes("@")) { setErrors({ email: "Enter your email first" }); return; }
+    if (!email.includes("@")) { setErrors({ email: "Enter your email first" }); return; }
     setErrors({});
-    const { error } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: window.location.origin });
-    if (error) setAuthError(error.message);
-    else setAuthSuccess("Password reset email sent. Check your inbox.");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      if (error) setAuthError(error.message);
+      else setAuthSuccess("If this account can use password recovery, check your inbox for a reset link.");
+    } catch {
+      setAuthError("Unable to request a password reset. Please try again.");
+    }
   };
 
   const updatePassword = async () => {
@@ -6313,7 +6328,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
             {screen === "signup" && "Create your free account"}
             {screen === "role" && "How will you use ParkShare?"}
             {screen === "disclaimer" && "Before you continue"}
-            {screen === "verify" && "Check your email"}
+            {screen === "verify" && "Check email or sign in"}
             {screen === "recovery" && "Choose a new password"}
             {screen === "recoverySuccess" && "Password updated"}
           </div>
@@ -6492,11 +6507,13 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
           {screen === "verify" && (
             <div style={{ textAlign: "center" }}>
-              <p style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>We sent a confirmation link to <strong>{pendingUser?.email}</strong>. Confirm it, then return here to sign in.</p>
+              <p role="status" style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>If <strong>{pendingUser?.email}</strong> is eligible for a new account, check your inbox for a confirmation link.</p>
+              <p role="note" style={{ color: C.navy, fontSize: 13, lineHeight: 1.6 }}><strong>Already registered?</strong> Sign in to your existing account, or reset your password. Repeating sign-up does not create another account.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 <button type="button" onClick={resendConfirmation} disabled={resendLoading} style={{ background: C.navy, color: C.white, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: resendLoading ? "default" : "pointer" }}>{resendLoading ? "Sending…" : "Resend confirmation email"}</button>
                 {resendMessage && <div role="status" style={{ fontSize: 12, color: C.moss }}>{resendMessage}</div>}
-                <button type="button" onClick={onClose} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Done</button>
+                <button type="button" onClick={() => { const email = pendingUser?.email || ""; openAuthScreen("signin"); setForm({ ...emptyAuthForm(), email }); }} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Sign in to existing account</button>
+                <button type="button" onClick={() => { const email = pendingUser?.email || ""; openAuthScreen("signin"); setForm({ ...emptyAuthForm(), email }); void resetPassword(email); }} style={{ background: C.white, color: C.navy, border: "1px solid " + C.concrete, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Reset password</button>
               </div>
             </div>
           )}
@@ -10183,6 +10200,20 @@ export default function App() {
     );
   };
 
+  const requireDriver = (content) => {
+    if (user?.role === "driver") return content;
+    return (
+      <div role="alert" style={{ padding: "60px 24px", textAlign: "center", color: C.navy }}>
+        <h3>Driver account required</h3>
+        <p>Vehicle profiles are available to Driver accounts.</p>
+        <button type="button" onClick={() => user ? changeTab("Host Dashboard") : setShowAuth(true)}
+          style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
+          {user ? "Return to Host Dashboard" : "Sign in / Join free"}
+        </button>
+      </div>
+    );
+  };
+
   const requireAuth = (content, msg) => {
     if (!user) return (
       <div style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif" }}>
@@ -10434,7 +10465,7 @@ export default function App() {
             : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
-          {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
+          {tab === "Profile" && requireDriver(<DriverProfileView user={user} onProfileUpdated={setUser} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
