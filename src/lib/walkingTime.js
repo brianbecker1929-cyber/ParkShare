@@ -13,10 +13,12 @@ function formatKilometres(distanceKm) {
   return Math.max(0.1, distanceKm).toFixed(1);
 }
 
-export function buildWalkingLabel({ destinationSelected, loading, route, distanceMiles }) {
+export function buildWalkingLabel({ destinationSelected, loading, route, distanceMiles, approximateLocation = false }) {
   if (!destinationSelected) return null;
 
-  if (route && Number.isFinite(route.minutes)) {
+  if (route?.unavailable) return "🚶 Walking route unavailable";
+
+  if (!approximateLocation && route && Number.isFinite(route.minutes) && route.minutes > 0) {
     const distanceKm = Number.isFinite(route.distanceMeters)
       ? route.distanceMeters / 1000
       : distanceMiles * MILES_TO_KM;
@@ -24,12 +26,12 @@ export function buildWalkingLabel({ destinationSelected, loading, route, distanc
     return `🚶 ${route.minutes} min walk${formattedDistance ? ` · ${formattedDistance} km` : ""}`;
   }
 
-  if (loading) return "🚶 Calculating walk…";
+  if (!approximateLocation && loading) return "🚶 Calculating walk…";
 
   const minutes = estimateWalkingMinutes(distanceMiles);
   const formattedDistance = formatKilometres(distanceMiles * MILES_TO_KM);
   if (!Number.isFinite(minutes)) return "🚶 Walking time unavailable";
-  return `🚶 ≈ ${minutes} min walk${formattedDistance ? ` · ${formattedDistance} km` : ""}`;
+  return `🚶 ≈ ${minutes} min walk${formattedDistance ? ` · ${formattedDistance} km` : ""}${approximateLocation ? " (approximate area)" : ""}`;
 }
 
 export async function computeWalkingRoutes(listings, destination) {
@@ -58,7 +60,11 @@ export async function computeWalkingRoutes(listings, destination) {
 
     chunk.forEach((listing, index) => {
       const route = rows[index]?.items?.[0];
-      if (route?.condition !== "ROUTE_EXISTS" || !Number.isFinite(route.durationMillis)) return;
+      if (route?.condition !== "ROUTE_EXISTS" || !Number.isFinite(route.durationMillis)
+        || route.durationMillis < 0 || !Number.isFinite(route.distanceMeters) || route.distanceMeters < 0) {
+        routesByListingId[String(listing.id)] = { unavailable: true };
+        return;
+      }
       routesByListingId[String(listing.id)] = {
         minutes: Math.max(1, Math.round(route.durationMillis / 60000)),
         distanceMeters: Number.isFinite(route.distanceMeters) ? route.distanceMeters : null,

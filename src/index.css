@@ -4650,6 +4650,42 @@ button, input, select, textarea { font: inherit; }
   line-height: 1.45;
 }
 
+.ps-parking-search-empty {
+  margin: 14px;
+  padding: 20px;
+  border: 1px solid #D7DCE2;
+  border-radius: 14px;
+  background: #fff;
+  color: #0E1B2E;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ps-parking-search-empty strong { display: block; font-size: 16px; }
+.ps-parking-search-empty p { margin: 8px 0 14px; }
+.ps-parking-search-empty button {
+  border: 0;
+  border-radius: 18px;
+  padding: 8px 14px;
+  background: #FFC107;
+  color: #0E1B2E;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ps-parking-search-empty.is-map-overlay {
+  position: absolute;
+  z-index: 10;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  max-width: 360px;
+  max-height: calc(100% - 24px);
+  box-sizing: border-box;
+  overflow: auto;
+  margin: 0;
+  box-shadow: 0 3px 14px rgba(14, 27, 46, .15);
+}
+
 @media (min-width: 900px) {
   .ps-browse-toolbar { padding: 12px 20px !important; }
   .ps-browse-listing-column { max-width: 570px; background: #FAF7F0; }

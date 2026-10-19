@@ -26,6 +26,7 @@ import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/booki
 import { matchesBookingDateRange } from "./lib/bookingDateFilter";
 import { parseMessageBookingId, bookingMessageListing, bookingMessageThread } from "./lib/bookingMessage";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
+import { PARKING_SEARCH_RADIUS_KM, matchesParkingText, nearbyParkingListings, parkingSearchEmptyState, validParkingCoordinate } from "./lib/parkingSearch";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
   EVENT_ARRIVAL_BUFFER_MINUTES,
@@ -2548,8 +2549,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
-  const [walkingRoutes, setWalkingRoutes] = useState({});
-  const [walkingRoutesLoading, setWalkingRoutesLoading] = useState(false);
+  const [walkingState, setWalkingState] = useState({ key: "", routes: {}, loading: false });
+  const [resolvingDestination, setResolvingDestination] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(initialRestaurant);
   const [selectedEvent, setSelectedEvent] = useState(initialEvent ? normalizeEventRow(initialEvent) : null);
   const [eventListingAccess, setEventListingAccess] = useState({});
@@ -2557,16 +2558,12 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const searchInputRef = useRef(null);
   const autocompleteTokenRef = useRef(null);
   const suggestionRequestRef = useRef(0);
-  const walkingRouteInputKey = allListings
-    .map(listing => `${listing.id}:${listing.lat ?? ""}:${listing.lng ?? ""}`)
-    .join("|");
 
   // If Google Places can't be reached, fall back to matching against our own
   // listing addresses and titles so the search field still stays useful.
   const localFallbackSuggestions = (val) => {
-    const q = val.toLowerCase();
     return allListings
-      .filter(l => l.address.toLowerCase().includes(q) || l.title.toLowerCase().includes(q))
+      .filter(l => validParkingCoordinate(l) && matchesParkingText(l, val))
       .slice(0, 5)
       .map(l => ({ short: l.address, full: l.title + " — " + l.address, lat: l.lat, lng: l.lng }));
   };
@@ -2574,6 +2571,11 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const handleSearch = (val) => {
     const requestId = ++suggestionRequestRef.current;
     setQuery(val);
+    if (locatedSearch) setUserLoc(null);
+    setResolvingDestination(false);
+    setLocating(false);
+    setLocationError(null);
+    setMapHovered(null);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
     setLocatedSearch(false);
@@ -2586,6 +2588,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       try {
         if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Places search is still loading");
         const { AutocompleteSessionToken, AutocompleteSuggestion } = await google.maps.importLibrary("places");
+        if (requestId !== suggestionRequestRef.current) return;
         if (!autocompleteTokenRef.current) autocompleteTokenRef.current = new AutocompleteSessionToken();
         const { suggestions: placeSuggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input: val,
@@ -2621,9 +2624,20 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   };
 
   const pickSuggestion = async (s) => {
+    const requestId = ++suggestionRequestRef.current;
+    clearTimeout(debounceRef.current);
     setSuggestions([]);
+    setLoadingSug(false);
     setSugError(false);
+    setLocationError(null);
+    setLocating(false);
+    setSelectedRestaurant(null);
+    setSelectedEvent(null);
+    setMapHovered(null);
+    setLocatedSearch(false);
+    setUserLoc(null);
     setQuery(s.short);
+    setResolvingDestination(true);
     let lat = s.lat;
     let lng = s.lng;
     let destinationName = s.short;
@@ -2634,37 +2648,76 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         lat = place.location?.lat();
         lng = place.location?.lng();
         destinationName = place.displayName || s.short;
-        setQuery(destinationName);
       }
-    } catch (e) {
-      setSugError(true);
-    } finally {
-      autocompleteTokenRef.current = null;
-    }
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (requestId !== suggestionRequestRef.current) return;
+      if (!validParkingCoordinate({ lat, lng })) throw new Error("Destination has no coordinates");
+      setQuery(destinationName);
       setUserLoc({ lat, lng });
       setSort("distance");
       setLocatedSearch(true);
+    } catch (e) {
+      if (requestId === suggestionRequestRef.current) {
+        setLocationError("Couldn't locate this destination. Please choose another suggestion.");
+      }
+    } finally {
+      if (requestId === suggestionRequestRef.current) {
+        autocompleteTokenRef.current = null;
+        setResolvingDestination(false);
+      }
     }
   };
 
-  const getLocation = () => {
+  const clearSearch = () => {
+    ++suggestionRequestRef.current;
+    clearTimeout(debounceRef.current);
+    autocompleteTokenRef.current = null;
+    setQuery("");
+    setSuggestions([]);
+    setLoadingSug(false);
+    setResolvingDestination(false);
+    setSugError(false);
+    setUserLoc(null);
+    setLocatedSearch(false);
+    setLocating(false);
+    setLocationError(null);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
-    if (userLoc) { setUserLoc(null); setLocatedSearch(false); return; }
+    setMapHovered(null);
+  };
+
+  const getLocation = () => {
+    const clearDeviceLocation = userLoc && !locatedSearch;
+    clearSearch();
+    if (clearDeviceLocation) return;
+    const requestId = suggestionRequestRef.current;
     if (!navigator.geolocation) { setLocationError("Location isn't available on this device."); return; }
     setLocating(true);
-    setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      p => { setUserLoc({ lat: p.coords.latitude, lng: p.coords.longitude }); setLocating(false); setSort("distance"); setLocatedSearch(false); setQuery(""); },
-      () => { setLocating(false); setLocationError("Couldn't get your location — check your browser/location permissions."); },
+      p => {
+        if (requestId !== suggestionRequestRef.current) return;
+        const point = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setLocating(false);
+        if (!validParkingCoordinate(point)) { setLocationError("Couldn't get a valid location. Please search for a destination."); return; }
+        setUserLoc(point);
+        setSort("distance");
+      },
+      () => {
+        if (requestId !== suggestionRequestRef.current) return;
+        setLocating(false);
+        setLocationError("Couldn't get your location — check your browser/location permissions.");
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
+  useEffect(() => () => {
+    ++suggestionRequestRef.current;
+    clearTimeout(debounceRef.current);
+  }, []);
+
   // Arriving from the landing page: honor whichever action the person picked there.
   useEffect(() => {
-    if (initialLocation) {
+    if (validParkingCoordinate(initialLocation)) {
       // They picked a specific address from the landing page's autocomplete —
       // apply it exactly like picking a suggestion here would.
       setUserLoc(initialLocation);
@@ -2703,74 +2756,64 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     return () => { cancelled = true; };
   }, [selectedEvent?.id]);
 
-  // Calculate every visible driveway-to-destination walk in one route-matrix
-  // request. If Routes is not enabled for the existing Maps key, the listing
-  // still shows a clearly marked straight-line estimate instead of going blank.
+  const candidates = nearbyParkingListings(allListings, {
+    origin: userLoc,
+    query: locatedSearch ? "" : query,
+  }).filter(l => {
+    if (!selectedEvent) return true;
+    return eventListingAccess[String(l.id).replace(/^db-/, "")]?.status !== "blocked";
+  });
+  const preciseCandidates = candidates.filter(l => l.locationPrecision !== "approximate" && validParkingCoordinate(l));
+  const walkingRouteInputKey = JSON.stringify([userLoc?.lat, userLoc?.lng,
+    preciseCandidates.map(l => [l.id, l.lat, l.lng])]);
+  const walkingRoutes = walkingState.key === walkingRouteInputKey ? walkingState.routes : {};
+  const walkingRoutesLoading = Boolean(locatedSearch && placesLoaded && preciseCandidates.length
+    && (walkingState.key !== walkingRouteInputKey || walkingState.loading));
+
+  // Route only nearby, text/event-eligible listings with permitted precise coordinates.
+  // Associate responses with their destination + candidate coordinates so a previous
+  // destination's walking metrics can never appear in a new search.
   useEffect(() => {
     let cancelled = false;
-    if (!locatedSearch || !userLoc || !placesLoaded) {
-      setWalkingRoutes({});
-      setWalkingRoutesLoading(false);
+    if (!locatedSearch || !validParkingCoordinate(userLoc) || !placesLoaded || !preciseCandidates.length) {
+      setWalkingState({ key: walkingRouteInputKey, routes: {}, loading: false });
       return () => { cancelled = true; };
     }
-
-    setWalkingRoutes({});
-    setWalkingRoutesLoading(true);
-    // Coarse public map coordinates cannot generate exact walking routes.
-    const preciseListings = allListings.filter(l => l.locationPrecision !== "approximate");
-    if (!preciseListings.length) {
-      setWalkingRoutesLoading(false);
-      return () => { cancelled = true; };
-    }
-    computeWalkingRoutes(preciseListings, userLoc)
+    setWalkingState({ key: walkingRouteInputKey, routes: {}, loading: true });
+    computeWalkingRoutes(preciseCandidates, userLoc)
       .then(routes => {
-        if (!cancelled) setWalkingRoutes(routes);
+        if (!cancelled) setWalkingState({ key: walkingRouteInputKey, routes, loading: false });
       })
       .catch(() => {
-        if (!cancelled) setWalkingRoutes({});
-      })
-      .finally(() => {
-        if (!cancelled) setWalkingRoutesLoading(false);
+        if (!cancelled) setWalkingState({ key: walkingRouteInputKey, routes: {}, loading: false });
       });
-
     return () => { cancelled = true; };
-  }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
+  }, [placesLoaded, locatedSearch, walkingRouteInputKey]);
 
-  const filtered = allListings
-    .filter(l => locatedSearch || !query || l.locationPrecision === "approximate" || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
-    .filter(l => {
-      if (!selectedEvent) return true;
-      const rawListingId = String(l.id).replace(/^db-/, "");
-      return eventListingAccess[rawListingId]?.status !== "blocked";
-    })
-    .map(l => {
-      const distMiles = userLoc && typeof l.lat === "number" && typeof l.lng === "number"
-        ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng)
-        : null;
-      return {
-        ...l,
-        distMiles,
-        eventAccessStatus: eventListingAccess[String(l.id).replace(/^db-/, "")]?.status || "available",
-        eventAccessNote: eventListingAccess[String(l.id).replace(/^db-/, "")]?.notes || "",
-        walkLabel: buildWalkingLabel({
-          destinationSelected: locatedSearch,
-          loading: walkingRoutesLoading,
-          route: walkingRoutes[String(l.id)],
-          distanceMiles: distMiles,
-        }),
-      };
-    })
-    .sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
-
+  const filtered = candidates.map(l => ({
+    ...l,
+    eventAccessStatus: eventListingAccess[String(l.id).replace(/^db-/, "")]?.status || "available",
+    eventAccessNote: eventListingAccess[String(l.id).replace(/^db-/, "")]?.notes || "",
+    walkLabel: buildWalkingLabel({
+      destinationSelected: locatedSearch,
+      loading: walkingRoutesLoading,
+      route: walkingRoutes[String(l.id)],
+      distanceMiles: l.distMiles,
+      approximateLocation: l.locationPrecision === "approximate",
+    }),
+  })).sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating
+    : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
+  const emptyState = parkingSearchEmptyState({ query, origin: userLoc, destinationSelected: locatedSearch });
+  const activeMapListing = filtered.find(l => String(l.id) === String(mapHovered?.id)) || null;
   const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
-    ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
+    ? `${listing.locationPrecision === "approximate" ? "≈ " : ""}${(listing.distMiles * 1.60934).toFixed(1)} km from ${locatedSearch ? "destination" : "your location"}`
     : "Select a destination for walking time");
 
   const selectedDiscoveryDestination = selectedEvent || selectedRestaurant;
   const parkingWalkMinutes = selectedDiscoveryDestination
     ? filtered.map(listing => {
       const routeMinutes = walkingRoutes[String(listing.id)]?.minutes;
-      return Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
+      return walkingRoutes[String(listing.id)]?.unavailable ? null : Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
     }).filter(Number.isFinite)
     : [];
   const nearestParkingWalkMinutes = parkingWalkMinutes.length ? Math.min(...parkingWalkMinutes) : null;
@@ -2839,9 +2882,9 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {/* Row 2: location button (left) and view toggles, positioned under the sort dropdown (right) */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div>
-            <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc)}>
+            <button onClick={getLocation} title={userLoc && !locatedSearch ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc && !locatedSearch)}>
               <span>{locating ? "⏳" : "📍"}</span>
-              <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
+              <span>{locating ? "Locating…" : userLoc && !locatedSearch ? "Located" : "My location"}</span>
             </button>
           </div>
           <div style={{ display: "flex", flexShrink: 0 }}>
@@ -2859,28 +2902,29 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
               <em>{selectedEvent ? (selectedEvent.venueName || selectedEvent.address) : selectedRestaurant.address}</em>
             </div>
             <button type="button" onClick={onOpenDiscover}>Choose another</button>
-            {showLongWalkNotice && <p>No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.</p>}
+            {showLongWalkNotice && <p>No ParkShare spaces within a 15-minute walk yet based on current estimates—showing nearby spaces within {PARKING_SEARCH_RADIUS_KM} km.</p>}
           </div>
         )}
         {locatedSearch && (
           <div className="ps-walking-route-warning">
-            Walking times are estimates. Pedestrian routes may not include every sidewalk or walking path.
+            Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your destination. Public locations are approximate. Without a walking route, times use straight-line distance and may underestimate the walk.
           </div>
         )}
+        {!locatedSearch && userLoc && <p className="ps-walking-route-warning">Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your location. Public distances are approximate.</p>}
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
       <div className={`ps-browse-content ps-browse-content-${view}`} style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {(listingsLoading || listingsError || allListings.length === 0) ? (
+        {(listingsLoading || listingsError || resolvingDestination || (allListings.length === 0 && !query && !userLoc)) ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
             <div style={{ maxWidth: 360, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "24px 22px", boxShadow: "0 6px 18px rgba(14,27,46,0.08)" }}>
-              <div style={{ fontSize: 34, marginBottom: 10 }}>{listingsLoading ? "⏳" : listingsError ? "⚠️" : "🅿️"}</div>
+              <div style={{ fontSize: 34, marginBottom: 10 }}>{listingsLoading || resolvingDestination ? "⏳" : listingsError ? "⚠️" : "🅿️"}</div>
               <div style={{ color: C.navy, fontWeight: 800, fontSize: 16, marginBottom: 7 }}>
-                {listingsLoading ? "Loading available driveways…" : listingsError ? "Driveways couldn't be loaded" : "No active driveways yet"}
+                {listingsLoading ? "Loading available driveways…" : resolvingDestination ? "Finding your destination…" : listingsError ? "Driveways couldn't be loaded" : "No active driveways yet"}
               </div>
               <p style={{ color: C.muted, fontSize: 12.5, lineHeight: 1.6, margin: listingsError ? "0 0 14px" : 0 }}>
-                {listingsLoading ? "We're checking ParkShare for available parking." : listingsError ? listingsError : "ParkShare is growing. Please check back soon as new Hosts add their spaces."}
+                {listingsLoading || resolvingDestination ? "We're checking ParkShare for nearby parking." : listingsError ? listingsError : "ParkShare is growing. Please check back soon as new Hosts add their spaces."}
               </p>
               {listingsError && <Btn small variant="outline" onClick={refreshListings}>Try again</Btn>}
             </div>
@@ -2891,6 +2935,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {view !== "map" && (
           <div className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
             <div className="ps-browse-listing-heading">{selectedEvent ? `Parking near ${selectedEvent.name}` : selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
+            {filtered.length === 0 && <ParkingSearchEmptyState state={emptyState} onClear={clearSearch} />}
             {filtered.map(l => (
               <div
                 key={l.id}
@@ -2925,10 +2970,11 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {/* Map column */}
         {view !== "list" && (
           <div className="ps-browse-map-column" style={{ flex: 1, padding: 6 }}>
-            <div style={{ height: "100%", borderRadius: 10, overflow: "hidden", border: "1px solid "+C.concrete }}>
+            <div style={{ height: "100%", position: "relative", borderRadius: 10, overflow: "hidden", border: "1px solid "+C.concrete }}>
+              {filtered.length === 0 && <ParkingSearchEmptyState state={emptyState} onClear={clearSearch} overlay />}
               <ListingsMap
                 listings={filtered}
-                selected={mapHovered}
+                selected={activeMapListing}
                 onSelect={setMapHovered}
                 onViewListing={setSelected}
                 onPreviewRoute={onPreviewRoute}
@@ -2939,6 +2985,16 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         )}
         </>)}
       </div>
+    </div>
+  );
+}
+
+function ParkingSearchEmptyState({ state, onClear, overlay = false }) {
+  return (
+    <div className={`ps-parking-search-empty${overlay ? " is-map-overlay" : ""}`} role="status" aria-live="polite">
+      <strong>{state.title}</strong>
+      <p>{state.message}</p>
+      <button type="button" onClick={onClear}>Clear search</button>
     </div>
   );
 }
