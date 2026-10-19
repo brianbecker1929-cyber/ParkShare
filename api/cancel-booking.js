@@ -5,8 +5,8 @@
 import { jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
 import { evaluateCancellation } from "./_cancellation-policy.js";
 
-function refundBookingStatus(refundStatus) {
-  return refundStatus === "succeeded" ? "refunded" : "confirmed";
+function refundBookingStatus(refundStatus, coversOriginal) {
+  return refundStatus === "succeeded" && coversOriginal ? "refunded" : "confirmed";
 }
 
 function responseForExisting(booking, decision) {
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     // start as the dashboards, rather than falling back to legacy UTC hours.
     const { data: booking, error: bookingError } = await supabaseAdmin
       .from("bookings")
-      .select("id, listing_id, renter_id, hours, total, status, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, stripe_payment_intent_id, stripe_connected_account_id, cancellation_requested_at, cancelled_at, cancelled_by, stripe_refund_id, refund_status")
+      .select("id, listing_id, renter_id, hours, total, status, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, stripe_payment_intent_id, stripe_connected_account_id, cancellation_requested_at, cancelled_at, cancelled_by, stripe_refund_id, refund_status, refund_total_amount, refund_pending_amount, refund_ledger_revision")
       .eq("id", bookingId)
       .single();
     if (bookingError || !booking) return res.status(404).json({ error: "Booking not found." });
@@ -94,11 +94,13 @@ export default async function handler(req, res) {
       }
     );
 
-    const bookingStatus = refundBookingStatus(refund.status);
+    const coversOriginal = Number.isSafeInteger(refund.amount) && refund.amount === Math.round(Number(booking.total) * 100);
+    const bookingStatus = refundBookingStatus(refund.status, coversOriginal);
+    const needsReconciliation = refund.status === "succeeded" && !coversOriginal;
     const update = {
       status: bookingStatus,
       cancellation_requested_at: requestedAt,
-      cancelled_at: refund.status === "succeeded" ? requestedAt : null,
+      cancelled_at: bookingStatus === "refunded" ? requestedAt : null,
       cancelled_by: decision.actor,
       cancellation_reason: reason,
       stripe_refund_id: refund.id,
@@ -112,6 +114,7 @@ export default async function handler(req, res) {
       .update(update)
       .eq("id", booking.id)
       .eq("status", "confirmed")
+      .eq("refund_ledger_revision", booking.refund_ledger_revision)
       .select("id, status, refund_status, stripe_refund_id")
       .maybeSingle();
     if (updateError) throw updateError;
@@ -123,7 +126,7 @@ export default async function handler(req, res) {
         .eq("id", booking.id)
         .single();
       if (currentError || !current) throw currentError || new Error("Booking could not be reconciled after refund.");
-      return res.status(200).json(responseForExisting(current, { message: "This cancellation was already processed." }));
+      return res.status(202).json({ bookingId: current.id, bookingStatus: current.status, refundStatus: refund.status, refundId: refund.id, alreadyProcessed: false, message: "Your refund was submitted. The booking is being reconciled; please refresh shortly." });
     }
 
     if (["failed", "canceled"].includes(refund.status)) {
@@ -136,15 +139,17 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({
+    return res.status(needsReconciliation ? 202 : 200).json({
       bookingId: updated.id,
       bookingStatus: updated.status,
       refundStatus: updated.refund_status,
       refundId: updated.stripe_refund_id,
       alreadyProcessed: false,
-      message: refund.status === "succeeded"
-        ? "Booking cancelled. Stripe is sending your full refund."
-        : "Cancellation received. Stripe is processing your full refund.",
+      message: needsReconciliation
+        ? "Your refund was submitted. The cumulative refund status is being reconciled; please refresh shortly."
+        : refund.status === "succeeded"
+          ? "Booking cancelled. Stripe is sending your full refund."
+          : "Cancellation received. Stripe is processing your refund.",
     });
   } catch (error) {
     console.error("cancel-booking error:", error);

@@ -4,7 +4,6 @@ import { readFile } from "node:fs/promises";
 import {
   paymentReconciliationTarget,
   applyAccountScopedBookingReconciliation,
-  refundRecordPolicy,
 } from "../api/_refund-dispute-account-safety.js";
 
 const logged = { warn() {} };
@@ -84,10 +83,6 @@ test("refund lifecycle CAS never overwrites a different concurrently recorded re
     expectedRefundId:"re_existing",logger:logged,
   });
   assert.ok(another.applied.filters.some(x=>x[0]==="eq"&&x[1]==="stripe_refund_id"&&x[2]==="re_existing"));
-  assert.equal(refundRecordPolicy({stripe_refund_id:"re_one"},"re_two"),"manual_reconciliation");
-  assert.equal(refundRecordPolicy({stripe_refund_id:"re_one"},"re_one"),"apply");
-  assert.equal(refundRecordPolicy({stripe_refund_id:null},"re_one"),"apply");
-  assert.equal(refundRecordPolicy(null,"re_one"),"unmatched");
 });
 
 test("Supabase write error throws and is never acknowledged as successful",async()=>{
@@ -107,15 +102,11 @@ test("no matching owner row is NOT reported as successful update",async()=>{
     {applied:false,reason:"no_matching_booking"});
 });
 
-test("webhook wires all three event families to account-scoped writes with error checking",async()=>{
+test("webhook delegates refund families to the atomic current-history reconciler; disputes remain account scoped",async()=>{
   const s=await readFile(new URL("../api/stripe-webhook.js",import.meta.url),"utf8");
   const section=s.slice(s.indexOf('case "charge.refunded":'),s.indexOf("default:",s.indexOf('case "charge.refunded":')));
-  assert.match(section,/paymentReconciliationTarget\(event, "paymentIntent", reconciliation\?\.paymentIntentId\)/);
+  assert.match(section,/reconcilePaymentRefund\(\{ event, stripe, db: supabaseAdmin \}\)/);
   assert.match(section,/paymentReconciliationTarget\(event, "charge", reconciliation\?\.chargeId\)/);
-  assert.equal((section.match(/applyAccountScopedBookingReconciliation\(supabaseAdmin, target/g)||[]).length,3);
-  assert.match(section,/stripe\.refunds\.retrieve\(\s*submittedRefundId, \{\}, \{ stripeAccount: event\.account \}/);
-  assert.match(section,/readCheckoutDb\(/);
-  assert.match(section,/refundRecordPolicy\(booking, reconciliation\.refundId\)/);
-  assert.match(section,/if \(!result\.applied\) throw new Error/);
-  assert.doesNotMatch(section, /\.from\("bookings"\)\s*\.update\(\{ status: reconciliation.status \}\)\s*\.eq\("stripe_charge_id"/);
+  assert.equal((section.match(/applyAccountScopedBookingReconciliation\(supabaseAdmin, target/g)||[]).length,1);
+  assert.doesNotMatch(section,/refundRecordPolicy|refund_amount:|Multiple refunds require/);
 });

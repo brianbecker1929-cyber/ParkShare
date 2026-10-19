@@ -17,11 +17,20 @@ export function evaluateCancellation({ booking, userId, hostId, now = new Date()
   if (FINAL_CANCELLATION_STATUSES.has(status)) {
     return { allowed: true, idempotent: true, actor, message: "This booking is already cancelled." };
   }
-  if (IN_FLIGHT_REFUND_STATUSES.has(refundStatus)) {
+  if (Number(booking?.refund_pending_amount) > 0 || IN_FLIGHT_REFUND_STATUSES.has(refundStatus)) {
+    if (!booking?.cancellation_requested_at) {
+      return { allowed: false, code: "support_required", actor, pending: true, message: "A refund is already being processed. Please contact support before cancelling this booking." };
+    }
     return { allowed: true, idempotent: true, actor, pending: true, message: "This cancellation refund is already being processed." };
+  }
+  if (booking?.cancellation_requested_at && booking?.stripe_refund_id && refundStatus === "succeeded" && booking?.refund_total_amount == null) {
+    return { allowed: true, idempotent: true, actor, pending: true, message: "Your cancellation refund is being reconciled. Please refresh shortly." };
   }
   if (FAILED_REFUND_STATUSES.has(refundStatus)) {
     return { allowed: false, code: "support_required", actor, message: "The refund needs ParkShare support review before it can be retried." };
+  }
+  if (Number(booking?.refund_total_amount) > 0) {
+    return { allowed: false, code: "support_required", actor, message: "This booking already has a partial refund. Please contact support to cancel and review the remaining payment." };
   }
   if (status !== "confirmed") {
     return { allowed: false, code: "not_confirmed", actor, message: "Only a confirmed booking can be cancelled." };

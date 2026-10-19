@@ -11,6 +11,7 @@ const bookingColumns = [
   "booking_date","start_hour","scheduled_starts_at","property_time_zone",
   "spot_label","vehicle_make","vehicle_model",
   "vehicle_colour","license_plate","refund_status","created_at",
+  "cancellation_requested_at","refund_total_amount","refund_pending_amount",
   "event_id","event_name","event_category","event_venue_name","event_address",
   "event_lat","event_lng","event_starts_at","event_ends_at","event_timezone",
   "event_source","event_source_url","event_access_notes","event_closure_notice",
