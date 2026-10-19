@@ -23,6 +23,9 @@ export function evaluateCancellation({ booking, userId, hostId, now = new Date()
     }
     return { allowed: true, idempotent: true, actor, pending: true, message: "This cancellation refund is already being processed." };
   }
+  if (booking?.cancellation_requested_at && booking?.stripe_refund_id && refundStatus === "succeeded" && booking?.refund_total_amount == null) {
+    return { allowed: true, idempotent: true, actor, pending: true, message: "Your cancellation refund is being reconciled. Please refresh shortly." };
+  }
   if (FAILED_REFUND_STATUSES.has(refundStatus)) {
     return { allowed: false, code: "support_required", actor, message: "The refund needs ParkShare support review before it can be retried." };
   }

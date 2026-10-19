@@ -195,3 +195,14 @@ test("invalid canonical instant fails closed without refunding the legacy fallba
   assert.equal((await cancel()).statusCode, 500);
   assert.equal(refunds.length, 0);
 });
+
+test('refunding only a remaining balance waits for cumulative reconciliation instead of falsely claiming a full refund',async()=>{
+ stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);return {id:'re_remaining',status:'succeeded',amount:690};});
+ const res=await cancel();assert.equal(res.statusCode,202);assert.equal(res.body.bookingStatus,'confirmed');assert.match(res.body.message,/cumulative refund status is being reconciled/);
+ assert.equal(rows[0].cancelled_at,null);
+ const again=await cancel();assert.equal(again.statusCode,200);assert.equal(again.body.alreadyProcessed,true);assert.equal(refunds.length,1);
+});
+test('a webhook revision change while Stripe responds cannot be overwritten by the cancellation response',async()=>{
+ stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);rows[0].refund_ledger_revision++;rows[0].stripe_refund_id='re_webhook_first';rows[0].refund_total_amount=6.9;return {id:'re_remaining',status:'succeeded',amount:690};});
+ const res=await cancel();assert.equal(res.statusCode,202);assert.equal(rows[0].stripe_refund_id,'re_webhook_first');assert.equal(rows[0].refund_total_amount,6.9);assert.match(res.body.message,/being reconciled/);
+});

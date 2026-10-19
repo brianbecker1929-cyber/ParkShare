@@ -3470,7 +3470,7 @@ function HostDashboard({ user, setTab }) {
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
                 const refundInFlight = Number(row.refund_pending_amount) > 0 || ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
-                const refundPending = Boolean(row.cancellation_requested_at) && refundInFlight;
+                const refundPending = Boolean(row.cancellation_requested_at) && (refundInFlight || row.refund_total_amount == null && row.refund_status === "succeeded");
                 const refundReviewRequired = Number(row.refund_total_amount) > 0 && Number(row.refund_total_amount) < Number(row.total) || !row.cancellation_requested_at && refundInFlight;
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
                 const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
@@ -5468,7 +5468,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
             const refundInFlight = Number(row.refund_pending_amount) > 0 || ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
-            const refundPending = Boolean(row.cancellation_requested_at) && refundInFlight;
+            const refundPending = Boolean(row.cancellation_requested_at) && (refundInFlight || row.refund_total_amount == null && row.refund_status === "succeeded");
             const refundReviewRequired = Number(row.refund_total_amount) > 0 && Number(row.refund_total_amount) < Number(row.total) || !row.cancellation_requested_at && refundInFlight;
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
             const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);

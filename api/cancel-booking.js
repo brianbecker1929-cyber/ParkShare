@@ -5,8 +5,8 @@
 import { jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
 import { evaluateCancellation } from "./_cancellation-policy.js";
 
-function refundBookingStatus(refundStatus) {
-  return refundStatus === "succeeded" ? "refunded" : "confirmed";
+function refundBookingStatus(refundStatus, coversOriginal) {
+  return refundStatus === "succeeded" && coversOriginal ? "refunded" : "confirmed";
 }
 
 function responseForExisting(booking, decision) {
@@ -94,11 +94,13 @@ export default async function handler(req, res) {
       }
     );
 
-    const bookingStatus = refundBookingStatus(refund.status);
+    const coversOriginal = Number.isSafeInteger(refund.amount) && refund.amount === Math.round(Number(booking.total) * 100);
+    const bookingStatus = refundBookingStatus(refund.status, coversOriginal);
+    const needsReconciliation = refund.status === "succeeded" && !coversOriginal;
     const update = {
       status: bookingStatus,
       cancellation_requested_at: requestedAt,
-      cancelled_at: refund.status === "succeeded" ? requestedAt : null,
+      cancelled_at: bookingStatus === "refunded" ? requestedAt : null,
       cancelled_by: decision.actor,
       cancellation_reason: reason,
       stripe_refund_id: refund.id,
@@ -137,15 +139,17 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({
+    return res.status(needsReconciliation ? 202 : 200).json({
       bookingId: updated.id,
       bookingStatus: updated.status,
       refundStatus: updated.refund_status,
       refundId: updated.stripe_refund_id,
       alreadyProcessed: false,
-      message: refund.status === "succeeded"
-        ? "Booking cancelled. Stripe is sending your full refund."
-        : "Cancellation received. Stripe is processing your full refund.",
+      message: needsReconciliation
+        ? "Your refund was submitted. The cumulative refund status is being reconciled; please refresh shortly."
+        : refund.status === "succeeded"
+          ? "Booking cancelled. Stripe is sending your full refund."
+          : "Cancellation received. Stripe is processing your refund.",
     });
   } catch (error) {
     console.error("cancel-booking error:", error);
