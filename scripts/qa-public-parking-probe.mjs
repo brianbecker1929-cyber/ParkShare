@@ -1,7 +1,7 @@
 // Synthetic full-schema regression; disposable local database only.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export const publicParkingMigration=new URL('../supabase/migrations/20261019210000_bounded_public_parking_005220.sql',import.meta.url);
+export const publicParkingMigration=new URL('../supabase/migrations/20261019192851_bounded_public_parking_005220.sql',import.meta.url);
 export async function runPublicParkingProbe(db,report={checks:[]}) {
   await db.exec(await readFile(publicParkingMigration,'utf8'));
   const check=name=>report.checks.push({name:'public parking: '+name,status:'passed'});

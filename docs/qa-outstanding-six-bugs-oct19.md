@@ -31,3 +31,9 @@ Manual acceptance still requires BetterQA's signed-in Stripe TEST booking and in
 4. Verify release readiness (including `boundedPublicParkingReady`), feed status/size, booking endpoint authorization and public UI. Recheck the separate live production deployment is unchanged.
 
 Rollback: redeploy the previous QA commit `d299554dea8b0524442b868e963cfe9f37a17919`; the additional read-only RPC may remain installed. Do not rewind financial data or drop the prior refund ledger.
+
+## Initial CI and QA migration evidence
+
+Commit `0029cda31a60c14ade21e0a5d68666f61bdbebdc`: native regression/build job 118260377124 passed; PostgreSQL 17 full-schema job 118260377157 passed all 71 checks.
+
+QA migration registered as `20261019192851_bounded_public_parking_005220.sql`; the repository filename is aligned to the applied version. Before/after counts: 34 bookings, 0 extensions, 15 listings, 2 storage objects, 0 refund ledger rows. Full booking digest remains `85f04f6f84b56971a153511cfeaa5c40`; listing digest remains `38457635195d30a3373e328d382c0415`. New RPC returns 15 rows and permits only the service role. Final release requires CI on the migration-tracking commit.
