@@ -4166,6 +4166,14 @@ button, input, select, textarea { font: inherit; }
 .ps-browse-listing-card.is-selected { transform: translateY(-1px); }
 
 .ps-browse-listing-main {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4688,7 +4696,9 @@ button, input, select, textarea { font: inherit; }
 
 @media (min-width: 900px) {
   .ps-browse-toolbar { padding: 12px 20px !important; }
-  .ps-browse-listing-column { max-width: 570px; background: #FAF7F0; }
+  .ps-browse-listing-column { background: #FAF7F0; }
+  .ps-browse-content-split .ps-browse-listing-column { max-width: 570px; }
+  .ps-browse-content-list .ps-browse-listing-column { flex: 1 1 100%; max-width: none; min-width: 0; }
   .ps-browse-listing-card { margin: 10px 14px; padding: 14px; }
   .ps-browse-listing-thumb { width: 70px; height: 70px; }
   .ps-browse-listing-copy strong { font-size: 13px; }

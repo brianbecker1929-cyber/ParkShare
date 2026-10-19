@@ -753,45 +753,44 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const mapRef = useRef(null);
+  const [map, setMap] = useState(null);
+  const withCoords = listings.filter(l => Number.isFinite(l.lat) && Number.isFinite(l.lng));
+  const activeSelected = selected ? withCoords.find(l => String(l.id) === String(selected.id)) || null : null;
+  // Keep the controlled initial center stable. Recreating it on every render
+  // makes Google Maps jump back to the first listing after a selection.
+  const initialCenter = useRef(userLoc || (withCoords[0]
+    ? { lat: withCoords[0].lat, lng: withCoords[0].lng }
+    : { lat: 40.7128, lng: -74.006 }));
+  const coordinateKey = withCoords.map(l => `${l.id}:${l.lat}:${l.lng}`).join("|");
 
-  const withCoords = listings.filter(l => typeof l.lat === "number" && typeof l.lng === "number");
-  const activeSelected = selected ? listings.find(l => l.id === selected.id) || selected : null;
-
-  // A searched destination (or device location) is the map's anchor. Centre it
-  // immediately instead of fitting every marketplace pin into one wide view;
-  // without a location search, keep the useful overview of all listing pins.
   useEffect(() => {
-    if (!mapRef.current || !window.google) return;
-    if (userLoc) {
-      mapRef.current.panTo({ lat: userLoc.lat, lng: userLoc.lng });
-      mapRef.current.setZoom(14);
+    if (!map || !window.google) return;
+    // Explicit selection takes priority over the destination/overview on every
+    // screen size, including when the map finishes loading after the click.
+    if (activeSelected) {
+      map.panTo({ lat: activeSelected.lat, lng: activeSelected.lng });
+      if (window.matchMedia("(max-width: 899px)").matches) {
+        const frame = window.requestAnimationFrame(() => map.panBy(0, -105));
+        return () => window.cancelAnimationFrame(frame);
+      }
       return;
     }
-    const pts = withCoords;
-    if (pts.length === 0) return;
-    if (pts.length === 1) {
-      mapRef.current.panTo({ lat: pts[0].lat, lng: pts[0].lng });
-      mapRef.current.setZoom(14);
+    if (userLoc) {
+      map.panTo({ lat: userLoc.lat, lng: userLoc.lng });
+      map.setZoom(14);
+      return;
+    }
+    if (withCoords.length === 0) return;
+    if (withCoords.length === 1) {
+      map.panTo({ lat: withCoords[0].lat, lng: withCoords[0].lng });
+      map.setZoom(14);
       return;
     }
     const bounds = new window.google.maps.LatLngBounds();
-    pts.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
-    mapRef.current.fitBounds(bounds, 48);
-  }, [isLoaded, withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
-
-  // On narrow mobile maps, center the chosen spot and leave vertical room
-  // above its pin so the compact preview cannot be clipped by the toolbar.
-  useEffect(() => {
-    if (!activeSelected || !mapRef.current || typeof window === "undefined") return;
-    if (!window.matchMedia("(max-width: 700px)").matches) return;
-    if (typeof activeSelected.lat !== "number" || typeof activeSelected.lng !== "number") return;
-
-    const map = mapRef.current;
-    map.panTo({ lat: activeSelected.lat, lng: activeSelected.lng });
-    const frame = window.requestAnimationFrame(() => map.panBy(0, -105));
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeSelected?.id]);
+    withCoords.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    map.fitBounds(bounds, 48);
+  }, [map, coordinateKey, userLoc?.lat, userLoc?.lng,
+    activeSelected?.id, activeSelected?.lat, activeSelected?.lng]);
 
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 }}>Map unavailable — missing Google Maps API key</div>;
@@ -805,8 +804,6 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   if (withCoords.length === 0 && !userLoc) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>No driveways to show on the map</div>;
   }
-
-  const center = userLoc || (withCoords[0] ? { lat: withCoords[0].lat, lng: withCoords[0].lng } : { lat: 40.7128, lng: -74.006 });
 
   return (
     <div className="ps-listings-map" style={{ width: "100%", height: "100%", borderRadius: 12, overflow: "hidden", position: "relative" }}>
@@ -831,9 +828,9 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
       `}</style>
       <GoogleMap
         mapContainerStyle={{ width: "100%", height: "100%" }}
-        center={center}
+        center={initialCenter.current}
         zoom={13}
-        onLoad={(map) => { mapRef.current = map; }}
+        onLoad={setMap}
         onClick={() => onSelect(null)}
         options={{
           styles: MAP_STYLE,
@@ -849,7 +846,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
         )}
 
         {withCoords.map(l => {
-          const on = selected?.id === l.id;
+          const on = activeSelected?.id === l.id;
           return (
             <OverlayView key={l.id} position={{ lat: l.lat, lng: l.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
               <ParkingMapPin listing={l} selected={on} onSelect={onSelect} onViewListing={onViewListing} onPreviewRoute={onPreviewRoute} />
@@ -857,7 +854,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
           );
         })}
       </GoogleMap>
-      {selected && (
+      {activeSelected && (
         <div className="ps-mobile-map-listing-preview" role="dialog" aria-label={`Preview of ${activeSelected.title || "parking spot"}`}>
           <button
             type="button"
@@ -2542,7 +2539,9 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [sugError, setSugError] = useState(false);
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
-  const [mapHovered, setMapHovered] = useState(null);
+  const [mapSelectedId, setMapSelectedId] = useState(null);
+  const listingColumnRef = useRef(null);
+  const listingCardsRef = useRef(new Map());
   // Keep the map and listings together by default on every screen. Desktop
   // presents the two panes side by side; the mobile stylesheet stacks the
   // map above full-width listing cards so neither pane is squeezed or clipped.
@@ -2576,7 +2575,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     setResolvingDestination(false);
     setLocating(false);
     setLocationError(null);
-    setMapHovered(null);
+    setMapSelectedId(null);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
     setLocatedSearch(false);
@@ -2634,7 +2633,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     setLocating(false);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
-    setMapHovered(null);
+    setMapSelectedId(null);
     setLocatedSearch(false);
     setUserLoc(null);
     setQuery(s.short);
@@ -2683,7 +2682,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     setLocationError(null);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
-    setMapHovered(null);
+    setMapSelectedId(null);
   };
 
   const getLocation = () => {
@@ -2805,7 +2804,18 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   })).sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating
     : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
   const emptyState = parkingSearchEmptyState({ query, origin: userLoc, destinationSelected: locatedSearch });
-  const activeMapListing = filtered.find(l => String(l.id) === String(mapHovered?.id)) || null;
+  const activeMapListing = filtered.find(l => String(l.id) === mapSelectedId) || null;
+  const selectMapListing = (listing) => {
+    const id = listing ? String(listing.id) : null;
+    setMapSelectedId(id);
+    const column = listingColumnRef.current;
+    const card = listingCardsRef.current.get(id);
+    // Only scroll the independently scrolling list. On mobile the map sits
+    // above the cards; keep its preview in view rather than moving the page.
+    if (card && column && column.scrollHeight > column.clientHeight) {
+      card.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  };
   const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
     ? `${listing.locationPrecision === "approximate" ? "≈ " : ""}${(listing.distMiles * 1.60934).toFixed(1)} km from ${locatedSearch ? "destination" : "your location"}`
     : "Select a destination for walking time");
@@ -2934,17 +2944,21 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
 
         {/* Listing column */}
         {view !== "map" && (
-          <div className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
+          <div ref={listingColumnRef} className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
             <div className="ps-browse-listing-heading">{selectedEvent ? `Parking near ${selectedEvent.name}` : selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
             {filtered.length === 0 && <ParkingSearchEmptyState state={emptyState} onClear={clearSearch} />}
             {filtered.map(l => (
               <div
                 key={l.id}
-                className={`ps-browse-listing-card${mapHovered?.id === l.id ? " is-selected" : ""}`}
-                onClick={() => setMapHovered(l)}
-                onMouseEnter={() => setMapHovered(l)}
+                ref={node => { if (node) listingCardsRef.current.set(String(l.id), node); else listingCardsRef.current.delete(String(l.id)); }}
+                data-listing-id={l.id}
+                className={`ps-browse-listing-card${activeMapListing?.id === l.id ? " is-selected" : ""}`}
+                onClick={() => setMapSelectedId(String(l.id))}
               >
-                <div className="ps-browse-listing-main">
+                <button type="button" className="ps-browse-listing-main"
+                  aria-label={`Show ${l.title} on map`}
+                  aria-pressed={activeMapListing?.id === l.id}
+                  onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); }}>
                   <div className="ps-browse-listing-thumb"><ListingThumb listing={l} fontSize={30} /></div>
                   <div className="ps-browse-listing-copy">
                     <strong>{l.title}</strong>
@@ -2958,9 +2972,9 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                     {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
-                </div>
+                </button>
                 <div className="ps-browse-listing-actions">
-                  <button type="button" onClick={e => { e.stopPropagation(); setMapHovered(l); onPreviewRoute(l); }}>↗ Preview route</button>
+                  <button type="button" onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); onPreviewRoute(l); }}>↗ Preview route</button>
                   <button type="button" onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
                 </div>
               </div>
@@ -2976,7 +2990,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
               <ListingsMap
                 listings={filtered}
                 selected={activeMapListing}
-                onSelect={setMapHovered}
+                onSelect={selectMapListing}
                 onViewListing={setSelected}
                 onPreviewRoute={onPreviewRoute}
                 userLoc={userLoc}

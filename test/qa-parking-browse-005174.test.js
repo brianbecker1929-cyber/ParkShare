@@ -164,3 +164,34 @@ test('destination changes cannot reuse a previous walking response for the same 
   old.resolve({'db-1':{minutes:99,distanceMeters:10000}});await h.flush();
   assert.match(h.html(),/4 min walk/);assert.doesNotMatch(h.html(),/99 min/);
 });
+
+const cards=h=>h.nodes().filter(n=>n.props?.['data-listing-id']);
+const selectedCards=h=>cards(h).filter(n=>n.props.className.includes('is-selected')).map(n=>n.props['data-listing-id']);
+test('BUG-005173: choosing a non-first pin selects its matching card despite identical titles',()=>{
+  const h=harness();h.map().onSelect(far);h.render();
+  assert.deepEqual(selectedCards(h),['db-2']);assert.equal(h.map().selected.id,'db-2');
+  cards(h)[0].props.onMouseEnter?.();h.render();
+  assert.deepEqual(selectedCards(h),['db-2']);assert.equal(h.map().selected.id,'db-2');
+});
+test('BUG-005171: card click and keyboard-accessible selection target the same map listing',()=>{
+  const h=harness();cards(h)[1].props.onClick();h.render();assert.equal(h.map().selected.id,'db-2');
+  const button=h.nodes().find(n=>n.type==='button'&&n.props.className==='ps-browse-listing-main');
+  assert.equal(button.props['aria-pressed'],false);button.props.onClick({stopPropagation(){}});h.render();
+  assert.equal(h.map().selected.id,'db-1');assert.deepEqual(selectedCards(h),['db-1']);
+});
+test('map selection survives sorting and view toggles and clears on search/dismissal',()=>{
+  const h=harness({listings:[{...near,price:20},{...far,price:5}]});h.map().onSelect(far);h.render();
+  h.nodes().find(n=>n.type==='select').props.onChange({target:{value:'price'}});h.render();
+  assert.equal(cards(h)[0].props['data-listing-id'],'db-2');assert.deepEqual(selectedCards(h),['db-2']);
+  h.chooseView('List view');h.chooseView('Map view');assert.equal(h.map().selected.id,'db-2');
+  h.map().onSelect(null);h.render();assert.equal(h.map().selected,null);
+  h.chooseView('Split map and list view');assert.deepEqual(selectedCards(h),[]);
+  h.map().onSelect(far);h.render();h.input('zz-no-match');assert.equal(h.map().selected,null);
+});
+test('pin selection scrolls the matching offscreen card inside the desktop list only',()=>{
+  const h=harness();const column=h.nodes().find(n=>n.props?.className==='ps-browse-listing-column');
+  column.ref.current={scrollHeight:1000,clientHeight:300};const calls=[];
+  cards(h)[1].ref({scrollIntoView:options=>calls.push(options)});
+  h.map().onSelect(far);h.render();assert.deepEqual(calls,[{block:'nearest',inline:'nearest'}]);
+  column.ref.current={scrollHeight:1000,clientHeight:1000};h.map().onSelect(far);h.render();assert.equal(calls.length,1);
+});
