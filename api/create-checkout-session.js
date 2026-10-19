@@ -18,6 +18,10 @@ export default async function handler(req, res) {
     const user = await requireUser(req, res);
     if (!user) return;
 
+    // Resolve the trusted redirect destination before creating Stripe resources
+    // or database holds, so misconfiguration cannot leave orphaned side effects.
+    const origin = getOrigin(req);
+
     const listingId = Number(req.body?.listingId);
     const hours = Number(req.body?.hours);
     const spotLabel = req.body?.spotLabel ? String(req.body.spotLabel).trim().toUpperCase().slice(0, 20) : "";
@@ -172,7 +176,6 @@ export default async function handler(req, res) {
       throw holdError;
     }
 
-    const origin = getOrigin(req);
     const metadata = {
       listing_id: String(listing.id),
       renter_id: String(user.id),

@@ -24,7 +24,21 @@ import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
 
-export async function sendEmail({ to, cc, subject, html, attachments }) {
+// Keep customer Reply-To optional: booking and reminder messages retain their
+// existing behavior, while contact-form messages can be answered with Reply.
+export function buildEmailPayload({ to, cc, subject, html, attachments, replyTo }) {
+  return {
+    from: EMAIL_FROM,
+    to: [to],
+    cc: cc ? [cc] : undefined,
+    reply_to: replyTo || undefined,
+    subject,
+    html,
+    attachments: attachments && attachments.length ? attachments : undefined,
+  };
+}
+
+export async function sendEmail({ to, cc, subject, html, attachments, replyTo }) {
   if (!RESEND_API_KEY) {
     console.error("[_email] RESEND_API_KEY is not set — skipping send:", subject);
     return { skipped: true };
@@ -36,14 +50,7 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from: EMAIL_FROM,
-      to: [to],
-      cc: cc ? [cc] : undefined,
-      subject,
-      html,
-      attachments: attachments && attachments.length ? attachments : undefined,
-    }),
+    body: JSON.stringify(buildEmailPayload({ to, cc, subject, html, attachments, replyTo })),
   });
 
   if (!res.ok) {
