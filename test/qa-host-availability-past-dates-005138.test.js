@@ -105,7 +105,7 @@ test("App blocks invalid exceptions before preview, publishing and image uploads
   assert.match(app, /disabled=\{!hasAnyAvailability\(normalizedAvailability\) \|\| !exceptionDateValidation\.valid\}/);
   const publish = app.slice(app.indexOf("const publish = async () =>"), app.indexOf("const resetAll =", app.indexOf("const publish = async () =>")));
   assert.ok(publish.indexOf("validateHostAvailabilityExceptions(normalizeAvailability(form.availability))") >= 0);
-  assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf("uploadListingPhotos("));
-  assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf('publishHostListing('));
+  assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf("publication.publish("));
+  assert.ok(publish.indexOf("if (!currentExceptionDates.valid)") < publish.indexOf('publication.publish('));
   assert.match(publish, /setStep\(6\)/);
 });

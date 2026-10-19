@@ -30,6 +30,8 @@ export default async function handler(req, res) {
   } catch { checks.propertyTimezoneLookupReady = false; }
   const publishingGuard = await supabaseAdmin.rpc("listing_timezone_assignment_ready");
   checks.propertyTimezoneGuardReady = !publishingGuard.error && publishingGuard.data === true;
+  const publication = await supabaseAdmin.rpc("listing_publication_ready");
+  checks.listingPublicationReady = !publication.error && publication.data === true;
   const ready = Object.values(checks).every(Boolean);
   return res.status(ready ? 200 : 503).json({ ready, commit: process.env.VERCEL_GIT_COMMIT_SHA || null, checks });
 }

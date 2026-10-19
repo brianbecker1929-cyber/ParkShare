@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, Component } from "react";
+import { useState, useEffect, useRef, useId, useMemo, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
@@ -9,12 +9,13 @@ import { fetchPublicParkingPage } from "./lib/publicParkingPage";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
-import { publishHostListing, requestPropertyTimeZone } from "./lib/hostListingPublish";
+import { requestPropertyTimeZone } from "./lib/hostListingPublish";
+import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
-import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
+import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
 import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm } from "./lib/authForm";
 import {
@@ -4375,6 +4376,13 @@ function ListDrivewayView({ user }) {
   const [photoError, setPhotoError] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const publication = useMemo(() => createListingPublication({client: supabase, hostId: user?.id}), [user?.id]);
+  const publicationRef = useRef(publication);
+  publicationRef.current = publication;
+  const [publicationPending, setPublicationPending] = useState(() => publication.pending);
+  const [publishedDetails, setPublishedDetails] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
+  useEffect(() => { setPublicationPending(publication.pending); setPublishedDetails(null); setSubmitted(false); setPublishing(false); setPublishError(""); }, [publication]);
   const photoPreviewUrls = useRef(new Set());
   useEffect(() => () => {
     for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
@@ -4655,8 +4663,6 @@ function ListDrivewayView({ user }) {
     !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
 
-  const [submitted, setSubmitted] = useState(false);
-
   const publish = async () => {
     if (publishing) return;
     setPublishError("");
@@ -4665,75 +4671,72 @@ function ListDrivewayView({ user }) {
       setPublishError("Please sign in with a Host account before publishing your listing.");
       return;
     }
-    const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
-    if (!rate.valid) {
-      setPublishError(rate.error);
-      setStep(7);
-      return;
-    }
-    if (!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid) {
-      setPublishError(postalCheck.error || "Complete the driveway address before publishing.");
-      setStep(1);
-      return;
-    }
-    if (!hasListingCoordinates(form)) {
-      setPublishError("Select your driveway from the address suggestions and confirm its map pin before publishing.");
-      setStep(1); return;
-    }
-    if (!propertyTimeZone) {
-      setPublishError(zoneResult?.key === locationKey && zoneResult.error || "Please wait while we confirm the property location.");
-      setStep(1); return;
-    }
-    // Recompute at submit time: a tab kept open overnight may contain past dates.
-    const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
-    if (!currentExceptionDates.valid) {
-      setPublishError(currentExceptionDates.issues[0].error);
-      setStep(6);
-      return;
-    }
-    if (!form.photos.length) {
-      setPublishError("Add at least one driveway photo before publishing.");
-      return;
+    if (!publication.pending) {
+      const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
+      if (!rate.valid) {
+        setPublishError(rate.error);
+        setStep(7);
+        return;
+      }
+      if (!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid) {
+        setPublishError(postalCheck.error || "Complete the driveway address before publishing.");
+        setStep(1);
+        return;
+      }
+      if (!hasListingCoordinates(form)) {
+        setPublishError("Select your driveway from the address suggestions and confirm its map pin before publishing.");
+        setStep(1); return;
+      }
+      if (!propertyTimeZone) {
+        setPublishError(zoneResult?.key === locationKey && zoneResult.error || "Please wait while we confirm the property location.");
+        setStep(1); return;
+      }
+      // Recompute at submit time: a tab kept open overnight may contain past dates.
+      const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
+      if (!currentExceptionDates.valid) {
+        setPublishError(currentExceptionDates.issues[0].error);
+        setStep(6);
+        return;
+      }
+      if (!form.photos.length) {
+        setPublishError("Add at least one driveway photo before publishing.");
+        return;
+      }
     }
     setPublishing(true);
-    let uploadedPaths = [];
     try {
-      const photoUpload = await uploadListingPhotos(supabase, user.id, form.photos, (index, total) => {
-        setUploadProgress(`Uploading photo ${index} of ${total}…`);
-      });
-      uploadedPaths = photoUpload.paths;
-      setUploadProgress("Saving your listing…");
-      await publishHostListing(supabase, {
+      const saved = await publication.publish((photoUrls) => ({
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
-        price: rate.value,
+        price: Number(form.price),
         spaces: rentableSpotCount || 1,
         features: listingFeatures,
         description: form.description || "",
         // Keep the existing listing image schema: new listings now persist
         // short Storage URLs, while historical Base64 listings still render.
-        img: photoUpload.urls[0],
-        photos: photoUpload.urls,
+        img: photoUrls[0],
+        photos: photoUrls,
         lat: form.lat,
         lng: form.lng,
         spots: form.spots.length ? form.spots : Array.from({ length: form.totalSpots }, (_, i) => ({ forRent: form.selectedSpots[i] === true, bounds: null })),
         availability: normalizedAvailability,
+      }), form.photos, (index, total) => {
+        setUploadProgress(`Uploading photo ${index} of ${total}…`);
       });
+      if (publicationRef.current !== publication) return;
+      setPublishedDetails(saved);
       for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
       photoPreviewUrls.current.clear();
       setSubmitted(true);
     } catch (error) {
-      if (uploadedPaths.length && error.cleanupAllowed) {
-        try {
-          await removeUploadedListingPhotos(supabase, uploadedPaths);
-        } catch (cleanupError) {
-          console.warn("Unable to remove unused listing photos after publish failure", cleanupError);
-        }
-      }
+      if (publicationRef.current !== publication) return;
       setPublishError(error?.message || "Unable to publish this listing. Please try again.");
     } finally {
-      setUploadProgress("");
-      setPublishing(false);
+      if (publicationRef.current === publication) {
+        setPublicationPending(publication.pending);
+        setUploadProgress("");
+        setPublishing(false);
+      }
     }
   };
 
@@ -4742,12 +4745,24 @@ function ListDrivewayView({ user }) {
     photoPreviewUrls.current.clear();
     setPhotoError("");
     setUploadProgress("");
-    setSubmitted(false); setStep(1);
+    setSubmitted(false); setPublishedDetails(null); setStep(1);
     setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
 
+  if (publicationPending && !submitted) {
+    return (
+      <div style={{padding: 28, maxWidth: 560, margin: "0 auto", fontFamily: "Poppins, sans-serif"}}>
+        <h2 style={{color: C.navy}}>Check your listing publication</h2>
+        <p>Your previous publication has not been confirmed. Checking again safely resumes the same request and reuses its uploaded photos.</p>
+        <p>Check the result before editing or publishing another driveway. You can also view your Host Dashboard.</p>
+        {publishError && <p role="alert" style={{color: C.red}}>{publishError}</p>}
+        <Btn variant="amber" onClick={publish} disabled={publishing}>{publishing ? "Checking…" : "Check publication"}</Btn>
+      </div>
+    );
+  }
+
   if (submitted) {
-    const rentable = form.selectedSpots.filter(Boolean).length;
+    const rentable = publishedDetails.spaces;
     return (
       <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
@@ -4762,7 +4777,7 @@ function ListDrivewayView({ user }) {
           />
         </div>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
-        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(form.price)}/hr</strong>.</p>
+        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{publishedDetails.address}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(publishedDetails.price)}/hr</strong>.</p>
         <Btn onClick={resetAll}>List another driveway</Btn>
       </div>
     );
@@ -5395,7 +5410,7 @@ function ListDrivewayView({ user }) {
           {uploadProgress && <div role="status" style={{ color: C.moss, fontSize: 12.5, fontWeight: 700 }}>{uploadProgress}</div>}
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <Btn variant="pill" onClick={() => setStep(7)}>← Back to edit</Btn>
+            <Btn variant="pill" disabled={publishing} onClick={() => setStep(7)}>← Back to edit</Btn>
             <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
           </div>
         </div>
