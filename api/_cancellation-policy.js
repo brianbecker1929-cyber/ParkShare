@@ -17,7 +17,10 @@ export function evaluateCancellation({ booking, userId, hostId, now = new Date()
   if (FINAL_CANCELLATION_STATUSES.has(status)) {
     return { allowed: true, idempotent: true, actor, message: "This booking is already cancelled." };
   }
-  if (IN_FLIGHT_REFUND_STATUSES.has(refundStatus)) {
+  if (Number(booking?.refund_pending_amount) > 0 || IN_FLIGHT_REFUND_STATUSES.has(refundStatus)) {
+    if (!booking?.cancellation_requested_at) {
+      return { allowed: false, code: "support_required", actor, pending: true, message: "A refund is already being processed. Please contact support before cancelling this booking." };
+    }
     return { allowed: true, idempotent: true, actor, pending: true, message: "This cancellation refund is already being processed." };
   }
   if (FAILED_REFUND_STATUSES.has(refundStatus)) {

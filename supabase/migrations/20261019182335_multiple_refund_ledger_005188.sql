@@ -3,6 +3,10 @@
 BEGIN;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='30s';
+LOCK TABLE public.bookings,public.booking_extensions IN ACCESS EXCLUSIVE MODE;
+CREATE TEMP TABLE refund_migration_guard ON COMMIT DROP AS SELECT
+ (SELECT md5(string_agg(to_jsonb(b)::text,',' ORDER BY b.id)) FROM public.bookings b) bookings_digest,
+ (SELECT md5(string_agg(to_jsonb(e)::text,',' ORDER BY e.id)) FROM public.booking_extensions e) extensions_digest;
 ALTER TABLE public.bookings
  ADD COLUMN refund_total_amount numeric CHECK(refund_total_amount>=0),
  ADD COLUMN refund_pending_amount numeric CHECK(refund_pending_amount>=0),
@@ -167,4 +171,16 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.reconcile_payment_refunds(text,bigint,text,text,text,boolean,bigint,text,bigint,bigint,jsonb,boolean) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.reconcile_payment_refunds(text,bigint,text,text,text,boolean,bigint,text,bigint,bigint,jsonb,boolean) TO service_role;
+DO $$
+DECLARE before_row record; booking_after text; extension_after text;
+BEGIN
+ SELECT * INTO before_row FROM pg_temp.refund_migration_guard;
+ SELECT md5(string_agg((to_jsonb(b)-ARRAY['refund_total_amount','refund_pending_amount','refund_ledger_revision','refund_reconciled_at'])::text,',' ORDER BY b.id))
+ INTO booking_after FROM public.bookings b;
+ SELECT md5(string_agg((to_jsonb(e)-ARRAY['refund_total_amount','refund_pending_amount','refund_ledger_revision'])::text,',' ORDER BY e.id))
+ INTO extension_after FROM public.booking_extensions e;
+ IF booking_after IS DISTINCT FROM before_row.bookings_digest OR extension_after IS DISTINCT FROM before_row.extensions_digest THEN
+  RAISE EXCEPTION 'Refund migration changed existing payment data';
+ END IF;
+END $$;
 COMMIT;

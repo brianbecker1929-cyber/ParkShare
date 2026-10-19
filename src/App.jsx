@@ -3469,7 +3469,9 @@ function HostDashboard({ user, setTab }) {
                 const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
-                const refundPending = Boolean(row.cancellation_requested_at) && ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const refundInFlight = Number(row.refund_pending_amount) > 0 || ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const refundPending = Boolean(row.cancellation_requested_at) && refundInFlight;
+                const refundReviewRequired = Number(row.refund_total_amount) > 0 && Number(row.refund_total_amount) < Number(row.total) || !row.cancellation_requested_at && refundInFlight;
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
                 const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
                 return {
@@ -3504,7 +3506,8 @@ function HostDashboard({ user, setTab }) {
                   bookingEnd: window.end.toISOString(),
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
-                  canCancel: !(Number(row.refund_total_amount) > 0) && !refundPending && !cancelled && !completed && window.start.getTime() > now,
+                  refundReviewRequired,
+                  canCancel: !(Number(row.refund_total_amount) > 0) && !refundInFlight && !cancelled && !completed && window.start.getTime() > now,
                 };
               })
             );
@@ -3662,6 +3665,7 @@ function HostDashboard({ user, setTab }) {
                     <div>
                       <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.displayStatus}</div>
                       <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)}</div>
+                      {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
                     </div>
                     {b.canCancel && b.displayStatus === "Upcoming" && (
                       <div style={{ position: "relative" }}>
@@ -5463,7 +5467,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
             const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
-            const refundPending = Boolean(row.cancellation_requested_at) && ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+            const refundInFlight = Number(row.refund_pending_amount) > 0 || ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+            const refundPending = Boolean(row.cancellation_requested_at) && refundInFlight;
+            const refundReviewRequired = Number(row.refund_total_amount) > 0 && Number(row.refund_total_amount) < Number(row.total) || !row.cancellation_requested_at && refundInFlight;
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
             const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
             return ({
@@ -5506,7 +5512,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
-            canCancel: !(Number(row.refund_total_amount) > 0) && !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
+            refundReviewRequired,
+            canCancel: !(Number(row.refund_total_amount) > 0) && !refundInFlight && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
           });})
         );
         for (const row of data) {
@@ -5649,6 +5656,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
               <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
+              {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
 
             </div>
           </div>

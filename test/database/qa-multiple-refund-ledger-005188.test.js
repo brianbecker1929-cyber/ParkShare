@@ -13,7 +13,7 @@ describe('multiple refund ledger — native PostgreSQL concurrency',{skip:!url},
   pool=new pg.Pool({connectionString:url,max:3,connectionTimeoutMillis:5000});
   await pool.query(await readFile(new URL('./booking-holds-fixture.sql',import.meta.url),'utf8'));
   await pool.query(`DROP SCHEMA IF EXISTS parkshare_private CASCADE; CREATE TABLE public.booking_extensions(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,booking_id bigint REFERENCES public.bookings(id),added_amount numeric NOT NULL,paid_at timestamptz,status text, stripe_charge_id text,stripe_payment_intent_id text,stripe_connected_account_id text,stripe_refund_id text,refund_amount numeric,refund_status text,refund_failure_reason text,refund_reconciled_at timestamptz,charge_amount_refunded numeric,charge_fully_refunded boolean,charge_disputed boolean NOT NULL DEFAULT false);`);
-  await pool.query(await readFile(new URL('../../supabase/migrations/20261019181031_multiple_refund_ledger_005188.sql',import.meta.url),'utf8'));
+  await pool.query(await readFile(new URL('../../supabase/migrations/20261019182335_multiple_refund_ledger_005188.sql',import.meta.url),'utf8'));
   const host='00000000-0000-4000-8000-000000000061',driver='00000000-0000-4000-8000-000000000062';
   await pool.query('INSERT INTO auth.users(id) VALUES($1),($2)',[host,driver]);await pool.query('INSERT INTO public.profiles(id) VALUES($1),($2)',[host,driver]);
   const listing=(await pool.query('INSERT INTO public.listings(host_id,spaces) VALUES($1,4) RETURNING id',[host])).rows[0].id;

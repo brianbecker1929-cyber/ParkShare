@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     // start as the dashboards, rather than falling back to legacy UTC hours.
     const { data: booking, error: bookingError } = await supabaseAdmin
       .from("bookings")
-      .select("id, listing_id, renter_id, hours, total, status, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, stripe_payment_intent_id, stripe_connected_account_id, cancellation_requested_at, cancelled_at, cancelled_by, stripe_refund_id, refund_status, refund_total_amount, refund_ledger_revision")
+      .select("id, listing_id, renter_id, hours, total, status, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, stripe_payment_intent_id, stripe_connected_account_id, cancellation_requested_at, cancelled_at, cancelled_by, stripe_refund_id, refund_status, refund_total_amount, refund_pending_amount, refund_ledger_revision")
       .eq("id", bookingId)
       .single();
     if (bookingError || !booking) return res.status(404).json({ error: "Booking not found." });

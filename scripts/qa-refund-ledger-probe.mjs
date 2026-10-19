@@ -1,7 +1,7 @@
 // Synthetic, disposable database only; never run against managed QA/production.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export const refundLedgerMigration=new URL('../supabase/migrations/20261019181031_multiple_refund_ledger_005188.sql',import.meta.url);
+export const refundLedgerMigration=new URL('../supabase/migrations/20261019182335_multiple_refund_ledger_005188.sql',import.meta.url);
 export async function runRefundLedgerProbe(db,report={checks:[]}){
  await db.exec(await readFile(refundLedgerMigration,'utf8'));
  const check=name=>report.checks.push({name:'refund ledger: '+name,status:'passed'});
@@ -65,7 +65,9 @@ export async function runRefundLedgerProbe(db,report={checks:[]}){
    }
   }check('anonymous and signed-in clients cannot read ledger or execute reconciliation');
   await db.exec('SET LOCAL ROLE service_role;');
-  assert.ok((await db.query('SELECT count(*)::int n FROM public.payment_refunds')).rows[0].n>=6);await db.exec('RESET ROLE;');check('service role retains ledger access');
+  assert.ok((await db.query('SELECT count(*)::int n FROM public.payment_refunds')).rows[0].n>=6);
+  await call({refunds:[first,second,failed,rest],reported:10000});
+  await db.exec('RESET ROLE;');check('service role can read and atomically reconcile through invoker RPC');
  }finally{await db.exec('ROLLBACK;');}
  return report;
 }

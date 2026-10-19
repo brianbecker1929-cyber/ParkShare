@@ -108,3 +108,7 @@ test('current pending, failed and canceled refunds persist their own lifecycle w
   assert.equal(h.writes[0].p.p_refunds[0].status,status);
  }
 });
+test('an external partial refund in flight is not falsely reported as an existing cancellation',()=>{
+ const result=evaluateCancellation({booking:{status:'confirmed',refund_status:'pending',refund_pending_amount:20,renter_id:'driver'},userId:'driver'});
+ assert.equal(result.allowed,false);assert.equal(result.code,'support_required');assert.equal(result.idempotent,undefined);
+});
