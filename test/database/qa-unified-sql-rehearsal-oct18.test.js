@@ -23,6 +23,7 @@ const proposals = [
   "../../docs/sql-proposals/qa-verified-reviews.sql",
   "../../docs/sql-proposals/bug-005183-restrict-public-data-api.sql",
   "../../docs/sql-proposals/qa-account-deletion-booking-retention.sql",
+  "../../docs/sql-proposals/qa-private-messages-rls.sql",
 ];
 
 // Fail BEFORE any DROP/DDL when a mistaken live/remote connection is supplied.
@@ -63,6 +64,7 @@ describe("unified QA proposed SQL: ordered disposable-schema rehearsal", {
       "ALTER TABLE public.bookings ADD COLUMN start_hour numeric;",
       "CREATE TABLE public.booking_extensions (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, booking_id bigint NOT NULL REFERENCES public.bookings(id) ON DELETE CASCADE, added_hours numeric NOT NULL, added_amount numeric NOT NULL, stripe_checkout_session_id text UNIQUE, stripe_payment_intent_id text, stripe_charge_id text, stripe_connected_account_id text, status text NOT NULL, paid_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());",
       "CREATE TABLE public.reviews (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, listing_id bigint NOT NULL REFERENCES public.listings(id), user_id uuid NOT NULL REFERENCES public.profiles(id), rating integer NOT NULL, text text NOT NULL);",
+      "CREATE TABLE public.messages(id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, listing_id bigint NOT NULL REFERENCES public.listings(id), sender_id uuid NOT NULL REFERENCES public.profiles(id), recipient_id uuid REFERENCES public.profiles(id), text text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());",
       "DROP SCHEMA IF EXISTS storage CASCADE;",
       "CREATE SCHEMA storage;",
       "CREATE TABLE storage.buckets (id text PRIMARY KEY, public boolean NOT NULL);",
@@ -97,8 +99,7 @@ describe("unified QA proposed SQL: ordered disposable-schema rehearsal", {
       "SELECT lower(session_range) AS begins,upper(session_range) AS ends,booking_date,start_hour,hours FROM public.bookings WHERE id=$1", [legacyId],
     )).rows[0];
 
-    // The actual point of this test: all nine proposed SQL files installed
-    // consecutively into ONE disposable schema, not nine isolated test DBs.
+    // All ten proposed SQL files install consecutively into one disposable schema.
     for (const path of proposals) await pool.query(await sql(path));
   });
 
@@ -121,7 +122,7 @@ describe("unified QA proposed SQL: ordered disposable-schema rehearsal", {
     } finally { client.release(); }
   }
 
-  test("all nine SQL proposals coexist with both baseline migrations", async () => {
+  test("all ten SQL proposals coexist with both baseline migrations", async () => {
     const names = [
       "booking_hold_attempts", "pending_booking_extensions", "booking_extensions",
       "reviews", "listings", "bookings",

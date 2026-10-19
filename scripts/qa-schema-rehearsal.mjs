@@ -14,6 +14,7 @@ export const proposals = [
   'qa-verified-reviews.sql',
   'bug-005183-restrict-public-data-api.sql',
   'qa-account-deletion-booking-retention.sql',
+  'qa-private-messages-rls.sql',
 ];
 export const identifier = value => '"' + value.replaceAll('"', '""') + '"';
 export const literal = value => "'" + value.replaceAll("'", "''") + "'";
