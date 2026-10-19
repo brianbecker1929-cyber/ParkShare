@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {loadSnapshot,restoreSnapshot} from './qa-schema-rehearsal.mjs';
-export const releaseMigrationUrl=new URL('../supabase/migrations/20261019091311_betterqa_complete_qa_release_oct19.sql',import.meta.url);
+export const releaseMigrationUrl=new URL('../supabase/migrations/20261019135228_betterqa_complete_qa_release_oct19.sql',import.meta.url);
 export async function runCompleteQaReleaseProbe(db,report){
  const check=async(name,fn)=>{await fn();report.checks.push({name,status:'passed'});};
  await db.exec('DROP SCHEMA IF EXISTS qa_release_backup_20261019 CASCADE;');
@@ -33,7 +33,7 @@ export async function runCompleteQaReleaseProbe(db,report){
  });
  await check('trusted QA geography assigns only verified cells and preserves every paid booking field',async()=>{
   await db.exec("INSERT INTO qa_release_backup_20261019.verified_zone_cells(south,west,time_zone,verified_source) VALUES(43.8,-79.5,'America/Toronto','geo-tz@8.1.10')");
-  await db.exec(await readFile(new URL('../supabase/migrations/20261019091625_betterqa_verified_listing_zones_oct19.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261019135322_betterqa_verified_listing_zones_oct19.sql',import.meta.url),'utf8'));
   assert.equal((await db.query('SELECT time_zone FROM public.listings WHERE id=$1',[listing])).rows[0].time_zone,'America/Toronto');
   assert.deepEqual((await db.query("SELECT to_jsonb(b)-'scheduled_starts_at'-'property_time_zone' row FROM public.bookings b WHERE id=$1",[booking])).rows[0].row,original);
  });
