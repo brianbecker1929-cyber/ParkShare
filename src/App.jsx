@@ -8,7 +8,7 @@ import { calculateBookingAmounts } from "../api/_booking-rules.js";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { deleteHostListing } from "./lib/listingDeletion";
-import { hostTransactionPresentation } from "./lib/hostTransactions";
+import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
 import { localCalendarDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, removeUploadedListingPhotos, uploadListingPhotos, validateListingPhoto } from "./lib/listingPhotos";
@@ -3065,11 +3065,12 @@ function EditListingModal({ listing, onClose, onSave }) {
 // across components; fine at this scale, worth revisiting with a shared
 // cache/context if this page gets hit often enough to matter.
 function useTransactions(user) {
-  const [data, setData] = useState({ spent: [], earned: [], payouts: [] });
+  const [data, setData] = useState({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    setData({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
     if (!user) { setLoading(false); return; }
     let cancelled = false;
 
@@ -3091,7 +3092,7 @@ function useTransactions(user) {
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json.error || "Couldn't load transactions.");
-        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [] });
+        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [], payoutsUnavailable: Boolean(json.payoutsUnavailable) });
       } catch (err) {
         if (!cancelled) setError(err.message || "Something went wrong.");
       } finally {
@@ -3166,8 +3167,9 @@ function TransactionsView({ user }) {
       )}
 
       {!loading && !error && section !== "payouts" && rows.map(t => {
-        const st = transactionStatusLabel(t.status);
-        const amount = section === "earned" ? t.net : t.amount;
+        const presentation = hostTransactionPresentation(t);
+        const st = section === "earned" ? { label: presentation.label, color: presentation.isIncome ? C.moss : C.muted } : transactionStatusLabel(t.status);
+        const amount = section === "earned" ? t.earningsState === "needs_review" ? null : hostEarningsContribution(t) : t.amount;
         return (
           <div key={t.id} style={{ background: C.white, border: "1px solid " + C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -3178,20 +3180,26 @@ function TransactionsView({ user }) {
               </div>
               <div style={{ textAlign: "right" }}>
                 <Badge color={st.color}>{st.label}</Badge>
-                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{money(amount)}</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{amount == null ? "Under review" : money(amount)}</div>
               </div>
             </div>
             {section === "earned" && (
               <div style={{ fontSize: 10, color: C.muted, marginTop: 8, paddingTop: 8, borderTop: "1px solid " + C.concrete }}>
-                {money(t.gross)} charged − {money(t.platformFee)} platform fee = {money(t.net)} to you
-                {t.approximateFeeSplit ? " (fee estimated)" : ""}
+                {t.earningsState === "needs_review" ? "The remaining amount is awaiting review and is excluded from earnings totals." : <>
+                  {money(t.gross)} charged − {money(t.refundedAmount || 0)} refunded − {money(t.platformFee)} retained platform fee = {money(amount)} before Stripe processing fees
+                  {t.approximateFeeSplit ? " (fee estimated)" : ""}
+                  {t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} refund pending</>}
+                </>}
               </div>
             )}
           </div>
         );
       })}
 
-      {!loading && !error && section === "payouts" && data.payouts.length === 0 && (
+      {!loading && !error && section === "payouts" && data.payoutsUnavailable && (
+        <p role="status" style={{ fontSize: 13, color: C.muted }}>Payout history is temporarily unavailable. Your recorded transactions are still available.</p>
+      )}
+      {!loading && !error && section === "payouts" && !data.payoutsUnavailable && data.payouts.length === 0 && (
         <p style={{ fontSize: 13, color: C.muted }}>No payouts yet.</p>
       )}
       {!loading && !error && section === "payouts" && data.payouts.map(p => {
@@ -3497,7 +3505,7 @@ function HostDashboard({ user, setTab }) {
       setCancelBusy(false);
     }
   };
-  const { data: txData, loading: txLoading } = useTransactions(user);
+  const { data: txData, loading: txLoading, error: txError } = useTransactions(user);
 
   const now = new Date();
   const sameMonth = (d, monthsAgo) => {
@@ -3505,9 +3513,9 @@ function HostDashboard({ user, setTab }) {
     const target = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
     return dt.getFullYear() === target.getFullYear() && dt.getMonth() === target.getMonth();
   };
-  const paidEarned = txData.earned.filter(t => hostTransactionPresentation(t).isIncome);
-  const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
-  const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
+  const earningsUnderReview = txData.earned.some(t => t.earningsState === "needs_review");
+  const thisMonthEarned = hostEarnedTotal(txData.earned.filter(t => sameMonth(t.date, 0)));
+  const allTimeEarned = hostEarnedTotal(txData.earned);
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const avgRating = hostReviews.length ? (hostReviews.reduce((sum, review) => sum + review.rating, 0) / hostReviews.length).toFixed(1) : "—";
   const scrollToDashboardSection = sectionId => {
@@ -3532,7 +3540,7 @@ function HostDashboard({ user, setTab }) {
         {/* Stats row — spans full width */}
         <div className="host-dashboard-stat-grid" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           {[
-            { label: "Earned this month", value: txLoading ? "…" : money(thisMonthEarned), icon: "💰", target: "host-dashboard-earnings" },
+            { label: earningsUnderReview ? "Known earnings this month" : "Earned this month", value: txLoading ? "…" : txError ? "Unavailable" : money(thisMonthEarned), icon: "💰", target: "host-dashboard-earnings" },
             { label: "Upcoming bookings", value: String(upcomingBookings.length), icon: "📅", target: "host-dashboard-upcoming" },
             { label: "Active listings", value: String(myListings.filter(l => l.active).length), icon: "🏠", target: "host-dashboard-listings" },
             { label: "Average rating", value: avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐", target: "host-dashboard-reviews" },
@@ -3676,15 +3684,18 @@ function HostDashboard({ user, setTab }) {
 
           <div className="host-dashboard-earnings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, padding: "0 15px 15px" }}>
             {[
-              { label: "This month", value: txLoading ? "…" : money(thisMonthEarned) },
-              { label: "Pending", value: txLoading ? "…" : money(pendingAmount) },
-              { label: "All time", value: txLoading ? "…" : money(allTimeEarned) },
+              { label: earningsUnderReview ? "Known this month" : "This month", value: txLoading ? "…" : txError ? "Unavailable" : money(thisMonthEarned) },
+              { label: "Pending payouts", value: txLoading ? "…" : txError || txData.payoutsUnavailable ? "Unavailable" : money(pendingAmount) },
+              { label: earningsUnderReview ? "Known all time" : "All time", value: txLoading ? "…" : txError ? "Unavailable" : money(allTimeEarned) },
             ].map(s => (
               <div key={s.label} style={{ background: C.warmWhite, borderRadius: 9, padding: "10px 11px" }}>
                 <div style={{ fontSize: 9, color: C.muted }}>{s.label}</div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: C.navy, marginTop: 3 }}>{s.value}</div>
               </div>
             ))}
+          </div>
+          <div role="status" style={{ fontSize: 10, color: C.muted, padding: "0 15px 12px" }}>
+            {txError ? "Transaction history is temporarily unavailable." : earningsUnderReview ? "Some transactions need review. Totals include verified amounts only, before Stripe processing fees." : "Booking proceeds before Stripe processing fees. Payouts are shown separately."}
           </div>
         </div>
 
@@ -3697,18 +3708,23 @@ function HostDashboard({ user, setTab }) {
           <div style={{ display: "flex", flexDirection: "column" }}>
             {txLoading && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>Loading…</div>}
             {!txLoading && txData.earned.length === 0 && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>No transactions yet.</div>}
-            {!txLoading && txData.earned.slice(0, 3).map(t => (
+            {!txLoading && txData.earned.slice(0, 3).map(t => {
+              const presentation = hostTransactionPresentation(t);
+              const amount = hostEarningsContribution(t);
+              const showAmount = t.earningsState === "verified" || presentation.isIncome;
+              return (
               <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 15px", borderBottom: "1px solid "+C.concrete }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{t.description}</div>
                   <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
-                <div role="status" aria-label={hostTransactionPresentation(t).isIncome ? `Earned ${money(t.net)}` : hostTransactionPresentation(t).label}
-                  style={{ fontWeight: 700, fontSize: 12, color: hostTransactionPresentation(t).isIncome ? C.moss : t.status === "refunded" ? C.red : C.muted, whiteSpace: "nowrap" }}>
-                  {hostTransactionPresentation(t).isIncome ? `+${money(t.net)}` : hostTransactionPresentation(t).label}
+                <div role="status" aria-label={`${presentation.label}${showAmount ? ` ${money(amount)}` : ""}`}
+                  style={{ fontWeight: 700, fontSize: 12, color: amount > 0 ? C.moss : amount < 0 ? C.red : C.muted, whiteSpace: "nowrap", textAlign: "right" }}>
+                  {showAmount ? `${amount > 0 ? "+" : ""}${money(amount)}` : presentation.label}
+                  {showAmount && <div style={{ fontSize: 9, fontWeight: 400 }}>{presentation.label}</div>}
                 </div>
               </div>
-            ))}
+            );})}
           </div>
         </div>
 
