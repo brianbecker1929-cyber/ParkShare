@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { loadSnapshot, restoreSnapshot, applyProposals, proposals } from './qa-schema-rehearsal.mjs';
+import { profilePrivacyChecks } from './qa-profile-privacy-probes.mjs';
 
 const HOST='00000000-0000-4000-8000-00000000e181';
 const DRIVER='00000000-0000-4000-8000-00000000e182';
@@ -64,6 +65,9 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
     await applyProposals(db,report.migrations);
     assert.equal(report.migrations.length,9);
   });
+  for(const [name,run] of profilePrivacyChecks(db,{host:HOST,driver:DRIVER,other:OTHER})) {
+    await check(name,run);
+  }
   await check('existing paid booking columns and UTC interval remain unchanged',async()=>{
     const updated=(await row("SELECT to_jsonb(b)-'scheduled_starts_at'-'property_time_zone' snapshot FROM public.bookings b WHERE id=$1",[legacy])).snapshot;
     assert.deepEqual(updated,original);

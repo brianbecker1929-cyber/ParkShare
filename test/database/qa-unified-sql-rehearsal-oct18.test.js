@@ -58,7 +58,7 @@ describe("unified QA proposed SQL: ordered disposable-schema rehearsal", {
       "ALTER TABLE public.listings ADD COLUMN availability jsonb;",
       "ALTER TABLE public.listings ADD COLUMN lat double precision;",
       "ALTER TABLE public.listings ADD COLUMN lng double precision;",
-      "ALTER TABLE public.profiles ADD COLUMN role text;",
+      "ALTER TABLE public.profiles ADD COLUMN role text, ADD COLUMN name text;",
       "ALTER TABLE public.bookings ADD COLUMN booking_date text;",
       "ALTER TABLE public.bookings ADD COLUMN start_hour numeric;",
       "CREATE TABLE public.booking_extensions (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, booking_id bigint NOT NULL REFERENCES public.bookings(id) ON DELETE CASCADE, added_hours numeric NOT NULL, added_amount numeric NOT NULL, stripe_checkout_session_id text UNIQUE, stripe_payment_intent_id text, stripe_charge_id text, stripe_connected_account_id text, status text NOT NULL, paid_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());",

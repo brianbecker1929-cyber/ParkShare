@@ -1,4 +1,5 @@
--- BUG-005183: REVIEW-ONLY RLS + GRANT change. DO NOT APPLY AUTOMATICALLY.
+-- BUG-005183 / BUG-005200: REVIEW-ONLY RLS + GRANT change.
+-- DO NOT APPLY AUTOMATICALLY.
 -- Source: read-only ParkShare-QA policy inspection on October 17, 2026.
 -- Not an executable numbered migration; use a controlled Supabase migration
 -- after BetterQA approves an integrated API/client/SQL release.
@@ -32,6 +33,13 @@ CREATE POLICY "Members read their own profiles" ON public.profiles
 FOR SELECT TO authenticated
 USING (id = (SELECT auth.uid()));
 
+-- Permissive SELECT policies combine with OR. Retain a restrictive ownership
+-- boundary so an extra broad read policy cannot reopen account enumeration.
+DROP POLICY IF EXISTS "Profile reads require ownership" ON public.profiles;
+CREATE POLICY "Profile reads require ownership" ON public.profiles
+AS RESTRICTIVE FOR SELECT TO authenticated
+USING (id = (SELECT auth.uid()));
+
 -- Individual reviewers retain access to their own reviews. Public ratings
 -- are exposed only as sanitized summaries via the server endpoint.
 DROP POLICY IF EXISTS "Reviewers read their own review rows" ON public.reviews;
@@ -47,7 +55,24 @@ REVOKE SELECT ON TABLE public.profiles FROM PUBLIC, anon, authenticated;
 REVOKE SELECT ON TABLE public.reviews FROM PUBLIC, anon, authenticated;
 
 GRANT SELECT ON TABLE public.listings TO authenticated;
-GRANT SELECT ON TABLE public.profiles TO authenticated;
+-- QA has legacy column grants on id/name/role in addition to table grants.
+-- Clear column ACLs explicitly before granting only the sign-in projection;
+-- include every current column, rather than guessing which old grants exist.
+DO $profile_read_columns$
+DECLARE columns_sql text;
+BEGIN
+  SELECT string_agg(quote_ident(attname), ', ' ORDER BY attnum)
+    INTO columns_sql
+    FROM pg_attribute
+   WHERE attrelid = 'public.profiles'::regclass
+     AND attnum > 0 AND NOT attisdropped;
+  EXECUTE format(
+    'REVOKE SELECT (%s) ON TABLE public.profiles FROM PUBLIC, anon, authenticated',
+    columns_sql
+  );
+END;
+$profile_read_columns$;
+GRANT SELECT (id, name, role) ON TABLE public.profiles TO authenticated;
 GRANT SELECT ON TABLE public.reviews TO authenticated;
 
 -- Private Storage: PUBLIC bucket metadata currently permits anonymous URL
@@ -66,6 +91,10 @@ COMMIT;
 -- test anon: SELECT raw listings/profiles/reviews via PostgREST must be 403.
 -- test signed-in Driver with no booking: listings SELECT must yield no rows.
 -- test Host: own listing edit and profile SELECT still function.
+-- test signed-in Driver/Host: unfiltered id/name/role reads return own row only.
+-- test signed-in user: requesting another profile ID returns no rows.
+-- test anon: even explicit id/name/role and count-only queries are denied.
+-- test browser: email/Stripe/internal columns remain inaccessible, even own.
 -- test Driver with paid booking: exact address through authenticated API ONLY.
 -- test Driver with cancelled/unpaid booking: exact address denied.
 -- test review posting, reading own row and safe public review summaries.
