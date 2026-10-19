@@ -1,5 +1,5 @@
-// Render every customer-facing booking email date/time in the same local
-// timezone as ParkShare's Toronto-area booking display, never Vercel's UTC.
+// Render booking instants in the verified property timezone. Live callers
+// pass UTC explicitly when an old booking has no verified zone snapshot.
 // Instants remain untouched: this affects presentation, not duration or holds.
 export const PARKING_EMAIL_TIME_ZONE = "America/Toronto";
 
@@ -30,6 +30,8 @@ export function formatBookingEmailTimes(start, end, now = new Date(), timeZone =
     dateStyle: "medium", timeStyle: "short", timeZone,
   };
   return {
+    timeZone,
+    timeZoneLabel: timeZone === "UTC" ? "UTC (property time zone not verified)" : `${timeZone} local time`,
     startDateLabel: localCalendarDay(startDate, timeZone) === localCalendarDay(nowDate, timeZone)
       ? "Today"
       : startDate.toLocaleDateString("en-CA", dayFmt),

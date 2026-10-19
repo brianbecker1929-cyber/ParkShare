@@ -39,7 +39,7 @@ test("invalid coordinates never become public exact points", () => {
 
 test("public endpoint does not select sensitive columns or return raw Supabase records", async () => {
   const endpoint=await readFile(new URL("../api/public-parking.js",import.meta.url),"utf8");
-  assert.match(endpoint,/\.select\(PUBLIC_DISCOVERY_COLUMNS\)/);
+  assert.match(endpoint,/\.rpc\("public_parking_page"/);
   assert.match(endpoint,/\.map\(l => publicDiscoveryListing\(/);
   assert.doesNotMatch(endpoint,/\.select\(["']\*["']\)/);
   assert.doesNotMatch(endpoint,/return res\.status\(200\)\.json\(\{ ?listings: ?data/);

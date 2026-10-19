@@ -26,8 +26,8 @@ export default async function handler(req, res) {
     const hours = Number(req.body?.hours);
     const spotLabel = req.body?.spotLabel ? String(req.body.spotLabel).trim().toUpperCase().slice(0, 20) : "";
     const bookingDate = req.body?.bookingDate ? String(req.body.bookingDate).slice(0, 40) : "";
-    const startHour = Number.isFinite(Number(req.body?.startHour)) ? Number(req.body.startHour) : null;
-    const endHour = Number.isFinite(Number(req.body?.endHour)) ? Number(req.body.endHour) : null;
+    const startHour = req.body?.startHour !== null && req.body?.startHour !== "" && Number.isFinite(Number(req.body?.startHour)) ? Number(req.body.startHour) : null;
+    const endHour = req.body?.endHour !== null && req.body?.endHour !== "" && Number.isFinite(Number(req.body?.endHour)) ? Number(req.body.endHour) : null;
     const vehicleId = String(req.body?.vehicleId || "").slice(0, 64);
     const eventId = req.body?.eventId === undefined || req.body?.eventId === null || req.body?.eventId === ""
       ? null
@@ -190,7 +190,7 @@ export default async function handler(req, res) {
       // The server-owned Checkout hold stores the authoritative interval.
       // Metadata is a snapshot and MUST NOT override the hold in a webhook.
       scheduled_starts_at: scheduledStartsAt || "",
-      property_time_zone: bookingDate ? listing.time_zone : "",
+      property_time_zone: listing.time_zone || "",
       start_hour: startHour === null ? "" : String(startHour),
       end_hour: endHour === null ? "" : String(endHour),
       hold_id: String(holdId),

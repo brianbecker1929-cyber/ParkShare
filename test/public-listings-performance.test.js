@@ -10,7 +10,7 @@ import { isListingImageUrl } from "../src/lib/listingPhotos.js";
 test("anonymous parking uses server projection, not raw Supabase or photos", async () => {
   const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
   const browse = app.slice(app.indexOf("function useAllListings()"),app.indexOf("function EventSubmissionForm("));
-  assert.match(browse, /fetch\("\/api\/public-parking"\)/);
+  assert.match(browse, /fetchPublicParkingPage\(/);
   assert.doesNotMatch(browse, /\.from\("listings"\)/);
   assert.match(browse, /img: "🏠"/);
   assert.match(browse, /locationPrecision: "approximate"/);

@@ -74,3 +74,13 @@ test('changed coordinates for the same selected ID update the camera',()=>{
   const h=harness({selected:second});h.ready();h.calls.length=0;
   h.update({listings:[first,{...second,lat:43.72}]});assert.deepEqual(h.calls,[['panTo',{lat:43.72,lng:second.lng}]]);
 });
+
+test('sorting markers does not refit the map or reset a manually panned centre',()=>{
+ const h=harness();h.ready();h.calls.length=0;h.update({listings:[second,first]});assert.deepEqual(h.calls,[]);
+});
+test('map idle publishes the actual centre independently of device location',()=>{
+ const h=harness();h.ready();let centre;
+ h.map.getCenter=()=>({lat:()=>45.8,lng:()=>24.9});
+ h.update({onSearchCenterChange:value=>centre=value});h.google().onIdle();
+ assert.deepEqual(centre,{lat:45.8,lng:24.9});
+});

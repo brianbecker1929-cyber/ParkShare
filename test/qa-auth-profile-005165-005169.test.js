@@ -67,8 +67,10 @@ function signupHarness(result,throwing=false){
  const h={events,render,nodes:()=>visit(root),html:()=>renderToStaticMarkup(root),
   input(id,value){visit(root).find(n=>n.props?.id===id).props.onChange({target:{value}});render();},
   async click(label){const n=visit(root).find(n=>n.type==='button'&&text(n)===label);assert.ok(n,`button ${label} exists`);await n.props.onClick();render();},
-  async create(){h.input('ps-signup-name','Synthetic Driver');h.input('ps-signup-email','synthetic@example.invalid');h.input('ps-signup-password','synthetic password 123');
+  async role(){h.input('ps-signup-name','Synthetic Driver');h.input('ps-signup-email','synthetic@example.invalid');h.input('ps-signup-password','synthetic password 123');
    await visit(root).find(n=>n.type==='form').props.onSubmit({preventDefault(){}});render();
+  },
+  async create(){await h.role();
    // The role picker has a heading child, so match its complete button text.
    const driver=visit(root).find(n=>n.type==='button'&&text(n).includes("Find a driveway"));assert.ok(driver);driver.props.onClick();render();
    visit(root).find(n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});render();
@@ -91,4 +93,14 @@ test('pending signup password recovery uses the entered address and no account l
 test('sign-up network failure stops loading and retains an actionable error',async()=>{
  const h=signupHarness(null,true);await h.create();assert.match(h.html(),/Unable to reach sign-up/);
  const button=h.nodes().find(n=>n.type==='button'&&n.props.children==='I Agree & Create Account');assert.equal(button.props.disabled,false);
+});
+
+test('role and disclaimer can close without signing up and clear the pending password',async()=>{
+ for(const step of ['role','disclaimer']){
+  const h=signupHarness(null);await h.role();
+  if(step==='disclaimer'){h.nodes().find(n=>n.type==='button'&&renderToStaticMarkup(n).includes('Find a driveway')).props.onClick();h.render();}
+  const close=h.nodes().find(n=>n.props?.['aria-label']==='Close sign-in dialog');
+  assert.ok(close,step+' has Close');close.props.onClick();h.render();
+  assert.deepEqual(h.events,['close']);assert.doesNotMatch(h.html(),/synthetic password 123/);
+ }
 });

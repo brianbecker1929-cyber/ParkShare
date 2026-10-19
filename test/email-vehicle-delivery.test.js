@@ -30,7 +30,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
   let booking = {
     id: 42, listing_id: 7, renter_id: "sample-renter", hours: 1,
     paid_at: new Date(Date.now() - 35 * 60_000).toISOString(),
-    booking_date: null, start_hour: null, spot_label: "B",
+    booking_date: null, start_hour: null, property_time_zone: "Europe/Bucharest", spot_label: "B",
     vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
     vehicle_colour: "Yellow", license_plate: "DEMO 123",
     reminder_halfway_sent_at: null, reminder_ending_sent_at: null,
@@ -52,7 +52,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       connected_account_id: "acct_sample", hours: "1", total_cents: "1235",
       subtotal_cents: "1000", service_fee_cents: "235", spot_label: "B",
       vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
-      vehicle_colour: "Yellow", license_plate: "DEMO 123", booking_date: "", start_hour: "", end_hour: "",
+      vehicle_colour: "Yellow", license_plate: "DEMO 123", booking_date: "", start_hour: "", end_hour: "", property_time_zone: "Europe/Bucharest",
     },
   };
   const pendingExtension = {
@@ -171,7 +171,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       const html = sent[index].html;
       const charge = `${label}: <strong style="color:#0e1b2e;">$${amount} CAD</strong>`;
       assert.ok(html.includes(charge), "Display the full checkout total, not the parking subtotal or payout");
-      assert.ok(html.indexOf(charge) > html.indexOf("Toronto local time"));
+      assert.ok(html.indexOf(charge) > html.indexOf("Europe/Bucharest local time"));
       assert.ok(html.indexOf(charge) < html.indexOf("Reserved space ·"));
     }
     for (const email of sent.slice(0, 2)) assert.doesNotMatch(email.html, /Total charged:|Amount charged:/);
@@ -203,7 +203,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.match(email.html, /Q30/);
       assert.match(email.html, /DEMO 123/);
       assert.match(email.html, /PK-42/);
-      assert.match(email.html, /Toronto local time/);
+      assert.match(email.html, /Europe\/Bucharest local time/);
       const logo = email.attachments.find(a => a.filename === "parkshare-signature-logo.png");
       assert.ok(logo, email.subject + " missing the approved inline logo");
       assert.deepEqual(Buffer.from(logo.content, "base64"), expectedLogo);

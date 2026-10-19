@@ -131,7 +131,7 @@ async function sendReminder(booking, kind) {
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
   const endDate = new Date(booking.end);
   const { start } = getSessionWindow(booking);
-  const times = formatBookingEmailTimes(start, endDate, nowDate, booking.property_time_zone || undefined);
+  const times = formatBookingEmailTimes(start, endDate, nowDate, booking.property_time_zone || "UTC");
   const address = listing?.address || "";
   const renterName = renter.name || "there";
 
@@ -183,6 +183,7 @@ async function sendReminder(booking, kind) {
     locationId: booking.listing_id,
     spotLabel: booking.spot_label,
     timeRemaining: `${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}`,
+    timeZoneLabel: times.timeZoneLabel,
     endTimeStr: times.endTimeStr,
     exitDateFull: times.exitDateFull,
     vehicleSummary: [booking.vehicle_make, booking.vehicle_model, booking.vehicle_colour].filter(Boolean).join(" · ") || "Vehicle not specified",
