@@ -1332,6 +1332,28 @@ button, input, select, textarea { font: inherit; }
 
 /* Give the shared desktop header enough room for the official full logo. */
 @media (min-width: 761px) {
+  /* Desktop buttons must be styled from the same breakpoint as the header. */
+  .ps-desktop-auth-actions button {
+    border-radius: 10px;
+    min-height: 40px;
+    padding: 0 14px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .ps-desktop-signin {
+    background: transparent;
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,.55);
+  }
+  .ps-desktop-join {
+    background: #FFC107;
+    color: #0E1B2E;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #0E1B2E;
+  }
   .ps-header .ps-desktop-guest-header {
     grid-template-columns: 220px minmax(0, 1fr) auto !important;
   }
@@ -1345,6 +1367,22 @@ button, input, select, textarea { font: inherit; }
     width: auto !important;
   }
 }
+
+.ps-find-parking-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 2px solid #0E1B2E;
+  border-radius: 10px;
+  background: #FFC107;
+  color: #0E1B2E;
+  font-weight: 700;
+  text-decoration: none;
+}
+.ps-find-parking-link:hover { text-decoration: underline; }
+.ps-find-parking-link:focus-visible { outline: 3px solid #3F7A5E; outline-offset: 3px; }
 
 /* Keep wrapped desktop navigation in balanced rows beside the taller logo. */
 @media (min-width: 761px) and (max-width: 1150px) {

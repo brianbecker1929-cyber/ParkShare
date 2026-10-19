@@ -220,6 +220,7 @@ function buildAppUser(profile, authUser) {
     id: profile?.id || authUser?.id,
     name: driverProfile.name,
     email: authUser?.email || "",
+    createdAt: authUser?.created_at || null,
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
@@ -3208,7 +3209,7 @@ function TransactionsView({ user }) {
   const { data, loading, error } = useTransactions(user);
   const [section, setSection] = useState("spent"); // "spent" | "earned" | "payouts"
 
-  const sections = ["spent", "earned", "payouts"];
+  const sections = user?.role === "driver" ? ["spent"] : ["spent", "earned", "payouts"];
   const sectionLabels = { spent: "What you've paid", earned: "What you've earned", payouts: "Payouts" };
 
   const rows = section === "spent" ? data.spent : section === "earned" ? data.earned : [];
@@ -3234,7 +3235,10 @@ function TransactionsView({ user }) {
       {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
 
       {!loading && !error && section !== "payouts" && rows.length === 0 && (
-        <p style={{ fontSize: 13, color: C.muted }}>Nothing here yet.</p>
+        <div style={{ fontSize: 13, color: C.muted }}>
+          <p>Nothing here yet.</p>
+          {user?.role === "driver" && <FindParkingLink />}
+        </div>
       )}
 
       {!loading && !error && section !== "payouts" && rows.map(t => {
@@ -3600,7 +3604,9 @@ function HostDashboard({ user, setTab }) {
       <div className="host-dashboard-hero" style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: "'Poppins', sans-serif", color: C.white, fontSize: 20, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
-          <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 3 }}>Host since January 2025</div>
+          {user?.createdAt && Number.isFinite(Date.parse(user.createdAt)) && (
+            <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 3 }}>Host since {new Date(user.createdAt).toLocaleDateString("en-CA", { month: "long", year: "numeric", timeZone: "UTC" })}</div>
+          )}
         </div>
         <button onClick={() => setTab?.("List Your Driveway")} className="host-dashboard-add-button" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42, background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>+ Add listing</button>
       </div>
@@ -3852,6 +3858,10 @@ function HostDashboard({ user, setTab }) {
   );
 }
 // ─── Messages Inbox ───────────────────────────────────────────────────────────
+function FindParkingLink() {
+  return <a className="ps-find-parking-link" href="/parking">Find parking</a>;
+}
+
 function MessagesView({ onOpenThread, user }) {
   const [dbConvos, setDbConvos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3893,7 +3903,10 @@ function MessagesView({ onOpenThread, user }) {
       {loading && <div style={{ color: C.muted, fontSize: 13 }}>Loading conversations…</div>}
       {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
       {!loading && !error && conversations.length === 0 && (
-        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No conversations yet.</div>
+        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>
+          <p>No conversations yet.</p>
+          {user?.role === "driver" && <FindParkingLink />}
+        </div>
       )}
       {conversations.map(l => (
         <div key={l.id} onClick={() => onOpenThread(l)} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "box-shadow 0.15s" }}
@@ -5563,7 +5576,12 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
       {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
       {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
       {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
-      {!loading && !loadError && dbBookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
+      {!loading && !loadError && dbBookings.length === 0 && (
+        <div style={{ color: C.muted, fontSize: 13 }}>
+          <p>You don't have any bookings yet. Browse available driveways to get started.</p>
+          <FindParkingLink />
+        </div>
+      )}
       {!loading && !loadError && dbBookings.length > 0 && hasDateFilter && !invalidDateRange && bookings.length === 0 && (
         <p className="ps-booking-filter-empty">No bookings found for these dates. Adjust the dates or select Clear to see all bookings.</p>
       )}
@@ -6780,7 +6798,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
     ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
-    : ["Browse", "Discover", "My Bookings", "Messages", "Profile"];
+    : ["Browse", "Discover", "My Bookings", "Messages", "Transactions", "Profile"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -10469,7 +10487,9 @@ export default function App() {
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
-          {tab === "Transactions" && requireHost(<TransactionsView user={user} />)}
+          {tab === "Transactions" && requireAuth(user?.role === "driver"
+            ? <TransactionsView key="driver" user={user} />
+            : requireHost(<TransactionsView key="host" user={user} />), "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
