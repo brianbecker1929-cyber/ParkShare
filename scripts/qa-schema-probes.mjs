@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { loadSnapshot, restoreSnapshot, applyProposals, proposals } from './qa-schema-rehearsal.mjs';
 import { profilePrivacyChecks } from './qa-profile-privacy-probes.mjs';
+import { seedMessagePrivacyRows, messagePrivacyChecks } from './qa-message-privacy-probes.mjs';
 
 const HOST='00000000-0000-4000-8000-00000000e181';
 const DRIVER='00000000-0000-4000-8000-00000000e182';
@@ -61,11 +62,16 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
   await query("INSERT INTO public.reviews(listing_id,user_id,rating,text) VALUES($1,$2,5,'Synthetic historical review')",[listing,DRIVER]);
   await query("INSERT INTO storage.objects(bucket_id,name,owner) VALUES('listing-photos',$1,$2)",[HOST+'/synthetic.jpg',HOST]);
 
-  await check('all nine proposals apply consecutively to the complete captured schema',async()=>{
+  await check('all ten proposals apply consecutively to the complete captured schema',async()=>{
     await applyProposals(db,report.migrations);
-    assert.equal(report.migrations.length,9);
+    assert.equal(report.migrations.length,10);
   });
   for(const [name,run] of profilePrivacyChecks(db,{host:HOST,driver:DRIVER,other:OTHER})) {
+    await check(name,run);
+  }
+  const messagePeople={host:HOST,driver:DRIVER,other:OTHER,listing};
+  const messageIds=await seedMessagePrivacyRows(db,messagePeople);
+  for(const [name,run] of messagePrivacyChecks(db,{...messagePeople,ids:messageIds})) {
     await check(name,run);
   }
   await check('existing paid booking columns and UTC interval remain unchanged',async()=>{
@@ -200,7 +206,7 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
     assert.equal((await row("SELECT has_table_privilege('authenticated','public.reviews','INSERT') allowed")).allowed,true);
     assert.equal((await row("SELECT public FROM storage.buckets WHERE id='listing-photos'")).public,true);
   });
-  await check('controlled collision recovery resumes only uncommitted proposals 7-9',async()=>{
+  await check('controlled collision recovery resumes only uncommitted proposals 7-10',async()=>{
     await query('DELETE FROM public.reviews WHERE id=(SELECT max(id) FROM public.reviews)');
     for(const name of proposals.slice(6)) await db.exec(await readProposal(name));
     assert.equal((await row("SELECT public FROM storage.buckets WHERE id='listing-photos'")).public,false);

@@ -2,8 +2,11 @@
 // Keeping participant checks server-side prevents a listing-wide conversation
 // from leaking between unrelated renters and surfaces insert errors to the UI.
 
-import { jsonMethod, requireUser, supabaseAdmin } from "./_lib.js";
-import { canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
+import { requireUser, supabaseAdmin } from "./_lib.js";
+import { canReadPreciseLocation, validId } from "../src/lib/privateListingAccess.js";
+
+const validParticipant = value => typeof value === "string"
+  && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 async function listingFor(id) {
   const { data, error } = await supabaseAdmin
@@ -68,11 +71,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const listingId = Number(req.body?.listingId);
-      const bookingId = req.body?.bookingId ? Number(req.body.bookingId) : null;
+      const listingId = validId(req.body?.listingId);
+      const bookingId = req.body?.bookingId == null ? null : validId(req.body.bookingId);
       const participantId = req.body?.participantId ? String(req.body.participantId) : null;
       const messageText = String(req.body?.text || "").trim().slice(0, 4000);
-      if (!Number.isInteger(listingId) || !messageText) {
+      if (!listingId || (req.body?.bookingId != null && !bookingId) || !messageText) {
         return res.status(400).json({ error: "A listing and message are required." });
       }
 
@@ -85,8 +88,19 @@ export default async function handler(req, res) {
         }
         recipientId = user.id === listing.host_id ? booking.renter_id : listing.host_id;
       } else if (user.id === listing.host_id) {
-        if (!participantId || participantId === user.id) {
-          return res.status(400).json({ error: "Choose a renter conversation before replying." });
+        if (!validParticipant(participantId) || participantId === user.id) {
+          return res.status(400).json({ error: "Choose an existing Driver conversation before replying." });
+        }
+        const { data: conversation, error: participantError } = await supabaseAdmin
+          .from("messages")
+          .select("id")
+          .eq("listing_id", listingId)
+          .eq("sender_id", participantId)
+          .eq("recipient_id", user.id)
+          .limit(1);
+        if (participantError) throw participantError;
+        if (!conversation?.length) {
+          return res.status(403).json({ error: "You can reply only to a Driver who contacted you about this listing." });
         }
         recipientId = participantId;
       } else {
@@ -102,9 +116,14 @@ export default async function handler(req, res) {
       return res.status(201).json({ message: data });
     }
 
-    const listingId = req.query?.listingId ? Number(req.query.listingId) : null;
-    const bookingId = req.query?.bookingId ? Number(req.query.bookingId) : null;
+    const listingId = req.query?.listingId == null ? null : validId(req.query.listingId);
+    const bookingId = req.query?.bookingId == null ? null : validId(req.query.bookingId);
     const participantId = req.query?.participantId ? String(req.query.participantId) : null;
+    if ((req.query?.listingId != null && !listingId)
+      || (req.query?.bookingId != null && !bookingId)
+      || (participantId && !validParticipant(participantId))) {
+      return res.status(400).json({ error: "Invalid conversation." });
+    }
     let query = supabaseAdmin
       .from("messages")
       .select("id, listing_id, booking_id, sender_id, recipient_id, text, created_at")
@@ -127,16 +146,22 @@ export default async function handler(req, res) {
     }
     const conversations = [];
     for (const { row, otherId } of latest.values()) {
-      const [listingResult, profileResult] = await Promise.all([
+      const [listingResult, profileResult, booking] = await Promise.all([
         supabaseAdmin.from("listings").select("id, title, host_id").eq("id", row.listing_id).single(),
         supabaseAdmin.from("profiles").select("id, name").eq("id", otherId).single(),
+        row.booking_id ? bookingFor(row.booking_id) : null,
       ]);
+      if (listingResult.error || profileResult.error) throw listingResult.error || profileResult.error;
+      const mayReadTitle = canReadPreciseLocation({
+        userId: user.id, hostId: listingResult.data?.host_id,
+        listingId: row.listing_id, booking,
+      });
       conversations.push({
         id: `${row.listing_id}-${row.booking_id || "listing"}-${otherId}`,
         listingId: row.listing_id,
         bookingId: row.booking_id,
         participantId: otherId,
-        title: listingResult.data?.title || "Listing",
+        title: mayReadTitle ? listingResult.data?.title || "Listing" : "Private parking",
         otherParty: profileResult.data?.name || (listingResult.data?.host_id === otherId ? "Host" : "Renter"),
         preview: row.text,
         createdAt: row.created_at,
@@ -145,8 +170,8 @@ export default async function handler(req, res) {
     conversations.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     return res.status(200).json({ conversations });
   } catch (error) {
-    console.error("messages API error:", error);
+    console.error("messages API error:", { code: error?.code });
     const status = /not found/i.test(error.message || "") ? 404 : 500;
-    return res.status(status).json({ error: error.message || "Unable to load messages." });
+    return res.status(status).json({ error: status === 404 ? "Conversation unavailable." : "Unable to load or send messages right now." });
   }
 }
