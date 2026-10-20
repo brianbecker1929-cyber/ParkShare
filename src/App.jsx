@@ -6722,19 +6722,19 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const [resendMessage, setResendMessage] = useState("");
   const [lastResendAt, setLastResendAt] = useState(0);
 
-  const signInAttempt = useRef(null);
+  const credentialAttempt = useRef(null);
   const authModalActive = useRef(true);
   const authContext = useRef({ screen, active: true });
   if (authContext.current.screen !== screen) {
     authContext.current.active = false;
-    if (signInAttempt.current) { signInAttempt.current.active = false; signInAttempt.current = null; setLoading(false); }
+    if (credentialAttempt.current) { credentialAttempt.current.active = false; credentialAttempt.current = null; setLoading(false); }
     authContext.current = { screen, active: true };
   }
   const owner = authContext.current;
   const canAct = () => authModalActive.current && owner.active && authContext.current === owner;
-  const invalidateSignIn = () => {
-    if (signInAttempt.current) signInAttempt.current.active = false;
-    signInAttempt.current = null;
+  const invalidateCredentialAttempt = () => {
+    if (credentialAttempt.current) credentialAttempt.current.active = false;
+    credentialAttempt.current = null;
   };
   useEffect(() => {
     authModalActive.current = true;
@@ -6743,20 +6743,20 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     return () => {
       authModalActive.current = false;
       authContext.current.active = false;
-      invalidateSignIn();
+      invalidateCredentialAttempt();
     };
   }, []);
   const closeDialog = () => {
     if (!canAct()) return;
     authModalActive.current = false;
     owner.active = false;
-    invalidateSignIn();
+    invalidateCredentialAttempt();
     setLoading(false); setForm(emptyAuthForm()); setConfirmPassword(""); setPendingUser(null);
     setAgreed(false); setErrors({}); setAuthError("");
     onClose();
   };
   const upd = (k, v) => {
-    if (!canAct() || screen === "signin" && signInAttempt.current?.pending) return;
+    if (!canAct() || ["signin", "recovery"].includes(screen) && credentialAttempt.current?.pending) return;
     setForm(f => ({ ...f, [k]: v }));
   };
   const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
@@ -6775,7 +6775,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const openAuthScreen = target => {
     if (!canAct()) return;
     owner.active = false;
-    invalidateSignIn();
+    invalidateCredentialAttempt();
     authContext.current = { screen: target, active: true };
     setLoading(false);
     setForm(emptyAuthForm());
@@ -6819,15 +6819,15 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   const submit = async () => {
-    if (!canAct() || signInAttempt.current?.pending) return;
+    if (!canAct() || credentialAttempt.current?.pending) return;
     if (!validate()) return;
     setAuthError("");
     setAuthSuccess("");
 
     if (screen === "signin") {
       const attempt = { active: true, pending: true };
-      signInAttempt.current = attempt;
-      const current = () => canAct() && attempt.active && signInAttempt.current === attempt;
+      credentialAttempt.current = attempt;
+      const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
       const credentials = { email: form.email, password: form.password };
       setLoading(true);
       try {
@@ -6852,7 +6852,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
         if (profileErr || !profile || profile.id !== accountId || !["driver", "host"].includes(profile.role)) throw new Error("Signed in, but couldn't load your profile. Please sign in again.");
         if (!await checkSession() || !current()) return;
         attempt.active = false;
-        signInAttempt.current = null;
+        credentialAttempt.current = null;
         setLoading(false);
         onAuth(buildAppUser(profile, data.user));
         if (closeOnAuth) closeDialog();
@@ -6860,7 +6860,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
         if (current()) setAuthError(error?.message || "Unable to sign in right now. Please try again.");
       } finally {
         attempt.pending = false;
-        if (current()) { setLoading(false); signInAttempt.current = null; }
+        if (current()) { setLoading(false); credentialAttempt.current = null; }
       }
       return;
     }
@@ -6939,6 +6939,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   const updatePassword = async () => {
+    if (!canAct() || screen !== "recovery" || credentialAttempt.current?.pending) return;
     const recoveryErrors = {};
     if (form.password.length < MIN_NEW_PASSWORD_LENGTH) recoveryErrors.password = `Use at least ${MIN_NEW_PASSWORD_LENGTH} characters`;
     if (!confirmPassword) recoveryErrors.confirmPassword = "Confirm your new password";
@@ -6946,15 +6947,26 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     setErrors(recoveryErrors);
     if (Object.keys(recoveryErrors).length) return;
 
+    const attempt = { active: true, pending: true };
+    credentialAttempt.current = attempt;
+    const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
+    const password = form.password;
     setAuthError("");
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: form.password });
-    setLoading(false);
-    if (error) {
-      setAuthError(error.message);
-      return;
+    try {
+      const result = await supabase.auth.updateUser({ password });
+      if (!current()) return;
+      if (result?.error) throw result.error;
+      if (typeof result?.data?.user?.id !== "string" || !result.data.user.id.trim()) throw new Error("We couldn't confirm your password update. Try signing in with your new password before requesting another reset.");
+      // Clear both password fields and retire queued recovery submits before
+      // React commits the success screen. A sent SDK call cannot be cancelled.
+      openAuthScreen("recoverySuccess");
+    } catch (error) {
+      if (current()) setAuthError(error?.message || "Unable to update your password right now. Please try again.");
+    } finally {
+      attempt.pending = false;
+      if (current()) { setLoading(false); credentialAttempt.current = null; }
     }
-    setScreen("recoverySuccess");
   };
 
   return (
@@ -7038,13 +7050,21 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
           {/* Password recovery */}
           {screen === "recovery" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <form onSubmit={event => { event.preventDefault(); void updatePassword(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, textAlign: "center" }}>Enter and confirm the new password you want to use for your ParkShare account.</div>
-              <div><label style={lS}>New password</label><input style={iS(errors.password)} type="password" placeholder="At least 6 characters" value={form.password} onChange={e => upd("password", e.target.value)} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
-              <div><label style={lS}>Confirm new password</label><input style={iS(errors.confirmPassword)} type="password" placeholder="Re-enter your new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && updatePassword()} />{errors.confirmPassword && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.confirmPassword}</div>}</div>
-              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              <button onClick={updatePassword} disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
-            </div>
+              <div>
+                <label htmlFor="ps-recovery-password" style={lS}>New password</label>
+                <input id="ps-recovery-password" name="password" style={iS(errors.password)} type="password" autoComplete="new-password" minLength={MIN_NEW_PASSWORD_LENGTH} required disabled={loading} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`} value={form.password} onChange={e => upd("password", e.target.value)} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-recovery-password-error" : undefined} />
+                {errors.password && <div id="ps-recovery-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-recovery-confirm-password" style={lS}>Confirm new password</label>
+                <input id="ps-recovery-confirm-password" name="confirmPassword" style={iS(errors.confirmPassword)} type="password" autoComplete="new-password" required disabled={loading} placeholder="Re-enter your new password" value={confirmPassword} onChange={e => { if (canAct() && !credentialAttempt.current?.pending) setConfirmPassword(e.target.value); }} aria-invalid={Boolean(errors.confirmPassword)} aria-describedby={errors.confirmPassword ? "ps-recovery-confirm-password-error" : undefined} />
+                {errors.confirmPassword && <div id="ps-recovery-confirm-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.confirmPassword}</div>}
+              </div>
+              {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
+            </form>
           )}
 
           {/* Password recovery complete */}
@@ -7053,7 +7073,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               <div style={{ fontSize: 32, color: C.moss }}>✓</div>
               <div style={{ fontWeight: 700, fontSize: 16, color: C.navy }}>Your password has been updated.</div>
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>You can now continue using ParkShare with your new password.</div>
-              <button onClick={onClose} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Continue</button>
+              <button type="button" onClick={closeDialog} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Continue</button>
             </div>
           )}
 
