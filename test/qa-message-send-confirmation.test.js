@@ -62,6 +62,12 @@ test('preflight account change never starts a POST and preserves account-change 
 test('an uncertain send allows one later explicit retry but never replays itself',async()=>{
  let posts=0;const h=harness({fetcher:async(_,init)=>init.method==='POST'?(++posts===1?Response.json({}):ack()):Response.json({messages:[message()]})});assert.equal((await h.c.send('draft')).sent,false);await tick();assert.equal(posts,1);assert.equal((await h.c.send('draft')).sent,true);assert.equal(posts,2);h.c.dispose();
 });
+test('messages at the server 4,000-character boundary confirm without truncation',async()=>{
+ const text='x'.repeat(4000),h=harness({fetcher:async(_,init)=>init.method==='POST'?ack({text:JSON.parse(init.body).text}):Response.json({messages:[]})});assert.deepEqual(await h.c.send(' '+text+' '),{sent:true});assert.equal(JSON.parse(h.requests[0].body).text,text);h.c.dispose();
+});
+test('over-limit drafts remain intact without a POST or stale read hiding their length guidance',async()=>{
+ for(const text of ['x'.repeat(4001),'😀'.repeat(2001)]){const pending=later();let reads=0;const h=harness({fetcher:async(_,init)=>init.method==='POST'?ack({text}):++reads===1?pending.promise:Response.json({messages:[]})});const old=h.c.load();await tick();const result=await h.c.send(text),warning=h.errors.at(-1);pending.resolve(Response.json({messages:[]}));await old;assert.deepEqual(result,{sent:false,retryText:text});assert.equal(h.requests.filter(x=>x.method==='POST').length,0);assert.equal(h.c.sending,false);assert.match(warning,/up to 4,000 characters/);assert.equal(h.errors.at(-1),warning);h.c.dispose();}
+});
 
 const app=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8'),start=app.indexOf('function MessagingPanel(');
 const compiled=(await transform(app.slice(start,app.indexOf('// ─── Payment Flow',start)),{loader:'jsx'})).code;

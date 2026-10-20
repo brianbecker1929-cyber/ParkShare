@@ -52,6 +52,10 @@ export function createMessageConversation({client,userId,listingId,bookingId=nul
       if(!active || sending || !text)return {sent:false};
       // A read started before this send must not later hide its outcome/error.
       read?.abort();read=null;
+      if(text.length>4000){
+        onError('Messages can be up to 4,000 characters. Shorten your draft before sending.');
+        return {sent:false,retryText:text};
+      }
       sending=true;onSending(true);onError('');
       let uncertain=false;
       try{
