@@ -3341,10 +3341,6 @@ function HostDashboard({ user, setTab }) {
   const [dashboardReload, setDashboardReload] = useState(0);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [hostReviews, setHostReviews] = useState([]);
-  const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
-  const [cancelError, setCancelError] = useState("");
-  const [cancelNotice, setCancelNotice] = useState("");
 
   // ─── Stripe Connect payout status ────────────────────────────────────────
   // The authenticated API checks the current Host's connected account.
@@ -3662,22 +3658,12 @@ function HostDashboard({ user, setTab }) {
     return true;
   };
 
-  const cancelHostBooking = async () => {
-    if (!cancelTarget) return;
-    setCancelBusy(true);
-    setCancelError("");
-    try {
-      const result = await requestBookingCancellation(cancelTarget.rawId, "Cancelled by Host");
+  const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
+    requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
+    confirm: cancelHostBooking } = useBookingCancellation(user, "Cancelled by Host", (bookingId, result) => {
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === cancelTarget.rawId ? { ...b, status: nextStatus, canCancel: false } : b));
-      setCancelNotice(result.message || "Cancellation received.");
-      setCancelTarget(null);
-    } catch (error) {
-      setCancelError(error.message || "Couldn't cancel this booking.");
-    } finally {
-      setCancelBusy(false);
-    }
-  };
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
+    });
   const { data: txData, loading: txLoading, error: txError } = useTransactions(user);
 
   const now = new Date();
@@ -3764,7 +3750,7 @@ function HostDashboard({ user, setTab }) {
                         <button aria-label={`Actions for ${b.driver}'s booking`} aria-expanded={bookingActionId === b.id} onClick={() => setBookingActionId(id => id === b.id ? null : b.id)} className="host-dashboard-more-button">•••</button>
                         {bookingActionId === b.id && (
                           <div className="host-dashboard-action-menu">
-                            <button onClick={() => { setBookingActionId(null); setCancelError(""); setCancelTarget(b); }}>Cancel booking</button>
+                            <button onClick={() => { setBookingActionId(null); openCancellation(b); }}>Cancel booking</button>
                           </div>
                         )}
                       </div>
@@ -3950,11 +3936,12 @@ function HostDashboard({ user, setTab }) {
       )}
       {cancelTarget && (
         <CancellationModal
+          key={cancellationKey}
           title={`Cancel ${cancelTarget.driver}'s booking?`}
           actor="host"
           busy={cancelBusy}
           error={cancelError}
-          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onClose={closeCancellation}
           onConfirm={cancelHostBooking}
         />
       )}
@@ -5537,16 +5524,24 @@ function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = 
   };
 }
 
-async function requestBookingCancellation(bookingId, reason) {
+async function requestBookingCancellation(bookingId, reason, expectedAccountId, isContextCurrent = () => false) {
+  if (!validId(bookingId) || !expectedAccountId) throw new Error("Choose a booking while signed in.");
+  if (!isContextCurrent()) return null;
   let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (!isContextCurrent()) return null;
   let session = sessionData?.session;
+  if (session?.user?.id && session.user.id !== expectedAccountId) throw new Error("Your account changed. Reopen this booking before cancelling.");
   if (sessionError || !session?.access_token) {
     const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+    if (!isContextCurrent()) return null;
     if (refreshError) throw refreshError;
     session = refreshedData?.session;
   }
-  if (!session?.access_token) throw new Error("Your session is invalid or expired. Please sign in again.");
+  if (!session?.access_token || session.user?.id !== expectedAccountId) throw new Error("Your session changed or expired. Please sign in and reopen this booking.");
+  if (!isContextCurrent()) return null;
 
+  // The API remains responsible for authorization, eligibility and refund
+  // idempotency. This guard prevents a new POST from an obsolete UI intent.
   const response = await fetch("/api/cancel-booking", {
     method: "POST",
     headers: {
@@ -5556,8 +5551,70 @@ async function requestBookingCancellation(bookingId, reason) {
     body: JSON.stringify({ bookingId, reason }),
   });
   const data = await response.json().catch(() => ({}));
+  if (!isContextCurrent()) return null;
   if (!response.ok) throw new Error(data.error || "Couldn't cancel this booking.");
   return data;
+}
+
+function useBookingCancellation(user, reason, onCancelled) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null, notice: "", revision: 0 }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    if (context.request) context.request.token.active = false;
+    current = { accountId, request: null, notice: "", revision: context.revision + 1 };
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (latest.current.request) latest.current.request.token.active = false;
+    };
+  }, []);
+  const isCurrent = token => mounted.current && token?.active && latest.current.accountId === accountId && latest.current.request?.token === token;
+  const replace = next => { latest.current = next; setContext(next); };
+  const open = booking => {
+    if (!mounted.current || latest.current !== current || !accountId || !validId(booking?.rawId) || current.request?.token.pending) return;
+    if (current.request) current.request.token.active = false;
+    // Retain only the confirmation's immutable display fields and record ID.
+    const target = { rawId: booking.rawId, driver: booking.driver, listing: { title: booking.listing?.title } };
+    replace({ accountId, request: { target, token: { active: true, pending: false }, error: "" }, notice: "", revision: current.revision + 1 });
+  };
+  const close = () => {
+    const token = current.request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    token.active = false;
+    replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+  };
+  const confirm = async () => {
+    const request = current.request, token = request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    // Lock before the first await, including clicks before React re-renders.
+    token.pending = true;
+    const patch = error => {
+      if (isCurrent(token)) replace({ ...latest.current, request: { ...latest.current.request, error } });
+    };
+    patch("");
+    try {
+      const bookingId = request.target.rawId;
+      const result = await requestBookingCancellation(bookingId, reason, accountId, () => isCurrent(token));
+      if (!isCurrent(token) || !result) return;
+      onCancelled(bookingId, result);
+      token.active = false;
+      replace({ ...latest.current, request: null, notice: result.message || "Cancellation received.", revision: latest.current.revision + 1 });
+    } catch (error) {
+      patch(error?.message || "Couldn't cancel this booking.");
+    } finally {
+      token.pending = false;
+      if (isCurrent(token)) patch(latest.current.request.error);
+    }
+  };
+  return { target: current.request?.target || null, busy: Boolean(current.request?.token.pending), error: current.request?.error || "",
+    notice: current.notice, requestKey: current.revision, open, close, confirm };
 }
 
 function CancellationModal({ title, actor, busy, error, onClose, onConfirm }) {
@@ -5582,10 +5639,6 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [dbBookings, setDbBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
-  const [cancelError, setCancelError] = useState("");
-  const [cancelNotice, setCancelNotice] = useState("");
   const [expandedPastBookings, setExpandedPastBookings] = useState({});
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -5711,22 +5764,12 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewed, setReviewed] = useState({});
 
-  const cancelDriverBooking = async () => {
-    if (!cancelTarget) return;
-    setCancelBusy(true);
-    setCancelError("");
-    try {
-      const result = await requestBookingCancellation(cancelTarget.rawId, "Cancelled by Driver");
+  const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
+    requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
+    confirm: cancelDriverBooking } = useBookingCancellation(user, "Cancelled by Driver", (bookingId, result) => {
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === cancelTarget.rawId ? { ...b, status: nextStatus, canCancel: false } : b));
-      setCancelNotice(result.message || "Cancellation received.");
-      setCancelTarget(null);
-    } catch (error) {
-      setCancelError(error.message || "Couldn't cancel this booking.");
-    } finally {
-      setCancelBusy(false);
-    }
-  };
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
+    });
 
   return (
     <div className="ps-driver-bookings" style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 680, margin: "0 auto" }}>
@@ -5792,7 +5835,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 )}
                 {isActive && <Btn small variant="primary" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
-                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
+                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { openCancellation(b); }}>Cancel booking</Btn>}
                 {canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
                 )}
@@ -5897,11 +5940,12 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
       )}
       {cancelTarget && (
         <CancellationModal
+          key={cancellationKey}
           title={`Cancel ${cancelTarget.listing.title}?`}
           actor="driver"
           busy={cancelBusy}
           error={cancelError}
-          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onClose={closeCancellation}
           onConfirm={cancelDriverBooking}
         />
       )}

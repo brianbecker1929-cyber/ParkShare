@@ -90,7 +90,7 @@ test('actual Host Dashboard key remounts cards, dialogs and payout state for eve
 async function hostMarkup(overrides={}){
  const whole=source.slice(begin,source.indexOf('// ─── Messages Inbox',begin)),stateNames=[...whole.matchAll(/const \[(\w+), \w+\] = useState/g)].map(m=>m[1]);let index=0;
  const components=Object.fromEntries([...whole.matchAll(/<([A-Z]\w*)\b/g)].map(m=>[m[1],()=>null]));
- const values={React,...components,C:new Proxy({},{get:()=>'#000'}),useState:initial=>{const name=stateNames[index++];return [name in overrides?overrides[name]:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect:()=>{},useTransactions:()=>({data:{earned:[],payouts:[]},loading:false,error:''}),hostEarnedTotal:()=>0,getBookingDisplayStatus:()=>'',money:v=>'$'+v,hostTransactionPresentation:()=>({label:'Paid'}),hostEarningsContribution:()=>0};
+ const values={React,...components,useBookingCancellation:()=>({target:null,busy:false,error:"",notice:""}),C:new Proxy({},{get:()=>'#000'}),useState:initial=>{const name=stateNames[index++];return [name in overrides?overrides[name]:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect:()=>{},useTransactions:()=>({data:{earned:[],payouts:[]},loading:false,error:''}),hostEarnedTotal:()=>0,getBookingDisplayStatus:()=>'',money:v=>'$'+v,hostTransactionPresentation:()=>({label:'Paid'}),hostEarningsContribution:()=>0};
  const compiled=await transform(whole,{loader:'jsx'}),View=new Function(...Object.keys(values),compiled.code+';return HostDashboard;')(...Object.values(values));
  return renderToStaticMarkup(React.createElement(View,{user:{id:'A',name:'Fixture Host'}}));
 }
