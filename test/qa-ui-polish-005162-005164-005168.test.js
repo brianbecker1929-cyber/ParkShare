@@ -32,7 +32,7 @@ const C={navy:'#000',concrete:'#ddd',muted:'#777'};
 for(const name of ['MessagesView','MyBookingsView','TransactionsView']){
  for(const state of ['empty','loading','error'])test(`${name}: Find parking appears only after successful empty load`,async()=>{
   let i=0;
-  const deps={React,C,FindParkingLink:Link,useEffect:()=>{},useRef:()=>({current:null}),
+  const deps={React,C,FindParkingLink:Link,useBookingCancellation:()=>({target:null,busy:false,error:"",notice:""}),useEffect:()=>{},useRef:()=>({current:null}),
    useState:initial=>{const index=i++;return [index===1&&name!=='TransactionsView'?state==='loading':index===2?state==='error'?'Unavailable':'':typeof initial==='function'?initial():initial,()=>{}];},
    useTransactions:()=>({data:{spent:[],earned:[],payouts:[]},loading:state==='loading',error:state==='error'?'Unavailable':''}),
   };
