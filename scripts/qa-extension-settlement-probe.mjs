@@ -15,7 +15,7 @@ export async function runExtensionSettlementProbe(db,report){
   const host='00000000-0000-4000-8000-000000005261',driver='00000000-0000-4000-8000-000000005262';
   await db.query(`insert into auth.users(id,email,raw_user_meta_data) values($1,'extension-host@example.invalid','{"role":"host"}'),($2,'extension-driver@example.invalid','{"role":"driver"}')`,[host,driver]);
   const listing=(await db.query(`insert into public.listings(host_id,title,address,price,spaces,lat,lng,time_zone) values($1,'Synthetic extension','Toronto ON M5V 2T6',1,1,43.65,-79.38,'America/Toronto') returning id`,[host])).rows[0].id;
-  const booking=(await db.query(`insert into public.bookings(listing_id,renter_id,hours,total,subtotal,service_fee,status,paid_at,scheduled_starts_at,property_time_zone,spot_label,stripe_connected_account_id) values($1,$2,1,1.15,1,.15,'confirmed',now()-interval '30 minutes',now()-interval '30 minutes','America/Toronto','A','acct_extension') returning id`,[listing,driver])).rows[0].id;
+  const booking=(await db.query(`insert into public.bookings(listing_id,renter_id,hours,total,subtotal,service_fee,status,paid_at,property_time_zone,spot_label,stripe_connected_account_id) values($1,$2,1,1.15,1,.15,'confirmed',now()-interval '30 minutes','America/Toronto','A','acct_extension') returning id`,[listing,driver])).rows[0].id;
   const before=(await db.query('select hours,session_range from public.bookings where id=$1',[booking])).rows[0];
   await db.exec('SET LOCAL ROLE service_role;');
   const reserve=async(session)=>{

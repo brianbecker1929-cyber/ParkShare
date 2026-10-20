@@ -104,3 +104,22 @@ test('ambiguous provider data, mode changes, missing history and disputes never 
  }
  const h=harness();h.c.disputed=true;await h.run();assert.equal(h.state.hours,1);assert.equal(h.calls.some(c=>c[0]==='refund'),false);
 });
+
+const transactionSource=await readFile(new URL('../api/transactions.js',import.meta.url),'utf8');
+function spentHistory({refundTotal=1.15,refundPending=0}={}){
+ const ext={id:21,booking_id:7,added_hours:1,added_amount:1.15,application_state:'rejected',status:'payment_failed',paid_at:'2026-10-20T12:00Z',refund_total_amount:refundTotal,refund_pending_amount:refundPending};
+ const calls=[];
+ const db={from(table){let fields;const q={select(value){fields=value;return this;},eq(k,v){calls.push([table,k,v]);return this;},not(){return this;},order(){return Promise.resolve({data:[{id:7,listing_id:3,renter_id:'driver',hours:1,total:10,status:'confirmed',paid_at:'2026-10-20T11:00Z'}]});},in(k,ids){calls.push([table,k,ids]);return this;},then(resolve){return Promise.resolve({data:[Object.fromEntries(fields.split(',').map(k=>[k.trim(),ext[k.trim()]]))]}).then(resolve);}};return q;}};
+ const code=transactionSource.slice(transactionSource.indexOf('function spendingRefundAmounts'),transactionSource.indexOf('// Money the user has EARNED'))
+  +transactionSource.slice(transactionSource.indexOf('async function fetchExtensionsForBookings'),transactionSource.indexOf('// Real Stripe payout history'));
+ return {calls,run:new Function('supabaseAdmin','canReadPreciseLocation',code+';return getSpentTransactions;')(db,()=>false)};
+}
+test('Transactions reads only the Driver booking IDs and labels rejected charge/refund without claiming added time',async()=>{
+ const h=spentHistory();const rows=await h.run('driver');const ext=rows.find(r=>r.type==='extension');
+ assert.equal(ext.description,'Extension not applied');assert.equal(ext.status,'refunded');assert.equal(ext.amount,1.15);assert.equal(ext.refundedAmount,1.15);
+ assert.deepEqual(h.calls,[['bookings','renter_id','driver'],['booking_extensions','booking_id',[7]]]);
+});
+test('Transactions distinguishes a pending rejected-extension refund from money already returned',async()=>{
+ const h=spentHistory({refundTotal:0,refundPending:1.15});const ext=(await h.run('driver')).find(r=>r.type==='extension');
+ assert.equal(ext.status,'refund_pending');assert.equal(ext.refundedAmount,0);assert.equal(ext.refundPendingAmount,1.15);
+});
