@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, useMemo, useCallback, Component } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
@@ -2423,12 +2423,58 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
   const [restaurantAction, setRestaurantAction] = useState("");
   const [eventSubmissionOpen, setEventSubmissionOpen] = useState(false);
 
-  const loadRestaurants = async () => {
+  // Scope changes retire pending work before paint. A fresh object also keeps
+  // an A -> B -> A filter/mode change from reviving an earlier request.
+  const searchScope = useMemo(() => ({ mode, restaurantQuery, restaurantCuisine, eventQuery, eventCategory, eventDate }),
+    [mode, restaurantQuery, restaurantCuisine, eventQuery, eventCategory, eventDate]);
+  const searchContext = useRef(null);
+  useLayoutEffect(() => {
+    const context = { scope: searchScope, active: true, busy: false, restaurants: [], events: [] };
+    searchContext.current = context;
+    setRestaurants([]); setEvents([]);
+    setRestaurantsLoading(false); setEventsLoading(false);
+    setRestaurantSearchError(""); setEventSearchError(""); setRestaurantAction("");
+    setEventSubmissionOpen(false);
+    return () => { context.active = false; };
+  }, [searchScope]);
+
+  const currentContext = () => {
+    const context = searchContext.current;
+    return context?.active && context.scope === searchScope ? context : null;
+  };
+  const retireSearch = () => {
+    const context = currentContext();
+    if (!context) return false;
+    context.active = false;
+    return true;
+  };
+  const updateFilter = (setter, previous, value) => {
+    if (previous === value || !retireSearch()) return;
+    setter(value);
+  };
+  const changeMode = nextMode => { if (retireSearch()) onModeChange(nextMode); };
+  const browseParking = () => { if (retireSearch()) onBrowseParking(); };
+
+  const restaurantDestination = restaurant => ({
+    type: "restaurant",
+    destination: restaurant,
+    location: { lat: restaurant.lat, lng: restaurant.lng },
+    query: restaurant.name,
+  });
+  const runRestaurants = async action => {
+    const context = currentContext();
+    if (!context || context.scope.mode !== "restaurants" || context.busy) return;
+    context.busy = true;
+    context.restaurants = [];
+    const current = () => currentContext() === context;
+    setRestaurants([]);
     setRestaurantsLoading(true);
+    setRestaurantAction(action);
     setRestaurantSearchError("");
     try {
       if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Google Places is still loading. Please try again.");
       const { Place } = await google.maps.importLibrary("places");
+      if (!current()) return;
       const { places } = await Place.searchByText({
         textQuery: buildRestaurantSearchText(restaurantQuery, restaurantCuisine),
         fields: ["id", "displayName", "formattedAddress", "location", "primaryType", "primaryTypeDisplayName"],
@@ -2439,37 +2485,44 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
         region: "ca",
         maxResultCount: 12,
       });
+      if (!current()) return;
       const nextRestaurants = (places || []).map(normalizeRestaurantPlace).filter(Boolean);
+      context.restaurants = nextRestaurants;
       setRestaurants(nextRestaurants);
-      return nextRestaurants;
+      if (action === "adventure") {
+        const restaurant = chooseRandomRestaurant(nextRestaurants);
+        if (restaurant) {
+          setRestaurantsLoading(false); setRestaurantAction("");
+          retireSearch();
+          onFindParking(restaurantDestination(restaurant));
+        } else setRestaurantSearchError("No restaurants were available for this adventure. Try another area or cuisine.");
+      } else if (nextRestaurants.length === 0) {
+        setRestaurantSearchError("No matching restaurants were found. Try another name, area, or cuisine.");
+      }
     } catch (error) {
+      if (!current()) return;
+      context.restaurants = [];
       setRestaurants([]);
       setRestaurantSearchError(error?.message || "Restaurants could not be loaded. Please try again.");
-      return [];
     } finally {
-      setRestaurantsLoading(false);
+      context.busy = false;
+      if (current()) { setRestaurantsLoading(false); setRestaurantAction(""); }
     }
   };
-
-  const findRestaurants = async (submitEvent) => {
+  const findRestaurants = submitEvent => {
     submitEvent?.preventDefault();
-    setRestaurantAction("search");
-    const nextRestaurants = await loadRestaurants();
-    if (nextRestaurants.length === 0) setRestaurantSearchError(current => current || "No matching restaurants were found. Try another name, area, or cuisine.");
-    setRestaurantAction("");
+    return runRestaurants("search");
   };
+  const beAdventurous = () => runRestaurants("adventure");
 
-  const beAdventurous = async () => {
-    setRestaurantAction("adventure");
-    const nextRestaurants = await loadRestaurants();
-    const restaurant = chooseRandomRestaurant(nextRestaurants);
-    if (restaurant) chooseRestaurant(restaurant);
-    else setRestaurantSearchError(current => current || "No restaurants were available for this adventure. Try another area or cuisine.");
-    setRestaurantAction("");
-  };
-
-  const findEvents = async (submitEvent) => {
+  const findEvents = async submitEvent => {
     submitEvent?.preventDefault();
+    const context = currentContext();
+    if (!context || context.scope.mode !== "events" || context.busy) return;
+    context.busy = true;
+    context.events = [];
+    const current = () => currentContext() === context;
+    setEvents([]);
     setEventsLoading(true);
     setEventSearchError("");
     try {
@@ -2481,28 +2534,33 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
         .gte("starts_at", earliest)
         .order("starts_at", { ascending: true })
         .limit(100);
+      if (!current()) return;
       if (error) throw error;
       const nextEvents = filterEvents(data || [], { query: eventQuery, category: eventCategory, date: eventDate });
+      context.events = nextEvents;
       setEvents(nextEvents);
       if (nextEvents.length === 0) setEventSearchError("No matching events were found. Try another date, category, or area.");
     } catch (error) {
+      if (!current()) return;
+      context.events = [];
       setEvents([]);
       setEventSearchError("Events could not be loaded. Please try again.");
     } finally {
-      setEventsLoading(false);
+      context.busy = false;
+      if (current()) setEventsLoading(false);
     }
   };
 
-  const chooseRestaurant = restaurant => onFindParking({
-    type: "restaurant",
-    destination: restaurant,
-    location: { lat: restaurant.lat, lng: restaurant.lng },
-    query: restaurant.name,
-  });
-
+  const chooseRestaurant = restaurant => {
+    const context = currentContext();
+    if (!context || context.busy || !context.restaurants.includes(restaurant) || !retireSearch()) return;
+    onFindParking(restaurantDestination(restaurant));
+  };
   const chooseEvent = eventRow => {
+    const context = currentContext();
+    if (!context || context.busy || !context.events.includes(eventRow)) return;
     const event = normalizeEventRow(eventRow);
-    if (!event) return;
+    if (!event || !retireSearch()) return;
     onFindParking({
       type: "event",
       destination: event,
@@ -2521,7 +2579,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
 
       {!mode ? (
         <section className="ps-discover-hub" aria-label="Discover destinations">
-          <button type="button" className="ps-discover-choice" onClick={() => onModeChange("Restaurants")}>
+          <button type="button" className="ps-discover-choice" onClick={() => changeMode("Restaurants")}>
             <span className="ps-discover-choice-icon" aria-hidden="true">🍽️</span>
             <span>
               <small>DINING</small>
@@ -2530,7 +2588,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
             </span>
             <b>Explore restaurants →</b>
           </button>
-          <button type="button" className="ps-discover-choice" onClick={() => onModeChange("Events & Festivals")}>
+          <button type="button" className="ps-discover-choice" onClick={() => changeMode("Events & Festivals")}>
             <span className="ps-discover-choice-icon" aria-hidden="true">🎟️</span>
             <span>
               <small>WHAT'S ON</small>
@@ -2541,12 +2599,12 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           </button>
           <div className="ps-discover-direct">
             <span>Already know where you're going?</span>
-            <button type="button" onClick={onBrowseParking}>Browse parking</button>
+            <button type="button" onClick={browseParking}>Browse parking</button>
           </div>
         </section>
       ) : (
         <section className="ps-discover-panel">
-          <button type="button" className="ps-discover-back" onClick={() => onModeChange("Discover")}>← Back to Discover</button>
+          <button type="button" className="ps-discover-back" onClick={() => changeMode("Discover")}>← Back to Discover</button>
           <div className="ps-discover-panel-heading">
             <span aria-hidden="true">{mode === "restaurants" ? "🍽️" : "🎟️"}</span>
             <div>
@@ -2559,8 +2617,8 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           {mode === "restaurants" ? (
             <>
               <form className="ps-discover-search-form" onSubmit={findRestaurants}>
-                <input value={restaurantQuery} onChange={event => setRestaurantQuery(event.target.value)} placeholder="Restaurant name or area" aria-label="Restaurant name or area" />
-                <select value={restaurantCuisine} onChange={event => setRestaurantCuisine(event.target.value)} aria-label="Cuisine">
+                <input value={restaurantQuery} onChange={event => updateFilter(setRestaurantQuery, restaurantQuery, event.target.value)} placeholder="Restaurant name or area" aria-label="Restaurant name or area" />
+                <select value={restaurantCuisine} onChange={event => updateFilter(setRestaurantCuisine, restaurantCuisine, event.target.value)} aria-label="Cuisine">
                   {RESTAURANT_CUISINES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
                 </select>
                 <div className="ps-discover-search-actions">
@@ -2597,11 +2655,11 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           ) : (
             <>
               <form className="ps-discover-search-form is-events" onSubmit={findEvents}>
-                <input value={eventQuery} onChange={event => setEventQuery(event.target.value)} placeholder="Event name, venue, or area" aria-label="Event name, venue, or area" />
-                <select value={eventCategory} onChange={event => setEventCategory(event.target.value)} aria-label="Event category">
+                <input value={eventQuery} onChange={event => updateFilter(setEventQuery, eventQuery, event.target.value)} placeholder="Event name, venue, or area" aria-label="Event name, venue, or area" />
+                <select value={eventCategory} onChange={event => updateFilter(setEventCategory, eventCategory, event.target.value)} aria-label="Event category">
                   {EVENT_CATEGORIES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
                 </select>
-                <input type="date" value={eventDate} onChange={event => setEventDate(event.target.value)} aria-label="Event date" />
+                <input type="date" value={eventDate} onChange={event => updateFilter(setEventDate, eventDate, event.target.value)} aria-label="Event date" />
                 <div className="ps-discover-search-actions">
                   <button type="submit" disabled={eventsLoading}>{eventsLoading ? "Searching…" : "Search events"}</button>
                   <button type="button" className="is-secondary" onClick={() => setEventSubmissionOpen(true)}>📣 Add your event</button>
