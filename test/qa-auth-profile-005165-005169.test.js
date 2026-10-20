@@ -59,8 +59,8 @@ function signupHarness(result,throwing=false){
  const state=[];let index=0,root;const events=[];
  const hooks={useState(initial){const i=index++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return[state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value;}];}};
  const supabase={auth:{signUp:async()=>{events.push('signup');if(throwing)throw Error('offline');return result;},resetPasswordForEmail:async(email)=>{events.push(['reset',email]);return {};},resend:async()=>{events.push('resend');return {};}}};
- const make=new Function('React','useState','emptyAuthForm','isUnconfirmedEmailError','MIN_NEW_PASSWORD_LENGTH','signupOutcome','validateAuthForm','supabase','C','window','buildAppUser',modalCode+';return SignInModal;');
- const Modal=make(React,hooks.useState,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,supabase,{}, {location:{origin:'https://synthetic.invalid'}},()=>{throw Error('unexpected authentication');});
+ const make=new Function('React','useState','useRef','useEffect','emptyAuthForm','isUnconfirmedEmailError','MIN_NEW_PASSWORD_LENGTH','signupOutcome','validateAuthForm','supabase','C','window','buildAppUser',modalCode+';return SignInModal;');
+ const Modal=make(React,hooks.useState,initial=>{const i=index++;if(!(i in state))state[i]={current:initial};return state[i];},()=>{},emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,supabase,{}, {location:{origin:'https://synthetic.invalid'}},()=>{throw Error('unexpected authentication');});
  const props={initialScreen:'signup',onAuth:()=>events.push('auth'),onClose:()=>events.push('close')};
  function render(){index=0;root=Modal(props);return root;}
  function text(n){return renderToStaticMarkup(n).replace(/<[^>]+>/g,'');}

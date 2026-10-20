@@ -6639,7 +6639,43 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const [resendMessage, setResendMessage] = useState("");
   const [lastResendAt, setLastResendAt] = useState(0);
 
-  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const signInAttempt = useRef(null);
+  const authModalActive = useRef(true);
+  const authContext = useRef({ screen, active: true });
+  if (authContext.current.screen !== screen) {
+    authContext.current.active = false;
+    if (signInAttempt.current) { signInAttempt.current.active = false; signInAttempt.current = null; setLoading(false); }
+    authContext.current = { screen, active: true };
+  }
+  const owner = authContext.current;
+  const canAct = () => authModalActive.current && owner.active && authContext.current === owner;
+  const invalidateSignIn = () => {
+    if (signInAttempt.current) signInAttempt.current.active = false;
+    signInAttempt.current = null;
+  };
+  useEffect(() => {
+    authModalActive.current = true;
+    authContext.current.active = true;
+    setLoading(false);
+    return () => {
+      authModalActive.current = false;
+      authContext.current.active = false;
+      invalidateSignIn();
+    };
+  }, []);
+  const closeDialog = () => {
+    if (!canAct()) return;
+    authModalActive.current = false;
+    owner.active = false;
+    invalidateSignIn();
+    setLoading(false); setForm(emptyAuthForm()); setConfirmPassword(""); setPendingUser(null);
+    setAgreed(false); setErrors({}); setAuthError("");
+    onClose();
+  };
+  const upd = (k, v) => {
+    if (!canAct() || screen === "signin" && signInAttempt.current?.pending) return;
+    setForm(f => ({ ...f, [k]: v }));
+  };
   const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
   const lS = { fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 };
 
@@ -6654,6 +6690,11 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   // Auth screens never inherit credentials, validation or errors from each other.
   // Keep role/disclaimer navigation separate so an in-progress signup survives.
   const openAuthScreen = target => {
+    if (!canAct()) return;
+    owner.active = false;
+    invalidateSignIn();
+    authContext.current = { screen: target, active: true };
+    setLoading(false);
     setForm(emptyAuthForm());
     setConfirmPassword("");
     setErrors({});
@@ -6695,32 +6736,49 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   const submit = async () => {
+    if (!canAct() || signInAttempt.current?.pending) return;
     if (!validate()) return;
     setAuthError("");
     setAuthSuccess("");
-    setLoading(true);
 
     if (screen === "signin") {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: form.email,
-        password: form.password,
-      });
-      setLoading(false);
-      if (error) {
-        setAuthError(error.message);
-        return;
+      const attempt = { active: true, pending: true };
+      signInAttempt.current = attempt;
+      const current = () => canAct() && attempt.active && signInAttempt.current === attempt;
+      const credentials = { email: form.email, password: form.password };
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword(credentials);
+        if (!current()) return;
+        if (error) throw error;
+        const accountId = data?.user?.id;
+        if (!accountId || !data?.session?.access_token || data.session.user?.id !== accountId) throw new Error("Couldn't confirm your sign-in. Please try again.");
+        const checkSession = async () => {
+          const { data: latest, error: sessionError } = await supabase.auth.getSession();
+          if (!current()) return false;
+          if (sessionError || !latest?.session?.access_token || latest.session.user?.id !== accountId) throw new Error("Your session changed. Please sign in again.");
+          return true;
+        };
+        if (!await checkSession()) return;
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("id, name, role")
+          .eq("id", accountId)
+          .single();
+        if (!current()) return;
+        if (profileErr || !profile || profile.id !== accountId || !["driver", "host"].includes(profile.role)) throw new Error("Signed in, but couldn't load your profile. Please sign in again.");
+        if (!await checkSession() || !current()) return;
+        attempt.active = false;
+        signInAttempt.current = null;
+        setLoading(false);
+        onAuth(buildAppUser(profile, data.user));
+        if (closeOnAuth) closeDialog();
+      } catch (error) {
+        if (current()) setAuthError(error?.message || "Unable to sign in right now. Please try again.");
+      } finally {
+        attempt.pending = false;
+        if (current()) { setLoading(false); signInAttempt.current = null; }
       }
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("id, name, role")
-        .eq("id", data.user.id)
-        .single();
-      if (profileErr || !profile) {
-        setAuthError("Signed in, but couldn't load your profile.");
-        return;
-      }
-      onAuth(buildAppUser(profile, data.user));
-      if (closeOnAuth) onClose();
       return;
     }
 
@@ -6838,7 +6896,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
           {screen !== "landing" && screen !== "role" && screen !== "recovery" && screen !== "recoverySuccess" && (
             <button onClick={() => { if (screen === "disclaimer") { setScreen("role"); setErrors({}); setAuthError(""); } else openAuthScreen("landing"); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
           )}
-          <button type="button" aria-label="Close sign-in dialog" onClick={() => { setForm(emptyAuthForm()); setConfirmPassword(""); setPendingUser(null); setAgreed(false); setErrors({}); setAuthError(""); onClose(); }} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
+          <button type="button" aria-label="Close sign-in dialog" onClick={closeDialog} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
         </div>
 
         <div style={{ padding: "22px 24px 26px" }}>
@@ -6866,7 +6924,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
             <form onSubmit={event => { event.preventDefault(); void submit(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <label htmlFor="ps-signin-email" style={lS}>Email</label>
-                <input id="ps-signin-email" name="email" autoComplete="username" type="email" required
+                <input id="ps-signin-email" disabled={loading} name="email" autoComplete="username" type="email" required
                   style={iS(errors.email)} placeholder="you@example.com" value={form.email}
                   onChange={event => upd("email", event.target.value)}
                   aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "ps-signin-email-error" : undefined} />
@@ -6874,7 +6932,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               </div>
               <div>
                 <label htmlFor="ps-signin-password" style={lS}>Password</label>
-                <input id="ps-signin-password" name="password" autoComplete="current-password" type="password" required
+                <input id="ps-signin-password" disabled={loading} name="password" autoComplete="current-password" type="password" required
                   style={iS(errors.password)} placeholder="Your password" value={form.password}
                   onChange={event => upd("password", event.target.value)}
                   aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signin-password-error" : undefined} />
@@ -6890,7 +6948,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               {resendMessage && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{resendMessage}</div>}
               {authSuccess && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
               <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
-              <button type="button" onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
+              <button type="button" onClick={resetPassword} disabled={loading} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button type="button" onClick={() => openAuthScreen("signup")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
             </form>
           )}
