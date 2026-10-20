@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, useMemo, Component } from "react";
+import { useState, useEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase } from "./lib/supabaseClient";
@@ -8,6 +8,7 @@ import { calculateBookingAmounts } from "../api/_booking-rules.js";
 import { fetchPublicParkingPage } from "./lib/publicParkingPage";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
+import { createMessageConversation, messageConversationKey } from "./lib/messageConversation";
 import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
 import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
@@ -898,7 +899,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
 // ─── Messaging Panel ──────────────────────────────────────────────────────────
 function MessagingPanel({ listing, onClose, user }) {
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
-  const isRealListing = numericId !== null && user;
+  const isRealListing = numericId !== null;
   const bookingId = listing.bookingId || null;
 
   const [threads, setThreads] = useState(INITIAL_THREADS);
@@ -907,68 +908,60 @@ function MessagingPanel({ listing, onClose, user }) {
   const [messageError, setMessageError] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
+  const conversation = useRef(null);
+  const demoTimers = useRef(new Set());
+  const conversationKey = messageConversationKey(user?.id, listing);
   const msgs = isRealListing ? dbMsgs : (threads[listing.id] || []);
   const otherParty = listing.host || listing.driver || "ParkShare user";
+  const canSend = Boolean(input.trim() && !sending && (!isRealListing || user));
 
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-  const loadMessages = async () => {
-    if (!isRealListing) return;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Please sign in again to view messages.");
-      const params = new URLSearchParams({ listingId: String(numericId) });
-      if (bookingId) params.set("bookingId", String(bookingId));
-      if (listing.participantId) params.set("participantId", listing.participantId);
-      const res = await fetch(`/api/messages?${params}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Couldn't load messages.");
-      setDbMsgs((data.messages || []).map(row => ({ id: row.id, from: row.sender_id === user.id ? "me" : "host", text: row.text, ts: fmtTime(row.created_at) })));
-      setMessageError("");
-    } catch (error) {
-      setMessageError(error.message || "Couldn't load messages.");
-    }
-  };
-
-  useEffect(() => { loadMessages(); }, [listing.id, bookingId, listing.participantId, user]);
+  useEffect(() => {
+    setDbMsgs([]);
+    setInput("");
+    setMessageError("");
+    setSending(false);
+    const controller = isRealListing ? createMessageConversation({
+      client: supabase, userId: user?.id, listingId: numericId, bookingId,
+      participantId: listing.participantId || null,
+      onMessages: rows => setDbMsgs(rows.map(row => ({id: row.id, from: row.sender_id === user.id ? "me" : "host", text: row.text, ts: fmtTime(row.created_at)}))),
+      onError: setMessageError, onSending: setSending,
+    }) : null;
+    conversation.current = controller;
+    controller?.load();
+    return () => {
+      controller?.dispose();
+      if (conversation.current === controller) conversation.current = null;
+      for (const timer of demoTimers.current) clearTimeout(timer);
+      demoTimers.current.clear();
+    };
+  }, [conversationKey]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
 
   const send = async () => {
-    if (!input.trim()) return;
+    if (!canSend || conversation.current?.sending) return;
     const text = input.trim();
-    setInput("");
-
     if (isRealListing) {
-      setSending(true);
-      setMessageError("");
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Please sign in again to send this message.");
-        const res = await fetch("/api/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ listingId: numericId, bookingId, participantId: listing.participantId, text }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Message could not be sent.");
-        await loadMessages();
-      } catch (error) {
-        setInput(text);
-        setMessageError(error.message || "Message could not be sent.");
-      } finally {
-        setSending(false);
-      }
+      const controller = conversation.current;
+      if (!controller) return;
+      setInput("");
+      const result = await controller.send(text);
+      if (conversation.current === controller && result.retryText) setInput(current => current || result.retryText);
       return;
     }
+    setInput("");
 
     // Demo listings aren't backed by real hosts, so keep the local
     // simulated conversation (with an automatic reply) for those.
     const msg = { id: Date.now(), from: "me", text, ts: "Just now" };
     setThreads(t => ({ ...t, [listing.id]: [...(t[listing.id] || []), msg] }));
     const replies = ["Thanks for reaching out!", "Sure thing!", "Great, see you then 🙂", "The spot will be ready for you."];
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      demoTimers.current.delete(timer);
       setThreads(t => ({ ...t, [listing.id]: [...(t[listing.id] || []), { id: Date.now() + 1, from: "host", text: replies[Math.floor(Math.random() * replies.length)], ts: "Just now" }] }));
     }, 1400);
+    demoTimers.current.add(timer);
   };
 
   return (
@@ -983,7 +976,7 @@ function MessagingPanel({ listing, onClose, user }) {
           <button onClick={onClose} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {msgs.length === 0 && <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No messages yet. Say hi to {otherParty}!</div>}
+          {msgs.length === 0 && <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>{isRealListing && !user ? "Sign in to view this conversation." : `No messages yet. Say hi to ${otherParty}!`}</div>}
           {msgs.map(m => (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.from === "me" ? "flex-end" : "flex-start" }}>
               <div style={{ background: m.from === "me" ? C.navy : C.warmWhite, color: m.from === "me" ? C.white : C.navy, padding: "9px 14px", borderRadius: m.from === "me" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", fontSize: 13, maxWidth: "75%", lineHeight: 1.45 }}>{m.text}</div>
@@ -996,7 +989,7 @@ function MessagingPanel({ listing, onClose, user }) {
         <div style={{ padding: "12px 16px", borderTop: "1px solid "+C.concrete, display: "flex", gap: 8 }}>
           <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={"Message "+otherParty+"…"}
             style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 24, padding: "10px 16px", fontSize: 13, outline: "none", fontFamily: "'Poppins', sans-serif", color: C.navy }} />
-          <button onClick={send} disabled={!input.trim() || sending} style={{ background: input.trim() && !sending ? C.navy : C.concrete, color: input.trim() && !sending ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: input.trim() && !sending ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>{sending ? "…" : "↑"}</button>
+          <button onClick={send} disabled={!canSend} style={{ background: canSend ? C.navy : C.concrete, color: canSend ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: canSend ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>{sending ? "…" : "↑"}</button>
         </div>
       </div>
     </div>
@@ -2128,14 +2121,17 @@ function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRout
   useEffect(() => {
     if (!user) return;
     let active = true;
+    const controller = new AbortController();
     setContext(null);
     setError("");
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Please sign in again to open this conversation.");
+        if (!active) return;
+        if (!session?.access_token || session.user?.id !== user.id) throw new Error("Please sign in again to open this conversation.");
         const response = await fetch(`/api/messages?contextBookingId=${bookingId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store", signal: controller.signal,
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Couldn't open this booking conversation.");
@@ -2147,7 +2143,7 @@ function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRout
         if (active) setError(err.message || "Couldn't open this booking conversation.");
       }
     })();
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [bookingId, user?.id, onMessage]);
 
   if (error) return <div style={{ padding: "40px 24px", textAlign: "center" }}><p role="alert" style={{ color: C.red }}>{error}</p><Btn variant="outline" onClick={onBack}>Back to parking</Btn></div>;
@@ -3899,13 +3895,19 @@ function MessagesView({ onOpenThread, user }) {
 
   useEffect(() => {
     if (!user) return;
+    const controller = new AbortController();
+    let active = true;
+    setDbConvos([]); setError(""); setLoading(true);
     const load = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Please sign in again to view messages.");
-        const res = await fetch("/api/messages", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (!active) return;
+        if (!session?.access_token || session.user?.id !== user.id) throw new Error("Please sign in again to view messages.");
+        const res = await fetch("/api/messages", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store", signal: controller.signal });
         const data = await res.json().catch(() => ({}));
+        if (!active) return;
         if (!res.ok) throw new Error(data.error || "We couldn't load your conversations right now.");
+        if (!Array.isArray(data.conversations)) throw new Error("We couldn't load your conversations right now.");
         setLoading(false);
         setDbConvos((data.conversations || []).map(c => ({
           id: "db-" + c.listingId,
@@ -3917,12 +3919,14 @@ function MessagesView({ onOpenThread, user }) {
           preview: c.preview,
         })));
       } catch (err) {
+        if (!active) return;
         setLoading(false);
         setError(err.message || "We couldn't load your conversations right now.");
       }
     };
     load();
-  }, [user]);
+    return () => { active = false; controller.abort(); };
+  }, [user?.id]);
 
   const conversations = dbConvos;
 
@@ -10056,9 +10060,18 @@ export default function App() {
   const [screen, setScreen] = useState(initialRouteRef.current.screen);
   const [tab, setTab] = useState(initialRouteRef.current.tab || "Browse");
   const [legalSection, setLegalSection] = useState(initialRouteRef.current.anchor || "terms");
-  const [messageThread, setMessageThread] = useState(null);
+  const [messageThreadState, setMessageThreadState] = useState(null);
   const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(window.location.search));
   const [user, setUser] = useState(null);
+  const messageScope = useMemo(() => ({accountId: user?.id || null}), [user?.id]);
+  const messageScopeRef = useRef(messageScope);
+  messageScopeRef.current = messageScope;
+  const setMessageThread = useCallback(listing => {
+    if (messageScopeRef.current !== messageScope) return;
+    setMessageThreadState(listing ? {scope: messageScope, listing} : null);
+  }, [messageScope]);
+  useEffect(() => { setMessageThreadState(current => current?.scope === messageScope ? current : null); }, [messageScope]);
+  const messageThread = messageThreadState?.scope === messageScope ? messageThreadState.listing : null;
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState("landing");
   const [browseKey, setBrowseKey] = useState(0);
@@ -10579,10 +10592,10 @@ export default function App() {
             </div>
           )}
           {tab === "Browse" && (messageBookingId
-            ? <EmailMessageListing bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
+            ? <EmailMessageListing key={JSON.stringify([user?.id, messageBookingId])} bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
             : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
-          {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
+          {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireDriver(<DriverProfileView user={user} onProfileUpdated={setUser} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
@@ -10590,7 +10603,7 @@ export default function App() {
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key="driver" user={user} />
             : requireHost(<TransactionsView key="host" user={user} />), "Sign in to view your transactions.")}
-          {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
+          {messageThread && <MessagingPanel key={messageConversationKey(user?.id, messageThread)} listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
