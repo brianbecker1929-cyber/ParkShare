@@ -1,8 +1,8 @@
 // GET /api/listing-cover?listingId=123
 //
-// Lightweight, CDN-cacheable cover for existing Base64 database photographs.
+// Participant-authorized private cover for historical and Storage photographs.
 // Do not send Base64 image fields in the main /parking listing JSON.
-// Newly uploaded Storage photographs redirect only to our own public bucket.
+// Server proxies only the listing Host's own private Storage objects.
 // Reads one listing on demand; never changes listing or photo records.
 
 import sharp from "sharp";
@@ -13,6 +13,7 @@ import { embeddedPhotoData, trustedListingStorageUrl } from "../src/lib/publicLi
 const MAX_LEGACY_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "private, no-store");
   if (!jsonMethod(req, res, "GET")) return;
   const rawId = req.query?.listingId;
   const id = Number(rawId);
@@ -59,7 +60,10 @@ export default async function handler(req, res) {
       const prefix = "/storage/v1/object/public/listing-photos/";
       const encodedPath = new URL(ownStorageUrl).pathname.slice(prefix.length);
       const path = decodeURIComponent(encodedPath);
-      if (!/^[0-9a-f-]{36}\\/[0-9a-f-]{36}\\.(?:jpg|png|webp)$/i.test(path)) {
+      // A Host's editable image reference cannot authorize reading another
+      // Host's object through this service-role download.
+      if (!path.startsWith(`${listing.host_id}/`)
+          || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\.(?:jpg|png|webp)$/i.test(path.slice(listing.host_id.length + 1))) {
         return res.status(404).end();
       }
       const result = await supabaseAdmin.storage.from("listing-photos").download(path);

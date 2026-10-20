@@ -10,6 +10,12 @@ The bookings view is now keyed by the authenticated account ID so account change
 
 `fetchPrivateCoverDataUrl` accepts an optional AbortSignal. Existing callers retain their behaviour. Backend participant checks, bounded booking payloads, private photo authorization, booking/extension/refund rules and historical data remain unchanged. No migration or dependency change is required.
 
+## Private-photo API repair
+
+Release syntax validation also found that `api/listing-cover.js` contained a malformed regular-expression literal, preventing the handler module from parsing. The previous source failed `node --check`; the repaired module imports and runs in actual-handler tests. Its Storage download now validates the filename and requires the object path to belong to the listing's Host before using service-role access. A Host cannot substitute another Host's image path on their own listing. All status responses use private/no-store caching; authorized images remain WebP responses with nosniff, size/pixel limits and no public redirect. Authorized legacy Base64 images remain supported.
+
+`test/qa-private-cover-handler.test.js` imports the real endpoint, exercises real Supabase request builders with intercepted transports, and uses Sharp on synthetic in-memory image bytes. It covers Host/paid-Driver access, anonymous/unrelated/revoked denial, cross-Host paths, malformed/foreign paths, legacy conversion, missing/corrupt content, private caching and method/ID validation. No hosted photo or Storage object is read or changed by these tests.
+
 ## Verification
 
 Ten regression checks execute the actual extracted My Bookings loading effect, its real browser booking-date/display functions and the compiled JSX account key. Controlled promises reproduce the old failure: after B's successful load, A's late response changes the visible address to A's private address. The two primary old-code tests fail; all ten repaired scenarios pass.
@@ -20,8 +26,9 @@ Coverage includes immediate reset before the new response, late previous-account
 
 1. With disposable Driver A and Driver B, throttle or delay A's My Bookings response. Change accounts in the same tab or through the existing cross-tab session flow while the request is pending. Once B is active, only B's bookings, vehicle details, addresses and photos may appear, including after releasing A's old response.
 2. Delay private-cover responses separately, switch accounts or leave My Bookings, then release them. No old photos or stale errors should replace the current view.
-3. Open a date filter or cancellation/review dialog on A, then switch to B. My Bookings must start with B's own fresh cards and default view/dialog state. This change does not broaden the scope to independent global messaging/navigation/extension overlays.
-4. Check a normal current-account load, empty account, unavailable network/session, sign-out, and re-entry into My Bookings. Verify current-account booking details, authorized covers, date filters and cancellation/review actions still work.
+3. Confirm your own authorized Storage and legacy listing covers load. Anonymous users and unrelated Drivers must be denied; a Host listing that references another Host's object must not retrieve it.
+4. Open a date filter or cancellation/review dialog on A, then switch to B. My Bookings must start with B's own fresh cards and default view/dialog state. This change does not broaden the scope to independent global messaging/navigation/extension overlays.
+5. Check a normal current-account load, empty account, unavailable network/session, sign-out, and re-entry into My Bookings. Verify current-account booking details, authorized covers, date filters and cancellation/review actions still work.
 
 Use synthetic QA accounts and bookings. Existing backend account/participant authorization remains a required regression check. Automated race simulation is not a signed-in browser acceptance result or evidence of a historical disclosure.
 
