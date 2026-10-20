@@ -1321,71 +1321,139 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
 }
 
 // ─── Reviews Section ──────────────────────────────────────────────────────────
+function useReviewSubmission(user, listingId, scope, onSubmitted, initiallyOpen = false) {
+  const accountId = user?.id || null;
+  const key = JSON.stringify([accountId, listingId, scope]);
+  const fresh = () => ({ key, token: { active: true, pending: false, complete: false },
+    draft: { rating: 5, text: "" }, formOpen: initiallyOpen, submitting: false, error: "", submitted: false });
+  const [state, setState] = useState(fresh);
+  let current = state;
+  if (state.key !== key) {
+    state.token.active = false;
+    current = fresh();
+    setState(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    // React StrictMode replays setup after cleanup with the same hook state.
+    // Use a new token so disposed callbacks stay invalid on that replay.
+    if (!latest.current.token.active) {
+      const next = { ...latest.current, token: { active: true, pending: false, complete: latest.current.token.complete }, submitting: false };
+      latest.current = next;
+      setState(next);
+    }
+    return () => { mounted.current = false; latest.current.token.active = false; };
+  }, []);
+  const token = current.token;
+  const isCurrent = () => mounted.current && token.active && latest.current.token === token;
+  const patch = changes => {
+    if (!isCurrent()) return;
+    latest.current = { ...latest.current, ...changes };
+    setState(latest.current);
+  };
+  const open = () => {
+    if (!isCurrent() || token.pending || token.complete) return;
+    patch({ formOpen: true, error: "" });
+  };
+  const cancel = () => {
+    if (!isCurrent()) return false;
+    token.active = false;
+    const next = { ...fresh(), formOpen: false };
+    latest.current = next;
+    setState(next);
+    return true;
+  };
+  const change = changes => {
+    if (isCurrent() && !token.pending && !token.complete) patch({ draft: { ...latest.current.draft, ...changes }, error: "" });
+  };
+  const submit = async () => {
+    if (!isCurrent() || !latest.current.formOpen || token.pending || token.complete) return;
+    const draft = latest.current.draft;
+    const payload = { listingId, rating: Number(draft.rating), text: draft.text.trim() };
+    if (!payload.text) return;
+    if (!Number.isInteger(payload.rating) || payload.rating < 1 || payload.rating > 5 || payload.text.length < 2 || payload.text.length > 1500) {
+      patch({ error: "Choose 1–5 stars and write a review of 2–1500 characters." });
+      return;
+    }
+    token.pending = true;
+    patch({ submitting: true, error: "" });
+    try {
+      // Only explicit demo listings use session-local reviews.
+      if (listingId !== null) {
+        if (!validId(listingId) || !accountId) throw new Error("Please sign in to leave a review.");
+        const { data, error } = await supabase.auth.getSession();
+        if (!isCurrent()) return;
+        const session = data?.session;
+        if (error || !session?.access_token || session.user?.id !== accountId) {
+          throw new Error("Your account changed or expired. Sign in and reopen the review.");
+        }
+        const response = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(payload),
+        });
+        if (!isCurrent()) return;
+        const result = await response.json().catch(() => ({}));
+        if (!isCurrent()) return;
+        if (!response.ok) throw new Error(result.error || "Couldn't confirm your review. Refresh the reviews before trying again.");
+        if (!validId(result.review?.id) || Number(result.review.listing_id) !== listingId || Number(result.review.rating) !== payload.rating) {
+          throw new Error("Couldn't confirm your review. Refresh the reviews before trying again.");
+        }
+      }
+      if (!isCurrent()) return;
+      token.complete = true;
+      patch({ submitted: true, formOpen: false });
+      onSubmitted?.(payload);
+    } catch (error) {
+      if (isCurrent()) patch({ error: error?.message || "Couldn't confirm your review. Refresh the reviews before trying again." });
+    } finally {
+      token.pending = false;
+      if (isCurrent()) patch({ submitting: false });
+    }
+  };
+  return { ...current, open, cancel, change, submit };
+}
+
 function ReviewsSection({ listing, onSubmitReview, user }) {
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-  const [showForm, setShowForm] = useState(false);
-  const [draft, setDraft] = useState({ rating: 5, text: "" });
+  const [reviewRows, setReviewRows] = useState(() => ({ listingId: listing.id, rows: REVIEWS_DATA[listing.id] || [] }));
+  const [reviewReload, setReviewReload] = useState(0);
+  const localReviews = reviewRows.listingId === listing.id ? reviewRows.rows : REVIEWS_DATA[listing.id] || [];
+  const { draft, formOpen: showForm, submitted, error: submitError, submitting, open, cancel, change, submit } =
+    useReviewSubmission(user, numericId, listing.id, payload => {
+      if (isRealListing) setReviewReload(value => value + 1);
+      else setReviewRows(current => ({ listingId: listing.id, rows: [
+        { id: Date.now(), user: "You", rating: payload.rating, date: "Just now", text: payload.text },
+        ...(current.listingId === listing.id ? current.rows : REVIEWS_DATA[listing.id] || []),
+      ] }));
+      onSubmitReview?.();
+    });
 
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [localReviews, setLocalReviews] = useState(REVIEWS_DATA[listing.id] || []);
-
-  const loadReviews = async () => {
+  useEffect(() => {
     if (!isRealListing) return;
-    try {
-      const response = await fetch("/api/public-reviews?listingId=" + numericId);
-      if (!response.ok) throw new Error("Reviews unavailable");
-      const { reviews } = await response.json();
-      setLocalReviews((reviews || []).map((row, index) => ({
-        id: numericId + "-" + index,
-        user: row.user || "ParkShare driver",
-        rating: row.rating, date: row.date || "", text: row.text || "",
-      })));
-    } catch (error) {
-      console.error("Couldn't load privacy-safe review summary:", error);
-    }
-  };
-
-  useEffect(() => { loadReviews(); }, [listing.id]);
-
-  const submit = async () => {
-    if (!draft.text.trim()) return;
-    setSubmitError("");
-
-    if (isRealListing) {
-      if (!user) {
-        setSubmitError("Please sign in to leave a review.");
-        return;
+    let active = true;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const response = await fetch("/api/public-reviews?listingId=" + numericId, { signal: controller.signal });
+        if (!response.ok) throw new Error("Reviews unavailable");
+        const { reviews } = await response.json();
+        if (!active) return;
+        setReviewRows({ listingId: listing.id, rows: (reviews || []).map((row, index) => ({
+          id: numericId + "-" + index, user: row.user || "ParkShare driver",
+          rating: row.rating, date: row.date || "", text: row.text || "",
+        })) });
+      } catch (error) {
+        if (active) console.error("Couldn't load privacy-safe review summary:", error);
       }
-      setSubmitting(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = session?.access_token ? await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ listingId: numericId, rating: draft.rating, text: draft.text.trim() }),
-      }) : null;
-      const result = response ? await response.json().catch(() => ({})) : {};
-      const error = response?.ok ? null : { message: result.error || "Please sign in to review." };
-      setSubmitting(false);
-      if (error) {
-        setSubmitError(error.message);
-        return;
-      }
-      loadReviews();
-    } else {
-      // Demo listings aren't backed by a real listing row, so keep the
-      // review local to this session.
-      const r = { id: Date.now(), user: "You", rating: draft.rating, date: "Just now", text: draft.text.trim() };
-      setLocalReviews(rs => [r, ...rs]);
-    }
-
-    setSubmitted(true);
-    setShowForm(false);
-    onSubmitReview?.();
-  };
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [listing.id, reviewReload]);
 
   const avgRating = localReviews.length
     ? (localReviews.reduce((s, r) => s + r.rating, 0) / localReviews.length).toFixed(1)
@@ -1400,7 +1468,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
           <span style={{ fontSize: 12, color: C.muted, marginLeft: 4 }}>({localReviews.length})</span>
         </div>
         {!showForm && !submitted && (
-          <Btn small variant="outline" onClick={() => setShowForm(true)}>Write a review</Btn>
+          <Btn small variant="outline" onClick={open}>Write a review</Btn>
         )}
       </div>
 
@@ -1410,20 +1478,20 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
             <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your rating</div>
             <div style={{ display: "flex", gap: 6 }}>
               {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => setDraft(d => ({ ...d, rating: n }))}
+                <button key={n} onClick={() => change({ rating: n })} disabled={submitting}
                   style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: n <= draft.rating ? C.amber : C.concrete, padding: 0 }}>★</button>
               ))}
             </div>
           </div>
           <textarea
             value={draft.text}
-            onChange={e => setDraft(d => ({ ...d, text: e.target.value }))}
+            onChange={e => change({ text: e.target.value })} disabled={submitting} maxLength={1500}
             placeholder="Share your experience…"
             style={{ width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 13, resize: "vertical", minHeight: 80, fontFamily: "'Poppins', sans-serif", color: C.navy, outline: "none", boxSizing: "border-box" }}
           />
-          {submitError && <div style={{ color: C.red, fontSize: 12, marginTop: 8 }}>{submitError}</div>}
+          {submitError && <div role="alert" style={{ color: C.red, fontSize: 12, marginTop: 8 }}>{submitError}</div>}
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <Btn small variant="ghost" onClick={() => setShowForm(false)}>Cancel</Btn>
+            <Btn small variant="ghost" onClick={cancel}>Cancel</Btn>
             <Btn small variant="moss" onClick={submit} disabled={!draft.text.trim() || submitting}>{submitting ? "Submitting…" : "Submit review"}</Btn>
           </div>
         </div>
@@ -6066,6 +6134,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
       {reviewTarget && (
         <ReviewModal
+          key={`${user?.id}:${reviewTarget.id}`}
           booking={reviewTarget}
           onClose={() => setReviewTarget(null)}
           onSubmit={() => { setReviewed(r => ({ ...r, [reviewTarget.id]: true })); setReviewTarget(null); }}
@@ -6088,58 +6157,32 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 }
 
 function ReviewModal({ booking, onClose, onSubmit, user }) {
-  const [rating, setRating] = useState(5);
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
   const numericId = String(booking.listing.id).startsWith("db-") ? Number(String(booking.listing.id).slice(3)) : null;
-
-  const submit = async () => {
-    if (!text.trim()) return;
-    setError("");
-
-    if (numericId !== null && user) {
-      setSubmitting(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = session?.access_token ? await fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ listingId: numericId, rating, text: text.trim() }),
-      }) : null;
-      const result = response ? await response.json().catch(() => ({})) : {};
-      const err = response?.ok ? null : { message: result.error || "Please sign in to review." };
-      setSubmitting(false);
-      if (err) {
-        setError(err.message);
-        return;
-      }
-    }
-
-    onSubmit();
-  };
+  const { draft: { rating, text }, error, submitting, change, submit, cancel } =
+    useReviewSubmission(user, numericId, booking.id, onSubmit, true);
+  const close = () => { if (cancel()) onClose(); };
 
   return (
-    <Modal title={"Review "+booking.listing.title} onClose={onClose}>
+    <Modal title={"Review "+booking.listing.title} onClose={close}>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 8 }}>Your rating</div>
         <div style={{ display: "flex", gap: 6 }}>
           {[1,2,3,4,5].map(n => (
-            <button key={n} onClick={() => setRating(n)} style={{ background:"none", border:"none", fontSize:28, cursor:"pointer", color: n <= rating ? C.amber : C.concrete, padding:0 }}>★</button>
+            <button key={n} onClick={() => change({ rating: n })} disabled={submitting} style={{ background:"none", border:"none", fontSize:28, cursor:"pointer", color: n <= rating ? C.amber : C.concrete, padding:0 }}>★</button>
           ))}
         </div>
       </div>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</div>
         <textarea
-          value={text} onChange={e => setText(e.target.value)}
+          value={text} onChange={e => change({ text: e.target.value })} disabled={submitting} maxLength={1500}
           placeholder="Share your experience with this driveway…"
           style={{ width:"100%", border:"1px solid "+C.concrete, borderRadius:8, padding:"10px 14px", fontSize:13, resize:"vertical", minHeight:90, fontFamily:"'Poppins', sans-serif", color:C.navy, outline:"none", boxSizing:"border-box" }}
         />
       </div>
-      {error && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+      {error && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display:"flex", gap:10 }}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="ghost" onClick={close}>Cancel</Btn>
         <Btn variant="moss" full onClick={submit} disabled={!text.trim() || submitting}>{submitting ? "Submitting…" : "Submit review"}</Btn>
       </div>
     </Modal>

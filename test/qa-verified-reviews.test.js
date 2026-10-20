@@ -42,7 +42,8 @@ test("review endpoint never accepts a client user ID or unchecked booking comple
 });
 test("both client review forms use authenticated server API",async()=>{
   const app=await readFile(new URL("../src/App.jsx",import.meta.url),"utf8");
-  assert.equal(app.split('fetch("/api/reviews"').length-1,2);
+  assert.equal(app.split('fetch("/api/reviews"').length-1,1);
+  assert.equal(app.split('useReviewSubmission(user, numericId,').length-1,2);
   assert.doesNotMatch(app,/supabase\.from\("reviews"\)\.insert/);
 });
 test("review permission proposal removes unverified client inserts and enforces uniqueness",async()=>{
