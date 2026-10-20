@@ -3333,6 +3333,62 @@ function TransactionsView({ user }) {
   );
 }
 
+function useHostListingDeletion(user, onDeleted) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    if (context.request) context.request.token.active = false;
+    current = { accountId, request: null };
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (latest.current.request) latest.current.request.token.active = false;
+    };
+  }, []);
+  const isCurrent = token => mounted.current && token?.active && latest.current.accountId === accountId && latest.current.request?.token === token;
+  const replace = next => { latest.current = next; setContext(next); };
+  const open = listing => {
+    if (!mounted.current || latest.current !== current || !accountId || !validId(listing?.rawId) || !listing?.id || current.request?.token.pending) return;
+    if (current.request) current.request.token.active = false;
+    // A delete confirmation needs IDs only, never a mutable private listing.
+    replace({ accountId, request: { rawId: listing.rawId, displayId: listing.id, token: { active: true, pending: false } } });
+  };
+  const close = () => {
+    const token = current.request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    token.active = false;
+    replace({ ...latest.current, request: null });
+  };
+  const confirm = async () => {
+    const request = current.request, token = request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    token.pending = true;
+    replace({ ...latest.current });
+    try {
+      const result = await deleteHostListing(supabase, { listingId: request.rawId, hostId: accountId, isContextCurrent: () => isCurrent(token) });
+      if (!isCurrent(token) || result.obsolete) return;
+      if (!result.ok) { alert(result.message); return; }
+      onDeleted(request.displayId);
+      if (result.photoCleanupPending) alert("Listing deleted. Photo cleanup is queued and will retry automatically.");
+    } finally {
+      token.pending = false;
+      if (isCurrent(token)) {
+        token.active = false;
+        replace({ ...latest.current, request: null });
+      }
+    }
+  };
+  return { confirmDeleteId: current.request?.displayId || null,
+    deletingId: current.request?.token.pending ? current.request.displayId : null, open, close, confirm };
+}
+
 function HostDashboard({ user, setTab }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
@@ -3615,8 +3671,6 @@ function HostDashboard({ user, setTab }) {
       displayStatus: getBookingDisplayStatus(booking.status, booking.bookingStart, booking.bookingEnd, currentTime),
     }))
     .filter(booking => booking.displayStatus === "Upcoming" || booking.displayStatus === "Active" || booking.displayStatus === "Cancellation pending");
-  const [deletingId, setDeletingId] = useState(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [editingListing, setEditingListing] = useState(null);
   const [showAllListings, setShowAllListings] = useState(false);
   const [showAllBookings, setShowAllBookings] = useState(false);
@@ -3624,24 +3678,10 @@ function HostDashboard({ user, setTab }) {
   const [listingActionId, setListingActionId] = useState(null);
   const [bookingActionId, setBookingActionId] = useState(null);
 
-  const deleteListing = async (rawId, displayId) => {
-    if (deletingId) return;
-    setDeletingId(displayId);
-    try {
-      // The authenticated API keeps FK booking protections and starts the
-      // durable photo cleanup queued by the successful database deletion.
-      const result = await deleteHostListing(supabase, { listingId: rawId, hostId: user?.id });
-      if (!result.ok) {
-        alert(result.message);
-        return;
-      }
+  const { deletingId, confirmDeleteId, open: openListingDeletion, close: closeListingDeletion,
+    confirm: deleteListing } = useHostListingDeletion(user, displayId => {
       setDbListings(prev => prev.filter(l => l.id !== displayId));
-      if (result.photoCleanupPending) alert("Listing deleted. Photo cleanup is queued and will retry automatically.");
-    } finally {
-      setDeletingId(null);
-      setConfirmDeleteId(null);
-    }
-  };
+    });
 
   const saveListingEdit = async (updated) => {
     const rate = validateHourlyRate(updated.price);
@@ -3798,8 +3838,8 @@ function HostDashboard({ user, setTab }) {
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
                   <div className="host-dashboard-delete-confirm" style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => deleteListing(l.rawId, l.id)} disabled={deletingId === l.id} style={{ minHeight: 34, background: C.red, color: C.white, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Delete"}</button>
-                    <button onClick={() => setConfirmDeleteId(null)} style={{ minHeight: 34, background: C.concrete, color: C.navy, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Keep</button>
+                    <button onClick={deleteListing} disabled={deletingId === l.id} style={{ minHeight: 34, background: C.red, color: C.white, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Delete"}</button>
+                    <button onClick={closeListingDeletion} disabled={deletingId !== null} style={{ minHeight: 34, background: C.concrete, color: C.navy, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Keep</button>
                   </div>
                 ) : (
                   <div style={{ position: "relative", flexShrink: 0 }}>
@@ -3807,7 +3847,7 @@ function HostDashboard({ user, setTab }) {
                     {listingActionId === l.id && (
                       <div className="host-dashboard-action-menu">
                         <button onClick={() => { setListingActionId(null); setEditingListing(l); }}>Edit listing</button>
-                        <button className="danger" onClick={() => { setListingActionId(null); setConfirmDeleteId(l.id); }}>Delete listing</button>
+                        <button className="danger" onClick={() => { setListingActionId(null); openListingDeletion(l); }}>Delete listing</button>
                       </div>
                     )}
                   </div>
