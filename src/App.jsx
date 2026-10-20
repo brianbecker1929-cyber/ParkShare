@@ -3335,6 +3335,9 @@ function TransactionsView({ user }) {
 function HostDashboard({ user, setTab }) {
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
+  const [hostLoading, setHostLoading] = useState(true);
+  const [hostError, setHostError] = useState("");
+  const [dashboardReload, setDashboardReload] = useState(0);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [hostReviews, setHostReviews] = useState([]);
   const [cancelTarget, setCancelTarget] = useState(null);
@@ -3343,26 +3346,39 @@ function HostDashboard({ user, setTab }) {
   const [cancelNotice, setCancelNotice] = useState("");
 
   // ─── Stripe Connect payout status ────────────────────────────────────────
-  // Reads straight from `profiles` so it always reflects the latest state
-  // written by the account.updated webhook, including right after a host
-  // returns from Stripe's hosted onboarding flow.
+  // The authenticated API checks the current Host's connected account.
   const [stripeStatus, setStripeStatus] = useState({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
   const [connectError, setConnectError] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const onboardingAttempt = useRef(null);
+
+  useEffect(() => () => {
+    if (onboardingAttempt.current) onboardingAttempt.current.active = false;
+    onboardingAttempt.current = null;
+  }, [user?.id]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const refreshStripeStatus = async () => {
-    if (!user) return;
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setStripeStatus({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
+    setConnectError("");
+    if (!user?.id) return () => { active = false; controller.abort(); };
+    (async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Please sign in again to check payout status.");
-      const res = await fetch("/api/connect-status", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!active) return;
+      const session = sessionData?.session;
+      if (sessionError || !session?.access_token || session.user?.id !== user.id) throw new Error("Your account changed or session expired. Please sign in again to check payout status.");
+      const res = await fetch("/api/connect-status", { headers: { Authorization: `Bearer ${session.access_token}` }, signal: controller.signal, cache: "no-store" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Couldn't refresh Stripe status.");
+      if (!active) return;
+      if (!res.ok) throw new Error(data?.error || "Couldn't refresh Stripe status.");
+      if (![data?.connected, data?.chargesEnabled, data?.payoutsEnabled].every(value => typeof value === "boolean")) throw new Error("Couldn't refresh Stripe status. Please try again.");
       setStripeStatus({
         loading: false,
         accountId: data.connected ? "connected" : null,
@@ -3370,15 +3386,21 @@ function HostDashboard({ user, setTab }) {
         payoutsEnabled: !!data.payoutsEnabled,
       });
     } catch (error) {
-      setStripeStatus(s => ({ ...s, loading: false }));
-      setConnectError(error.message || "Couldn't refresh Stripe status.");
+      if (active) {
+        setStripeStatus({ loading: false, unavailable: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
+        setConnectError(error?.message || "Couldn't refresh Stripe status.");
+      }
     }
-  };
-
-  useEffect(() => { refreshStripeStatus(); }, [user]);
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [user?.id, dashboardReload]);
 
   const connectStripe = async () => {
-    if (!user) return;
+    if (!user?.id || onboardingAttempt.current) return;
+    const attempt = { active: true };
+    onboardingAttempt.current = attempt;
+    const isCurrent = () => attempt.active && onboardingAttempt.current === attempt;
+    let redirecting = false;
     setConnectError("");
     setConnecting(true);
 
@@ -3386,15 +3408,18 @@ function HostDashboard({ user, setTab }) {
       // Stripe onboarding is protected by the same Supabase JWT used for
       // checkout. Refresh once if the locally stored session is stale.
       let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!isCurrent()) return;
       let session = sessionData?.session;
+      if (session?.user?.id && session.user.id !== user.id) throw new Error("Your account changed. Please sign in again to set up payouts.");
 
       if (sessionError || !session?.access_token) {
         const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!isCurrent()) return;
         if (refreshError) throw refreshError;
         session = refreshedData?.session;
       }
 
-      if (!session?.access_token) {
+      if (!session?.access_token || session.user?.id !== user.id) {
         throw new Error("Your session is invalid or expired. Please sign in again.");
       }
 
@@ -3413,33 +3438,56 @@ function HostDashboard({ user, setTab }) {
       } catch {
         // Use the fallback message below when the API returns no JSON body.
       }
+      if (!isCurrent()) return;
 
       if (res.status === 401) {
         throw new Error("Your session is invalid or expired. Please sign in again.");
       }
-      if (!res.ok) throw new Error(data.error || "Couldn't start Stripe onboarding.");
-      if (!data.url) throw new Error("Stripe did not return an onboarding link.");
+      if (!res.ok) throw new Error(data?.error || "Couldn't start Stripe onboarding.");
+      if (!data?.url) throw new Error("Stripe did not return an onboarding link.");
+
+      // A session can change while Stripe creates the link, before React
+      // receives the cross-tab auth update. Recheck before navigating away.
+      const { data: latestData, error: latestError } = await supabase.auth.getSession();
+      if (!isCurrent()) return;
+      if (latestError || latestData?.session?.user?.id !== user.id || !latestData.session.access_token) throw new Error("Your account changed. Please sign in again to set up payouts.");
 
       window.location.assign(data.url);
+      redirecting = true;
     } catch (err) {
-      setConnecting(false);
-      setConnectError(err?.message || "Couldn't start Stripe onboarding.");
+      if (isCurrent()) setConnectError(err?.message || "Couldn't start Stripe onboarding.");
+    } finally {
+      if (isCurrent() && !redirecting) {
+        onboardingAttempt.current = null;
+        setConnecting(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (!user) return;
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-        if (!session?.access_token) return;
+    let active = true;
+    const controller = new AbortController();
+    setDbListings([]);
+    setDbBookings([]);
+    setHostReviews([]);
+    setHostError("");
+    setHostLoading(Boolean(user?.id));
+    if (!user?.id) return () => { active = false; controller.abort(); };
+    (async () => {
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!active) return;
+        const session = sessionData?.session;
+        if (sessionError || !session?.access_token || session.user?.id !== user.id) throw new Error("Your account changed or session expired. Please sign in again to load your dashboard.");
         const response = await fetch("/api/account-bookings?view=host", {
           headers: { Authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal, cache: "no-store",
         });
-        if (!response.ok) return;
-        const payload = await response.json();
+        const payload = await response.json().catch(() => ({}));
+        if (!active) return;
+        if (!response.ok) throw new Error(payload?.error || "Couldn't load your dashboard.");
+        if (![payload?.listings, payload?.bookings, payload?.reviews].every(Array.isArray)) throw new Error("Couldn't load your dashboard. Please try again.");
         const data = payload.listings;
-        const error = null;
-        if (error || !data) return;
         setDbListings(
           data.map(row => ({
             id: "db-" + row.id,
@@ -3458,17 +3506,6 @@ function HostDashboard({ user, setTab }) {
             spots: row.spots || [],
           }))
         );
-        // Load authorized Host photographs with bearer-token access.
-        for (const listingRow of data) {
-          fetchPrivateCoverDataUrl(listingRow.id, null, session.access_token)
-            .then(image => {
-              if (!image) return;
-              setDbListings(prev => prev.map(l => l.rawId === listingRow.id ? { ...l, img: image } : l));
-              setDbBookings(prev => prev.map(b => b.listingDetails?.id === "db-" + listingRow.id
-                ? { ...b, listingDetails: { ...b.listingDetails, img: image } } : b));
-            }).catch(() => {});
-        }
-
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) {
           setHostReviews([]);
@@ -3476,9 +3513,9 @@ function HostDashboard({ user, setTab }) {
         }
 
         const listingTitles = Object.fromEntries(data.map(row => [row.id, row.title]));
-        Promise.resolve({ data: payload.reviews, error: null })
+        await Promise.resolve({ data: payload.reviews, error: null })
           .then(({ data: reviewRows, error: reviewError }) => {
-            if (reviewError || !reviewRows) return;
+            if (!active || reviewError || !reviewRows) return;
             setHostReviews(reviewRows.map(row => ({
               id: row.id,
               listing: listingTitles[row.listing_id] || "Listing",
@@ -3489,9 +3526,9 @@ function HostDashboard({ user, setTab }) {
             })));
           });
 
-        Promise.resolve({ data: payload.bookings, error: null })
+        await Promise.resolve({ data: payload.bookings, error: null })
           .then(({ data: bookingRows, error: bookingErr }) => {
-            if (bookingErr || !bookingRows) return;
+            if (!active || bookingErr || !bookingRows) return;
             const now = Date.now();
             setDbBookings(
               bookingRows.map(row => {
@@ -3547,8 +3584,29 @@ function HostDashboard({ user, setTab }) {
             }, {});
             setDbListings(prev => prev.map(listing => ({ ...listing, bookings: counts[listing.rawId] || 0 })));
           });
-      });
-  }, [user]);
+        if (!active) return;
+        // Load authorized Host photographs with bearer-token access.
+        for (const listingRow of data) {
+          fetchPrivateCoverDataUrl(listingRow.id, null, session.access_token, controller.signal)
+            .then(image => {
+              if (!active || !image) return;
+              setDbListings(prev => prev.map(l => l.rawId === listingRow.id ? { ...l, img: image } : l));
+              setDbBookings(prev => prev.map(b => b.listingDetails?.id === "db-" + listingRow.id
+                ? { ...b, listingDetails: { ...b.listingDetails, img: image } } : b));
+            }).catch(() => {});
+        }
+
+      } catch (error) {
+        if (active) {
+          setDbListings([]); setDbBookings([]); setHostReviews([]);
+          setHostError(error?.message || "Couldn't load your dashboard.");
+        }
+      } finally {
+        if (active) setHostLoading(false);
+      }
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [user?.id, dashboardReload]);
 
   const myListings = dbListings;
   // Only future and currently active reservations belong in this card.
@@ -3653,13 +3711,16 @@ function HostDashboard({ user, setTab }) {
       {/* Content-sized responsive grid: overview first, details second. */}
       <div className="host-dashboard-main" style={{ width: "100%", maxWidth: 1240, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(300px, 0.8fr)", gridTemplateRows: "auto auto auto", alignItems: "start", gap: 14, padding: 18, overflow: "visible", boxSizing: "border-box" }}>
 
+      {hostLoading && <p role="status" style={{ gridColumn: "1 / -1", color: C.muted, margin: 0 }}>Loading your dashboard…</p>}
+      {hostError && <div role="alert" style={{ gridColumn: "1 / -1", color: C.red }}>{hostError} <button type="button" onClick={() => setDashboardReload(value => value + 1)}>Try again</button></div>}
+
         {/* Stats row — spans full width */}
         <div className="host-dashboard-stat-grid" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           {[
             { label: earningsUnderReview ? "Known earnings this month" : "Earned this month", value: txLoading ? "…" : txError ? "Unavailable" : money(thisMonthEarned), icon: "💰", target: "host-dashboard-earnings" },
-            { label: "Upcoming bookings", value: String(upcomingBookings.length), icon: "📅", target: "host-dashboard-upcoming" },
-            { label: "Active listings", value: String(myListings.filter(l => l.active).length), icon: "🏠", target: "host-dashboard-listings" },
-            { label: "Average rating", value: avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐", target: "host-dashboard-reviews" },
+            { label: "Upcoming bookings", value: hostLoading ? "…" : hostError ? "Unavailable" : String(upcomingBookings.length), icon: "📅", target: "host-dashboard-upcoming" },
+            { label: "Active listings", value: hostLoading ? "…" : hostError ? "Unavailable" : String(myListings.filter(l => l.active).length), icon: "🏠", target: "host-dashboard-listings" },
+            { label: "Average rating", value: hostLoading ? "…" : hostError ? "Unavailable" : avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐", target: "host-dashboard-reviews" },
           ].map(s => (
             <button type="button" key={s.label} className="host-dashboard-stat" onClick={() => scrollToDashboardSection(s.target)} aria-label={`${s.label}: ${s.value}. Jump to section.`} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, padding: "14px 15px", display: "flex", alignItems: "center", gap: 11, minHeight: 88, fontFamily: "inherit", textAlign: "left", cursor: "pointer" }}>
               <div className="host-dashboard-stat-icon" style={{ width: 38, height: 38, borderRadius: 10, background: C.amberLight, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0 }}>{s.icon}</div>
@@ -3681,7 +3742,7 @@ function HostDashboard({ user, setTab }) {
           </div>
           {cancelNotice && <div role="status" style={{ fontSize: 10, color: C.moss, padding: "9px 15px 0" }}>{cancelNotice}</div>}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {upcomingBookings.length === 0 && (
+            {!hostLoading && !hostError && upcomingBookings.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No upcoming bookings.</div>
             )}
             {upcomingBookings.slice(0, showAllBookings ? upcomingBookings.length : 3).map(b => (
@@ -3737,7 +3798,7 @@ function HostDashboard({ user, setTab }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {myListings.length === 0 && (
+            {!hostLoading && !hostError && myListings.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No listings yet.</div>
             )}
             {myListings.slice(0, showAllListings ? myListings.length : 3).map(l => (
@@ -3780,7 +3841,7 @@ function HostDashboard({ user, setTab }) {
           </div>
 
           {/* Stripe Connect payout status — gates whether this host can actually get paid out */}
-          <div style={{ padding: "13px 15px 0" }}>{!stripeStatus.loading && (
+          <div style={{ padding: "13px 15px 0" }}>{!stripeStatus.loading && !stripeStatus.unavailable && (
             stripeStatus.payoutsEnabled ? (
               <div style={{ display: "flex", alignItems: "center", gap: 7, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 11px", marginBottom: 10 }}>
                 <span style={{ fontSize: 13 }}>✅</span>
@@ -3797,7 +3858,9 @@ function HostDashboard({ user, setTab }) {
                 {connectError && <div style={{ fontSize: 9, color: C.red, marginTop: 6 }}>{connectError}</div>}
               </div>
             )
-          )}</div>
+          )}
+            {stripeStatus.unavailable && <div role="alert" style={{ color: C.red, fontSize: 11, marginBottom: 10 }}>{connectError} <button type="button" onClick={() => setDashboardReload(value => value + 1)}>Try again</button></div>}
+          </div>
 
           <div className="host-dashboard-earnings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, padding: "0 15px 15px" }}>
             {[
@@ -3854,7 +3917,7 @@ function HostDashboard({ user, setTab }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {hostReviews.length === 0 && (
+            {!hostLoading && !hostError && hostReviews.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No reviews yet. New Driver reviews will appear here.</div>
             )}
             {hostReviews.slice(0, showAllReviews ? hostReviews.length : 3).map(review => (
@@ -10613,7 +10676,7 @@ export default function App() {
           {tab === "Profile" && requireDriver(<DriverProfileView user={user} onProfileUpdated={setUser} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
+          {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key={"driver:" + user?.id} user={user} />
             : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}
