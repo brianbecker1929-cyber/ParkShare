@@ -4312,17 +4312,18 @@ function MessagesView({ onOpenThread, user }) {
         </div>
       )}
       {conversations.map(l => (
-        <div key={l.id} onClick={() => onOpenThread(l)} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "box-shadow 0.15s" }}
+        <button type="button" className="ps-conversation-row" key={messageConversationKey(user?.id, l)} onClick={() => onOpenThread(l)}
+          style={{ width: "100%", textAlign: "left", font: "inherit", background: C.white, border: "1px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "box-shadow 0.15s" }}
           onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 14px rgba(27,42,59,0.08)"}
           onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{l.hostImg}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>{l.host}</div>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 2 }}>{l.title}</div>
-            <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.preview}</div>
-          </div>
-          <div style={{ fontSize: 16, color: C.muted, flexShrink: 0 }}>›</div>
-        </div>
+          <span aria-hidden="true" style={{ width: 44, height: 44, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{l.hostImg}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontWeight: 700, fontSize: 14, color: C.navy }}>{l.host}</span>
+            <span style={{ display: "block", fontSize: 11, color: C.muted, marginBottom: 2 }}>{l.title}</span>
+            <span style={{ display: "block", fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.preview}</span>
+          </span>
+          <span aria-hidden="true" style={{ fontSize: 16, color: C.muted, flexShrink: 0 }}>›</span>
+        </button>
       ))}
     </div>
   );
