@@ -6190,7 +6190,7 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 }
 
 // ─── Driver Profile ──────────────────────────────────────────────────────────
-function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText }) {
+function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText, disabled = false }) {
   const errorFor = field => errors[errorPrefix ? `${errorPrefix}.${field}` : field];
   const errorId = field => `${idPrefix}-${field}-error`;
   const describedBy = field => errorFor(field) ? errorId(field) : undefined;
@@ -6200,6 +6200,7 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       <div className="ps-profile-field">
         <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>Recommended</span></label>
         <select
+          disabled={disabled}
           id={`${idPrefix}-make`}
           value={vehicle.vehicleMake || ""}
           onChange={event => onMakeChange(event.target.value)}
@@ -6218,7 +6219,7 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
           id={`${idPrefix}-model`}
           value={vehicle.vehicleModel || ""}
           onChange={event => onUpdate("vehicleModel", event.target.value)}
-          disabled={!vehicle.vehicleMake}
+          disabled={disabled || !vehicle.vehicleMake}
           aria-invalid={Boolean(errorFor("vehicleModel"))}
           aria-describedby={describedBy("vehicleModel")}
         >
@@ -6231,6 +6232,7 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       <div className="ps-profile-field">
         <label htmlFor={`${idPrefix}-colour`}>Vehicle colour <span>Recommended</span></label>
         <select
+          disabled={disabled}
           id={`${idPrefix}-colour`}
           value={vehicle.vehicleColour || ""}
           onChange={event => onUpdate("vehicleColour", event.target.value)}
@@ -6246,6 +6248,7 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       <div className="ps-profile-field">
         <label htmlFor={`${idPrefix}-license-plate`}>License plate number <span>Recommended</span></label>
         <input
+          disabled={disabled}
           id={`${idPrefix}-license-plate`}
           autoCapitalize="characters"
           autoComplete="off"
@@ -6261,6 +6264,53 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
     </div>
   );
+}
+
+async function persistDriverProfile(profile, accountId, isCurrent) {
+  const body = JSON.stringify(profile);
+  const currentSession = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (!isCurrent()) return null;
+    const session = data?.session;
+    if (error || !session?.access_token || session.user?.id !== accountId) {
+      throw new Error("Your account changed or expired. Sign in again to confirm your profile.");
+    }
+    return session;
+  };
+  const session = await currentSession();
+  if (!session || !isCurrent()) return null;
+  const response = await fetch("/api/profile", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body,
+  });
+  if (!isCurrent()) return null;
+  const payload = await response.json().catch(() => ({}));
+  if (!isCurrent()) return null;
+  if (!response.ok) {
+    const error = new Error(payload.error || "Couldn't confirm your saved profile. Sign in again to check before retrying.");
+    if (payload.errors && typeof payload.errors === "object" && !Array.isArray(payload.errors)) error.fieldErrors = payload.errors;
+    throw error;
+  }
+  const returned = payload.profile;
+  const fields = ["name", "phone", "vehicleDetails", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"];
+  if (!returned || !fields.every(field => typeof returned[field] === "string") || !Array.isArray(returned.guestVehicles)) {
+    throw new Error("Couldn't confirm your saved profile. Sign in again to check before retrying.");
+  }
+  const validated = validateDriverProfile(returned);
+  if (!validated.valid) throw new Error("Couldn't confirm your saved profile. Sign in again to check before retrying.");
+  try {
+    // Avoid refreshing a different account after a delayed PATCH response.
+    if (!await currentSession() || !isCurrent()) return null;
+    const { data, error } = await supabase.auth.refreshSession();
+    if (!isCurrent()) return null;
+    if (error || !data?.session?.access_token || data.session.user?.id !== accountId) throw new Error("Session changed");
+    if (!await currentSession() || !isCurrent()) return null;
+  } catch {
+    if (!isCurrent()) return null;
+    throw new Error("Your profile was saved, but we couldn't confirm your current session. Sign in again to confirm the saved details.");
+  }
+  return validated.normalised;
 }
 
 function DriverProfileView({ user, onProfileUpdated }) {
@@ -6280,8 +6330,28 @@ function DriverProfileView({ user, onProfileUpdated }) {
   const [primaryOpen, setPrimaryOpen] = useState(true);
   const [openGuestIds, setOpenGuestIds] = useState({});
   const completion = getDriverProfileCompletion(form);
+  const accountId = user?.id || null;
+  const lifetime = useRef({ accountId, active: true });
+  const attempt = useRef(null);
+  if (lifetime.current.accountId !== accountId) {
+    lifetime.current.active = false;
+    if (attempt.current) attempt.current.active = false;
+    attempt.current = null;
+    lifetime.current = { accountId, active: true };
+  }
+  const owner = lifetime.current;
+  const canAct = () => Boolean(accountId) && owner.active && lifetime.current === owner;
+  useEffect(() => {
+    owner.active = true;
+    setSaving(false);
+    return () => {
+      owner.active = false;
+      if (attempt.current?.owner === owner) { attempt.current.active = false; attempt.current = null; }
+    };
+  }, [accountId]);
 
   useEffect(() => {
+    if (attempt.current?.pending) return;
     setForm({
       name: user?.name || "",
       phone: user?.phone || "",
@@ -6294,18 +6364,21 @@ function DriverProfileView({ user, onProfileUpdated }) {
   }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
 
   const update = (field, value) => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({ ...current, [field]: value }));
     setErrors(current => ({ ...current, [field]: "" }));
     setSaved(false);
   };
 
   const updateVehicleMake = value => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({ ...current, vehicleMake: value, vehicleModel: "" }));
     setErrors(current => ({ ...current, vehicleMake: "", vehicleModel: "" }));
     setSaved(false);
   };
 
   const updateGuestVehicle = (index, field, value) => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({
       ...current,
       guestVehicles: current.guestVehicles.map((vehicle, vehicleIndex) =>
@@ -6317,6 +6390,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   const updateGuestVehicleMake = (index, value) => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({
       ...current,
       guestVehicles: current.guestVehicles.map((vehicle, vehicleIndex) =>
@@ -6332,6 +6406,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   const addGuestVehicle = () => {
+    if (!canAct() || attempt.current?.pending) return;
     if (form.guestVehicles.length >= MAX_GUEST_VEHICLES) return;
     const id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setForm(current => ({
@@ -6344,12 +6419,14 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   const removeGuestVehicle = index => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({ ...current, guestVehicles: current.guestVehicles.filter((_, vehicleIndex) => vehicleIndex !== index) }));
     setErrors({});
     setSaved(false);
   };
 
   const save = async () => {
+    if (!canAct() || attempt.current?.pending) return;
     const validation = validateDriverProfile(form);
     setErrors(validation.errors);
     setSaveError("");
@@ -6371,44 +6448,25 @@ function DriverProfileView({ user, onProfileUpdated }) {
       return;
     }
 
+    const work = { owner, active: true, pending: true };
+    attempt.current = work;
+    const isCurrent = () => canAct() && work.active && attempt.current === work;
     setSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Your session expired. Please sign in again.");
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(validation.normalised),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (payload.errors) setErrors(payload.errors);
-        throw new Error(payload.error || "Unable to save your profile.");
-      }
-
-      // The server updates Supabase Auth metadata with the service-role
-      // client. Refresh the browser session so its persisted user object
-      // immediately receives those new values as well. Without this, an
-      // ordinary page refresh can temporarily restore the pre-save profile
-      // until the Driver signs out and back in.
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) console.warn("Unable to refresh profile session:", refreshError);
-
-      const nextUser = {
-        ...user,
-        ...payload.profile,
-        profileComplete: payload.completion?.complete || false,
-      };
-      setForm(payload.profile);
-      onProfileUpdated(nextUser);
+      const profile = await persistDriverProfile(validation.normalised, accountId, isCurrent);
+      if (!isCurrent() || !profile) return;
+      const profileComplete = getDriverProfileCompletion(profile).complete;
+      setForm(profile);
+      onProfileUpdated({ id: accountId, ...profile, profileComplete });
       setSaved(true);
     } catch (error) {
-      setSaveError(error.message || "Unable to save your profile right now.");
+      if (isCurrent()) {
+        if (error?.fieldErrors) setErrors(error.fieldErrors);
+        setSaveError(error?.message || "Couldn't confirm your saved profile. Sign in again to check before retrying.");
+      }
     } finally {
-      setSaving(false);
+      work.pending = false;
+      if (isCurrent()) { attempt.current = null; setSaving(false); }
     }
   };
 
@@ -6435,6 +6493,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
               id="driver-profile-name"
               name="name"
               autoComplete="name"
+              disabled={saving}
               value={form.name}
               onChange={event => update("name", event.target.value)}
               aria-invalid={Boolean(errors.name)}
@@ -6458,6 +6517,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
               inputMode="tel"
               autoComplete="tel"
               placeholder="416-555-0100"
+              disabled={saving}
               value={form.phone}
               onChange={event => update("phone", event.target.value)}
               aria-invalid={Boolean(errors.phone)}
@@ -6481,6 +6541,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
             {primaryOpen && (
               <div id="primary-vehicle-fields" className="ps-vehicle-accordion-body">
                 <VehicleProfileFields
+                  disabled={saving}
                   vehicle={form}
                   idPrefix="driver-profile-primary"
                   errors={errors}
@@ -6510,15 +6571,15 @@ function DriverProfileView({ user, onProfileUpdated }) {
                   </button>
                   {isOpen && (
                     <div id={`guest-vehicle-${vehicle.id}`} className="ps-guest-vehicle-body">
-                      <VehicleProfileFields vehicle={vehicle} idPrefix={`driver-profile-guest-${index}`} errorPrefix={`guestVehicles.${index}`} errors={errors} onUpdate={(field, value) => updateGuestVehicle(index, field, value)} onMakeChange={value => updateGuestVehicleMake(index, value)} helpText="Only the Host for a booking using this vehicle will see these details." />
-                      <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)}>Remove guest vehicle</button>
+                      <VehicleProfileFields disabled={saving} vehicle={vehicle} idPrefix={`driver-profile-guest-${index}`} errorPrefix={`guestVehicles.${index}`} errors={errors} onUpdate={(field, value) => updateGuestVehicle(index, field, value)} onMakeChange={value => updateGuestVehicleMake(index, value)} helpText="Only the Host for a booking using this vehicle will see these details." />
+                      <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)} disabled={saving}>Remove guest vehicle</button>
                     </div>
                   )}
                 </div>
               );
             })}
             {errors.guestVehicles && <small className="ps-guest-vehicle-error" role="alert">{errors.guestVehicles}</small>}
-            <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
+            <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={saving || form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
               + Add guest vehicle{form.guestVehicles.length >= MAX_GUEST_VEHICLES ? ` (maximum ${MAX_GUEST_VEHICLES})` : ""}
             </button>
           </div>
@@ -10997,7 +11058,7 @@ export default function App() {
             : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
-          {tab === "Profile" && requireDriver(<DriverProfileView user={user} onProfileUpdated={setUser} />)}
+          {tab === "Profile" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
