@@ -98,7 +98,7 @@ async function getSpentTransactions(userId) {
       type: "extension",
       id: `extension-${ext.id}`,
       bookingId: ext.booking_id,
-      description: "Added time",
+      description: ext.application_state === "rejected" ? "Extension not applied" : "Added time",
       amount: Number(ext.added_amount || 0),
       status: spendingRefundStatus(ext, ext.added_amount),
       ...spendingRefundAmounts(ext),
@@ -169,7 +169,7 @@ async function getEarnedTransactions(userId) {
         type: "extension",
         id: `extension-${ext.id}`,
         bookingId: ext.booking_id,
-        description: (listing?.title || "Parking session") + " — added time",
+        description: (listing?.title || "Parking session") + (ext.application_state === "rejected" ? " — extension not applied" : " — added time"),
         address: listing?.address || "",
         gross: Number(ext.added_amount || 0),
         status: ext.status,
@@ -192,7 +192,7 @@ async function getEarnedTransactions(userId) {
 async function fetchExtensionsForBookings(bookingIds) {
   const { data, error } = await supabaseAdmin
     .from("booking_extensions")
-    .select("id, booking_id, added_hours, added_amount, status, paid_at, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, charge_amount_refunded, charge_fully_refunded, charge_disputed, refund_total_amount, refund_pending_amount")
+    .select("id, booking_id, added_hours, added_amount, application_state, status, paid_at, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, charge_amount_refunded, charge_fully_refunded, charge_disputed, refund_total_amount, refund_pending_amount")
     .in("booking_id", bookingIds)
     .not("paid_at", "is", null);
   // Older deployments may not have applied the extensions migration yet.

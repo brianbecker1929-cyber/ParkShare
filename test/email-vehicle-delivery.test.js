@@ -56,7 +56,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     },
   };
   const pendingExtension = {
-    booking_id: 42, renter_id: "sample-renter", added_hours: 1,
+    booking_id: 42, renter_id: "sample-renter", added_hours: 1, hold_id: "extension_hold",
     expected_total_cents: 500, expected_service_fee_cents: 65,
     expected_connected_account_id: "acct_sample",
     stripe_checkout_session_id: "cs_ext_sample",
@@ -85,7 +85,8 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     } else if (table === "listings") result = project(listing, url);
     else if (table === "booking_holds") {
       const requested = url.searchParams.get("stripe_checkout_session_id");
-      result = requested === "eq.cs_booking_sample" ? project(trustedHold, url) : null;
+      result = requested === "eq.cs_booking_sample" ? project(trustedHold, url)
+        : requested === "eq.cs_ext_sample" ? project({id:"extension_hold",listing_id:7,renter_id:"sample-renter",stripe_checkout_session_id:"cs_ext_sample",checkout_metadata:null},url) : null;
     } else if (table === "pending_booking_extensions") {
       const requested = url.searchParams.get("stripe_checkout_session_id");
       result = requested === "eq.cs_ext_sample" ? project(pendingExtension, url) : null;
@@ -111,7 +112,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       if (method === "POST") savedExtensionSessionId = JSON.parse(init.body).stripe_checkout_session_id;
       const requested = url.searchParams.get("stripe_checkout_session_id");
       result = requested && requested !== "eq." + savedExtensionSessionId
-        ? null : { id: 1, booking_id: 42, added_hours: 1 };
+        ? null : { id: 1, booking_id: 42, added_hours: 1, application_state: "applied" };
     }
     else assert.fail("Unexpected table " + table);
     const singular = new Headers(init.headers).get("accept")?.includes("object+json");
@@ -122,8 +123,12 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     const { default: webhook } = await import("../api/stripe-webhook.js");
     const { stripe } = await import("../api/_lib.js");
     const originalRetrieve = stripe.paymentIntents.retrieve;
+    const originalChargeRetrieve = stripe.charges.retrieve;
+    const originalRefundList = stripe.refunds.list;
+    stripe.charges.retrieve = async (id, params, options) => {assert.equal(options.stripeAccount,"acct_sample");return {id,payment_intent:"pi_ext_sample",currency:"cad",livemode:false,amount:500,amount_captured:500,amount_refunded:0,paid:true,captured:true,status:"succeeded"};};
+    stripe.refunds.list = async () => ({data:[],has_more:false});
     stripe.paymentIntents.retrieve = async id => ({
-      id, currency: "cad", status: "succeeded",
+      id, currency: "cad", status: "succeeded", livemode: false,
       amount_received: id === "pi_ext_sample" ? 500 : 1235,
       application_fee_amount: id === "pi_ext_sample" ? 65 : 235,
       latest_charge: id === "pi_ext_sample" ? "ch_ext" : "ch_book",
@@ -141,8 +146,8 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     await reminders({ method: "GET", headers: { authorization: "Bearer sample-cron" } }, res);
     assert.deepEqual(res.body, { halfwaySent: 0, endingSent: 0, failed: 0 });
     async function deliver(metadata, sessionId, amountCents, paymentIntentId) {
-      const payload = JSON.stringify({ type: "checkout.session.completed", account: "acct_sample", data: { object: {
-        id: sessionId, mode: "payment", payment_status: "paid", amount_total: amountCents,
+      const payload = JSON.stringify({ id:"evt_sample",created:1792000000,livemode:false,type: "checkout.session.completed", account: "acct_sample", data: { object: {
+        id: sessionId, livemode:false,created:1792000000,mode: "payment", payment_status: "paid", amount_total: amountCents,
         currency: "cad", payment_intent: paymentIntentId, metadata,
       } } });
       const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: env.STRIPE_WEBHOOK_SECRET });
@@ -218,6 +223,8 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     }
     } finally {
       stripe.paymentIntents.retrieve = originalRetrieve;
+      stripe.charges.retrieve = originalChargeRetrieve;
+      stripe.refunds.list = originalRefundList;
     }
   } finally {
     globalThis.fetch = originalFetch;

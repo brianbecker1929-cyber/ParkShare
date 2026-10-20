@@ -67,6 +67,7 @@ export default async function handler(req, res) {
       .from("booking_extensions")
       .select("id")
       .eq("booking_id", booking.id)
+      .or("application_state.eq.applied,charge_fully_refunded.is.null,charge_fully_refunded.eq.false")
       .limit(1);
     if (extensionError) throw extensionError;
     if (paidExtensions?.length) {

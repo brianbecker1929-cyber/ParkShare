@@ -109,7 +109,7 @@ export default async function handler(req, res) {
       // the booking. The client never provides a trusted hold identifier.
       const { data: boundHold, error: bindError } = await supabaseAdmin
         .from("booking_holds")
-        .update({ stripe_checkout_session_id: session.id })
+        .update({ stripe_checkout_session_id: session.id, expected_connected_account_id: host.stripe_account_id, expected_total_cents: totalCents })
         .eq("id", holdId)
         .eq("listing_id", listing.id)
         .eq("renter_id", user.id)
