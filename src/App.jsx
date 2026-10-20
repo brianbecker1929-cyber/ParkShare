@@ -6899,62 +6899,96 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
       return;
     }
 
-    setLoading(false);
-    // Collect role and legal consent before creating the auth record. This
-    // prevents abandoned signup flows from leaving orphaned auth users.
-    setPendingUser({ name: form.name.trim(), email: form.email.trim(), password: form.password, role: null });
-    setScreen("role");
+    // Collect role and consent before the Auth write; retire the old signup
+    // form immediately while keeping only the draft needed by the next step.
+    const draft = { name: form.name.trim(), email: form.email.trim(), password: form.password, role: null };
+    openAuthScreen("role");
+    setPendingUser(draft);
   };
 
-  const pickRole = (role) => {
-    setPendingUser(u => ({ ...u, role }));
-    setScreen("disclaimer");
+  const pickRole = role => {
+    if (!canAct() || screen !== "role" || !pendingUser || !["driver", "host"].includes(role) || credentialAttempt.current?.pending) return;
+    const draft = { ...pendingUser, role };
+    openAuthScreen("disclaimer");
+    setPendingUser(draft);
+  };
+  const backFromAuth = () => {
+    if (!canAct()) return;
+    if (screen === "disclaimer") {
+      if (credentialAttempt.current?.pending) return;
+      const draft = pendingUser;
+      openAuthScreen("role");
+      setPendingUser(draft);
+    } else openAuthScreen("landing");
   };
 
   const finalizeSignup = async () => {
-    if (!agreed || !pendingUser || loading) return;
-    setAuthError("");
-    setLoading(true);
-    let data, error;
+    if (!canAct() || screen !== "disclaimer" || credentialAttempt.current?.pending || emailAttempt.current?.pending || !agreed || !pendingUser || !["driver", "host"].includes(pendingUser.role)) return;
+    const registration = { ...pendingUser };
+    const attempt = { active: true, pending: true };
+    credentialAttempt.current = attempt;
+    const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
+    let signupAccepted = false;
+    let signupReplied = false;
+    setAuthError(""); setLoading(true);
     try {
-      ({ data, error } = await supabase.auth.signUp({
-        email: pendingUser.email,
-        password: pendingUser.password,
-        options: { data: { name: pendingUser.name, role: pendingUser.role, legal_agreed_at: new Date().toISOString() } },
-      }));
-    } catch {
-      setAuthError("Unable to reach sign-up. Please try again.");
-      return;
+      const result = await supabase.auth.signUp({
+        email: registration.email,
+        password: registration.password,
+        options: { data: { name: registration.name, role: registration.role, legal_agreed_at: new Date().toISOString() } },
+      });
+      signupReplied = true;
+      if (!current()) return;
+      const outcome = signupOutcome(result?.data, result?.error);
+      if (outcome.kind === "error") throw new Error(outcome.message);
+      if (outcome.kind === "pending") {
+        // Obfuscated duplicate registrations and unconfirmed signups share
+        // generic guidance; neither proves a new account or email was created.
+        openAuthScreen("verify");
+        setPendingUser({ ...registration, password: "" });
+        return;
+      }
+      signupAccepted = true;
+      const data = result.data;
+      const accountId = data?.user?.id;
+      if (typeof accountId !== "string" || !accountId || !data?.session?.access_token || data.session.user?.id !== accountId) throw new Error("Unconfirmed signup session");
+      const checkSession = async () => {
+        const { data: latest, error } = await supabase.auth.getSession();
+        if (!current()) return false;
+        if (error || !latest?.session?.access_token || latest.session.user?.id !== accountId) throw new Error("Signup session changed");
+        return true;
+      };
+      if (!await checkSession()) return;
+      // Read the owning, server-created profile. Browser code has no profile
+      // INSERT/UPDATE grant, and signup metadata does not authorize this role.
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("id, name, role")
+        .eq("id", accountId)
+        .single();
+      if (!current()) return;
+      if (error || !profile || profile.id !== accountId || !["driver", "host"].includes(profile.role)) throw new Error("Signup profile unavailable");
+      if (!await checkSession() || !current()) return;
+      const appUser = buildAppUser(profile, data.user);
+      openAuthScreen("landing");
+      if (closeOnAuth) { authModalActive.current = false; authContext.current.active = false; }
+      onAuth(appUser);
+      if (closeOnAuth) onClose();
+    } catch (error) {
+      if (!current()) return;
+      if (signupAccepted) {
+        // Don't ask for another account creation after Auth accepted it.
+        // Clear the draft secret and recover through normal sign-in instead.
+        openAuthScreen("signin");
+        setForm({ ...emptyAuthForm(), email: registration.email });
+        setAuthError("Sign-up was accepted, but we couldn't finish loading your account. Please sign in to continue.");
+      } else {
+        setAuthError(signupReplied ? error?.message || "Unable to confirm sign-up. Please sign in or try again." : "Unable to reach sign-up. Please check your email before trying again.");
+      }
     } finally {
-      setLoading(false);
+      attempt.pending = false;
+      if (current()) { setLoading(false); credentialAttempt.current = null; }
     }
-    const outcome = signupOutcome(data, error);
-    if (outcome.kind === "error") {
-      setAuthError(outcome.message);
-      return;
-    }
-    if (outcome.kind === "pending") {
-      // No-session responses also cover obfuscated duplicate registrations.
-      // Clear the password and offer recovery without claiming account creation.
-      setPendingUser(current => current ? { ...current, password: "" } : null);
-      setForm(emptyAuthForm());
-      setScreen("verify");
-      return;
-    }
-    // The auth trigger creates this profile with server-owned role and account
-    // fields. Browser code deliberately has no INSERT/UPDATE permission on the
-    // profiles table.
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, name, role")
-      .eq("id", data.user.id)
-      .single();
-    if (profileError || !profile) {
-      setAuthError("Your account was created, but we couldn't load your profile. Please sign in again.");
-      return;
-    }
-    onAuth(buildAppUser(profile, data.user));
-    if (closeOnAuth) onClose();
   };
 
   const resetPassword = emailOverride => requestAuthEmail("reset", typeof emailOverride === "string" ? emailOverride : form.email);
@@ -7023,7 +7057,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
             {screen === "recoverySuccess" && "Password updated"}
           </div>
           {screen !== "landing" && screen !== "role" && screen !== "recovery" && screen !== "recoverySuccess" && (
-            <button onClick={() => { if (screen === "disclaimer") { setScreen("role"); setErrors({}); setAuthError(""); } else openAuthScreen("landing"); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
+            <button type="button" onClick={backFromAuth} disabled={screen === "disclaimer" && loading} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
           )}
           <button type="button" aria-label="Close sign-in dialog" onClick={closeDialog} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
         </div>
@@ -7191,7 +7225,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                 </p>
               </div>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
-                <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: C.navy, cursor: "pointer" }} />
+                <input type="checkbox" checked={agreed} disabled={loading} onChange={e => { if (canAct() && !credentialAttempt.current?.pending) setAgreed(e.target.checked); }} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: C.navy, cursor: "pointer" }} />
                 <span style={{ fontSize: 12.5, color: C.navy, lineHeight: 1.5 }}>
                   I have read and agree to the Disclaimer of Liability and ParkShare's Terms and Privacy Policy as a {pendingUser?.role === "host" ? "Host" : "Driver"}.
                 </span>
