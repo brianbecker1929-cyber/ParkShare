@@ -10228,6 +10228,70 @@ function CheckoutReturnNotice({ kind, onDismiss }) {
   );
 }
 
+// Retain only the immutable fields needed by the chooser and map apps.
+function navigationDestination(listing) {
+  if (!listing || typeof listing !== "object") return null;
+  return { id: listing.id, title: listing.title, address: listing.address, lat: listing.lat, lng: listing.lng };
+}
+
+function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null, revision: 0 }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    current = { accountId, request: null, revision: context.revision + 1 };
+    // Adjust this component's own state before committing children with a
+    // previous identity's destination. Anonymous previews are cleared too.
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const replace = useCallback(request => {
+    if (latest.current !== current) return false;
+    const next = { ...current, request, revision: current.revision + 1 };
+    // Invalidate old callbacks immediately, including two clicks before the
+    // next render, an old chooser close, and a queued provider selection.
+    latest.current = next;
+    setContext(next);
+    return true;
+  }, [current]);
+  const show = useCallback((listing, mode) => {
+    const destination = navigationDestination(listing);
+    return destination ? replace({ listing: destination, mode }) : false;
+  }, [replace]);
+  const preview = useCallback(listing => show(listing, "preview"), [show]);
+  const changeApp = useCallback(listing => show(listing, "navigate"), [show]);
+  const navigate = useCallback(listing => {
+    if (latest.current !== current) return false;
+    const destination = navigationDestination(listing);
+    if (!destination) return false;
+    const available = getAvailableNavigationProviders().some(provider => provider.id === preferredProvider);
+    if (preferredProvider && available) {
+      if (!replace(null)) return false;
+      return openNavigation(destination, preferredProvider);
+    }
+    return replace({ listing: destination, mode: "navigate" });
+  }, [current, preferredProvider, replace]);
+  const choose = useCallback(provider => {
+    if (latest.current !== current || !current.request?.listing) return false;
+    if (!getAvailableNavigationProviders().some(option => option.id === provider)) return false;
+    const destination = current.request.listing;
+    if (!replace(null)) return false;
+    savePreferredNavigationProvider(provider);
+    onPreferredProvider(provider);
+    return openNavigation(destination, provider);
+  }, [current, replace, onPreferredProvider]);
+  const close = useCallback(() => replace(null), [replace]);
+  // Browser Back/Forward is a trusted global clear, registered once. It must
+  // always close the latest request, rather than an initial-render closure.
+  const clear = useCallback(() => {
+    const next = { ...latest.current, request: null, revision: latest.current.revision + 1 };
+    latest.current = next;
+    setContext(next);
+  }, []);
+  return { request: current.request, requestKey: current.revision, preview, navigate, changeApp, choose, close, clear };
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const initialRouteRef = useRef(getRouteFromPath(window.location.pathname));
@@ -10259,8 +10323,8 @@ export default function App() {
   const [browseInitialQuery, setBrowseInitialQuery] = useState("");
   const [browseInitialEvent, setBrowseInitialEvent] = useState(null);
   const [browseInitialRestaurant, setBrowseInitialRestaurant] = useState(null);
-  const [navigationRequest, setNavigationRequest] = useState(null);
   const [preferredNavigationProvider, setPreferredNavigationProvider] = useState(() => getPreferredNavigationProvider());
+  const { request: navigationRequest, requestKey: navigationRequestKey, preview: previewParkingRoute, navigate: navigateToParking, changeApp: changeNavigationApp, choose: chooseNavigationProvider, close: closeNavigationRequest, clear: clearNavigationRequest } = useParkingNavigation(user, preferredNavigationProvider, setPreferredNavigationProvider);
   const navigationAnchorRef = useRef(initialRouteRef.current.anchor || null);
 
   const moveToRoute = (nextScreen, nextTab = tab, anchor = null, { replace = false } = {}) => {
@@ -10275,32 +10339,6 @@ export default function App() {
     if (route.screen === "legal") setLegalSection(route.anchor || "terms");
   };
 
-  const previewParkingRoute = (listing) => {
-    if (listing) setNavigationRequest({ listing, mode: "preview" });
-  };
-
-  const navigateToParking = (listing) => {
-    if (!listing) return;
-    const availableProviders = getAvailableNavigationProviders().map(provider => provider.id);
-    if (preferredNavigationProvider && availableProviders.includes(preferredNavigationProvider)) {
-      openNavigation(listing, preferredNavigationProvider);
-      return;
-    }
-    setNavigationRequest({ listing, mode: "navigate" });
-  };
-
-  const changeNavigationApp = (listing) => {
-    if (listing) setNavigationRequest({ listing, mode: "navigate" });
-  };
-
-  const chooseNavigationProvider = (provider) => {
-    if (!navigationRequest?.listing) return;
-    savePreferredNavigationProvider(provider);
-    setPreferredNavigationProvider(provider);
-    openNavigation(navigationRequest.listing, provider);
-    setNavigationRequest(null);
-  };
-
   // Restore the selected ParkShare page when the browser Back/Forward buttons
   // are used. The URL is the source of truth for these history transitions.
   useEffect(() => {
@@ -10312,7 +10350,7 @@ export default function App() {
       setLegalSection(route.anchor || "terms");
       setMessageThread(null);
       setMessageBookingId(parseMessageBookingId(window.location.search));
-      setNavigationRequest(null);
+      clearNavigationRequest();
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -10754,10 +10792,11 @@ export default function App() {
       {messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
       {navigationRequest && (
         <NavigationChooser
+          key={navigationRequestKey}
           request={navigationRequest}
           preferredProvider={preferredNavigationProvider}
           onChoose={chooseNavigationProvider}
-          onClose={() => setNavigationRequest(null)}
+          onClose={closeNavigationRequest}
         />
       )}
       {extendBookingId && (
