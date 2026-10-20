@@ -9,6 +9,7 @@ import { fetchPublicParkingPage } from "./lib/publicParkingPage";
 import { publicListingCoverUrl } from "./lib/publicListings";
 import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { createMessageConversation, messageConversationKey } from "./lib/messageConversation";
+import { validId } from "./lib/privateListingAccess";
 import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
 import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
@@ -10039,10 +10040,47 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
 // wired up the same way. Only needs a bookingId — everything else (listing,
 // current end time, price) is looked up server-side in create-extend-session.js,
 // same division of responsibility as the original PaymentModal/checkout flow.
-function ExtendSessionModal({ bookingId, onClose }) {
+// Keep only an anonymous email request across its first sign-in. Every later
+// identity change clears it before children render. Context identity also
+// rejects old open/close callbacks, including A -> B -> A transitions.
+function useExtensionRequest(user) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, bookingId: null }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    current = { accountId, bookingId: context.accountId === null ? context.bookingId : null };
+    // This adjusts this component's own state, so React retries the render
+    // before committing children with a previous account's request.
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const select = useCallback(value => {
+    if (latest.current !== current) return;
+    const bookingId = validId(value);
+    setContext(previous => previous === current && previous.bookingId !== bookingId ? { ...previous, bookingId } : previous);
+  }, [current]);
+  const isCurrent = useCallback(() => latest.current === current, [current]);
+  return { bookingId: current.bookingId, select, isCurrent };
+}
+
+function ExtendSessionModal({ bookingId, user, isContextCurrent, onClose }) {
   const [addedHours, setAddedHours] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const attemptContext = useRef(null);
+
+  useEffect(() => {
+    const context = { active: true, busy: false };
+    attemptContext.current = context;
+    setAddedHours(1); setLoading(false); setError("");
+    return () => { context.active = false; };
+  }, [user?.id, bookingId, isContextCurrent]);
+
+  const close = () => {
+    if (attemptContext.current) attemptContext.current.active = false;
+    onClose();
+  };
 
   const options = [
     { hours: 0.5, label: "+30 min" },
@@ -10052,55 +10090,63 @@ function ExtendSessionModal({ bookingId, onClose }) {
   ];
 
   const extend = async () => {
+    const context = attemptContext.current;
+    const current = () => Boolean(context?.active && attemptContext.current === context && isContextCurrent());
+    if (!current() || context.busy) return;
+    context.busy = true;
+    const ownerId = user?.id;
+    const requestedBookingId = validId(bookingId);
+    const requestedHours = addedHours;
+    let redirecting = false;
     setError("");
     setLoading(true);
     try {
-      // Same auth pattern as payWithStripe() in PaymentModal — send the
-      // current Supabase JWT so the server can verify who's asking, and
-      // that they actually own this booking.
+      if (!ownerId || !requestedBookingId) throw new Error("Please sign in and reopen the booking you want to extend.");
       let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!current()) return;
       let session = sessionData?.session;
-
+      if (session?.user?.id && session.user.id !== ownerId) throw new Error("Your account changed. Reopen the booking after signing in.");
       if (sessionError || !session?.access_token) {
         const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!current()) return;
         if (refreshError) throw refreshError;
         session = refreshedData?.session;
       }
-      if (!session?.access_token) {
-        throw new Error("Your session is invalid or expired. Please sign in again.");
-      }
+      if (!session?.access_token || session.user?.id !== ownerId) throw new Error("Your account changed or session expired. Please sign in again.");
 
+      // Capture the original booking/duration. Never replay a POST: an
+      // already-submitted request may issue a hold even if this UI closes.
       const res = await fetch("/api/create-extend-session", {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ bookingId: Number(bookingId), addedHours }),
+        body: JSON.stringify({ bookingId: requestedBookingId, addedHours: requestedHours }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!current()) return;
+      if (res.status === 401) throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
+      if (!res.ok) throw new Error(data?.error || "Couldn't start checkout. Please try again.");
+      if (!data?.url) throw new Error("Stripe checkout did not return a payment link.");
 
-      let data = {};
-      try { data = await res.json(); } catch { /* fall through to the generic error below */ }
-
-      if (res.status === 401) {
-        throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
-      }
-      if (!res.ok) {
-        throw new Error(data.error || "Couldn't start checkout. Please try again.");
-      }
-      if (!data.url) {
-        throw new Error("Stripe checkout did not return a payment link.");
-      }
-
-      window.location.assign(data.url); // hand off to Stripe's hosted checkout page
+      // Recheck storage even before React receives a cross-tab auth update.
+      const { data: latestData, error: latestError } = await supabase.auth.getSession();
+      if (!current()) return;
+      if (latestError || !latestData?.session?.access_token || latestData.session.user?.id !== ownerId) throw new Error("Your account changed. Reopen the booking after signing in.");
+      window.location.assign(data.url);
+      redirecting = true;
     } catch (err) {
-      setError(err.message || "Something went wrong.");
-      setLoading(false);
+      if (current()) setError(err?.message || "Couldn't start checkout. Please try again.");
+    } finally {
+      if (!redirecting) context.busy = false;
+      if (current() && !redirecting) setLoading(false);
     }
   };
 
   return (
-    <Modal title="Add Additional Time" onClose={onClose}>
+    <Modal title="Add Additional Time" onClose={close}>
       <p style={{ fontSize: 13, color: C.muted, marginTop: -4, marginBottom: 16 }}>
         Extend your current session. You'll be charged the listing's current rate for the extra time.
       </p>
@@ -10205,7 +10251,7 @@ export default function App() {
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
   const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
-  const [extendBookingId, setExtendBookingId] = useState(null); // set when arriving via an "Add Additional Time" email link
+  const { bookingId: extendBookingId, select: setExtendBookingId, isCurrent: isExtensionContextCurrent } = useExtensionRequest(user);
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
   const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
@@ -10716,12 +10762,12 @@ export default function App() {
       )}
       {extendBookingId && (
         user ? (
-          <ExtendSessionModal bookingId={extendBookingId} onClose={() => setExtendBookingId(null)} />
+          <ExtendSessionModal key={JSON.stringify([user.id, extendBookingId])} bookingId={extendBookingId} user={user} isContextCurrent={isExtensionContextCurrent} onClose={() => setExtendBookingId(null)} />
         ) : (
           // Arrived from an email link while signed out — ask them to sign
           // in first, then hand straight back to the extend modal rather
           // than losing which booking they clicked through for.
-          <SignInModal onClose={() => setExtendBookingId(null)} onAuth={(u) => { handleAuth(u); }} />
+          <SignInModal initialScreen="signin" closeOnAuth={false} onClose={() => setExtendBookingId(null)} onAuth={handleAuth} />
         )
       )}
     </>
