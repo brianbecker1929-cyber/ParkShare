@@ -6720,7 +6720,15 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const [authSuccess, setAuthSuccess] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
-  const [lastResendAt, setLastResendAt] = useState(0);
+  const [resetLoading, setResetLoading] = useState(false);
+  const emailBusy = resendLoading || resetLoading;
+  const emailAttempt = useRef(null);
+  const emailRevision = useRef(0);
+  const lastAuthEmailAt = useRef({ resend: null, reset: null });
+  const invalidateEmailAttempt = () => {
+    if (emailAttempt.current) emailAttempt.current.active = false;
+    emailAttempt.current = null;
+  };
 
   const credentialAttempt = useRef(null);
   const authModalActive = useRef(true);
@@ -6728,9 +6736,12 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   if (authContext.current.screen !== screen) {
     authContext.current.active = false;
     if (credentialAttempt.current) { credentialAttempt.current.active = false; credentialAttempt.current = null; setLoading(false); }
+    invalidateEmailAttempt(); emailRevision.current++;
+    setResendLoading(false); setResetLoading(false);
     authContext.current = { screen, active: true };
   }
   const owner = authContext.current;
+  const emailVersion = emailRevision.current;
   const canAct = () => authModalActive.current && owner.active && authContext.current === owner;
   const invalidateCredentialAttempt = () => {
     if (credentialAttempt.current) credentialAttempt.current.active = false;
@@ -6739,24 +6750,29 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   useEffect(() => {
     authModalActive.current = true;
     authContext.current.active = true;
-    setLoading(false);
+    setLoading(false); setResendLoading(false); setResetLoading(false);
     return () => {
       authModalActive.current = false;
       authContext.current.active = false;
-      invalidateCredentialAttempt();
+      invalidateCredentialAttempt(); invalidateEmailAttempt();
     };
   }, []);
   const closeDialog = () => {
     if (!canAct()) return;
     authModalActive.current = false;
     owner.active = false;
-    invalidateCredentialAttempt();
+    invalidateCredentialAttempt(); invalidateEmailAttempt(); emailRevision.current++;
+    setResendLoading(false); setResetLoading(false); setResendMessage(""); setAuthSuccess("");
     setLoading(false); setForm(emptyAuthForm()); setConfirmPassword(""); setPendingUser(null);
     setAgreed(false); setErrors({}); setAuthError("");
     onClose();
   };
   const upd = (k, v) => {
-    if (!canAct() || ["signin", "recovery"].includes(screen) && credentialAttempt.current?.pending) return;
+    if (!canAct() || ["signin", "recovery"].includes(screen) && credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
+    if (k === "email" && v !== form.email) {
+      emailRevision.current++;
+      invalidateEmailAttempt(); setResendMessage(""); setAuthSuccess(""); setAuthError("");
+    }
     setForm(f => ({ ...f, [k]: v }));
   };
   const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
@@ -6775,9 +6791,10 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const openAuthScreen = target => {
     if (!canAct()) return;
     owner.active = false;
-    invalidateCredentialAttempt();
-    authContext.current = { screen: target, active: true };
-    setLoading(false);
+    invalidateCredentialAttempt(); invalidateEmailAttempt(); emailRevision.current++;
+    const nextOwner = { screen: target, active: true };
+    authContext.current = nextOwner;
+    setLoading(false); setResendLoading(false); setResetLoading(false);
     setForm(emptyAuthForm());
     setConfirmPassword("");
     setErrors({});
@@ -6787,39 +6804,56 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     setPendingUser(null);
     setAgreed(false);
     setScreen(target);
+    return nextOwner;
   };
 
-  const resendConfirmation = async () => {
-    const email = String(screen === "verify" ? pendingUser?.email || "" : form.email || "").trim();
+  const requestAuthEmail = async (kind, rawEmail, requestOwner = owner, revision = emailVersion) => {
+    const ownsView = () => authModalActive.current && requestOwner.active && authContext.current === requestOwner && emailRevision.current === revision;
+    if (!ownsView() || !["signin", "verify"].includes(requestOwner.screen) || credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
+    const message = value => kind === "resend" ? setResendMessage(value) : setAuthError(value);
+    const email = String(rawEmail || "").trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setResendMessage("Enter the email address you used to register.");
+      if (kind === "resend") message("Enter the email address you used to register.");
+      else { setErrors({ email: "Enter a valid email first" }); setAuthSuccess(""); }
       return;
     }
-    if (resendLoading) return;
-    if (Date.now() - lastResendAt < 60_000) {
-      setResendMessage("Please wait a minute before requesting another email.");
+    const previous = lastAuthEmailAt.current[kind];
+    if (typeof previous === "number" && Date.now() - previous < 60_000) {
+      message("Please wait a minute before requesting another email.");
       return;
     }
-    setResendLoading(true);
+    const attempt = { active: true, pending: true };
+    emailAttempt.current = attempt;
+    const current = () => ownsView() && attempt.active && emailAttempt.current === attempt;
+    setResendLoading(kind === "resend"); setResetLoading(kind === "reset");
     setResendMessage("");
+    if (kind === "reset") setAuthError("");
+    setAuthSuccess(""); setErrors({});
     try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email,
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (error) throw error;
-      setLastResendAt(Date.now());
-      setResendMessage("If this account still needs verification, a fresh confirmation link has been sent. Check your inbox and spam folder.");
+      const result = kind === "resend"
+        ? await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: window.location.origin } })
+        : await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      if (result?.error) throw result.error;
+      if (result?.error !== null || !result.data || typeof result.data !== "object" || Array.isArray(result.data)) {
+        throw new Error("We couldn't confirm the email request. Please check your inbox before trying again.");
+      }
+      // Keep confirmed request spacing even if its view was retired while
+      // waiting. This ref is local to this modal, not server idempotency.
+      lastAuthEmailAt.current[kind] = Date.now();
+      if (!current()) return;
+      if (kind === "resend") setResendMessage("If this account still needs verification, a fresh confirmation link has been sent. Check your inbox and spam folder.");
+      else setAuthSuccess("If this account can use password recovery, check your inbox for a reset link.");
     } catch (error) {
-      setResendMessage(error?.message || "Unable to resend the email. Please try again later.");
+      if (current()) message(error?.message || "Unable to request the email. Please check your inbox before trying again.");
     } finally {
-      setResendLoading(false);
+      attempt.pending = false;
+      if (current()) { setResendLoading(false); setResetLoading(false); emailAttempt.current = null; }
     }
   };
+  const resendConfirmation = () => requestAuthEmail("resend", screen === "verify" ? pendingUser?.email : form.email);
 
   const submit = async () => {
-    if (!canAct() || credentialAttempt.current?.pending) return;
+    if (!canAct() || credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
     if (!validate()) return;
     setAuthError("");
     setAuthSuccess("");
@@ -6923,19 +6957,19 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     if (closeOnAuth) onClose();
   };
 
-  const resetPassword = async (emailOverride) => {
-    const email = typeof emailOverride === "string" ? emailOverride : form.email;
-    setAuthError("");
-    setAuthSuccess("");
-    if (!email.includes("@")) { setErrors({ email: "Enter your email first" }); return; }
-    setErrors({});
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
-      if (error) setAuthError(error.message);
-      else setAuthSuccess("If this account can use password recovery, check your inbox for a reset link.");
-    } catch {
-      setAuthError("Unable to request a password reset. Please try again.");
-    }
+  const resetPassword = emailOverride => requestAuthEmail("reset", typeof emailOverride === "string" ? emailOverride : form.email);
+  const openVerificationSignIn = () => {
+    if (!canAct() || screen !== "verify") return null;
+    const email = pendingUser?.email || "";
+    const nextOwner = openAuthScreen("signin");
+    if (!nextOwner) return null;
+    setForm({ ...emptyAuthForm(), email });
+    return { email, owner: nextOwner, revision: emailRevision.current };
+  };
+  const resetFromVerification = () => {
+    if (!canAct() || emailAttempt.current?.pending || credentialAttempt.current?.pending) return;
+    const target = openVerificationSignIn();
+    if (target) return requestAuthEmail("reset", target.email, target.owner, target.revision);
   };
 
   const updatePassword = async () => {
@@ -7019,7 +7053,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
             <form onSubmit={event => { event.preventDefault(); void submit(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <label htmlFor="ps-signin-email" style={lS}>Email</label>
-                <input id="ps-signin-email" disabled={loading} name="email" autoComplete="username" type="email" required
+                <input id="ps-signin-email" disabled={loading || emailBusy} name="email" autoComplete="username" type="email" required
                   style={iS(errors.email)} placeholder="you@example.com" value={form.email}
                   onChange={event => upd("email", event.target.value)}
                   aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "ps-signin-email-error" : undefined} />
@@ -7027,7 +7061,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               </div>
               <div>
                 <label htmlFor="ps-signin-password" style={lS}>Password</label>
-                <input id="ps-signin-password" disabled={loading} name="password" autoComplete="current-password" type="password" required
+                <input id="ps-signin-password" disabled={loading || emailBusy} name="password" autoComplete="current-password" type="password" required
                   style={iS(errors.password)} placeholder="Your password" value={form.password}
                   onChange={event => upd("password", event.target.value)}
                   aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signin-password-error" : undefined} />
@@ -7035,15 +7069,15 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               </div>
               {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
               {isUnconfirmedEmailError(authError) && (
-                <button type="button" onClick={resendConfirmation} disabled={resendLoading}
+                <button type="button" onClick={resendConfirmation} disabled={loading || emailBusy}
                   style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, fontSize: 12, cursor: resendLoading ? "default" : "pointer" }}>
                   {resendLoading ? "Sending…" : "Resend confirmation email"}
                 </button>
               )}
               {resendMessage && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{resendMessage}</div>}
               {authSuccess && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
-              <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
-              <button type="button" onClick={resetPassword} disabled={loading} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
+              <button type="submit" disabled={loading || emailBusy} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
+              <button type="button" onClick={resetPassword} disabled={loading || emailBusy} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>{resetLoading ? "Requesting reset…" : "Forgot password?"}</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button type="button" onClick={() => openAuthScreen("signup")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
             </form>
           )}
@@ -7172,10 +7206,10 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               <p role="status" style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>If <strong>{pendingUser?.email}</strong> is eligible for a new account, check your inbox for a confirmation link.</p>
               <p role="note" style={{ color: C.navy, fontSize: 13, lineHeight: 1.6 }}><strong>Already registered?</strong> Sign in to your existing account, or reset your password. Repeating sign-up does not create another account.</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <button type="button" onClick={resendConfirmation} disabled={resendLoading} style={{ background: C.navy, color: C.white, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: resendLoading ? "default" : "pointer" }}>{resendLoading ? "Sending…" : "Resend confirmation email"}</button>
+                <button type="button" onClick={resendConfirmation} disabled={loading || emailBusy} style={{ background: C.navy, color: C.white, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: resendLoading ? "default" : "pointer" }}>{resendLoading ? "Sending…" : "Resend confirmation email"}</button>
                 {resendMessage && <div role="status" style={{ fontSize: 12, color: C.moss }}>{resendMessage}</div>}
-                <button type="button" onClick={() => { const email = pendingUser?.email || ""; openAuthScreen("signin"); setForm({ ...emptyAuthForm(), email }); }} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Sign in to existing account</button>
-                <button type="button" onClick={() => { const email = pendingUser?.email || ""; openAuthScreen("signin"); setForm({ ...emptyAuthForm(), email }); void resetPassword(email); }} style={{ background: C.white, color: C.navy, border: "1px solid " + C.concrete, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Reset password</button>
+                <button type="button" onClick={openVerificationSignIn} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Sign in to existing account</button>
+                <button type="button" onClick={resetFromVerification} disabled={emailBusy} style={{ background: C.white, color: C.navy, border: "1px solid " + C.concrete, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Reset password</button>
               </div>
             </div>
           )}
