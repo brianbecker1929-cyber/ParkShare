@@ -5517,20 +5517,28 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
   useEffect(() => {
     if (!user) return;
+    const controller = new AbortController();
+    let active = true;
+    setDbBookings([]);
+    setLoadError("");
+    setLoading(true);
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!active) return;
         let data = null;
         let error = null;
         try {
-          if (!session?.access_token) throw new Error("Session expired");
+          if (!session?.access_token || session.user?.id !== user.id) throw new Error("Session changed");
           const response = await fetch("/api/account-bookings?view=driver", {
             headers: { Authorization: `Bearer ${session.access_token}` },
+            signal: controller.signal,
           });
           if (!response.ok) throw new Error("Bookings unavailable");
           const payload = await response.json();
           data = payload.bookings;
         } catch (err) { error = err; }
+        if (!active) return;
         setLoading(false);
-        if (error || !data) {
+        if (error || !Array.isArray(data)) {
           setLoadError("We couldn't load your bookings right now. Please try again.");
           return;
         }
@@ -5592,14 +5600,20 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         );
         for (const row of data) {
           if (!["confirmed", "completed"].includes(String(row.status))) continue;
-          fetchPrivateCoverDataUrl(row.listing_id, row.id, session.access_token)
+          fetchPrivateCoverDataUrl(row.listing_id, row.id, session.access_token, controller.signal)
             .then(image => {
-              if (image) setDbBookings(prev => prev.map(b => b.rawId === row.id
+              if (active && image) setDbBookings(prev => prev.map(b => b.rawId === row.id
                 ? { ...b, listing: { ...b.listing, img: image } } : b));
             }).catch(() => {});
         }
+      }).catch(() => {
+        if (!active) return;
+        setDbBookings([]);
+        setLoading(false);
+        setLoadError("We couldn't load your bookings right now. Please try again.");
       });
-  }, [user]);
+    return () => { active = false; controller.abort(); };
+  }, [user?.id]);
 
   // Scroll to and briefly highlight the booking a "View My Reservation"
   // email link pointed at, once it's actually loaded.
@@ -10571,7 +10585,7 @@ export default function App() {
           {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireDriver(<DriverProfileView user={user} onProfileUpdated={setUser} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
-          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
+          {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key="driver" user={user} />
