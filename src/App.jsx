@@ -10861,6 +10861,7 @@ export default function App() {
   const messageThread = messageThreadState?.scope === messageScope ? messageThreadState.listing : null;
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState("landing");
+  const [authRecoveryRevision, setAuthRecoveryRevision] = useState(0);
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
   const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
@@ -11029,6 +11030,9 @@ export default function App() {
     buildUser: buildAppUser,
     onUser: (nextUser) => setUser(nextUser),
     onRecovery: () => {
+      // A mounted dialog owns its screen and pending requests. Replace it
+      // for every recovery event, including another link opened during recovery.
+      setAuthRecoveryRevision(revision => revision + 1);
       setAuthInitialScreen("recovery");
       setShowAuth(true);
     },
@@ -11337,8 +11341,8 @@ export default function App() {
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
-      {showAuth && <SignInModal initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
-      {messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
+      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
+      {!showAuth && messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
       {navigationRequest && (
         <NavigationChooser
           key={navigationRequestKey}
@@ -11348,7 +11352,7 @@ export default function App() {
           onClose={closeNavigationRequest}
         />
       )}
-      {extendBookingId && (
+      {extendBookingId && !showAuth && (
         user ? (
           <ExtendSessionModal key={JSON.stringify([user.id, extendBookingId])} bookingId={extendBookingId} user={user} isContextCurrent={isExtensionContextCurrent} onClose={() => setExtendBookingId(null)} />
         ) : (
