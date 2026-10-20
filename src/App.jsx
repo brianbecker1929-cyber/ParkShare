@@ -10131,6 +10131,57 @@ function ExtendSessionModal({ bookingId, onClose }) {
   );
 }
 
+// Return URLs describe navigation, not a verified payment/fulfilment result.
+// Only authenticated booking, transaction and payout views establish status.
+function CheckoutReturnNotice({ kind, onDismiss }) {
+  const notices = {
+    "booking-return": {
+      title: "Check your booking status",
+      message: "Returning from checkout does not confirm your booking. Check My Bookings for the reservation. If it is still processing, refresh bookings shortly. Check Transactions before trying another payment.",
+      links: [["/my-bookings", "Refresh bookings"], ["/transactions", "View transactions"]],
+    },
+    "booking-exit": {
+      title: "You left booking checkout",
+      message: "This page cannot confirm whether a charge was made. Check My Bookings and Transactions before starting checkout again.",
+      links: [["/my-bookings", "View bookings"], ["/transactions", "View transactions"]],
+    },
+    "extension-return": {
+      title: "Check your additional time",
+      message: "Additional time is confirmed when the updated end time appears in My Bookings. If it is still processing, refresh bookings shortly. Check Transactions before trying another payment.",
+      links: [["/my-bookings", "Refresh bookings"], ["/transactions", "View transactions"]],
+    },
+    "extension-exit": {
+      title: "You left additional-time checkout",
+      message: "This page cannot confirm whether a charge was made or time was added. Check your booking end time and Transactions before trying again.",
+      links: [["/my-bookings", "View bookings"], ["/transactions", "View transactions"]],
+    },
+    "connect-return": {
+      title: "Check your payout setup",
+      message: "Returning from Stripe does not confirm that setup is complete. Check the payout status in your Host Dashboard and finish any remaining steps there.",
+      links: [["/host-dashboard", "Refresh payout status"]],
+    },
+    "connect-refresh": {
+      title: "Review your payout setup",
+      message: "Check your current payout status in your Host Dashboard. If setup is incomplete, use the setup button there to continue with Stripe.",
+      links: [["/host-dashboard", "Refresh payout status"]],
+    },
+  };
+  const notice = Object.hasOwn(notices, kind) ? notices[kind] : null;
+  if (!notice) return null;
+  return (
+    <div role="status" style={{ background: C.amberLight, borderBottom: "1px solid " + C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontSize: 13, padding: "12px 16px", display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 12 }}>
+      <div style={{ maxWidth: 800 }}>
+        <strong>{notice.title}</strong>
+        <p style={{ margin: "5px 0 8px", lineHeight: 1.5 }}>{notice.message}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 18px" }}>
+          {notice.links.map(([href, label]) => <a key={href} href={href} style={{ color: C.navy, fontWeight: 700 }}>{label}</a>)}
+        </div>
+      </div>
+      <button type="button" aria-label="Dismiss checkout return notice" onClick={onDismiss} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", minWidth: 32, minHeight: 32 }}>✕</button>
+    </div>
+  );
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const initialRouteRef = useRef(getRouteFromPath(window.location.pathname));
@@ -10152,8 +10203,8 @@ export default function App() {
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState("landing");
   const [browseKey, setBrowseKey] = useState(0);
-  const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
-  const [connectBanner, setConnectBanner] = useState(null); // "success" | "refresh" | null
+  const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
+  const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
   const [extendBookingId, setExtendBookingId] = useState(null); // set when arriving via an "Add Additional Time" email link
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
   const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
@@ -10258,38 +10309,37 @@ export default function App() {
       setScreen("legal");
       window.history.replaceState({ parkShareRoute: true }, "", getRouteForState("legal", "Browse", section).path);
     } else if (params.has("booking_success")) {
-      setCheckoutBanner("success");
+      setCheckoutBanner("booking-return");
       setScreen("app");
       setTab("My Bookings");
       window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.has("booking_cancelled")) {
-      setCheckoutBanner("cancelled");
+      setCheckoutBanner("booking-exit");
       setScreen("app");
       setTab("Browse");
       window.history.replaceState({ parkShareRoute: true }, "", "/parking");
     } else if (params.has("extension_success")) {
-      setCheckoutBanner("extension-success");
+      setCheckoutBanner("extension-return");
       setScreen("app");
       setTab("My Bookings");
       window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.has("extension_cancelled")) {
-      setCheckoutBanner("extension-cancelled");
+      setCheckoutBanner("extension-exit");
       setScreen("app");
       setTab("My Bookings");
       window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.get("stripe_onboarding") === "return") {
       // Stripe's account_onboarding return_url (set in api/connect-onboarding.js)
-      // — the account.updated webhook may take a few seconds to land, but
-      // HostDashboard re-reads the profile on mount so it'll pick up the
-      // latest status shortly after.
-      setConnectBanner("success");
+      // is a navigation return, not proof that setup finished. The Host
+      // Dashboard checks the authenticated account through connect-status.
+      setConnectBanner("connect-return");
       setScreen("app");
       setTab("Host Dashboard");
       window.history.replaceState({ parkShareRoute: true }, "", "/host-dashboard");
     } else if (params.get("stripe_onboarding") === "refresh") {
-      // Stripe's refresh_url — the onboarding link expired or was abandoned;
-      // send them back to the dashboard so they can restart it.
-      setConnectBanner("refresh");
+      // Stripe's refresh_url is a hint to review setup; the URL alone
+      // cannot establish whether a link expired or setup is incomplete.
+      setConnectBanner("connect-refresh");
       setScreen("app");
       setTab("Host Dashboard");
       window.history.replaceState({ parkShareRoute: true }, "", "/host-dashboard");
@@ -10635,39 +10685,8 @@ export default function App() {
               <button type="button" onClick={() => changeTab("Profile")}>Complete profile →</button>
             </div>
           )}
-          {checkoutBanner === "success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>🎉 Payment received — your booking is confirmed! It'll show up below in a moment.</span>
-              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {checkoutBanner === "cancelled" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>Checkout was cancelled — no charge was made.</span>
-              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {checkoutBanner === "extension-success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>✓ Additional time purchased — your booking has been extended.</span>
-              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {checkoutBanner === "extension-cancelled" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>Additional-time checkout was cancelled — no charge was made.</div>
-          )}
-          {connectBanner === "success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>🎉 Stripe account connected! It may take a moment to finish verifying.</span>
-              <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {connectBanner === "refresh" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>That Stripe setup link expired — tap "Connect with Stripe" below to try again.</span>
-              <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
+          <CheckoutReturnNotice kind={checkoutBanner} onDismiss={() => setCheckoutBanner(null)} />
+          <CheckoutReturnNotice kind={connectBanner} onDismiss={() => setConnectBanner(null)} />
           {tab === "Browse" && (messageBookingId
             ? <EmailMessageListing key={JSON.stringify([user?.id, messageBookingId])} bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
             : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
