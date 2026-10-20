@@ -122,6 +122,8 @@ test("recovery events show recovery screen and unmount cancels pending work", as
   const h = harness();
   h.emit("PASSWORD_RECOVERY", session());
   assert.deepEqual(h.notices, ["recovery"]);
+  assert.deepEqual(h.changes, [{ user: null, reason: "PASSWORD_RECOVERY" }]);
+  h.changes.length = 0;
   h.emit("SIGNED_IN", session());
   h.stop();
   await h.run();

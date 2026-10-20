@@ -83,7 +83,7 @@ test('root modal key resets duration and errors when either account or booking c
  const a=source.indexOf('<ExtendSessionModal '),tag=source.slice(a,source.indexOf('/>',a)+2),built=await transform('function Parent({user,extendBookingId}){return '+tag+';}',{loader:'jsx'});const Parent=new Function('React','ExtendSessionModal','isExtensionContextCurrent','setExtendBookingId',built.code+';return Parent;')(React,()=>null,()=>true,()=>{});const one=Parent({user:{id:'A'},extendBookingId:42});assert.notEqual(one.key,Parent({user:{id:'B'},extendBookingId:42}).key);assert.notEqual(one.key,Parent({user:{id:'A'},extendBookingId:43}).key);assert.equal(one.props.user.id,'A');assert.equal(typeof one.props.isContextCurrent,'function');
 });
 async function extensionSignInProps(onClose,onAuth){
- const a=source.indexOf('{extendBookingId && ('),b=source.indexOf('<SignInModal ',a),tag=source.slice(b,source.indexOf('/>',b)+2),built=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});return new Function('React','SignInModal','setExtendBookingId','handleAuth',built.code+';return Parent;')(React,()=>null,onClose,onAuth)().props;
+ const a=source.indexOf('{extendBookingId && !showAuth && ('),b=source.indexOf('<SignInModal ',a),tag=source.slice(b,source.indexOf('/>',b)+2),built=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});return new Function('React','SignInModal','setExtendBookingId','handleAuth',built.code+';return Parent;')(React,()=>null,onClose,onAuth)().props;
 }
 test('actual extension email sign-in submits without clearing the requested booking',async()=>{
  let selected=42,authenticated=null;const props=await extensionSignInProps(v=>{selected=v;},u=>{authenticated=u;});

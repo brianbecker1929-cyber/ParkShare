@@ -17,7 +17,14 @@ export function createAuthSessionSynchronizer({
 
   const handle = (event, session) => {
     if (!active) return;
-    if (event === "PASSWORD_RECOVERY") onRecovery();
+    if (event === "PASSWORD_RECOVERY") {
+      // Recovery replaces the current auth context even when its account ID
+      // is unchanged. Retire queued/in-flight profile reads before opening UI.
+      generation++;
+      onUser(null, event);
+      if (session?.user?.id) onRecovery();
+      return;
+    }
     if (event === "SIGNED_OUT" || !session?.user?.id) {
       generation++;
       onUser(null, event);
