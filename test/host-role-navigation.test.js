@@ -19,7 +19,7 @@ test("Host-only pages are guarded even on direct route navigation", () => {
   assert.match(app, /tab === "List Your Driveway" && requireHost\(/);
   assert.match(app, /tab === "Host Dashboard" && requireHost\(/);
   assert.match(app, /tab === "Transactions" && requireAuth\(user\?\.role === "driver"/);
-  assert.match(app, /: requireHost\(<TransactionsView key="host"/);
+  assert.match(app, /: requireHost\(<TransactionsView key=\{"host:" \+ user\?\.id\}/);
 });
 
 test("Public Host information remains accessible without Host permission", () => {

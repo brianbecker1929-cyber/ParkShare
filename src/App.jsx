@@ -3153,45 +3153,59 @@ function EditListingModal({ listing, onClose, onSave }) {
 // across components; fine at this scale, worth revisiting with a shared
 // cache/context if this page gets hit often enough to matter.
 function useTransactions(user) {
-  const [data, setData] = useState({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const emptyData = () => ({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
+  // A fresh scope for each identity interval also covers A -> B -> A.
+  // Mask old rows during render, before effect cleanup/reset can run. The
+  // Host earnings card uses this hook without remounting its parent.
+  const scope = useMemo(() => ({ userId: user?.id || null }), [user?.id]);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const [snapshot, setSnapshot] = useState(() => ({ scope, data: emptyData(), loading: Boolean(scope.userId), error: "" }));
 
   useEffect(() => {
-    setData({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
-    if (!user) { setLoading(false); return; }
-    let cancelled = false;
+    setSnapshot({ scope, data: emptyData(), loading: Boolean(scope.userId), error: "" });
+    if (!scope.userId) return;
+    const controller = new AbortController();
+    let active = true;
+    const isCurrent = () => active && currentScope.current === scope;
 
     (async () => {
-      setLoading(true);
-      setError("");
       try {
         let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!isCurrent()) return;
         let session = sessionData?.session;
+        if (session?.user?.id && session.user.id !== scope.userId) {
+          throw new Error("Your account changed. Please sign in again to load transactions.");
+        }
         if (sessionError || !session?.access_token) {
           const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!isCurrent()) return;
           if (refreshError) throw refreshError;
           session = refreshedData?.session;
         }
-        if (!session?.access_token) throw new Error("Your session is invalid or expired. Please sign in again.");
+        if (!session?.access_token || session.user?.id !== scope.userId) {
+          throw new Error("Your account changed or session expired. Please sign in again to load transactions.");
+        }
 
         const res = await fetch("/api/transactions", {
           headers: { Authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal,
+          cache: "no-store",
         });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "Couldn't load transactions.");
-        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [], payoutsUnavailable: Boolean(json.payoutsUnavailable) });
+        if (!isCurrent()) return;
+        if (!res.ok) throw new Error(json?.error || "Couldn't load transactions.");
+        if (![json?.spent, json?.earned, json?.payouts].every(Array.isArray)) throw new Error("Couldn't load transactions. Please try again.");
+        setSnapshot({ scope, data: { spent: json.spent, earned: json.earned, payouts: json.payouts, payoutsUnavailable: Boolean(json.payoutsUnavailable) }, loading: false, error: "" });
       } catch (err) {
-        if (!cancelled) setError(err.message || "Something went wrong.");
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (isCurrent()) setSnapshot({ scope, data: emptyData(), loading: false, error: err?.message || "Couldn't load transactions." });
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [user]);
+    return () => { active = false; controller.abort(); };
+  }, [scope]);
 
-  return { data, loading, error };
+  return snapshot.scope === scope ? snapshot : { data: emptyData(), loading: Boolean(scope.userId), error: "" };
 }
 
 // Maps the real statuses your backend actually uses (bookings.status /
@@ -10601,8 +10615,8 @@ export default function App() {
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard user={user} setTab={changeTab} />)}
           {tab === "Transactions" && requireAuth(user?.role === "driver"
-            ? <TransactionsView key="driver" user={user} />
-            : requireHost(<TransactionsView key="host" user={user} />), "Sign in to view your transactions.")}
+            ? <TransactionsView key={"driver:" + user?.id} user={user} />
+            : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}
           {messageThread && <MessagingPanel key={messageConversationKey(user?.id, messageThread)} listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
