@@ -998,6 +998,14 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
+function bookingCheckoutKey({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, user, selectedVehicleId }) {
+  const vehicle = getBookableVehicles(user || {}).find(item => item.id === selectedVehicleId);
+  return JSON.stringify([user?.id || null, listing.id, listing.title, listing.price, hours, chosenSpot ?? null,
+    date instanceof Date ? localCalendarDate(date) : null, startHour ?? null, endHour ?? null,
+    selectedVehicleId || null, vehicle ? [vehicle.vehicleMake, vehicle.vehicleModel, vehicle.vehicleColour, vehicle.licensePlate] : null,
+    selectedEvent?.id ?? null]);
+}
+
 function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange, availableData = null }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
@@ -1005,10 +1013,35 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
   const checkoutModalActive = useRef(false);
+  const checkoutAttempt = useRef(null);
+  const checkoutKey = bookingCheckoutKey({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, user, selectedVehicleId });
+  const checkoutOwner = useRef({ key: checkoutKey, active: true });
+  if (checkoutOwner.current.key !== checkoutKey) {
+    checkoutOwner.current.active = false;
+    if (checkoutAttempt.current) checkoutAttempt.current.active = false;
+    checkoutAttempt.current = null;
+    checkoutOwner.current = { key: checkoutKey, active: true };
+  }
+  const owner = checkoutOwner.current;
+  const canAct = () => checkoutModalActive.current && owner.active && checkoutOwner.current === owner;
   useEffect(() => {
+    owner.active = true;
     checkoutModalActive.current = true;
-    return () => { checkoutModalActive.current = false; };
-  }, []);
+    setRedirecting(false); setStripeError("");
+    return () => {
+      owner.active = false;
+      checkoutModalActive.current = false;
+      if (checkoutAttempt.current?.owner === owner) { checkoutAttempt.current.active = false; checkoutAttempt.current = null; }
+    };
+  }, [checkoutKey]);
+  const closeCheckout = () => {
+    if (!canAct()) return;
+    owner.active = false;
+    checkoutModalActive.current = false;
+    if (checkoutAttempt.current) checkoutAttempt.current.active = false;
+    checkoutAttempt.current = null;
+    onClose();
+  };
   const bookableVehicles = getBookableVehicles(user || {});
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
@@ -1027,6 +1060,8 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
 
   const payWithStripe = async () => {
+    if (!checkoutModalActive.current) return;
+    if (!canAct() || checkoutAttempt.current?.busy) return;
     setStripeError("");
 
     if (!user) {
@@ -1034,7 +1069,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
       return;
     }
 
-    if (!isRealListing) {
+    if (!isRealListing || !validId(numericId)) {
       setStripeError("This parking listing is not available for Stripe checkout.");
       return;
     }
@@ -1044,76 +1079,57 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
       return;
     }
 
+    const attempt = { owner, active: true, busy: true };
+    checkoutAttempt.current = attempt;
+    const current = () => canAct() && attempt.active && checkoutAttempt.current === attempt;
+    const accountId = user.id;
+    let redirected = false;
     setRedirecting(true);
 
     try {
-      // The Stripe API is protected. Send the current Supabase JWT so the
-      // server can verify which signed-in ParkShare user is making the booking.
+      // Capture the original selection before waiting for authentication.
+      const body = JSON.stringify({
+        listingId: numericId, hours, total, listingTitle: listing.title,
+        spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
+        bookingDate: date instanceof Date ? localCalendarDate(date) : undefined,
+        startHour, endHour, vehicleId: selectedVehicle.id, eventId: selectedEvent?.id || undefined,
+      });
       let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!current()) return;
       let session = sessionData?.session;
-
-      // Refresh an old session once before asking the user to sign in again.
+      if (session?.user?.id && session.user.id !== accountId) throw new Error("Your account changed. Reopen the booking after signing in.");
       if (sessionError || !session?.access_token) {
         const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!current()) return;
         if (refreshError) throw refreshError;
         session = refreshedData?.session;
       }
+      if (!session?.access_token || session.user?.id !== accountId) throw new Error("Your account changed or session expired. Please sign in again.");
 
-      if (!session?.access_token) {
-        throw new Error("Your session is invalid or expired. Please sign in again.");
-      }
-
+      // A sent request may create a hold; never replay it automatically.
       const res = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          listingId: numericId,
-          hours,
-          total,
-          listingTitle: listing.title,
-          spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
-          // Send a date-only value. Sending a full ISO timestamp and later
-          // appending another time produced invalid future booking windows.
-          bookingDate: date instanceof Date ? localCalendarDate(date) : undefined,
-          startHour,
-          endHour,
-          vehicleId: selectedVehicle.id,
-          eventId: selectedEvent?.id || undefined,
-        }),
+        method: "POST", cache: "no-store",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body,
       });
+      if (!current()) return;
+      const data = await res.json().catch(() => ({}));
+      if (!current()) return;
+      if (res.status === 401) throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
+      if (!res.ok) throw new Error(data?.error || "Couldn't start Stripe checkout. Please try again.");
+      if (typeof data?.url !== "string" || !data.url) throw new Error("Stripe checkout did not return a payment link.");
 
-      let data = {};
-      try {
-        data = await res.json();
-      } catch {
-        // Keep the fallback error below when the API returns no JSON body.
-      }
-
-      if (res.status === 401) {
-        throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || "Couldn't start Stripe checkout. Please try again.");
-      }
-
-      if (!data.url) {
-        throw new Error("Stripe checkout did not return a payment link.");
-      }
-
-      // A sign-out or account switch may close this modal while an already-
-      // submitted Checkout request is in flight. Do not redirect a closed
-      // dialog to Stripe even if the server managed to issue a hold.
+      const { data: latestData, error: latestError } = await supabase.auth.getSession();
+      if (!current()) return;
+      if (latestError || !latestData?.session?.access_token || latestData.session.user?.id !== accountId) throw new Error("Your account changed. Reopen the booking after signing in.");
       if (!checkoutModalActive.current) return;
       window.location.assign(data.url); // hand off to Stripe's hosted checkout page
+      redirected = true;
     } catch (err) {
-      if (!checkoutModalActive.current) return;
-      console.error("Stripe checkout error:", err);
-      setRedirecting(false);
-      setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
+      if (current()) setStripeError(err?.message || "Couldn't start Stripe checkout. Check My Bookings and Transactions before trying again.");
+    } finally {
+      if (!redirected) attempt.busy = false;
+      if (current() && !redirected) setRedirecting(false);
     }
   };
 
@@ -1178,7 +1194,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   );
 
   return (
-    <Modal title={step === 1 ? "Review & pay" : "Payment details"} onClose={onClose}>
+    <Modal title={step === 1 ? "Review & pay" : "Payment details"} onClose={closeCheckout}>
       {step === 1 && (
         <div>
           {/* Booking summary */}
@@ -1226,7 +1242,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
                   <span className="ps-spot-vehicle-check" aria-hidden="true">✓</span>
                 </div>
                 <button type="button" className="ps-spot-change-vehicle" aria-expanded={changeVehicleOpen}
-                  aria-controls="payment-vehicle-choices" onClick={() => setChangeVehicleOpen(open => !open)}>
+                  aria-controls="payment-vehicle-choices" disabled={redirecting} onClick={() => { if (canAct() && !checkoutAttempt.current?.busy) setChangeVehicleOpen(open => !open); }}>
                   {changeVehicleOpen ? "Hide vehicles" : "Switch vehicle"} <span aria-hidden="true">{changeVehicleOpen ? "▴" : "▾"}</span>
                 </button>
                 {changeVehicleOpen && (
@@ -1235,7 +1251,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
                       const isSelected = vehicle.id === selectedVehicleId;
                       return (
                         <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio"
-                          aria-checked={isSelected} onClick={() => { onVehicleChange(vehicle.id); setChangeVehicleOpen(false); }}>
+                          aria-checked={isSelected} disabled={redirecting} onClick={() => { if (!canAct() || checkoutAttempt.current?.busy) return; onVehicleChange(vehicle.id); setChangeVehicleOpen(false); }}>
                           <VehicleBadge vehicle={vehicle} compact />
                           <span><strong>{vehicle.label}</strong><small>{formatVehicleVisualSummary(vehicle)}</small><em>{vehicle.licensePlate}</em></span>
                           <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
@@ -1256,7 +1272,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
               </div>
             </div>
           )}
-          {stripeError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
+          {stripeError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
           {isRealListing ? (
             <>
               <Btn onClick={payWithStripe} full disabled={redirecting || !selectedVehicle}>
@@ -2162,6 +2178,9 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
       {showPayment && (
       <PaymentModal
+          key={bookingCheckoutKey({ listing, hours, chosenSpot, date: bookingMode === "advance" ? date : undefined,
+            startHour: bookingMode === "advance" ? startHour : undefined, endHour: bookingMode === "advance" ? endHour : undefined,
+            selectedEvent, selectedVehicleId, user })}
           listing={listing}
           hours={hours}
           chosenSpot={chosenSpot}
