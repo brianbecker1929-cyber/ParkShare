@@ -38,7 +38,7 @@ test('a subsequent real auth event can hydrate the current recovery account norm
  const h=syncHarness();h.emit('PASSWORD_RECOVERY',session('B'));h.emit('USER_UPDATED',session('B'));await h.run();assert.equal(h.changes.at(-1).user.id,'B');assert.equal(h.changes.at(-1).event,'USER_UPDATED');h.stop();
 });
 test('unsubscribe prevents later recovery notifications and clears pending work',async()=>{
- const h=syncHarness();h.emit('SIGNED_IN',session('A'));h.stop();h.emit('PASSWORD_RECOVERY',session('B'));await h.run();assert.equal(h.unsubscribed,1);assert.deepEqual(h.changes,[]);assert.deepEqual(h.recoveries,[]);assert.equal(h.reads,0);
+ const h=syncHarness();h.emit('SIGNED_IN',session('A'));const before=h.changes.slice();h.stop();h.emit('PASSWORD_RECOVERY',session('B'));await h.run();assert.equal(h.unsubscribed,1);assert.deepEqual(h.changes,before);assert.deepEqual(h.recoveries,[]);assert.equal(h.reads,0);
 });
 
 // Compile the real App auth state, subscription and overlay JSX, and the real

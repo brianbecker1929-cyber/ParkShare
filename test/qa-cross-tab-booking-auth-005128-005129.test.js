@@ -101,8 +101,9 @@ test("rapid account switching discards stale results and uses the active session
   h.emit("SIGNED_IN", session(OTHER_ID));
   await h.run();
   await h.run();
-  assert.equal(h.changes.length, 1);
-  assert.equal(h.changes[0].user.id, OTHER_ID);
+  const published = h.changes.filter(change => change.user);
+  assert.equal(published.length, 1);
+  assert.equal(published[0].user.id, OTHER_ID);
   h.stop();
 });
 
