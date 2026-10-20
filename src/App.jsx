@@ -3035,7 +3035,7 @@ function ParkingSearchEmptyState({ state, onClear, overlay = false }) {
 // ─── Host Dashboard ───────────────────────────────────────────────────────────
 const LISTING_FEATURE_OPTIONS = ["Covered", "CCTV", "Well-lit", "Gated", "24hr Access"];
 
-function EditListingModal({ listing, onClose, onSave }) {
+function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false }) {
   const [price, setPrice] = useState(String(listing.price));
   const [description, setDescription] = useState(listing.description || "");
   const [features, setFeatures] = useState(listing.features || []);
@@ -3050,6 +3050,18 @@ function EditListingModal({ listing, onClose, onSave }) {
   const [selectedSpots, setSelectedSpots] = useState(initialSelected);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const attempt = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; if (attempt.current) attempt.current.active = false; };
+  }, []);
+  const canAct = () => mounted.current && isContextCurrent();
+  const close = () => {
+    if (!canAct()) return;
+    if (attempt.current) attempt.current.active = false;
+    onClose();
+  };
 
   const toggleSpotAt = (i) => setSelectedSpots(prev => prev.map((v, idx) => idx === i ? !v : v));
   const changeTotal = (n) => {
@@ -3064,11 +3076,15 @@ function EditListingModal({ listing, onClose, onSave }) {
   const toggleFeature = (f) => setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
 
   const save = async () => {
+    if (!canAct() || attempt.current?.pending) return;
     setErr("");
     const rate = validateHourlyRate(price);
     if (!rate.valid) { setErr(rate.error); return; }
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
+    const work = { active: true, pending: true };
+    attempt.current = work;
+    const current = () => canAct() && work.active && attempt.current === work;
     setSaving(true);
     // Preserve real geo bounds for spots that existed before (needed for the
     // satellite map view); new spots added here only exist in the simple
@@ -3079,20 +3095,26 @@ function EditListingModal({ listing, onClose, onSave }) {
       bounds: existingSpots[i]?.bounds ?? null,
       forRent: selectedSpots[i],
     }));
-    const ok = await onSave({
-      ...listing,
-      price: rate.value,
-      description,
-      features,
-      spots: newSpots,
-      spaces: rentableCount,
-    });
-    setSaving(false);
-    if (ok) onClose();
+    try {
+      const ok = await onSave({
+        ...listing,
+        price: rate.value,
+        description,
+        features,
+        spots: newSpots,
+        spaces: rentableCount,
+      });
+      if (current() && ok) close();
+    } catch (error) {
+      if (current()) setErr(error?.message || "Couldn't confirm saved changes. Refresh your listing before retrying.");
+    } finally {
+      work.pending = false;
+      if (current()) setSaving(false);
+    }
   };
 
   return (
-    <Modal title={"Edit — " + listing.title} onClose={onClose}>
+    <Modal title={"Edit — " + listing.title} onClose={close}>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
@@ -3138,7 +3160,7 @@ function EditListingModal({ listing, onClose, onSave }) {
           </div>
         </div>
 
-        {err && <div style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
+        {err && <div role="alert" style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
 
         <Btn variant="amber" full onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Btn>
       </div>
@@ -3387,6 +3409,87 @@ function useHostListingDeletion(user, onDeleted) {
   };
   return { confirmDeleteId: current.request?.displayId || null,
     deletingId: current.request?.token.pending ? current.request.displayId : null, open, close, confirm };
+}
+
+async function persistHostListingEdit(updated, accountId, isContextCurrent = () => false) {
+  const rate = validateHourlyRate(updated.price);
+  if (!rate.valid) throw new Error(rate.error);
+  if (!accountId || !validId(updated?.rawId)) throw new Error("Reopen this listing while signed in as its Host.");
+  if (!isContextCurrent()) return null;
+  // Capture the exact editable payload before waiting for authentication.
+  const changes = structuredClone({ price: rate.value, description: updated.description,
+    features: updated.features, spots: updated.spots, spaces: updated.spaces });
+  const listingId = updated.rawId;
+  const { data: authData, error: authError } = await supabase.auth.getSession();
+  if (!isContextCurrent()) return null;
+  if (authError || !authData?.session?.access_token || authData.session.user?.id !== accountId) {
+    throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
+  }
+  if (!isContextCurrent()) return null;
+  const { data, error } = await supabase.from("listings").update(changes)
+    .eq("id", listingId).eq("host_id", accountId)
+    .select("id,price,description,features,spots,spaces").maybeSingle();
+  if (!isContextCurrent()) return null;
+  if (error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  if (!data || String(data.id) !== String(listingId)) throw new Error("This listing wasn't updated. Refresh your listings and reopen the editor.");
+  const savedRate = validateHourlyRate(data.price);
+  if (!savedRate.valid || !Number.isInteger(Number(data.spaces)) || Number(data.spaces) < 1 || !Array.isArray(data.features || []) || !Array.isArray(data.spots || [])) {
+    throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  }
+  return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces) };
+}
+
+function useHostListingEdit(user, onSaved) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null, revision: 0 }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    if (context.request) context.request.token.active = false;
+    current = { accountId, request: null, revision: context.revision + 1 };
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; if (latest.current.request) latest.current.request.token.active = false; };
+  }, []);
+  const token = current.request?.token;
+  const isCurrent = () => mounted.current && token?.active && latest.current.accountId === accountId && latest.current.request?.token === token;
+  const replace = next => { latest.current = next; setContext(next); };
+  const open = listing => {
+    if (!mounted.current || latest.current !== current || !accountId || !validId(listing?.rawId)) return;
+    const snapshot = structuredClone({ id: listing.id, rawId: listing.rawId, title: listing.title, price: listing.price,
+      description: listing.description || "", features: listing.features || [], spots: listing.spots || [], spaces: listing.spaces || 1 });
+    if (current.request) current.request.token.active = false;
+    replace({ accountId, request: { listing: snapshot, token: { active: true, pending: false } }, revision: current.revision + 1 });
+  };
+  const close = () => {
+    if (!isCurrent()) return;
+    token.active = false;
+    replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+  };
+  const save = async updated => {
+    if (!isCurrent() || token.pending) return false;
+    const request = current.request;
+    if (String(updated?.rawId) !== String(request.listing.rawId)) throw new Error("Reopen the selected listing before saving.");
+    token.pending = true;
+    try {
+      const saved = await persistHostListingEdit(updated, accountId, isCurrent);
+      if (!isCurrent() || !saved) return false;
+      onSaved(request.listing.id, saved);
+      token.active = false;
+      replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+      return true;
+    } catch (error) {
+      if (isCurrent()) throw error;
+      return false;
+    } finally {
+      token.pending = false;
+    }
+  };
+  return { listing: current.request?.listing || null, requestKey: current.revision, open, close, save, isCurrent };
 }
 
 function HostDashboard({ user, setTab }) {
@@ -3671,7 +3774,6 @@ function HostDashboard({ user, setTab }) {
       displayStatus: getBookingDisplayStatus(booking.status, booking.bookingStart, booking.bookingEnd, currentTime),
     }))
     .filter(booking => booking.displayStatus === "Upcoming" || booking.displayStatus === "Active" || booking.displayStatus === "Cancellation pending");
-  const [editingListing, setEditingListing] = useState(null);
   const [showAllListings, setShowAllListings] = useState(false);
   const [showAllBookings, setShowAllBookings] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -3683,20 +3785,10 @@ function HostDashboard({ user, setTab }) {
       setDbListings(prev => prev.filter(l => l.id !== displayId));
     });
 
-  const saveListingEdit = async (updated) => {
-    const rate = validateHourlyRate(updated.price);
-    if (!rate.valid) { alert(rate.error); return false; }
-    const { error } = await supabase.from("listings").update({
-      price: rate.value,
-      description: updated.description,
-      features: updated.features,
-      spots: updated.spots,
-      spaces: updated.spaces,
-    }).eq("id", updated.rawId);
-    if (error) { alert("Couldn't save changes: " + error.message); return false; }
-    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated, price: rate.value } : l));
-    return true;
-  };
+  const { listing: editingListing, requestKey: editingKey, open: openListingEdit, close: closeListingEdit,
+    save: saveListingEdit, isCurrent: isListingEditCurrent } = useHostListingEdit(user, (displayId, saved) => {
+      setDbListings(prev => prev.map(l => l.id === displayId ? { ...l, ...saved } : l));
+    });
 
   const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
     requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
@@ -3846,7 +3938,7 @@ function HostDashboard({ user, setTab }) {
                     <button aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
                     {listingActionId === l.id && (
                       <div className="host-dashboard-action-menu">
-                        <button onClick={() => { setListingActionId(null); setEditingListing(l); }}>Edit listing</button>
+                        <button onClick={() => { setListingActionId(null); openListingEdit(l); }}>Edit listing</button>
                         <button className="danger" onClick={() => { setListingActionId(null); openListingDeletion(l); }}>Delete listing</button>
                       </div>
                     )}
@@ -3969,9 +4061,11 @@ function HostDashboard({ user, setTab }) {
 
       {editingListing && (
         <EditListingModal
+          key={editingKey}
           listing={editingListing}
-          onClose={() => setEditingListing(null)}
+          onClose={closeListingEdit}
           onSave={saveListingEdit}
+          isContextCurrent={isListingEditCurrent}
         />
       )}
       {cancelTarget && (
