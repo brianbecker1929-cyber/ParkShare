@@ -19,7 +19,9 @@ export default async function handler(req, res) {
 
     const { data: booking, error: bookingError } = await supabaseAdmin
       .from("bookings")
-      .select("id, listing_id, renter_id, hours, status, paid_at, booking_date, start_hour, spot_label")
+      // The active-session and availability checks must use the saved instant,
+      // exactly as the database extension hold and booking dashboards do.
+      .select("id, listing_id, renter_id, hours, status, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label")
       .eq("id", bookingId)
       .single();
     if (bookingError || !booking) return res.status(404).json({ error: "Booking not found." });
