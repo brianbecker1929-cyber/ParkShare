@@ -2302,10 +2302,29 @@ function EventSubmissionForm({ onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [reference, setReference] = useState("");
-  const update = (field, value) => setForm(current => ({ ...current, [field]: value }));
+  const submissionContext = useRef(null);
+  useEffect(() => {
+    const context = { active: true, busy: false, complete: false };
+    submissionContext.current = context;
+    setSubmitting(false);
+    return () => { context.active = false; };
+  }, []);
+  const close = () => {
+    if (submissionContext.current) submissionContext.current.active = false;
+    onClose();
+  };
+  const update = (field, value) => {
+    const context = submissionContext.current;
+    if (!context?.active || context.busy || context.complete) return;
+    setForm(current => ({ ...current, [field]: value }));
+  };
 
   const submit = async submitEvent => {
     submitEvent.preventDefault();
+    const context = submissionContext.current;
+    const current = () => Boolean(context?.active && submissionContext.current === context);
+    if (!current() || context.busy || context.complete) return;
+    context.busy = true;
     setSubmitting(true);
     setError("");
     try {
@@ -2315,12 +2334,18 @@ function EventSubmissionForm({ onClose }) {
         body: JSON.stringify({ ...form, requestType: "event-submission" }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Your event could not be submitted. Please try again.");
-      setReference(result.reference || "Submitted");
+      if (!current()) return;
+      if (!response.ok) throw new Error(result?.error || "Your event could not be submitted. Please try again.");
+      if (result?.ok !== true || typeof result.reference !== "string" || !result.reference.trim()) {
+        throw new Error("We couldn't confirm whether your event was submitted. Please check with ParkShare Support before submitting it again.");
+      }
+      context.complete = true;
+      setReference(result.reference.trim());
     } catch (submitError) {
-      setError(submitError.message || "Your event could not be submitted. Please try again.");
+      if (current()) setError(submitError?.message || "We couldn't confirm whether your event was submitted. Please check with ParkShare Support before submitting it again.");
     } finally {
-      setSubmitting(false);
+      context.busy = false;
+      if (current()) setSubmitting(false);
     }
   };
 
@@ -2330,20 +2355,20 @@ function EventSubmissionForm({ onClose }) {
       <h3>Event submitted for review</h3>
       <p>Thank you. ParkShare will verify the event details before anything is published.</p>
       <small>Reference: {reference}</small>
-      <button type="button" onClick={onClose}>Done</button>
+      <button type="button" onClick={close}>Done</button>
     </div>
   );
 
   return (
     <form className="ps-event-submission-form" onSubmit={submit}>
       <p className="ps-event-submission-intro">Tell us about your upcoming event. Submissions are reviewed before appearing on ParkShare.</p>
-      <fieldset>
+      <fieldset disabled={submitting}>
         <legend>Organizer contact</legend>
         <label>Organizer or organization name *<input value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required /></label>
         <label>Email address *<input type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required /></label>
         <label>Phone number<input type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} /></label>
       </fieldset>
-      <fieldset>
+      <fieldset disabled={submitting}>
         <legend>Event details</legend>
         <label className="is-wide">Event name *<input value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required /></label>
         <label>Category *
@@ -2363,13 +2388,13 @@ function EventSubmissionForm({ onClose }) {
         <label className="is-wide">Parking, accessibility, or street-closure notes<textarea value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} /></label>
       </fieldset>
       <label className="ps-event-submission-consent">
-        <input type="checkbox" checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
+        <input type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
         <span>I confirm that I am authorized to submit this event information and that it is accurate.</span>
       </label>
       <label className="ps-event-submission-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={event => update("website", event.target.value)} /></label>
       {error && <div className="ps-discover-error" role="alert">⚠️ {error}</div>}
       <div className="ps-event-submission-actions">
-        <button type="button" onClick={onClose}>Cancel</button>
+        <button type="button" onClick={close}>Cancel</button>
         <button type="submit" disabled={submitting}>{submitting ? "Submitting…" : "Submit event for review"}</button>
       </div>
     </form>
@@ -10247,7 +10272,17 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
 
+  const submissionContext = useRef(null);
+  useEffect(() => {
+    const context = { active: true, busy: false, complete: false };
+    submissionContext.current = context;
+    setIsSubmitting(false);
+    return () => { context.active = false; };
+  }, []);
+
   const handleChange = (e) => {
+    const context = submissionContext.current;
+    if (!context?.active || context.busy || context.complete) return;
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
     setErrors(current => ({ ...current, [name]: "" }));
@@ -10256,7 +10291,9 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting || sent) return;
+    const context = submissionContext.current;
+    const current = () => Boolean(context?.active && submissionContext.current === context);
+    if (!current() || context.busy || context.complete) return;
 
     const errs = {};
     if (!form.name.trim()) errs.name = "Please enter your name.";
@@ -10266,6 +10303,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
     setErrors(errs);
     if (Object.keys(errs).length) return;
 
+    context.busy = true;
     setIsSubmitting(true);
     setSubmissionError("");
     try {
@@ -10275,12 +10313,18 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         body: JSON.stringify(form),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "We couldn't send your message right now. Please try again.");
+      if (!current()) return;
+      if (!response.ok) throw new Error(result?.error || "We couldn't send your message right now. Please try again.");
+      if (result?.ok !== true) {
+        throw new Error("We couldn't confirm whether your message was sent. Please check with ParkShare Support before sending it again.");
+      }
+      context.complete = true;
       setSent(true);
     } catch (error) {
-      setSubmissionError(error.message || "We couldn't send your message right now. Please try again.");
+      if (current()) setSubmissionError(error?.message || "We couldn't confirm whether your message was sent. Please check with ParkShare Support before sending it again.");
     } finally {
-      setIsSubmitting(false);
+      context.busy = false;
+      if (current()) setIsSubmitting(false);
     }
   };
 
