@@ -27,15 +27,23 @@ export function refundLedgerSnapshot(charge, refunds, {paymentIntentId,chargeId,
 export async function reconcilePaymentRefund({event,stripe,db,read=retryTransientSupabaseRead,logger=console}) {
   const account=event?.account,object=event?.data?.object;
   if(!valid('acct',account)||!valid('evt',event?.id)||typeof event?.livemode!=='boolean')return {applied:false,reason:'invalid_event'};
+  const isCheckout=['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type);
   const isCharge=event.type==='charge.refunded';
-  const refundId=isCharge?null:stripeObjectId(object);
-  if(!isCharge&&!valid('re',refundId))return {applied:false,reason:'invalid_refund'};
+  if(!isCheckout&&!isCharge&&!['refund.created','refund.updated','refund.failed'].includes(event.type))return {applied:false,reason:'invalid_event_type'};
+  if(isCheckout&&(!valid('cs',object?.id)||object?.payment_status!=='paid'||object?.livemode!==event.livemode))throw new Error('invalid_checkout_refund_source');
+  const refundId=isCharge||isCheckout?null:stripeObjectId(object);
+  if(!isCharge&&!isCheckout&&!valid('re',refundId))return {applied:false,reason:'invalid_refund'};
   let currentRefund=null;
   let pi=stripeObjectId(object?.payment_intent),chargeId=isCharge?stripeObjectId(object):stripeObjectId(object?.charge);
   const deadline=Date.now()+20000;
   const options=()=>{const remaining=deadline-Date.now();if(remaining<=0)throw new Error('refund_reconciliation_timeout');
     return {stripeAccount:account,timeout:Math.min(5000,remaining),maxNetworkRetries:0};};
-  if(!isCharge){
+  if(isCheckout){
+    const intent=await stripe.paymentIntents.retrieve(pi,{},options());
+    if(intent.id!==pi||intent.livemode!==event.livemode)throw new Error('refund_intent_identity_mismatch');
+    chargeId=stripeObjectId(intent.latest_charge);
+  }
+  if(!isCharge&&!isCheckout){
     const current=await stripe.refunds.retrieve(refundId,{},options());
     currentRefund=current;
     if(current.id!==refundId)throw new Error('refund_identity_mismatch');

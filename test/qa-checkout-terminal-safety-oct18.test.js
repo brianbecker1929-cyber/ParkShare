@@ -67,12 +67,12 @@ test("signed terminal webhook validates fresh Stripe state BEFORE any destructiv
   assert.match(fn, /stripeAccount: connectedAccountId/);
   assert.match(fn, /readCheckoutDb\(/);
   assert.match(fn, /if \(booking && !canFailUnpaidBooking\(booking, connectedAccountId\)\) return;/);
-  assert.match(fn, /if \(hold && pending\) \{/);
+  assert.match(fn, /if \(pending\) \{/);
   assert.match(fn, /if \(hold && !matchesRegisteredCheckoutAccount\(hold, connectedAccountId\)\) return;/);
-  assert.match(fn, /if \(pending && !matchesRegisteredCheckoutAccount\(pending, connectedAccountId\)\) return;/);
+  assert.match(fn, /if \(!matchesRegisteredCheckoutAccount\(pending, connectedAccountId\)\) return;/);
   assert.match(fn, /if \(!hold && !pending && !booking\) return;/);
   assert.match(fn, /from\("booking_holds"\)\.delete\(\)[\s\S]*?\.eq\("expected_connected_account_id", connectedAccountId\)/);
-  assert.match(fn, /from\("pending_booking_extensions"\)\.delete\(\)[\s\S]*?\.eq\("expected_connected_account_id", connectedAccountId\)/);
+  assert.match(fn, /rpc\("release_unpaid_extension_checkout"/);
 });
 
 test("payment_failed update requires pending, unpaid and exact connected Stripe account", async () => {

@@ -83,7 +83,7 @@ function httpHandler(h){
  const signatureStripe=new Stripe('sk_test_synthetic');
  h.stripe.webhooks=signatureStripe.webhooks;
  const readRawBody=new Function(bodyCode+';return readRawBody;')();
- const handler=new Function('stripe','supabaseAdmin','reconcilePaymentRefund','readRawBody','paidCheckoutReferenceLog','process',handlerCode)(h.stripe,h.db,reconcilePaymentRefund,readRawBody,paidCheckoutReferenceLog,{env:{STRIPE_WEBHOOK_SECRET:'whsec_synthetic'}});
+ const handler=new Function('stripe','supabaseAdmin','reconcilePaymentRefund','recoverRejectedExtensionRefund','readRawBody','paidCheckoutReferenceLog','process',handlerCode)(h.stripe,h.db,reconcilePaymentRefund,async()=>{},readRawBody,paidCheckoutReferenceLog,{env:{STRIPE_WEBHOOK_SECRET:'whsec_synthetic'}});
  return async(valid=true)=>{
   const payload=JSON.stringify(event());const request=Readable.from([Buffer.from(payload)]);request.method='POST';
   request.headers={'stripe-signature':valid?signatureStripe.webhooks.generateTestHeaderString({payload,secret:'whsec_synthetic'}):'invalid'};
@@ -111,4 +111,12 @@ test('current pending, failed and canceled refunds persist their own lifecycle w
 test('an external partial refund in flight is not falsely reported as an existing cancellation',()=>{
  const result=evaluateCancellation({booking:{status:'confirmed',refund_status:'pending',refund_pending_amount:20,renter_id:'driver'},userId:'driver'});
  assert.equal(result.allowed,false);assert.equal(result.code,'support_required');assert.equal(result.idempotent,undefined);
+});
+
+
+test('real paid Checkout event can reconcile a rejected-extension refund without inventing a refund event',async()=>{
+ const h=harness({kind:'extension'});const e=event('checkout.session.completed',{id:'cs_registered',payment_status:'paid',payment_intent:'pi_base',livemode:false});e.id='evt_checkout_actual';
+ await h.run(e);assert.equal(h.writes[0].p.p_event_id,'evt_checkout_actual');assert.equal(h.writes[0].p.p_kind,'extension');
+ assert.equal(h.calls.some(c=>c[0]==='retrieve'),false);
+ const mismatch=harness();await assert.rejects(mismatch.run({...e,data:{object:{...e.data.object,livemode:true}}}));assert.equal(mismatch.writes.length,0);
 });

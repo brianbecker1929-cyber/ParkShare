@@ -9,7 +9,7 @@ test("BUG-005116 checkout reserves the additional interval before any Stripe ses
   assert.match(code, /supabaseAdmin\.rpc\("reserve_extension_checkout_hold"/);
   const reserve = code.indexOf('supabaseAdmin.rpc("reserve_extension_checkout_hold"');
   const stripeCreate = code.indexOf("stripe.checkout.sessions.create(");
-  const bindHold = code.indexOf('update({ stripe_checkout_session_id: session.id })');
+  const bindHold = code.indexOf('update({ stripe_checkout_session_id: session.id,');
   const insertPending = code.indexOf('.from("pending_booking_extensions")\n        .insert(');
   const returnUrl = code.indexOf("res.status(200).json({ url: session.url })");
   assert.ok(reserve > 0 && reserve < stripeCreate && stripeCreate < bindHold);
@@ -72,6 +72,6 @@ test("BUG-005116 integration: failure/expiry release only own registered and unp
   assert.match(fn, /matchesRegisteredCheckoutAccount\(hold, connectedAccountId\)/);
   assert.match(fn, /matchesRegisteredCheckoutAccount\(pending, connectedAccountId\)/);
   assert.match(fn, /\.from\("booking_holds"\)\.delete\(\)[\s\S]*?\.eq\("stripe_checkout_session_id", session\.id\)[\s\S]*?\.eq\("expected_connected_account_id", connectedAccountId\)/);
-  assert.match(fn, /\.from\("pending_booking_extensions"\)\.delete\(\)[\s\S]*?\.eq\("stripe_checkout_session_id", session\.id\)[\s\S]*?\.eq\("expected_connected_account_id", connectedAccountId\)/);
+  assert.match(fn, /rpc\("release_unpaid_extension_checkout"/);
   assert.match(fn, /if \(booking && !canFailUnpaidBooking\(booking, connectedAccountId\)\) return/);
 });

@@ -48,6 +48,7 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
     for (const file of files) await pool.query(await read(file));
     await pool.query(setupSchema);
     await pool.query(await read("../../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql"));
+    await pool.query(await read("../../supabase/migrations/20261020205407_extension_settlement_005116_005260.sql"));
   });
 
   beforeEach(async () => {
@@ -219,4 +220,65 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
       [signature]);
     assert.deepEqual(rows[0],{anon:false,authenticated:false,service:true});
   });
+  function rejectPayment(session, account="acct_test") {
+    return pool.query("select public.record_rejected_booking_extension($1,$2,$3,$4,115,now()) id",
+      [session,"pi_"+session,"ch_"+session,account]);
+  }
+  test("rejected payment journals once, releases occupancy, never adds hours, and permits same +1h retry",async()=>{
+    await register("cs_rejected");
+    const first=await rejectPayment("cs_rejected");
+    assert.equal((await rejectPayment("cs_rejected")).rows[0].id,first.rows[0].id);
+    assert.equal((await state()).hours,1);
+    assert.equal((await pool.query("select count(*)::int n from public.booking_holds")).rows[0].n,0);
+    assert.equal((await pool.query("select application_state from public.booking_extensions")).rows[0].application_state,'rejected');
+    assert.equal((await apply("cs_rejected")).rows[0].applied,false);
+    await register("cs_retry");await apply("cs_retry");assert.equal((await state()).hours,2);
+  });
+  test("applied extensions cannot become rejected or be automatically refunded",async()=>{
+    await register("cs_applied");await apply("cs_applied");
+    await assert.rejects(rejectPayment("cs_applied"),e=>e.code==='22023');
+    assert.equal((await state()).hours,2);
+  });
+  test("concurrent application and rejection serialize into exactly one entitlement decision",async()=>{
+    await register("cs_race");
+    const result=await Promise.allSettled([apply("cs_race"),rejectPayment("cs_race")]);
+    const row=(await pool.query("select application_state from public.booking_extensions")).rows[0];
+    if(row.application_state==='applied'){
+      assert.equal((await state()).hours,2);assert.equal(result[1].status,'rejected');
+    }else{
+      assert.equal((await state()).hours,1);assert.equal(result[0].value.rows[0].applied,false);
+    }
+    assert.equal((await pool.query("select count(*)::int n from public.booking_extensions")).rows[0].n,1);
+  });
+  test("wrong account or hold identity rejects cleanup and rolls financial audit back",async()=>{
+    const hold=await register("cs_foreign");
+    await assert.rejects(rejectPayment("cs_foreign","acct_foreign"),e=>e.code==='22023');
+    await pool.query("update public.booking_holds set stripe_checkout_session_id='cs_other' where id=$1",[hold]);
+    await assert.rejects(rejectPayment("cs_foreign"),e=>e.code==='22023');
+    assert.deepEqual((await state()).sessions,[]);
+    assert.equal((await pool.query("select count(*)::int n from public.booking_holds")).rows[0].n,1);
+  });
+  test("a hold deletion failure rolls back the rejected audit in the same transaction",async()=>{
+    await register("cs_delete_failure");
+    await pool.query(`CREATE FUNCTION public.test_reject_hold_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN RAISE EXCEPTION USING ERRCODE='P0099',MESSAGE='Synthetic delete failure'; END; $$;
+      CREATE TRIGGER test_hold_delete BEFORE DELETE ON public.booking_holds FOR EACH ROW EXECUTE FUNCTION public.test_reject_hold_delete();`);
+    try { await assert.rejects(rejectPayment("cs_delete_failure"),e=>e.code==='P0099');assert.deepEqual((await state()).sessions,[]); }
+    finally {await pool.query('DROP TRIGGER test_hold_delete ON public.booking_holds; DROP FUNCTION public.test_reject_hold_delete();');}
+  });
+  test("unpaid extension cleanup accepts legacy hold snapshot and atomically removes the correct pair",async()=>{
+    await register("cs_terminal");
+    const call=(account='acct_test')=>pool.query('select public.release_unpaid_extension_checkout($1,$2) released',['cs_terminal',account]);
+    await assert.rejects(call('acct_foreign'),e=>e.code==='22023');
+    assert.equal((await call()).rows[0].released,true);assert.equal((await call()).rows[0].released,false);
+    for(const table of ['booking_holds','pending_booking_extensions'])assert.equal((await pool.query(`select count(*)::int n from public.${table}`)).rows[0].n,0);
+    assert.equal((await state()).hours,1);
+  });
+  test("new settlement functions are executable only by service_role",async()=>{
+    for(const fn of ['public.record_rejected_booking_extension(text,text,text,text,integer,timestamptz)','public.release_unpaid_extension_checkout(text,text)']){
+      const r=(await pool.query("select has_function_privilege('anon',$1,'EXECUTE') anon,has_function_privilege('authenticated',$1,'EXECUTE') authenticated,has_function_privilege('service_role',$1,'EXECUTE') service",[fn])).rows[0];
+      assert.deepEqual(r,{anon:false,authenticated:false,service:true});
+    }
+  });
+
 });
