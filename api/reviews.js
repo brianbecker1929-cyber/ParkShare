@@ -26,7 +26,9 @@ export default async function handler(req, res) {
 
     const { data: reservations, error: bookingError } = await supabaseAdmin
       .from("bookings")
-      .select("id,listing_id,renter_id,status,paid_at,stripe_checkout_session_id,booking_date,start_hour,hours")
+      // Completion follows the immutable booking instant, not local hours
+      // reinterpreted as UTC (which can permit early or delay valid reviews).
+      .select("id,listing_id,renter_id,status,paid_at,stripe_checkout_session_id,booking_date,start_hour,scheduled_starts_at,property_time_zone,hours")
       .eq("listing_id", listingId).eq("renter_id", user.id)
       .not("paid_at", "is", null).limit(200);
     if (bookingError) throw bookingError;
