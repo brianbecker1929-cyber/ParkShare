@@ -17,6 +17,10 @@
     {
       "path": "/api/cleanup-listing-photos",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/send-reminders",
+      "schedule": "* * * * *"
     }
   ],
   "functions": {
@@ -25,6 +29,9 @@
     },
     "api/qa-release-status.js": {
       "includeFiles": "node_modules/geo-tz/data/timezones.geojson.*"
+    },
+    "api/send-reminders.js": {
+      "maxDuration": 300
     }
   }
 }
