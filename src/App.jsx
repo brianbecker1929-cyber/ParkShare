@@ -4,7 +4,8 @@ import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
-import { supabase } from "./lib/supabaseClient";
+import { supabase, updateRecoveryPasswordForAccount } from "./lib/supabaseClient";
+import { RECOVERY_SESSION_CHANGED } from "./lib/passwordRecovery";
 import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
 import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
 import { calculateBookingAmounts } from "../api/_booking-rules.js";
@@ -6876,7 +6877,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
 }
 
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
-function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true, signupRole = null }) {
+function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true, signupRole = null, recoveryAccountId = null, onRecoveryComplete = () => {} }) {
   const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
   const [form, setForm] = useState(emptyAuthForm);
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -6888,6 +6889,8 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const [resendLoading, setResendLoading] = useState(false);
   const [resendMessage, setResendMessage] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+  const [recoveryInvalid, setRecoveryInvalid] = useState(initialScreen === "recovery" && !recoveryAccountId);
+  const recoveryOwner = useRef({ accountId:recoveryAccountId, valid:Boolean(recoveryAccountId) });
   const emailBusy = resendLoading || resetLoading;
   const emailAttempt = useRef(null);
   const emailRevision = useRef(0);
@@ -6914,6 +6917,25 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     if (credentialAttempt.current) credentialAttempt.current.active = false;
     credentialAttempt.current = null;
   };
+  const invalidateRecovery = () => {
+    recoveryOwner.current.valid = false;
+    invalidateCredentialAttempt();
+    setLoading(false); setForm(emptyAuthForm()); setConfirmPassword(""); setErrors({});
+    setRecoveryInvalid(true); setAuthError(RECOVERY_SESSION_CHANGED); setScreen("recovery");
+  };
+  useEffect(() => {
+    if (initialScreen !== "recovery") return;
+    if (!recoveryAccountId || recoveryOwner.current.accountId !== recoveryAccountId) {
+      invalidateRecovery(); return;
+    }
+    // No Auth reads inside the callback. Retire queued writes immediately,
+    // even before React renders the account change, and never revive A→B→A.
+    const {data} = supabase.auth.onAuthStateChange((event, session) => {
+      if (!authModalActive.current || !recoveryOwner.current.valid) return;
+      if (event === "SIGNED_OUT" || session?.user?.id !== recoveryAccountId) invalidateRecovery();
+    });
+    return () => data?.subscription?.unsubscribe();
+  }, [initialScreen, recoveryAccountId]);
   useEffect(() => {
     authModalActive.current = true;
     authContext.current.active = true;
@@ -6935,7 +6957,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
     onClose();
   };
   const upd = (k, v) => {
-    if (!canAct() || ["signin", "recovery"].includes(screen) && credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
+    if (!canAct() || screen === "recovery" && !recoveryOwner.current.valid || ["signin", "recovery"].includes(screen) && credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
     if (k === "email" && v !== form.email) {
       emailRevision.current++;
       invalidateEmailAttempt(); setResendMessage(""); setAuthSuccess(""); setAuthError("");
@@ -7174,7 +7196,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   const updatePassword = async () => {
-    if (!canAct() || screen !== "recovery" || credentialAttempt.current?.pending) return;
+    if (!canAct() || screen !== "recovery" || !recoveryOwner.current.valid || recoveryOwner.current.accountId !== recoveryAccountId || credentialAttempt.current?.pending) return;
     const recoveryErrors = {};
     if (form.password.length < MIN_NEW_PASSWORD_LENGTH) recoveryErrors.password = `Use at least ${MIN_NEW_PASSWORD_LENGTH} characters`;
     if (!confirmPassword) recoveryErrors.confirmPassword = "Confirm your new password";
@@ -7184,20 +7206,24 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
     const attempt = { active: true, pending: true };
     credentialAttempt.current = attempt;
-    const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
+    const current = () => canAct() && recoveryOwner.current.valid && attempt.active && credentialAttempt.current === attempt;
     const password = form.password;
     setAuthError("");
     setLoading(true);
     try {
-      const result = await supabase.auth.updateUser({ password });
+      const result = await updateRecoveryPasswordForAccount({ password, expectedAccountId:recoveryAccountId, isCurrent:current });
       if (!current()) return;
       if (result?.error) throw result.error;
-      if (typeof result?.data?.user?.id !== "string" || !result.data.user.id.trim()) throw new Error("We couldn't confirm your password update. Try signing in with your new password before requesting another reset.");
+      if (result?.data?.user?.id !== recoveryAccountId) throw new Error("We couldn't confirm your password update. Try signing in with your new password before requesting another reset.");
       // Clear both password fields and retire queued recovery submits before
       // React commits the success screen. A sent SDK call cannot be cancelled.
       openAuthScreen("recoverySuccess");
+      onRecoveryComplete();
     } catch (error) {
-      if (current()) setAuthError(error?.message || "Unable to update your password right now. Please try again.");
+      if (current()) {
+        if (error?.code === "recovery_session_changed") invalidateRecovery();
+        else setAuthError(error?.message || "Unable to update your password right now. Please try again.");
+      }
     } finally {
       attempt.pending = false;
       if (current()) { setLoading(false); credentialAttempt.current = null; }
@@ -7289,16 +7315,16 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, textAlign: "center" }}>Enter and confirm the new password you want to use for your ParkShare account.</div>
               <div>
                 <label htmlFor="ps-recovery-password" style={lS}>New password</label>
-                <input id="ps-recovery-password" name="password" style={iS(errors.password)} type="password" autoComplete="new-password" minLength={MIN_NEW_PASSWORD_LENGTH} required disabled={loading} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`} value={form.password} onChange={e => upd("password", e.target.value)} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-recovery-password-error" : undefined} />
+                <input id="ps-recovery-password" name="password" style={iS(errors.password)} type="password" autoComplete="new-password" minLength={MIN_NEW_PASSWORD_LENGTH} required disabled={loading || recoveryInvalid} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`} value={form.password} onChange={e => upd("password", e.target.value)} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-recovery-password-error" : undefined} />
                 {errors.password && <div id="ps-recovery-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
               </div>
               <div>
                 <label htmlFor="ps-recovery-confirm-password" style={lS}>Confirm new password</label>
-                <input id="ps-recovery-confirm-password" name="confirmPassword" style={iS(errors.confirmPassword)} type="password" autoComplete="new-password" required disabled={loading} placeholder="Re-enter your new password" value={confirmPassword} onChange={e => { if (canAct() && !credentialAttempt.current?.pending) setConfirmPassword(e.target.value); }} aria-invalid={Boolean(errors.confirmPassword)} aria-describedby={errors.confirmPassword ? "ps-recovery-confirm-password-error" : undefined} />
+                <input id="ps-recovery-confirm-password" name="confirmPassword" style={iS(errors.confirmPassword)} type="password" autoComplete="new-password" required disabled={loading || recoveryInvalid} placeholder="Re-enter your new password" value={confirmPassword} onChange={e => { if (canAct() && recoveryOwner.current.valid && !credentialAttempt.current?.pending) setConfirmPassword(e.target.value); }} aria-invalid={Boolean(errors.confirmPassword)} aria-describedby={errors.confirmPassword ? "ps-recovery-confirm-password-error" : undefined} />
                 {errors.confirmPassword && <div id="ps-recovery-confirm-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.confirmPassword}</div>}
               </div>
               {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
+              <button type="submit" disabled={loading || recoveryInvalid} style={{ background: loading || recoveryInvalid ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
             </form>
           )}
 
@@ -11074,6 +11100,8 @@ export default function App() {
   const [hostOnboardingAccount, setHostOnboardingAccount] = useState(null);
   const [hostAuthIntent, setHostAuthIntent] = useState(false);
   const [authRecoveryRevision, setAuthRecoveryRevision] = useState(0);
+  const [authRecoveryAccountId, setAuthRecoveryAccountId] = useState(null);
+  const [authRecoveryCompletedRevision, setAuthRecoveryCompletedRevision] = useState(0);
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
   // Capture before the navigation-only return handler removes query flags.
@@ -11248,17 +11276,18 @@ export default function App() {
     client: supabase,
     buildUser: buildAppUser,
     onUser: (nextUser) => setUser(nextUser),
-    onRecovery: () => {
+    onRecovery: ({ accountId }) => {
       // A mounted dialog owns its screen and pending requests. Replace it
       // for every recovery event, including another link opened during recovery.
       setAuthRecoveryRevision(revision => revision + 1);
+      setAuthRecoveryAccountId(accountId);
       setHostAuthIntent(false);
       setHostOnboardingAccount(null);
       setAuthInitialScreen("recovery");
       setShowAuth(true);
     },
     onProfileUnavailable: () => console.warn("[auth] Profile unavailable after cross-tab session update"),
-  }), []);
+  }), [authRecoveryCompletedRevision]);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
     setMessageBookingId(null);
@@ -11569,7 +11598,7 @@ export default function App() {
         </div>
       )}
       {screen === "host" && hostOnboardingAccount && <HostOnboarding key={hostOnboardingAccount.id} accountId={hostOnboardingAccount.id} auth={supabase.auth} onClose={() => setHostOnboardingAccount(null)} onReady={openHostAuth} />}
-      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setHostAuthIntent(false); }} onAuth={handleAuth} />}
+      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} recoveryAccountId={authRecoveryAccountId} onRecoveryComplete={() => setAuthRecoveryCompletedRevision(revision => revision + 1)} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setAuthRecoveryAccountId(null); setHostAuthIntent(false); }} onAuth={handleAuth} />}
       {!showAuth && messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
       {navigationRequest && (
         <NavigationChooser

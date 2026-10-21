@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { updateRecoveryPasswordForAccount as updateBoundRecoveryPassword } from './passwordRecovery.js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -10,3 +11,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const updateRecoveryPasswordForAccount = options => updateBoundRecoveryPassword({
+  ...options, client:supabase, authUrl:supabaseUrl, publishableKey:supabaseAnonKey,
+});

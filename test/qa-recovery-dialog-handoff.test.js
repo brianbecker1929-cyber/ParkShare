@@ -3,6 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import React from 'react';
+import {RECOVERY_SESSION_CHANGED} from '../src/lib/passwordRecovery.js';
 import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm} from '../src/lib/authForm.js';
 
 const source=await readFile(process.env.QA_RECOVERY_APP_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
@@ -45,7 +46,7 @@ test('unsubscribe prevents later recovery notifications and clears pending work'
 // SignInModal. The small renderer applies React's type/key mount rule and runs
 // the actual effect cleanup when a dialog is replaced; no live Auth is used.
 const stateStart=source.indexOf('  const [showAuth, setShowAuth]'),stateEnd=source.indexOf('  const [browseKey',stateStart);
-const effectStart=source.indexOf('  useEffect(() => createAuthSessionSynchronizer({'),effectEnd=source.indexOf('  }), []);',effectStart)+'  }), []);'.length;
+const effectStart=source.indexOf('  useEffect(() => createAuthSessionSynchronizer({'),effectEnd=source.indexOf('  }), [authRecoveryCompletedRevision]);',effectStart)+'  }), [authRecoveryCompletedRevision]);'.length;
 const overlayStart=source.indexOf('      {showAuth &&'),overlayEnd=source.indexOf('      {navigationRequest &&',overlayStart);
 const extensionStart=source.indexOf('      {extendBookingId &&',overlayEnd),extensionEnd=source.indexOf('\n    </>',extensionStart);
 const parentCode=(await transform('function Parent({messageBookingId,extendBookingId}){const [user,setUser]=useState(null);'+source.slice(stateStart,stateEnd)+source.slice(effectStart,effectEnd)+';return {user,setUser,open:()=>setShowAuth(true),tree:<> '+source.slice(overlayStart,overlayEnd)+source.slice(extensionStart,extensionEnd)+' </>};}',{loader:'jsx'})).code;
@@ -53,12 +54,13 @@ const modalStart=source.indexOf('function SignInModal('),modalCode=(await transf
 function elements(tree,predicate,out=[]){if(!tree||typeof tree!=='object')return out;if(predicate(tree))out.push(tree);React.Children.forEach(tree.props?.children,child=>elements(child,predicate,out));return out;}
 
 function appHarness({messageBookingId=null,extendBookingId=null,update=async()=>({data:{user:{id:'B'}},error:null})}={}){
- let current,listener,parentResult,children=[],closedMessage=0,closedExtension=0;
+ const listeners=new Set();
+ let current,parentResult,children=[],closedMessage=0,closedExtension=0;
  const authCalls=[],published=[],tasks=[];
  const hooks={useState:initial=>{const i=current.cursor++,r=current;if(!(i in r.slots))r.slots[i]={value:typeof initial==='function'?initial():initial};return [r.slots[i].value,v=>{r.writes++;const next=typeof v==='function'?v(r.slots[i].value):v;if(next!==r.slots[i].value){r.slots[i].value=next;r.dirty=true;}}];},useRef:initial=>{const i=current.cursor++;return current.slots[i]||(current.slots[i]={current:initial});},useEffect:(fn,deps)=>{const i=current.cursor++,r=current,old=r.slots[i];if(!old||deps.some((v,n)=>v!==old.deps[n])){r.slots[i]={deps,cleanup:old?.cleanup};r.effects.push(()=>{r.slots[i].cleanup?.();r.slots[i].cleanup=fn();});}}};
  const SignInModal=()=>null,ExtendSessionModal=()=>null;
- const supabase={auth:{onAuthStateChange:fn=>{listener=fn;return {data:{subscription:{unsubscribe(){}}}};},updateUser:async value=>{authCalls.push(value);return update();}}};
- const values={React,...hooks,supabase,createAuthSessionSynchronizer:options=>createAuthSessionSynchronizer({...options,defer:fn=>tasks.push(fn)}),buildAppUser:p=>p,SignInModal,ExtendSessionModal,handleAuth:u=>published.push(u),closeEmailListing:()=>closedMessage++,setExtendBookingId:()=>closedExtension++,isExtensionContextCurrent:()=>true,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}}};
+ const supabase={auth:{onAuthStateChange:fn=>{listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},updateUser:async value=>{authCalls.push(value);return update();}}};
+ const values={React,...hooks,supabase,RECOVERY_SESSION_CHANGED,updateRecoveryPasswordForAccount:async({password})=>{authCalls.push({password});return update();},createAuthSessionSynchronizer:options=>createAuthSessionSynchronizer({...options,defer:fn=>tasks.push(fn)}),buildAppUser:p=>p,SignInModal,ExtendSessionModal,handleAuth:u=>published.push(u),closeEmailListing:()=>closedMessage++,setExtendBookingId:()=>closedExtension++,isExtensionContextCurrent:()=>true,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}}};
  const Parent=new Function(...Object.keys(values),parentCode+';return Parent;')(...Object.values(values));
  const Modal=new Function(...Object.keys(values),modalCode+';return SignInModal;')(...Object.values(values));
  const runtime=()=>({slots:[],effects:[],cursor:0,dirty:false,writes:0});
@@ -69,14 +71,17 @@ function appHarness({messageBookingId=null,extendBookingId=null,update=async()=>
  const find=predicate=>{const node=elements(render()[0]?.tree,predicate)[0];assert.ok(node,'control exists');return node;};
  const input=(id,value)=>find(n=>n.type==='input'&&n.props.id===id).props.onChange({target:{value}});
  render();
- return {render,find,input,authCalls,published,tasks,emit:(event,id)=>listener(event,id?session(id):null),open:()=>{parentResult.open();render();},setUser:user=>{parentResult.setUser(user);render();},stop:()=>{stop(root);for(const c of children)stop(c.runtime);},get child(){return children[0];},get user(){return parentResult.user;},get closedMessage(){return closedMessage;},get closedExtension(){return closedExtension;},get text(){return JSON.stringify(render().map(c=>c.tree));}};
+ return {render,find,input,authCalls,published,tasks,emit:(event,id)=>{for(const fn of [...listeners])fn(event,id?session(id):null);},open:()=>{parentResult.open();render();},setUser:user=>{parentResult.setUser(user);render();},stop:()=>{stop(root);for(const c of children)stop(c.runtime);},get child(){return children[0];},get user(){return parentResult.user;},get closedMessage(){return closedMessage;},get closedExtension(){return closedExtension;},get text(){return JSON.stringify(render().map(c=>c.tree));}};
 }
 
 test('recovery replaces an already-open sign-in dialog with a fresh password form',()=>{
- const h=appHarness();h.open();const old=h.child;h.emit('PASSWORD_RECOVERY','B');h.render();assert.notEqual(h.child,old);assert.equal(h.child.element.props.initialScreen,'recovery');assert.ok(h.find(n=>n.props?.id==='ps-recovery-password'));h.stop();
+ const h=appHarness();h.open();const old=h.child;h.emit('PASSWORD_RECOVERY','B');h.render();assert.notEqual(h.child,old);assert.equal(h.child.element.props.initialScreen,'recovery');assert.equal(h.child.element.props.recoveryAccountId,'B');assert.ok(h.find(n=>n.props?.id==='ps-recovery-password'));h.stop();
 });
 test('a repeated recovery link remounts the editor and clears typed secrets',()=>{
  const h=appHarness();h.emit('PASSWORD_RECOVERY','B');h.render();h.input('ps-recovery-password','typed secret');h.input('ps-recovery-confirm-password','typed secret');const old=h.child;h.emit('PASSWORD_RECOVERY','B');h.render();assert.notEqual(h.child,old);assert.equal(h.find(n=>n.props?.id==='ps-recovery-password').props.value,'');assert.doesNotMatch(h.text,/typed secret/);h.stop();
+});
+test('a fresh recovery event replaces an invalidated editor and binds the new account',()=>{
+ const h=appHarness();h.emit('PASSWORD_RECOVERY','A');h.render();h.input('ps-recovery-password','old account secret');h.emit('SIGNED_IN','B');h.render();assert.equal(h.find(n=>n.props?.id==='ps-recovery-password').props.disabled,true);h.emit('PASSWORD_RECOVERY','B');h.render();assert.equal(h.child.element.props.recoveryAccountId,'B');assert.equal(h.find(n=>n.props?.id==='ps-recovery-password').props.disabled,false);assert.equal(h.find(n=>n.props?.id==='ps-recovery-password').props.value,'');assert.doesNotMatch(h.text,/old account secret/);h.stop();
 });
 test('recovery takes precedence over message-link sign-in and Close restores its booking context',()=>{
  const h=appHarness({messageBookingId:42});assert.equal(h.child.element.props.initialScreen,'signin');h.emit('PASSWORD_RECOVERY','B');assert.equal(h.render().length,1);assert.equal(h.child.element.props.initialScreen,'recovery');assert.equal(h.closedMessage,0);h.find(n=>n.props?.['aria-label']==='Close sign-in dialog').props.onClick();h.render();assert.equal(h.child.element.props.initialScreen,'signin');assert.equal(h.child.element.props.closeOnAuth,false);assert.equal(h.closedMessage,0);h.child.element.props.onClose();assert.equal(h.closedMessage,1);h.stop();
