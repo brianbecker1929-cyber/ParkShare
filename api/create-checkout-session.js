@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       guest_vehicles: userMetadata.guest_vehicles,
     }).find(vehicle => vehicle.id === vehicleId);
     if (!bookingVehicle) {
-      return res.status(400).json({ error: "Select a complete vehicle from your Driver Profile before checkout." });
+      return res.status(400).json({ error: "Save and select a complete booking vehicle before checkout." });
     }
 
     const { data: listing, error: listingError } = await supabaseAdmin

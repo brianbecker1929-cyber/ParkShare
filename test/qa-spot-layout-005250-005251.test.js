@@ -54,7 +54,7 @@ function detailHarness({count=4,flags,fetcher}={}){
   useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,update=>{const value=typeof update==='function'?update(slots[n].value):update;if(value!==slots[n].value){slots[n].value=value;dirty=true;}}];},
   useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},
   useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((value,i)=>value!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();});}}};
- for(const name of ['ListingThumb','PriceTag','WalkingTimeLabel','Badge','Btn','EventDestinationSummary','SpotMapBoundary','ListingSatelliteView','RidesharePickupCard','Modal','MiniCalendar','SpotPicker','VehicleBadge','ReviewsSection','PaymentModal'])values[name]=function Component(){return null;};
+ for(const name of ['ListingThumb','PriceTag','WalkingTimeLabel','Badge','Btn','EventDestinationSummary','SpotMapBoundary','ListingSatelliteView','RidesharePickupCard','Modal','MiniCalendar','SpotPicker','VehicleBadge','ReviewsSection','PaymentModal','BookingVehicleForm'])values[name]=function Component(){return null;};
  const Detail=new Function(...Object.keys(values),compiledDetail.code+';return ListingDetail;')(...Object.values(values));
  function render(changes={}){Object.assign(props,changes);let guard=0;do{dirty=false;cursor=0;tree=Detail(props);for(const fn of effects.splice(0))fn();assert.ok(++guard<15,'Effects settle');}while(dirty);return tree;}
  const find=predicate=>{const hit=walk(render()).find(predicate);assert.ok(hit,'Expected live control');return hit;};render();
@@ -71,4 +71,34 @@ test('detail selection blocks private holes while permitting E/H without renumbe
 test('a late full-now response cannot overwrite the selected future window',async()=>{
  const pending=[],h=detailHarness({count:4,fetcher:url=>new Promise(resolve=>pending.push({url,resolve}))});h.later();h.render();const future=pending.find(request=>request.url.includes('bookingDate='));assert.ok(future);future.resolve({ok:true,json:async()=>open(4)});await h.flush();
  for(const request of pending.filter(request=>!request.url.includes('bookingDate=')))request.resolve({ok:true,json:async()=>({available:false,spotStatus:{A:false}})});await h.flush();h.find(node=>node.type==='button'&&node.props.children==='Choose spot').props.onClick();h.choose(3);h.render();assert.equal(h.pay().props.disabled,false);h.stop();
+});
+
+test('Host without a vehicle can save in place and keep future spot, time and Host identity through checkout',async()=>{
+ const h=detailHarness({count:8});
+ const host={id:'host',role:'host',name:'Synthetic Host',guestVehicles:[]};
+ h.render({user:host,onVehicleUpdated:vehicle=>h.render({user:{...h.props.user,...vehicle}})});
+ await h.flush();h.later();h.render();await h.flush();
+ h.find(node=>node.type==='button'&&node.props.children==='Choose spot').props.onClick();h.choose(7);
+ assert.equal(h.pay().props.disabled,true);
+ const editor=h.find(node=>node.type===h.values.BookingVehicleForm);
+ assert.equal(editor.props.user.role,'host');
+ const saved={vehicleMake:'Honda',vehicleModel:'Civic',vehicleColour:'Blue',licensePlate:'HOST 252'};
+ // Same-account session refresh must not unmount the active save form.
+ h.render({user:{...host,...saved}});assert.ok(h.find(node=>node.type===h.values.BookingVehicleForm));
+ editor.props.onSaved(saved);h.render();assert.equal(h.pay().props.disabled,false);
+ h.pay().props.onClick();const payment=h.find(node=>node.type===h.values.PaymentModal);
+ assert.equal(payment.props.user.role,'host');assert.equal(payment.props.user.id,'host');
+ assert.equal(payment.props.user.licensePlate,'HOST 252');assert.equal(payment.props.selectedVehicleId,'primary');
+ assert.equal(payment.props.chosenSpot,7);assert.equal(payment.props.startHour,9);assert.equal(payment.props.endHour,11);assert.equal(payment.props.hours,2);
+ assert.equal(localCalendarDate(payment.props.date),new URL(h.requests.at(-1).url,'https://fixture.invalid').searchParams.get('bookingDate'));h.stop();
+});
+
+test('Host can add a vehicle for Park Now without changing the selected bay or duration',async()=>{
+ const h=detailHarness({count:4,fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ h.render({user:{id:'host',role:'host'},onVehicleUpdated:vehicle=>h.render({user:{...h.props.user,...vehicle}})});
+ await h.flush();h.choose(2);const editor=h.find(node=>node.type===h.values.BookingVehicleForm);
+ editor.props.onSaved({vehicleMake:'Toyota',vehicleModel:'RAV4',vehicleColour:'Red',licensePlate:'HOST NOW'});
+ h.render();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();
+ const payment=h.find(node=>node.type===h.values.PaymentModal);
+ assert.equal(payment.props.chosenSpot,2);assert.equal(payment.props.date,undefined);assert.equal(payment.props.startHour,undefined);assert.equal(payment.props.user.role,'host');assert.equal(payment.props.selectedVehicleId,'primary');h.stop();
 });

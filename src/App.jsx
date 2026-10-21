@@ -1,3 +1,5 @@
+import {validateBookingVehicle} from "./lib/bookingVehicle.js";
+import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
@@ -1076,7 +1078,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
     }
 
     if (!selectedVehicle) {
-      setStripeError("Add or complete a vehicle in your Driver Profile before booking.");
+      setStripeError("Add or complete your vehicle in Choose your spot before booking.");
       return;
     }
 
@@ -1673,7 +1675,7 @@ const formatHour = (h) => {
   const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
   return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onRequestSignIn, user, initialSpotPickerOpen = true }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onRequestSignIn, onVehicleUpdated, user, initialSpotPickerOpen = true }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1718,6 +1720,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const [vehicleEditorOpen, setVehicleEditorOpen] = useState(() => getBookableVehicles(user || {}).length === 0);
   // The selected spot and schedule stay in place across another tab's
   // sign-out/sign-in. Rehydrate a valid saved vehicle when Auth catches up.
   const lastBookingUserId = useRef(user?.id || null);
@@ -1727,6 +1730,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       // A different account should never inherit an open payment dialog.
       setShowPayment(false);
       lastBookingUserId.current = nextId;
+      setVehicleEditorOpen(Boolean(nextId) && getBookableVehicles(user || {}).length === 0);
     }
     if (!user) {
       setShowPayment(false);
@@ -2116,7 +2120,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
               <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
           {!user && (
             <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
               Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
@@ -2194,7 +2198,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               )}
               {bookableVehicles.length === 0 ? (
                 <p className="ps-booking-vehicle-missing" role="alert">
-                  No complete saved vehicle is available. Sign in and add a vehicle (make, model, colour and plate) to your Driver Profile before reserving.
+                  {user ? "Add a vehicle below before reserving. Make, model, colour and plate are required." : "Sign in to add your vehicle before reserving."}
                 </p>
               ) : spotVehiclePickerOpen && (
                 <div id="spot-vehicle-choices" className="ps-booking-vehicle-options ps-spot-vehicle-dropdown" role="radiogroup" aria-label="Select your parking vehicle">
@@ -2212,11 +2216,25 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
                   })}
                 </div>
               )}
+              {user && (vehicleEditorOpen ? (
+                <BookingVehicleForm key={user.id} user={user}
+                  onCancel={() => setVehicleEditorOpen(false)}
+                  onSaved={vehicle => {
+                    onVehicleUpdated?.({id:user.id,...vehicle});
+                    setSelectedVehicleId("primary");
+                    setSpotVehiclePickerOpen(false);
+                    setVehicleEditorOpen(false);
+                  }} />
+              ) : (
+                <button type="button" className="ps-booking-vehicle-edit" onClick={() => setVehicleEditorOpen(true)}>
+                  {bookableVehicles.some(vehicle => vehicle.id === "primary") ? "Edit primary vehicle" : "Add vehicle"}
+                </button>
+              ))}
             </section>
           )}
           <Btn variant="amber" full
-            onClick={() => { if (chosenSpotAvailable && selectedVehicle) setShowSpotPicker(false); }}
-            disabled={!chosenSpotAvailable || !selectedVehicle}>
+            onClick={() => { if (chosenSpotAvailable && selectedVehicle && !vehicleEditorOpen) setShowSpotPicker(false); }}
+            disabled={!chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>
             {chosenSpot === null ? "Pick a spot to continue" : !selectedVehicle ? "Select a vehicle to continue" : "Confirm Spot " + spotLabel(chosenSpot)}
           </Btn>
         </Modal>
@@ -2251,7 +2269,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
 // The email opens the actual booked listing, with its authenticated
 // conversation ready to compose. Opening the link never sends a message.
-function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRoute, onNavigateToParking, onChangeNavigationApp }) {
+function EmailMessageListing({ bookingId, user, onVehicleUpdated, onMessage, onBack, onPreviewRoute, onNavigateToParking, onChangeNavigationApp }) {
   const [context, setContext] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -2284,7 +2302,7 @@ function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRout
 
   if (error) return <div style={{ padding: "40px 24px", textAlign: "center" }}><p role="alert" style={{ color: C.red }}>{error}</p><Btn variant="outline" onClick={onBack}>Back to parking</Btn></div>;
   if (!context) return <div role="status" style={{ padding: "40px 24px", textAlign: "center", color: C.muted }}>{user ? "Opening your booked listing…" : "Sign in to message your Host or Driver."}</div>;
-  return <ListingDetail listing={bookingMessageListing(context)} user={user} onBack={onBack} initialSpotPickerOpen={false}
+  return <ListingDetail listing={bookingMessageListing(context)} user={user} onVehicleUpdated={onVehicleUpdated} onBack={onBack} initialSpotPickerOpen={false}
     onMessage={() => onMessage(bookingMessageThread(context))}
     onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} />;
 }
@@ -2755,7 +2773,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, onRequestSignIn, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
+function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, onRequestSignIn, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -3071,7 +3089,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} onRequestSignIn={onRequestSignIn} user={user} />;
+  if (selectedListing) return <ListingDetail onVehicleUpdated={onVehicleUpdated} listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} onRequestSignIn={onRequestSignIn} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -6353,7 +6371,76 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 }
 
 // ─── Driver Profile ──────────────────────────────────────────────────────────
-function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText, disabled = false }) {
+// Booking-only vehicle editor is shared by Hosts and Drivers.
+function BookingVehicleForm({ user, onSaved, onCancel }) {
+  const accountId = user?.id || null;
+  const [form, setForm] = useState(() => Object.fromEntries(["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].map(key => [key, user?.[key] || ""])));
+  const [errors, setErrors] = useState({});
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const lifetime = useRef({accountId, active:true});
+  const attempt = useRef(null);
+  if (lifetime.current.accountId !== accountId) {
+    lifetime.current.active = false;
+    if (attempt.current) attempt.current.active = false;
+    attempt.current = null;
+    lifetime.current = {accountId, active:true};
+  }
+  const owner = lifetime.current;
+  const canAct = () => owner.active && lifetime.current === owner;
+  useEffect(() => {
+    owner.active = true;
+    return () => {
+      owner.active = false;
+      if (attempt.current?.owner === owner) attempt.current.active = false;
+    };
+  }, [accountId]);
+  const update = (field, value) => {
+    if (!canAct() || attempt.current?.pending) return;
+    setForm(current => ({...current, [field]:value, ...(field === "vehicleMake" ? {vehicleModel:""} : {})}));
+    setErrors(current => ({...current,[field]:"",...(field === "vehicleMake" ? {vehicleModel:""} : {})}));
+    setSaveError("");
+  };
+  const save = async event => {
+    event.preventDefault();
+    if (!canAct() || attempt.current?.pending) return;
+    const validation = validateBookingVehicle(form);
+    setErrors(validation.errors); setSaveError("");
+    if (!validation.valid) return;
+    const work = {owner,active:true,pending:true};
+    attempt.current = work;
+    const isCurrent = () => canAct() && work.active && attempt.current === work;
+    setSaving(true);
+    try {
+      const saved = await saveBookingVehicle({client:supabase,vehicle:validation.vehicle,accountId,isCurrent});
+      if (isCurrent() && saved) onSaved?.(saved);
+    } catch (error) {
+      if (isCurrent()) {
+        if (error.fieldErrors) setErrors(error.fieldErrors);
+        setSaveError(error.message || "Unable to save your vehicle. Please try again.");
+      }
+    } finally {
+      work.pending = false;
+      if (isCurrent()) { attempt.current = null; setSaving(false); }
+    }
+  };
+  return (
+    <form className="ps-booking-vehicle-form" onSubmit={save} aria-label="Save a booking vehicle" aria-busy={saving}>
+      <h4>Add or update your vehicle</h4>
+      <p>Saved as your primary vehicle for this and future bookings.</p>
+      <VehicleProfileFields vehicle={form} required disabled={saving} idPrefix="booking-vehicle" errors={errors}
+        onUpdate={update} onMakeChange={value => update("vehicleMake", value)}
+        helpText="Vehicle details are shared with the Host for your booking." />
+      {saveError && <p className="ps-booking-vehicle-error" role="alert">{saveError}</p>}
+      <div className="ps-booking-vehicle-form-actions">
+        <button type="submit" disabled={saving}>{saving ? "Saving vehicle…" : "Save vehicle"}</button>
+        <button type="button" disabled={saving} onClick={() => {if (canAct() && !attempt.current?.pending) onCancel?.();}}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText, disabled = false, required = false }) {
   const errorFor = field => errors[errorPrefix ? `${errorPrefix}.${field}` : field];
   const errorId = field => `${idPrefix}-${field}-error`;
   const describedBy = field => errorFor(field) ? errorId(field) : undefined;
@@ -6361,8 +6448,8 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
   return (
     <div className="ps-profile-vehicle-fields">
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>Recommended</span></label>
-        <select
+        <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>{required ? "Required" : "Recommended"}</span></label>
+        <select required={required}
           disabled={disabled}
           id={`${idPrefix}-make`}
           value={vehicle.vehicleMake || ""}
@@ -6377,8 +6464,8 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
 
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-model`}>Vehicle model <span>Recommended</span></label>
-        <select
+        <label htmlFor={`${idPrefix}-model`}>Vehicle model <span>{required ? "Required" : "Recommended"}</span></label>
+        <select required={required}
           id={`${idPrefix}-model`}
           value={vehicle.vehicleModel || ""}
           onChange={event => onUpdate("vehicleModel", event.target.value)}
@@ -6393,8 +6480,8 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
 
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-colour`}>Vehicle colour <span>Recommended</span></label>
-        <select
+        <label htmlFor={`${idPrefix}-colour`}>Vehicle colour <span>{required ? "Required" : "Recommended"}</span></label>
+        <select required={required}
           disabled={disabled}
           id={`${idPrefix}-colour`}
           value={vehicle.vehicleColour || ""}
@@ -6409,8 +6496,8 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
 
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-license-plate`}>License plate number <span>Recommended</span></label>
-        <input
+        <label htmlFor={`${idPrefix}-license-plate`}>License plate number <span>{required ? "Required" : "Recommended"}</span></label>
+        <input required={required}
           disabled={disabled}
           id={`${idPrefix}-license-plate`}
           autoCapitalize="characters"
@@ -11432,8 +11519,8 @@ export default function App() {
           <CheckoutReturnNotice kind={checkoutBanner} onDismiss={() => setCheckoutBanner(null)} />
           <CheckoutReturnNotice kind={connectBanner} onDismiss={() => setConnectBanner(null)} />
           {tab === "Browse" && (messageBookingId
-            ? <EmailMessageListing key={JSON.stringify([user?.id, messageBookingId])} bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
-            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
+            ? <EmailMessageListing onVehicleUpdated={vehicle => setUser(current => current?.id === vehicle.id ? { ...current, ...vehicle } : current)} key={JSON.stringify([user?.id, messageBookingId])} bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
+            : <BrowseView onVehicleUpdated={vehicle => setUser(current => current?.id === vehicle.id ? { ...current, ...vehicle } : current)} key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
