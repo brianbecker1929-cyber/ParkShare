@@ -17,7 +17,7 @@ export async function runRefundNotificationsProbe(db,report={checks:[]}) {
   try {
     const host='00000000-0000-4000-8000-000000005249',driver='00000000-0000-4000-8000-000000005248';
     await db.query(`insert into auth.users(id,email,raw_user_meta_data) values($1,'refund-host@example.invalid','{"role":"host"}'),($2,'refund-driver@example.invalid','{"role":"driver"}')`,[host,driver]);
-    await db.query('insert into public.profiles(id,name,email,role) values($1,'Synthetic Host','refund-host@example.invalid','host'),($2,'Synthetic Driver','refund-driver@example.invalid','driver') on conflict(id) do nothing',[host,driver]);
+    await db.query(`insert into public.profiles(id,name,email,role) values($1,'Synthetic Host','refund-host@example.invalid','host'),($2,'Synthetic Driver','refund-driver@example.invalid','driver') on conflict(id) do nothing`,[host,driver]);
     const listing=(await db.query(`insert into public.listings(host_id,title,address,price,spaces,lat,lng,time_zone) values($1,'Synthetic refund','Toronto ON M5V 2T6',10,1,43.65,-79.38,'America/Toronto') returning id`,[host])).rows[0].id;
     const booking=(await db.query(`insert into public.bookings(listing_id,renter_id,hours,total,status,paid_at,session_range,spot_label,stripe_connected_account_id,stripe_payment_intent_id,stripe_charge_id) values($1,$2,1,100,'confirmed',now()-interval '30 minutes',tstzrange(now()-interval '30 minutes',now()+interval '30 minutes','[)'),'A','acct_notify','pi_notify','ch_notify') returning id`,[listing,driver])).rows[0].id;
     const entry=(id,amount,status='succeeded',created=Math.floor(Date.now()/1000))=>({refund_id:id,amount_cents:amount,status,created});
