@@ -4,14 +4,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { after, before, describe, test } from "node:test";
 import pg from "pg";
-import { addCalendarDays } from "../../src/lib/availabilityExceptionDates.js";
+import { addCalendarDays, latestHostExceptionDate } from "../../src/lib/availabilityExceptionDates.js";
 
 const { Pool } = pg;
 const url = process.env.TEST_DATABASE_URL;
 const HOST_ID = "00000000-0000-4000-8000-000000000138";
 
 describe("BUG-005138 proposed server-side availability exception constraint", { skip: !url, concurrency: 1 }, () => {
-  let pool, today, legacyId;
+  let pool, today, legacyId, legacyFutureId;
   const timezone = "America/Toronto";
   const availability = (from, to, zone = timezone) => ({
     timezone: zone,
@@ -32,9 +32,13 @@ describe("BUG-005138 proposed server-side availability exception constraint", { 
     today = q.rows[0].today;
     const legacy = await insert(availability(addCalendarDays(today, -30), addCalendarDays(today, -20)));
     legacyId = legacy.rows[0].id;
+    legacyFutureId = (await insert(availability(addCalendarDays(today,800),addCalendarDays(today,800)))).rows[0].id;
     const proposal = await readFile(new URL("../../docs/sql-proposals/bug-005138-future-exceptions.sql", import.meta.url), "utf8");
     await pool.query(proposal);
     await pool.query(proposal); // no duplicate trigger on reapply
+    const migration = await readFile(new URL('../../supabase/migrations/20261021200835_exception_horizon_005138.sql',import.meta.url),'utf8');
+    await pool.query(migration);
+    await pool.query(migration); // existing trigger wiring and ACLs are retained
   });
   after(async () => { await pool?.end(); });
 
@@ -93,5 +97,32 @@ describe("BUG-005138 proposed server-side availability exception constraint", { 
       "insert into public.listings(host_id,spaces,time_zone,availability) values($1,1,null,$2)",
       [HOST_ID,JSON.stringify(availability(today,today))]
     ), error => error.code === '23514');
+  });
+  test('allows the inclusive 12-month boundary and rejects either endpoint beyond it',async()=>{
+    const latest=latestHostExceptionDate(today),after=addCalendarDays(latest,1);
+    for(const [start,end] of [[today,latest],[latest,latest]])assert.equal((await insert(availability(start,end))).rowCount,1);
+    for(const [start,end] of [[today,after],[after,after],['2100-01-01','2100-01-02']])await assert.rejects(insert(availability(start,end)),e=>e.code==='23514'&&/12 calendar months/.test(e.message));
+  });
+  test('uses each trusted property zone for the maximum, not the JSON timezone or UTC day',async()=>{
+    for(const zone of ['America/Toronto','Europe/Bucharest','Pacific/Kiritimati']){
+      const q=await pool.query("select (clock_timestamp() at time zone $1)::date::text as today, ((clock_timestamp() at time zone $1)::date + interval '12 months')::date::text as latest",[zone]);
+      const latest=q.rows[0].latest;assert.equal(latest,latestHostExceptionDate(q.rows[0].today));
+      const add=schedule=>pool.query('insert into public.listings(host_id,spaces,time_zone,availability) values($1,1,$2,$3)',[HOST_ID,zone,JSON.stringify(schedule)]);
+      await add(availability(latest,latest,zone));
+      await assert.rejects(add(availability(addCalendarDays(latest,1),addCalendarDays(latest,1),zone)),e=>e.code==='23514');
+    }
+  });
+  test('leap-day and year-boundary cutoff matches JavaScript calendar-month semantics',async()=>{
+    for(const date of ['2028-02-29','2027-03-01','2026-12-31','2027-02-28']){
+      const q=await pool.query("select ($1::date + interval '12 months')::date::text as latest",[date]);assert.equal(q.rows[0].latest,latestHostExceptionDate(date));
+    }
+  });
+  test('existing beyond-horizon rows stay unchanged for unrelated or identical-availability edits',async()=>{
+    const before=(await pool.query('select availability from public.listings where id=$1',[legacyFutureId])).rows[0].availability;
+    await pool.query('update public.listings set spaces=2 where id=$1',[legacyFutureId]);
+    await pool.query('update public.listings set availability=availability where id=$1',[legacyFutureId]);
+    assert.deepEqual((await pool.query('select availability from public.listings where id=$1',[legacyFutureId])).rows[0].availability,before);
+    await assert.rejects(pool.query('update public.listings set availability=$1 where id=$2',[JSON.stringify(availability(addCalendarDays(today,801),addCalendarDays(today,801))),legacyFutureId]),e=>e.code==='23514');
+    await pool.query('update public.listings set availability=$1 where id=$2',[JSON.stringify({timezone,exceptions:[]}),legacyFutureId]);
   });
 });

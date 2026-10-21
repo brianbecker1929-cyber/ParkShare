@@ -131,6 +131,12 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
     const future=(await row("SELECT ((clock_timestamp() AT TIME ZONE 'America/Toronto')::date+1)::text date")).date;
     const valid={timezone:'America/Toronto',exceptions:[{startDate:future,endDate:future}]};
     await as('authenticated',HOST,'UPDATE public.listings SET availability=$1::jsonb WHERE id=$2',[JSON.stringify(valid),listing]);
+    const latest=(await row("SELECT ((clock_timestamp() AT TIME ZONE 'America/Toronto')::date + interval '12 months')::date::text date")).date;
+    const atLimit={timezone:'America/Toronto',exceptions:[{startDate:future,endDate:latest}]};
+    await as('authenticated',HOST,'UPDATE public.listings SET availability=$1::jsonb WHERE id=$2',[JSON.stringify(atLimit),listing]);
+    const after=(await row("SELECT ($1::date + 1)::text date",[latest])).date;
+    for(const [startDate,endDate] of [[future,after],[after,after]])await denied(()=>as('authenticated',HOST,'UPDATE public.listings SET availability=$1::jsonb WHERE id=$2',[JSON.stringify({timezone:'America/Toronto',exceptions:[{startDate,endDate}]}),listing]),'23514');
+    await as('authenticated',HOST,'UPDATE public.listings SET availability=$1::jsonb WHERE id=$2',[JSON.stringify(valid),listing]);
     await denied(()=>as('authenticated',HOST,"INSERT INTO public.listings(host_id,title,address,price,availability) VALUES($1,'Unverified synthetic zone','100 Test Lane, Toronto, ON M5V 2T6',12,$2::jsonb)",[HOST,JSON.stringify(valid)]),'23514');
   });
   await check('review writes are server-only and duplicate reviewer/listing is rejected',async()=>{

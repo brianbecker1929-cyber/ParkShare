@@ -43,11 +43,11 @@ export function hostListingRow(body, hostId, timeZone, supabaseUrl, now = new Da
   if(days.some(day=>typeof body.availability.weekly?.[day]?.enabled !== 'boolean' || !validWindows(body.availability.weekly[day].windows))
     || !Array.isArray(body.availability.exceptions) || body.availability.exceptions.length > 100
     || body.availability.exceptions.some(exception=>!['unavailable','available-all-day','custom'].includes(exception?.type)
-      || (exception.type==='custom' && !validWindows(exception.windows))
-      || !validateHostAvailabilityExceptions({timezone:timeZone,exceptions:[exception]},now).valid)) fail('Choose valid availability hours and special dates.');
-  const availability=normalizeAvailability({...body.availability,timezone:timeZone});
-  const dates=validateHostAvailabilityExceptions(availability,now);
+      || (exception.type==='custom' && !validWindows(exception.windows)))) fail('Choose valid availability hours and special dates.');
+  // Validate raw dates before normalization can discard malformed entries.
+  const dates=validateHostAvailabilityExceptions({...body.availability,timezone:timeZone},now);
   if(!dates.valid)fail(dates.issues[0].error);
+  const availability=normalizeAvailability({...body.availability,timezone:timeZone});
   if(!hasAnyAvailability(availability))fail('Make at least one time available.');
   return {host_id:hostId,title,address,price:rate.value,description:body.description,features:[...new Set(body.features)],spaces,
     photos,img:photos[0],spots,availability,lat:body.lat,lng:body.lng,time_zone:timeZone};

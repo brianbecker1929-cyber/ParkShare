@@ -5640,7 +5640,7 @@ function ListDrivewayView({ user }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Special dates & exceptions</div>
-                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours. Dates cannot be in the past.</div>
+                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours. Choose dates from today through {exceptionDateValidation.latest || "the next 12 calendar months"}, in this driveway's local time.</div>
               </div>
               <button type="button" onClick={addAvailabilityException} style={{ border: 0, borderRadius: 8, padding: "7px 9px", background: C.navy, color: C.white, fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>+ Add exception</button>
             </div>
@@ -5652,8 +5652,8 @@ function ListDrivewayView({ user }) {
                 {normalizedAvailability.exceptions.map(exception => (
                   <div key={exception.id} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: 10 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <label style={labelStyle}>From<input type="date" min={exceptionDateValidation.today || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
-                      <label style={labelStyle}>To<input type="date" min={exception.startDate > (exceptionDateValidation.today || "") ? exception.startDate : (exceptionDateValidation.today || undefined)} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
+                      <label style={labelStyle}>From<input type="date" min={exceptionDateValidation.today || undefined} max={exceptionDateValidation.latest || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
+                      <label style={labelStyle}>To<input type="date" min={exception.startDate > (exceptionDateValidation.today || "") ? exception.startDate : (exceptionDateValidation.today || undefined)} max={exceptionDateValidation.latest || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
                     </div>
                     {!validateHostExceptionDates(exception, exceptionDateValidation.today).valid && (
                       <p role="alert" style={{ color: C.red, fontSize: 11, fontWeight: 700, margin: "6px 0" }}>
