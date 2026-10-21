@@ -3,6 +3,7 @@ import { buildEmailPayload, sendEmailPayload, refundConfirmedHtml } from './_ema
 import { getSessionWindow } from './_booking-rules.js';
 import { formatBookingEmailTimes } from './_booking-email-times.js';
 import { SUPPORT_EMAIL } from '../src/lib/supportContact.js';
+import { refundEmailContext } from './_refund-email-context.js';
 
 function checked(result, step) {
   if (result.error) throw new Error(`Refund notification ${step} failed`);
@@ -11,11 +12,12 @@ function checked(result, step) {
 
 async function prepareMessage(db, job, refund) {
   const booking = checked(await db.from('bookings')
-    .select('id, listing_id, renter_id, status, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_make, vehicle_model, vehicle_colour, license_plate, stripe_connected_account_id, stripe_payment_intent_id')
+    .select('id, listing_id, renter_id, status, total, cancelled_by, cancellation_reason, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_make, vehicle_model, vehicle_colour, license_plate, stripe_connected_account_id, stripe_payment_intent_id')
     .eq('id', job.booking_id).single(), 'booking lookup');
   if (!booking || !booking.paid_at) throw new Error('Refund notification booking unavailable');
+  let extension;
   if (refund.extension_id) {
-    const extension = checked(await db.from('booking_extensions').select('booking_id,stripe_connected_account_id,stripe_payment_intent_id')
+    extension = checked(await db.from('booking_extensions').select('booking_id,added_amount,stripe_connected_account_id,stripe_payment_intent_id')
       .eq('id',refund.extension_id).single(), 'extension lookup');
     if (!extension || extension.booking_id !== booking.id || extension.stripe_connected_account_id !== refund.connected_account_id
         || extension.stripe_payment_intent_id !== refund.payment_intent_id) throw new Error('Refund notification extension owner mismatch');
@@ -33,7 +35,9 @@ async function prepareMessage(db, job, refund) {
     : booking.status === 'confirmed' ? 'Your booking remains confirmed. Check your booking for the current departure time.'
     : booking.status === 'completed' ? 'This booking has completed.'
     : 'Check your booking for its current status. This refund receipt does not confirm a reservation.';
+  const context = refundEmailContext({booking,refund,extension});
   const html = refundConfirmedHtml({
+    ...context,
     audience:job.audience,recipientName:recipient.name,amountCents:Number(refund.amount_cents),
     refundId:refund.refund_id,bookingId:booking.id,extension:Boolean(refund.extension_id),
     address:listing?.address,spotLabel:booking.spot_label,
@@ -41,8 +45,7 @@ async function prepareMessage(db, job, refund) {
     sessionStart:`${times.entryDateFull}, ${times.startTimeStr}`,sessionEnd:`${times.exitDateFull}, ${times.endTimeStr}`,
     timeZoneLabel:times.timeZoneLabel,bookingOutcome:outcome,supportEmail:process.env.SUPPORT_EMAIL || SUPPORT_EMAIL,
   });
-  return buildEmailPayload({to:recipient.email.trim(),subject:cancelled
-    ? `Booking PK-${booking.id} cancelled — refund confirmed` : `Refund confirmed for booking PK-${booking.id}`,html});
+  return buildEmailPayload({to:recipient.email.trim(),subject:context.subject,html});
 }
 
 export async function processRefundEmail(db, job, {now = new Date(), send = sendEmailPayload} = {}) {

@@ -28,7 +28,7 @@ export const bookingHeaderStyles = `
 export function bookingHeaderTemplate(kind = "confirmation") {
   const header = headers[kind] || headers.confirmation;
   const title = header.text
-    ? '<span style="display:block;color:#ffffff;">REFUND</span><span style="display:block;color:#FFC107;">CONFIRMED</span>'
+    ? '<span class="ps-refund-title" style="display:block;font-size:18px;line-height:1.3;"><span style="display:block;color:#ffffff;">[REFUND_HEADER_TOP]</span><span style="display:block;color:#FFC107;">[REFUND_HEADER_BOTTOM]</span></span>'
     : `<img class="ps-header-title-image ps-title-${kind}" src="https://www.myparkshare.ca/email/headers/${header.image}.png" width="${header.width}" alt="${header.alt}" style="display:block;width:${header.width}px;max-width:90%;height:auto;border:0;margin:0 auto;color:#ffffff;font-family:\'Poppins\',Arial,Helvetica,sans-serif;font-size:18px;font-weight:800;">`;
   return `<tr><td class="ps-header-inset" height="160" style="height:160px;box-sizing:border-box;padding:14px 0;background:#1b2b3a;border-bottom:3px solid #f5a623;">
  <table role="presentation" class="ps-header-grid" width="100%" height="128" cellpadding="0" cellspacing="0" border="0" style="width:100%;height:128px;table-layout:fixed;border-collapse:collapse;"><tr>

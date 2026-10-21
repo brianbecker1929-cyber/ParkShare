@@ -222,6 +222,12 @@ export function refundConfirmedHtml(args) {
   const host = args.audience === "host";
   const amount = `$${(args.amountCents / 100).toFixed(2)}`;
   return renderEnvironmentEmail(refundConfirmedTemplate, {
+    REFUND_HEADLINE: e(args.headline || "Refund confirmed"),
+    REFUND_HEADER_TOP: e(args.headerTop || "REFUND"),
+    REFUND_HEADER_BOTTOM: e(args.headerBottom || "CONFIRMED"),
+    REFUND_CONTEXT: e(args.refundContext || "This receipt covers only the refund listed below."),
+    // Preserve literal template-looking text in the recorded reason.
+    REFUND_REASON: e(args.refundReason || "").replace(/\[/g,"&#91;").replace(/\]/g,"&#93;"),
     BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
     PORTRAIT_URL: e(portraitUrl(args, host)),
     PORTRAIT_ALT: host ? "William supporting ParkShare Hosts" : "Parker supporting ParkShare Drivers",
