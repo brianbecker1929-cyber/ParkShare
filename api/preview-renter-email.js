@@ -1,14 +1,14 @@
 // Render all four Driver email templates with the shared detailed vehicle PNG.
 // This is sample-only, read-only visual QA.
-// Vercel preview deployments only: no customer records, payments, or emails.
+// Vercel previews and isolated BetterQA only: no customer records, payments, or emails.
 import { confirmationEmailHtml, extensionConfirmedHtml, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 import { renderHostLogoPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
-import { sampleEmailBooking } from "./_email-preview.js";
+import { sampleEmailBooking, isEmailPreviewEnvironment } from "./_email-preview.js";
 
 export default async function handler(req, res) {
-  if (process.env.VERCEL_ENV !== "preview") return res.status(404).end("Not found");
+  if (!isEmailPreviewEnvironment()) return res.status(404).end("Not found");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).end("Method not allowed");

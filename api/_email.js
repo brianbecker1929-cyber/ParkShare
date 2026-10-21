@@ -130,7 +130,7 @@ function mapBlock({ spotImageSrc, spotImageCid }, alt) {
 }
 function spotLabel(value) {
   const label = String(value || "").trim().toUpperCase();
-  return /^[A-D]$/.test(label) ? `Spot ${label}` : "Spot not specified";
+  return /^[A-H]$/.test(label) ? `Spot ${label}` : "Spot not specified";
 }
 function bookingNumber({ confirmationNumber, bookingId }) {
   return confirmationNumber || (bookingId != null ? `PK-${bookingId}` : "Not provided");

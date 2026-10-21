@@ -16,7 +16,10 @@ function response() {
 // Exercise the real cron and signed-webhook handlers against a fake transport.
 // Query projections are honoured: forgetting to SELECT the vehicle or spots
 // reproduces the original bug instead of silently returning extra fixture data.
-test("all five delivered emails retain the booked vehicle and configured Spot B", async () => {
+for (const [count, chosenLabel] of [[1, "A"], [4, "B"], [8, "H"]]) {
+test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a ${count}-bay layout`, async () => {
+  const chosenIndex = chosenLabel.charCodeAt(0) - 65;
+  const spotStates = Array.from({length: count}, (_, i) => i === chosenIndex);
   const env = {
     STRIPE_SECRET_KEY: "sk_test_sample_only", STRIPE_WEBHOOK_SECRET: "whsec_sample_only",
     SUPABASE_URL: "https://sample.invalid", SUPABASE_ANON_KEY: "sample-anon",
@@ -32,7 +35,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
   let booking = {
     id: 42, listing_id: 7, renter_id: "sample-renter", hours: 1,
     paid_at: new Date(Date.now() - 35 * 60_000).toISOString(),
-    booking_date: null, start_hour: null, property_time_zone: "Europe/Bucharest", spot_label: "B",
+    booking_date: null, start_hour: null, property_time_zone: "Europe/Bucharest", spot_label: chosenLabel,
     vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
     vehicle_colour: "Yellow", license_plate: "DEMO 123",
     reminder_halfway_sent_at: null, reminder_ending_sent_at: null,
@@ -41,18 +44,18 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
   };
   const listing = {
     title: "Sample driveway", address: "12 Example Crescent", spaces: 1,
-    spots: [{ forRent: false }, { forRent: true }, { forRent: false }, { forRent: false }],
+    spots: spotStates.map(forRent => ({forRent})),
     host_id: "sample-host",
   };
   const trustedHold = {
-    id: "hold_sample", listing_id: 7, renter_id: "sample-renter", spot_label: "B",
+    id: "hold_sample", listing_id: 7, renter_id: "sample-renter", spot_label: chosenLabel,
     starts_at: "2026-10-15T13:00:00Z", ends_at: "2026-10-15T14:00:00Z",
     stripe_checkout_session_id: "cs_booking_sample",
     expected_total_cents: 1235, expected_connected_account_id: "acct_sample",
     checkout_metadata: {
       hold_id: "hold_sample", listing_id: "7", renter_id: "sample-renter", host_id: "sample-host",
       connected_account_id: "acct_sample", hours: "1", total_cents: "1235",
-      subtotal_cents: "1000", service_fee_cents: "235", spot_label: "B",
+      subtotal_cents: "1000", service_fee_cents: "235", spot_label: chosenLabel,
       vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
       vehicle_colour: "Yellow", license_plate: "DEMO 123", booking_date: "", start_hour: "", end_hour: "", property_time_zone: "Europe/Bucharest",
     },
@@ -181,7 +184,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     await deliver({ type: "extension", booking_id: "42", added_hours: "1", total_cents: "500" }, "cs_ext_sample", 500, "pi_ext_sample");
     await deliver({ listing_id: "7", renter_id: "sample-renter", hours: "1", total_cents: "1235",
       subtotal_cents: "1000", service_fee_cents: "235",
-      spot_label: "B", vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
+      spot_label: chosenLabel, vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
       vehicle_colour: "Yellow", license_plate: "DEMO 123", start_hour: "", end_hour: "",
     }, "cs_booking_sample", 1235, "pi_booking_sample");
     assert.equal(sent.length, 5, "Halfway, ending, extension, Driver and Host confirmations");
@@ -215,7 +218,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.equal(sent.length, before + 1, "Never send both reminders together");
       assert.equal(sent.at(-1).subject, "Your parking session ends soon");
     }
-    const expected = await renderParkingSpotImage([false, true, false, false], 1, booking);
+    const expected = await renderParkingSpotImage(spotStates, chosenIndex, booking);
     const expectedLogo = await renderHostLogoPng();
     const expectedHostPortrait = await renderHostPortraitPng();
     const expectedDriverPortrait = await renderDriverPortraitPng();
@@ -229,6 +232,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.match(email.html, /Q30/);
       assert.match(email.html, /DEMO 123/);
       assert.match(email.html, /PK-42/);
+      assert.ok(email.html.includes(`Spot ${chosenLabel}`), email.subject + " must retain its physical bay label");
       assert.match(email.html, /Europe\/Bucharest local time/);
       const logo = email.attachments.find(a => a.filename === "parkshare-signature-logo.png");
       assert.ok(logo, email.subject + " missing the approved inline logo");
@@ -264,3 +268,5 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     }
   }
 });
+
+}

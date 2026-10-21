@@ -10,12 +10,24 @@ const VEHICLES = {
 
 export function sampleEmailBooking(query = {}) {
   const colour = typeof query.vehicle === "string" && Object.hasOwn(VEHICLES, query.vehicle) ? query.vehicle : "orange";
-  const spotLabel = typeof query.spot === "string" && /^[A-D]$/.test(query.spot) ? query.spot : "B";
+  const count = typeof query.spaces === "string" && /^[1-8]$/.test(query.spaces) ? Number(query.spaces) : 4;
+  const requested = typeof query.spot === "string" && /^[A-H]$/.test(query.spot) ? query.spot : null;
+  const spotLabel = requested && requested.charCodeAt(0) - 65 < count ? requested : count === 1 ? "A" : "B";
   const chosenIndex = spotLabel.charCodeAt(0) - 65;
   return {
     vehicle: { ...VEHICLES[colour], license_plate: "DEMO 123" },
     spotLabel,
     chosenIndex,
-    spotStates: Array.from({ length: 4 }, (_, i) => i === chosenIndex),
+    spotStates: Array.from({ length: count }, (_, i) => i === chosenIndex),
   };
+}
+
+// Sample-only previews may run on the isolated BetterQA site as well as
+// Vercel previews. The real production project remains excluded.
+export function isEmailPreviewEnvironment(env = process.env) {
+  return env.VERCEL_ENV === "preview" || (
+    env.SUPABASE_URL === "https://biydlfekindgaslgktsx.supabase.co" &&
+    env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa.vercel.app" &&
+    (!env.VERCEL_PROJECT_ID || env.VERCEL_PROJECT_ID === "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC")
+  );
 }
