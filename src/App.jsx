@@ -1,3 +1,4 @@
+import HostOnboarding from "./components/HostOnboarding.jsx";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
@@ -6857,7 +6858,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
 }
 
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
-function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true }) {
+function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true, signupRole = null }) {
   const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
   const [form, setForm] = useState(emptyAuthForm);
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -7197,7 +7198,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
             {screen === "landing" && "Welcome — sign in or create an account"}
             {screen === "signin" && "Welcome back!"}
-            {screen === "signup" && "Create your free account"}
+            {screen === "signup" && (signupRole === "host" ? "Create your free Host account" : "Create your free account")}
             {screen === "role" && "How will you use ParkShare?"}
             {screen === "disclaimer" && "Before you continue"}
             {screen === "verify" && "Check email or sign in"}
@@ -7337,7 +7338,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               {[
                 { role: "driver", icon: "🚗", title: "Find a driveway", sub: "Browse and book private driveways near you by the hour" },
                 { role: "host", icon: "🏠", title: "List my driveway", sub: "Earn money renting out your empty driveway to drivers" },
-              ].map(r => (
+              ].filter(r => signupRole !== "host" || r.role === "host").map(r => (
                 <button key={r.role} onClick={() => pickRole(r.role)} style={{ background: C.white, border: "2px solid "+C.concrete, borderRadius: 16, padding: "16px 14px", cursor: "pointer", textAlign: "left", display: "flex", gap: 14, alignItems: "center" }}>
                   <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, "+C.navy+", #33465A)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>{r.icon}</div>
                   <div>
@@ -11052,6 +11053,8 @@ export default function App() {
   const messageThread = messageThreadState?.scope === messageScope ? messageThreadState.listing : null;
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState("landing");
+  const [hostOnboardingAccount, setHostOnboardingAccount] = useState(null);
+  const [hostAuthIntent, setHostAuthIntent] = useState(false);
   const [authRecoveryRevision, setAuthRecoveryRevision] = useState(0);
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
@@ -11193,6 +11196,11 @@ export default function App() {
 
   const handleAuth = (u) => {
     setUser(u);
+    if (hostAuthIntent && screen === "host") {
+      if (u.role === "host") moveToRoute("app", "List Your Driveway");
+      else setHostOnboardingAccount(u);
+      return;
+    }
     if (messageBookingId) {
       setScreen("app");
       setTab("Browse");
@@ -11226,6 +11234,8 @@ export default function App() {
       // A mounted dialog owns its screen and pending requests. Replace it
       // for every recovery event, including another link opened during recovery.
       setAuthRecoveryRevision(revision => revision + 1);
+      setHostAuthIntent(false);
+      setHostOnboardingAccount(null);
       setAuthInitialScreen("recovery");
       setShowAuth(true);
     },
@@ -11354,13 +11364,18 @@ export default function App() {
     setBrowseKey(key => key + 1);
     enterApp("Browse");
   };
-  // Host page CTA: straight into the listing flow if already signed in,
-  // otherwise open sign-up first (role selection happens in that flow).
+  // Keep the Host destination through signup/sign-in; Drivers explicitly
+  // choose an account handoff before leaving their current session.
+  const openHostAuth = (initialScreen = "signup") => {
+    setHostOnboardingAccount(null);
+    setHostAuthIntent(true);
+    setAuthInitialScreen(initialScreen);
+    setAuthRecoveryRevision(revision => revision + 1);
+    setShowAuth(true);
+  };
   const handleHostGetStarted = () => {
-    if (!user) { setShowAuth(true); return; }
-    // Drivers may view the public Host information page, but must use
-    // a separate Host account before creating a driveway listing.
-    if (user.role !== "host") { enterApp("Browse"); return; }
+    if (!user) { openHostAuth(); return; }
+    if (user.role !== "host") { setHostOnboardingAccount(user); return; }
     enterApp("List Your Driveway");
   };
   // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
@@ -11535,7 +11550,8 @@ export default function App() {
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
-      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
+      {screen === "host" && hostOnboardingAccount && <HostOnboarding key={hostOnboardingAccount.id} accountId={hostOnboardingAccount.id} auth={supabase.auth} onClose={() => setHostOnboardingAccount(null)} onReady={openHostAuth} />}
+      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setHostAuthIntent(false); }} onAuth={handleAuth} />}
       {!showAuth && messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
       {navigationRequest && (
         <NavigationChooser

@@ -55,13 +55,13 @@ import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,validateAu
 const modalStart=app.indexOf('function SignInModal('),modalEnd=app.indexOf('// ─── Header',modalStart);
 const modalCode=transformSync(app.slice(modalStart,modalEnd),{loader:'jsx',jsx:'transform'}).code;
 const visit=n=>!n||typeof n!=='object'?[]:Array.isArray(n)?n.flatMap(visit):[n,...visit(n.props?.children)];
-function signupHarness(result,throwing=false){
+function signupHarness(result,throwing=false,signupRole=null){
  const state=[];let index=0,root;const events=[];
  const hooks={useState(initial){const i=index++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return[state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value;}];}};
  const supabase={auth:{signUp:async()=>{events.push('signup');if(throwing)throw Error('offline');return result;},resetPasswordForEmail:async(email)=>{events.push(['reset',email]);return {data:{},error:null};},resend:async()=>{events.push('resend');return {data:{user:null,session:null},error:null};}}};
  const make=new Function('React','useState','useRef','useEffect','emptyAuthForm','isUnconfirmedEmailError','MIN_NEW_PASSWORD_LENGTH','signupOutcome','validateAuthForm','supabase','C','window','buildAppUser',modalCode+';return SignInModal;');
  const Modal=make(React,hooks.useState,initial=>{const i=index++;if(!(i in state))state[i]={current:initial};return state[i];},()=>{},emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,supabase,{}, {location:{origin:'https://synthetic.invalid'}},()=>{throw Error('unexpected authentication');});
- const props={initialScreen:'signup',onAuth:()=>events.push('auth'),onClose:()=>events.push('close')};
+ const props={initialScreen:'signup',signupRole,onAuth:()=>events.push('auth'),onClose:()=>events.push('close')};
  function render(){index=0;root=Modal(props);return root;}
  function text(n){return renderToStaticMarkup(n).replace(/<[^>]+>/g,'');}
  const h={events,render,nodes:()=>visit(root),html:()=>renderToStaticMarkup(root),
@@ -103,4 +103,15 @@ test('role and disclaimer can close without signing up and clear the pending pas
   assert.ok(close,step+' has Close');close.props.onClick();h.render();
   assert.deepEqual(h.events,['close']);assert.doesNotMatch(h.html(),/synthetic password 123/);
  }
+});
+
+// Host CTA intent narrows the actual role picker without bypassing consent.
+test('Host-directed signup shows Host choice and requires legal consent before registration',async()=>{
+ const h=signupHarness({data:{user:{identities:[]},session:null},error:null},false,'host');
+ assert.match(h.html(),/Create your free Host account/);await h.role();
+ assert.match(h.html(),/List my driveway/);assert.doesNotMatch(h.html(),/Find a driveway/);
+ h.nodes().find(n=>n.type==='button'&&renderToStaticMarkup(n).includes('List my driveway')).props.onClick();h.render();
+ await h.click('I Agree &amp; Create Account');assert.deepEqual(h.events,[]);
+ h.nodes().find(n=>n.type==='input'&&n.props.type==='checkbox').props.onChange({target:{checked:true}});h.render();
+ await h.click('I Agree &amp; Create Account');assert.deepEqual(h.events,['signup']);
 });
