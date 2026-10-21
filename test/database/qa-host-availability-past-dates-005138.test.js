@@ -36,7 +36,7 @@ describe("BUG-005138 proposed server-side availability exception constraint", { 
     const proposal = await readFile(new URL("../../docs/sql-proposals/bug-005138-future-exceptions.sql", import.meta.url), "utf8");
     await pool.query(proposal);
     await pool.query(proposal); // no duplicate trigger on reapply
-    const migration = await readFile(new URL('../../supabase/migrations/20261021200109_exception_horizon_005138.sql',import.meta.url),'utf8');
+    const migration = await readFile(new URL('../../supabase/migrations/20261021200835_exception_horizon_005138.sql',import.meta.url),'utf8');
     await pool.query(migration);
     await pool.query(migration); // existing trigger wiring and ACLs are retained
   });

@@ -13,7 +13,7 @@ The migration replaces only `reject_past_listing_exceptions_005138()`. It retain
 - Native PostgreSQL tests apply and reapply the actual migration, check direct inserts, trusted property zones, leap-day parity, legacy-row preservation and client execution privileges.
 - The full captured-schema rehearsal also checks authenticated owning-Host writes at the cutoff and denial beyond it under the real policies.
 - Initial QA preflight found 17 listings and no existing exceptions beyond the horizon. No customer data is copied into tests.
-- Run native CI/rehearsal before applying `20261021200109_exception_horizon_005138.sql` to the isolated BetterQA database. Deploy the paired UI/API afterward. Production is outside this rollout.
+- Run native CI/rehearsal before applying `20261021200835_exception_horizon_005138.sql` to the isolated BetterQA database. Deploy the paired UI/API afterward. Production is outside this rollout.
 - Rollback, if required, restores the previous function body from the base commit; there is no data rewrite to undo.
 
 ## BetterQA retest
