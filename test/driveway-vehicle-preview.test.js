@@ -70,7 +70,7 @@ test("spot selection expands saved vehicle cards and blocks confirmation until s
   assert.match(app, /Select your vehicle to preview it in the driveway/);
   assert.match(app, /role="radiogroup" aria-label="Select your parking vehicle"/);
   assert.match(app, /getBookableVehicles\(user \|\| \{\}\)/);
-  assert.match(app, /disabled=\{!chosenSpotAvailable \|\| !selectedVehicle\}/);
+  assert.match(app, /disabled=\{!chosenSpotAvailable \|\| !selectedVehicle \|\| vehicleEditorOpen\}/);
   assert.match(app, /const chosenSpotAvailable = chosenSpot !== null && canChooseListingSpot/);
   assert.match(app, /!selectedVehicle \? "Select a vehicle to continue"/);
 });
