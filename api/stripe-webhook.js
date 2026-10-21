@@ -461,11 +461,10 @@ async function sendBookingConfirmationEmail(booking) {
   const amountCharged = booking.total != null && Number.isFinite(Number(booking.total))
     ? `${Number(booking.total).toLocaleString("en-CA", { style: "currency", currency: "CAD" })} CAD`
     : "Not provided";
-  const spaces = listing?.spaces || 1;
   const chosenIndex = booking.spot_label
     ? booking.spot_label.trim().toUpperCase().charCodeAt(0) - 65
     : null;
-  const spotStates = deriveEmailSpotStates(listing || { spaces }, chosenIndex);
+  const spotStates = deriveEmailSpotStates(listing || {}, chosenIndex);
 
   let attachments;
   let spotImageCid;

@@ -69,10 +69,10 @@ test("Hosted Spot B remains the single rentable spot in the diagram", () => {
     spaces: 1,
     spots: [{ forRent: false }, { forRent: true }, { forRent: false }, { forRent: false }],
   }, 1), [false, true, false, false]);
-  // Legacy data has no spots configuration: always include chosen spot B,
-  // rather than falsely marking an unused Spot A as available.
-  assert.deepEqual(deriveEmailSpotStates({ spaces: 1 }, 1), [false, true, false, false]);
-  assert.deepEqual(deriveEmailSpotStates({ spaces: 2 }, 1), [true, true, false, false]);
+  // Legacy capacity supplies physical bays only when no configuration exists.
+  // Never add extra bays to accommodate an inconsistent historical label.
+  assert.deepEqual(deriveEmailSpotStates({ spaces: 1 }, 1), [true]);
+  assert.deepEqual(deriveEmailSpotStates({ spaces: 2 }, 1), [true, true]);
 });
 
 test("Host email's 1000px attached image is a real PNG with no font-dependent text", async () => {

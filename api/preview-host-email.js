@@ -1,13 +1,13 @@
 // Browser-based, sample-only email QA. Available on Vercel PREVIEW
-// deployments, never production. Does not send email or access customer data.
+// deployments and isolated BetterQA, never the production app. No email or customer data.
 import { hostBookingNotificationHtml } from "./_email.js";
 import { renderParkingSpotImage } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
-import { sampleEmailBooking } from "./_email-preview.js";
+import { sampleEmailBooking, isEmailPreviewEnvironment } from "./_email-preview.js";
 
 export default async function handler(req, res) {
-  if (process.env.VERCEL_ENV !== "preview") return res.status(404).end("Not found");
+  if (!isEmailPreviewEnvironment()) return res.status(404).end("Not found");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).end("Method not allowed");
