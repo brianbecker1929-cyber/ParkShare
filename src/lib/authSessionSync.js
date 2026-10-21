@@ -26,7 +26,7 @@ export function createAuthSessionSynchronizer({
       generation++;
       accountId = nextAccountId;
       onUser(null, event);
-      if (nextAccountId) onRecovery();
+      if (nextAccountId) onRecovery({ accountId: nextAccountId });
       return;
     }
     if (event === "SIGNED_OUT" || !nextAccountId) {

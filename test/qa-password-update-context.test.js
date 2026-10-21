@@ -3,6 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import React from 'react';
+import {RECOVERY_SESSION_CHANGED} from '../src/lib/passwordRecovery.js';
 import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm} from '../src/lib/authForm.js';
 const source=await readFile(process.env.QA_PASSWORD_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const a=source.indexOf('function SignInModal('),modal=source.slice(a,source.indexOf('// ─── Header',a));
@@ -11,13 +12,15 @@ const compiled=(await transform(modal.replace('event.preventDefault(); void upda
 const later=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const updated=()=>({data:{user:{id:'synthetic-user'}},error:null});
 function nodes(node,predicate,out=[]){if(!node||typeof node!=='object')return out;if(predicate(node))out.push(node);for(const child of React.Children.toArray(node.props?.children))nodes(child,predicate,out);return out;}
-function harness({update=async()=>updated()}={}){
- const slots=[],effects=[],setups=[],writes=[],updates=[],published=[];let cursor=0,dirty=false,tree,closed=0;
- const values={React,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}},buildAppUser:()=>{throw Error('No profile publication expected');},
- supabase:{auth:{updateUser:async value=>{updates.push(value);return update(updates.length);}}},
+function harness({update=async()=>updated(),recoveryAccountId='synthetic-user'}={}){
+ const listeners=new Set();
+ const slots=[],effects=[],setups=[],writes=[],updates=[],published=[],completed=[];let cursor=0,dirty=false,tree,closed=0;
+ const values={React,RECOVERY_SESSION_CHANGED,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}},buildAppUser:()=>{throw Error('No profile publication expected');},
+ supabase:{auth:{onAuthStateChange:fn=>{listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},updateUser:async value=>{updates.push(value);return update(updates.length);}}},
+ updateRecoveryPasswordForAccount:async({password})=>{updates.push({password});return update(updates.length);},
  useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();setups[n]=fn;});}}};
  const Component=new Function(...Object.keys(values),compiled+';return SignInModal;')(...Object.values(values));
- function render(){let count=0;do{dirty=false;cursor=0;tree=Component({initialScreen:'recovery',onClose:()=>closed++,onAuth:u=>published.push(u)});for(const fn of effects.splice(0))fn();assert.ok(++count<8);}while(dirty);return tree;}
+ function render(){let count=0;do{dirty=false;cursor=0;tree=Component({initialScreen:'recovery',recoveryAccountId,onRecoveryComplete:()=>completed.push('complete'),onClose:()=>closed++,onAuth:u=>published.push(u)});for(const fn of effects.splice(0))fn();assert.ok(++count<8);}while(dirty);return tree;}
  const find=predicate=>{const n=nodes(render(),predicate)[0];assert.ok(n,'control exists');return n;};
  const inputs=()=>nodes(render(),n=>n.type==='input'&&n.props?.type==='password');
  const input=(index,value)=>inputs()[index].props.onChange({target:{value}});
@@ -28,8 +31,31 @@ function harness({update=async()=>updated()}={}){
  const replay=()=>{for(const [n,fn] of setups.entries())if(fn){slots[n].cleanup?.();slots[n].cleanup=fn();}render();};
  const close=()=>find(n=>n.props?.['aria-label']==='Close sign-in dialog').props.onClick();
  render();input(0,'synthetic new password');input(1,'synthetic new password');
- return {render,find,inputs,input,handler,submit,stop,replay,close,writes,updates,published,get closed(){return closed;},get text(){return JSON.stringify(render());}};
+ return {render,find,inputs,input,handler,submit,stop,replay,close,writes,updates,published,completed,emit:(event,id)=>{for(const fn of [...listeners])fn(event,id?{access_token:'synthetic-token',user:{id}}:null);},get closed(){return closed;},get text(){return JSON.stringify(render());}};
 }
+
+test('recovery account switch clears secrets and retires queued submits even if the old account returns',async()=>{
+ const h=harness(),old=h.handler();h.emit('SIGNED_IN','other-user');h.render();
+ assert.ok(h.inputs().every(n=>n.props.value===''));assert.ok(h.inputs().every(n=>n.props.disabled));
+ h.emit('SIGNED_IN','synthetic-user');await old({preventDefault(){}});await h.submit();
+ assert.equal(h.updates.length,0);assert.match(h.text,/recovery session changed/i);h.close();assert.equal(h.closed,1);h.stop();
+});
+test('wrong account reply cannot claim the recovery password was updated',async()=>{
+ const h=harness({update:async()=>({data:{user:{id:'other-user'}},error:null})});await h.submit();
+ assert.doesNotMatch(h.text,/Your password has been updated/);assert.match(h.text,/confirm your password update/);assert.equal(h.completed.length,0);h.stop();
+});
+test('sign-out clears recovery secrets and requires a fresh link while keeping Close usable',async()=>{
+ const h=harness();h.emit('SIGNED_OUT',null);await h.submit();assert.equal(h.updates.length,0);assert.ok(h.inputs().every(n=>n.props.value===''&&n.props.disabled));assert.match(h.text,/recovery session changed/i);h.close();assert.equal(h.closed,1);h.stop();
+});
+test('same-account token refresh preserves the draft and a valid completion requests read-only account hydration once',async()=>{
+ const h=harness();h.emit('TOKEN_REFRESHED','synthetic-user');h.emit('USER_UPDATED','synthetic-user');assert.ok(h.inputs().every(n=>n.props.value==='synthetic new password'&&!n.props.disabled));await h.submit();assert.match(h.text,/Your password has been updated/);assert.equal(h.completed.length,1);assert.equal(h.updates.length,1);h.stop();
+});
+test('missing recovery owner cannot submit or edit a password',async()=>{
+ const h=harness({recoveryAccountId:null});await h.submit();assert.equal(h.updates.length,0);assert.ok(h.inputs().every(n=>n.props.value===''&&n.props.disabled));h.close();assert.equal(h.closed,1);h.stop();
+});
+test('account change during an in-flight recovery suppresses success and cannot revive the old draft',async()=>{
+ const pending=later(),h=harness({update:()=>pending.promise}),old=h.handler(),work=h.submit();h.emit('SIGNED_IN','other-user');h.render();const count=h.writes.length;pending.resolve(updated());await work;await old({preventDefault(){}});assert.equal(h.writes.length,count);assert.equal(h.updates.length,1);assert.equal(h.completed.length,0);assert.doesNotMatch(h.text,/Your password has been updated|synthetic new password/);h.stop();
+});
 
 test('rejected password update is caught, clears loading and allows explicit retry',async()=>{
  const h=harness({update:async n=>{if(n===1)throw Error('Synthetic recovery outage');return updated();}});await assert.doesNotReject(h.submit());assert.equal(h.updates.length,1);assert.match(h.text,/Synthetic recovery outage/);assert.equal(h.find(n=>n.props?.type==='submit').props.disabled,false);await h.submit();assert.equal(h.updates.length,2);assert.match(h.text,/Your password has been updated/);assert.equal(h.published.length,0);h.stop();
