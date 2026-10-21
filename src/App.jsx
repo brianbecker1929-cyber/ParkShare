@@ -16,6 +16,7 @@ import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold } from "./lib/spotAvailability";
+import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
@@ -1267,7 +1268,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} availableData={availableData} isRealListing={isRealListing} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={listing.spaces} chosen={chosenSpot} onChoose={() => {}} spotStates={getListingSpotLayout(listing).map(spot => spot.forRent)} availableData={availableData} isRealListing={isRealListing} vehicle={selectedVehicle} />
                 <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
@@ -1738,10 +1739,9 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
+  const spotLayout = getListingSpotLayout(listing);
   const chooseSpot = (index) => {
-    const hostRentable = Array.isArray(listing.spots) && listing.spots.length
-      ? listing.spots[index]?.forRent === true
-      : index < Math.min(Math.max(Number(listing.spaces) || 1, 1), 4);
+    const hostRentable = spotLayout[index]?.forRent === true;
     if (!canChooseListingSpot({
       isRealListing: numericIdForAvailability !== null,
       hostRentable,
@@ -1772,11 +1772,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     && Array.isArray(listing.spots) && listing.spots.some(s => s.forRent)
     && listing.spots.filter(s => s.forRent).every(hasValidBounds)
     && !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const rentableSpots = hasSatelliteSpots ? listing.spots.filter(s => s.forRent) : null;
-  const availableCount = rentableSpots ? rentableSpots.length : Math.min(listing.spaces || 1, 4);
-  const spotStates = Array.isArray(listing.spots) && listing.spots.length > 0
-    ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent)
-    : undefined;
+  const availableCount = spotLayout.filter(spot => spot.forRent).length;
+  const spotStates = spotLayout.map(spot => spot.forRent);
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
   const numericIdForAvailability = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
@@ -1880,9 +1877,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   }, [selectedWindowKey, numericIdForAvailability]);
   const chosenSpotAvailable = chosenSpot !== null && canChooseListingSpot({
     isRealListing: numericIdForAvailability !== null,
-    hostRentable: Array.isArray(listing.spots) && listing.spots.length > 0
-      ? listing.spots[chosenSpot]?.forRent === true
-      : chosenSpot < Math.min(Math.max(Number(listing.spaces) || 1, 1), 4),
+    hostRentable: spotLayout[chosenSpot]?.forRent === true,
     availableData: selectedAvailability,
     label: chosenSpot !== null ? String.fromCharCode(65 + chosenSpot) : "",
   });
@@ -2156,6 +2151,17 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
                 ? (availabilityFailed ? "Availability could not be checked. Please retry later." : "Checking this time slot. Spot selection will unlock when availability is confirmed.")
                 : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`}
           </p>
+          {bookingMode === "now" && (
+            <button type="button" className="ps-spot-schedule-later" onClick={() => {
+              if (!selectedEvent) {
+                setDate(futureBookingDate(listing.timeZone)); setStartHour(9); setEndHour(11);
+              }
+              setBookingMode("advance");
+              setShowSpotPicker(false);
+            }} style={{ background: C.amber, color: C.navy, border: "1px solid " + C.navy, borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
+              Schedule for Later — choose a date &amp; time
+            </button>
+          )}
           {hasSatelliteSpots ? (
                 <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
@@ -4403,13 +4409,19 @@ function DrivewayFrame({ children }) {
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
 function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableData = null, isRealListing = false, vehicle = null }) {
-  const labels = ["A", "B", "C", "D"];
+  const layout = getListingSpotLayout({
+    spaces: availableCount,
+    spots: Array.isArray(spotStates) ? spotStates.map(forRent => ({ forRent })) : [],
+  });
+  const labels = layout.map(spot => spot.label);
+  const columns = labels.length === 1 ? 1 : 2;
+  const rows = Math.max(1, Math.ceil(labels.length / columns));
   return (
     <>
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
-          const hostEnabled = spotStates ? !!spotStates[i] : i < availableCount;
+          const hostEnabled = layout[i].forRent;
           // A real Spot A/B/C/D cannot be selected before this exact
           // booking window is verified by the availability API.
           const isAvailable = canChooseListingSpot({
@@ -4431,7 +4443,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableDat
               justifyContent: isChosen ? "stretch" : "center",
               // Reserve breathing room above the selected label so the
               // 4px orange border can't clip "Spot A" or "Spot B".
-              gap: isChosen ? 1 : 4, padding: isChosen ? "10px 5px 5px" : "3% 3%", overflow: "hidden",
+              gap: isChosen ? 1 : rows > 2 ? 2 : 4, padding: isChosen ? "10px 5px 5px" : "3% 3%", overflow: "hidden",
               fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
@@ -4450,9 +4462,9 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableDat
               ) : isChosen ? (
                 <span className="ps-spot-picker-no-vehicle">Select vehicle</span>
               ) : isAvailable ? (
-                <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
+                <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: rows > 2 ? 32 : 54, flexShrink: 0, objectFit: "contain" }} />
               ) : (
-                <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
+                <span style={{ fontSize: rows > 2 ? 24 : 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
               )}
               {/* Selection is conveyed by the orange bay outline and vehicle.
                   No "Your spot" label stealing height from the car. */}
@@ -4464,6 +4476,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableDat
         })}
       </div>
     </DrivewayFrame>
+    {layout.length === 0 && <p role="status">No parking spots are configured for this listing.</p>}
     {Object.values(availableData?.spotState || {}).includes("held") && <p role="status" style={{ color: C.muted, fontSize: 12, lineHeight: 1.5 }}>
       Checkout in progress means a temporary hold, lasting up to 30 minutes from checkout start. It becomes a booking only after payment is confirmed.
     </p>}

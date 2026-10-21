@@ -7,6 +7,7 @@ import {getBookableVehicles} from '../src/lib/driverProfile.js';
 import {validId} from '../src/lib/privateListingAccess.js';
 import {localCalendarDate} from '../src/lib/bookingCalendarDate.js';
 import {calculateBookingAmounts} from '../api/_booking-rules.js';
+import {getListingSpotLayout} from '../src/lib/listingSpotLayout.js';
 const source=await readFile(process.env.QA_CHECKOUT_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const a=source.includes('function bookingCheckoutKey(')?source.indexOf('function bookingCheckoutKey('):source.indexOf('function PaymentModal(');
 const compiled=await transform(source.slice(a,source.indexOf('// ─── Reviews Section',a)),{loader:'jsx'});
@@ -21,6 +22,7 @@ function harness({auth=async()=>session('A'),refresh=async()=>session('A'),post=
  let props={listing:{id:'db-7',title:'Synthetic parking',price:12,spaces:4,address:'Public fixture'},hours:2,chosenSpot:1,date:new Date(2030,9,20),startHour:9,endHour:11,selectedEvent:{id:23},user:user(),selectedVehicleId:'primary'};
  const Modal=()=>null,Btn=()=>null;
  const values={React,C:{},Modal,Btn,ListingThumb:()=>null,VehicleBadge:()=>null,SpotPicker:()=>null,EventDestinationSummary:()=>null,formatHour:x=>String(x),money:x=>'$'+Number(x).toFixed(2),formatVehicleVisualSummary:()=>'',getBookableVehicles,validId,localCalendarDate,calculateBookingAmounts,console:{error:()=>{}},window:{location:{assign:url=>redirects.push(url)}},supabase:{auth:{getSession:()=>{authReads.push(true);return auth(authReads.length);},refreshSession:()=>{refreshes.push(true);return refresh(refreshes.length);}}},fetch:async(url,options)=>{requests.push({url,options,body:JSON.parse(options.body)});return post(url,options);},useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();setups[n]=fn;});}}};
+ values.getListingSpotLayout=getListingSpotLayout;
  const funcs=new Function(...Object.keys(values),compiled.code+';return {PaymentModal,key:typeof bookingCheckoutKey==="function"?bookingCheckoutKey:null};')(...Object.values(values));
  function render(changes={}){props={...props,...changes};let count=0;do{dirty=false;cursor=0;tree=funcs.PaymentModal({...props,onClose:()=>closed++,onSuccess:()=>successes++,onVehicleChange:id=>vehicles.push(id)});for(const fn of effects.splice(0))fn();assert.ok(++count<8);}while(dirty);return tree;}
  const find=predicate=>{const hit=nodes(render(),predicate)[0];assert.ok(hit,'control exists');return hit;};
@@ -87,4 +89,18 @@ test('StrictMode replay invalidates old work and leaves a new checkout usable',a
 });
 test('actual payment binding keys each dialog to the same original account and booking selection',async()=>{
  const h=harness();assert.ok(h.key);const props=h.props,tag=source.match(/<PaymentModal\b[\s\S]*?\/>/)[0],code=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,PaymentModal:()=>null,bookingCheckoutKey:h.key,...props,bookingMode:'advance',setSelectedVehicleId:()=>{},selectedAvailability:null,setShowPayment:()=>{},confirmBooking:()=>{}};const element=new Function(...Object.keys(values),code.code+';return Parent();')(...Object.values(values));assert.equal(element.key,h.key(props));assert.equal(h.key({...props,date:new Date(2030,9,20),user:{...user(),name:'Changed'}}),h.key(props));assert.notEqual(h.key({...props,user:user('B')}),h.key(props));assert.notEqual(h.key({...props,listing:{...props.listing,price:15}}),h.key(props));h.stop();
+});
+
+test('actual payment preview preserves the full physical layout for one through eight bays',()=>{
+ for(const count of [1,2,3,4,6,8]){
+  const h=harness();h.render({listing:{...h.props.listing,spaces:count,spots:[]},chosenSpot:count-1});
+  const preview=h.find(node=>Array.isArray(node.props?.spotStates));
+  assert.equal(preview.props.spotStates.length,count);assert.equal(preview.props.chosen,count-1);h.stop();
+ }
+});
+for(const [index,label] of [[4,'E'],[7,'H']])test(`checkout for Spot ${label} preserves its physical label, date, vehicle and eight-bay preview`,async()=>{
+ const h=harness(),flags=[false,true,false,true,true,false,true,true];
+ h.render({listing:{...h.props.listing,spaces:5,spots:flags.map(forRent=>({forRent}))},chosenSpot:index});
+ const preview=h.find(node=>Array.isArray(node.props?.spotStates));assert.deepEqual(preview.props.spotStates,flags);
+ await h.pay();assert.equal(h.requests.length,1);assert.equal(h.requests[0].body.spotLabel,label);assert.equal(h.requests[0].body.vehicleId,'primary');assert.equal(h.requests[0].body.bookingDate,'2030-10-20');assert.equal(h.redirects.length,1);h.stop();
 });

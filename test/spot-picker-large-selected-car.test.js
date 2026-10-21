@@ -78,7 +78,7 @@ test("orange selected outline cannot obscure the Spot A or Spot B heading", asyn
   assert.match(picker,/padding: isChosen \? "10px 5px 5px" : "3% 3%"/);
   assert.match(picker,/border: isChosen \? "4px solid " \+ C\.hazard/);
   assert.match(picker,/fontSize: isChosen \? 12 : 13/);
-  assert.match(picker,/const labels = \["A", "B", "C", "D"\]/, "Apply the same protection to every parking bay");
+  assert.match(picker,/const labels = layout\.map\(spot => spot\.label\)/, "Apply the same protection to every configured parking bay");
   assert.match(picker,/lineHeight: 1\.25,/, "Keep the original label row height and vehicle area");
   assert.match(picker,/textAlign: "center", width: "100%", boxSizing: "border-box"/, "Keep selected label within the bay's inner width");
   assert.match(picker,/paddingRight: isChosen \? 4 : 0/, "Nudge text to the left only on selected spots");
