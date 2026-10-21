@@ -14,7 +14,7 @@ ${bookingHeaderTemplate('refund')}
 <table role="presentation" width="100%"><tr><td valign="middle"><p style="font-size:15px;">Hi <strong>[RECIPIENT_NAME]</strong>,</p><p style="font-size:14px;line-height:21px;">[REFUND_MESSAGE]</p></td><td width="112" valign="bottom"><img class="refund-portrait" src="[PORTRAIT_URL]" width="112" alt="[PORTRAIT_ALT]" style="display:block;width:112px;height:auto;border:0;"></td></tr></table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#1b2b3a;color:#ffffff;border-radius:6px;"><tr><td style="padding:16px;"><p style="margin:0 0 5px;font-size:12px;">REFUND CONFIRMED</p><p style="margin:0;font-size:25px;font-weight:bold;color:#FFC107;">[REFUND_AMOUNT] CAD</p><p style="margin:8px 0 0;font-size:12px;">Refund reference: [REFUND_REFERENCE]</p></td></tr></table>
 <p style="font-size:14px;line-height:22px;"><strong>Booking [BOOKING_NUMBER]</strong><br>[PROPERTY_ADDRESS]<br>[SPOT_LABEL]<br>[VEHICLE_DETAILS]</p>
-<p style="font-size:13px;line-height:21px;"><strong>Original reservation:</strong><br>[SESSION_START] – [SESSION_END]<br>[TIME_ZONE_LABEL]</p>
+<p style="font-size:13px;line-height:21px;"><strong>Reservation times:</strong><br>[SESSION_START] – [SESSION_END]<br>[TIME_ZONE_LABEL]</p>
 <p style="padding:12px;background:#fff8e1;border:1px solid #eadcb6;font-size:14px;line-height:21px;">[BOOKING_OUTCOME]</p>
 <p style="font-size:13px;line-height:21px;">[PAYMENT_NOTE]</p>
 <p style="margin:20px 0;"><a href="[BOOKING_URL]" style="display:inline-block;padding:12px 18px;background:#FFC107;color:#0e1b2e;border:2px solid #0e1b2e;border-radius:7px;font-size:14px;font-weight:bold;text-decoration:none;">View Booking</a></p>

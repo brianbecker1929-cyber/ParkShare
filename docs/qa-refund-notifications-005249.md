@@ -25,8 +25,8 @@ remain in the refund reconciler; this change creates no charges or refunds.
 
 The new receipt uses ParkShare's signature wordmark, navy/amber palette and
 Parker/William portrait for the corresponding recipient. It includes the refund
-amount, refund ID, booking ID, property, space, saved vehicle, original session
-and property-local times. Driver actions open My Bookings; Host actions open
+amount, refund ID, booking ID, property, space, saved vehicle, reservation times
+in the property time zone. Driver actions open My Bookings; Host actions open
 the Host dashboard. `APP_URL` rewrites every site link/image to the QA origin.
 Bank posting time is not promised and the Host receipt is not a payout statement.
 
