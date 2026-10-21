@@ -21,12 +21,14 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     STRIPE_SECRET_KEY: "sk_test_sample_only", STRIPE_WEBHOOK_SECRET: "whsec_sample_only",
     SUPABASE_URL: "https://sample.invalid", SUPABASE_ANON_KEY: "sample-anon",
     SUPABASE_SERVICE_ROLE_KEY: "sample-service", RESEND_API_KEY: "sample-resend",
-    CRON_SECRET: "sample-cron",
+    CRON_SECRET: "sample-cron", EMAIL_FROM: "ParkShare <test@example.invalid>",
   };
   const savedEnv = Object.fromEntries(Object.keys(env).map(k => [k, process.env[k]]));
   Object.assign(process.env, env);
   const originalFetch = globalThis.fetch;
   const sent = [];
+  const deliveries = new Map();
+  let missingRecipient = false;
   let booking = {
     id: 42, listing_id: 7, renter_id: "sample-renter", hours: 1,
     paid_at: new Date(Date.now() - 35 * 60_000).toISOString(),
@@ -76,7 +78,20 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     assert.equal(url.hostname, "sample.invalid", "No real network access in delivery test");
     const table = url.pathname.split("/").at(-1);
     let result;
-    if (table === "bookings") {
+    if (table === "booking_reminder_deliveries") {
+      const body = init.body ? JSON.parse(init.body) : null;
+      const id = body?.id || url.searchParams.get("id")?.slice(3);
+      if (method === "POST" && !deliveries.has(id)) deliveries.set(id, {
+        ...body, created_at: new Date().toISOString(), lease_until: new Date(0).toISOString(), sent_at: null, provider_id: null,
+      });
+      const row = deliveries.get(id);
+      if (method === "PATCH") {
+        const eligible = !url.searchParams.has("sent_at") || (!row.sent_at && Date.parse(row.lease_until) <= Date.parse(url.searchParams.get("lease_until").slice(4)));
+        if (eligible) Object.assign(row, body);
+        else return Response.json(null);
+      }
+      result = row;
+    } else if (table === "bookings") {
       if (method === "PATCH") Object.assign(booking, JSON.parse(init.body));
       if (method === "POST") booking = { ...booking, ...JSON.parse(init.body) };
       const requestedSession = url.searchParams.get("stripe_checkout_session_id");
@@ -93,7 +108,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     }
     else if (table === "profiles") {
       const isHost = url.searchParams.get("id") === "eq.sample-host";
-      result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
+      result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: missingRecipient && !isHost ? null : isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
     } else if (table === "apply_paid_booking_extension") {
       // Model the proposed Postgres RPC as an indivisible, idempotent
       // insert + duration update. No actual Supabase instance is modified.
@@ -134,6 +149,11 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       latest_charge: id === "pi_ext_sample" ? "ch_ext" : "ch_book",
     });
     try {
+    for (const [method, authorization, expectedStatus] of [["GET", "", 401], ["GET", "Bearer incorrect", 401], ["DELETE", "Bearer sample-cron", 405]]) {
+      const rejected = response();
+      await reminders({method,headers:{authorization}},rejected);
+      assert.equal(rejected.code,expectedStatus);
+    }
     let res = response();
     await reminders({ method: "GET", headers: { authorization: "Bearer sample-cron" } }, res);
     assert.equal(res.code, 200);
@@ -184,6 +204,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     // When a late run misses halfway, or a 30-minute session reaches its
     // midpoint, both thresholds are due. Only send the ending-soon email.
     for (const hours of [1, 0.5]) {
+      deliveries.clear(); // Independent fixture booking, including its delivery history.
       Object.assign(booking, { hours, booking_date: null, start_hour: null,
         paid_at: new Date(Date.now() - (hours * 60 - 14) * 60_000).toISOString(),
         reminder_halfway_sent_at: null, reminder_ending_sent_at: null });
@@ -221,6 +242,16 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
       assert.match(email.html, /width="180"/);
       assert.doesNotMatch(email.html, /height:260px; width:auto/);
     }
+    // Missing recipients must report failure without a sent marker or a
+    // provider request, rather than silently incrementing endingSent.
+    missingRecipient = true;
+    booking.reminder_ending_sent_at = null;
+    const beforeFailure = sent.length;
+    res = response();
+    await reminders({method:"GET",headers:{authorization:"Bearer sample-cron"}},res);
+    assert.deepEqual(res.body,{halfwaySent:0,endingSent:0,failed:1});
+    assert.equal(sent.length,beforeFailure);
+    assert.equal(booking.reminder_ending_sent_at,null);
     } finally {
       stripe.paymentIntents.retrieve = originalRetrieve;
       stripe.charges.retrieve = originalChargeRetrieve;

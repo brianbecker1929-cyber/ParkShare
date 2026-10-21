@@ -39,8 +39,14 @@ export function buildEmailPayload({ to, cc, subject, html, attachments, replyTo 
 }
 
 export async function sendEmail({ to, cc, subject, html, attachments, replyTo }) {
+  return sendEmailPayload(buildEmailPayload({ to, cc, subject, html, attachments, replyTo }));
+}
+
+// The reminder worker persists this exact payload before its first attempt.
+// Provider retries must reuse both the same key and the same request body.
+export async function sendEmailPayload(payload, { idempotencyKey } = {}) {
   if (!RESEND_API_KEY) {
-    console.error("[_email] RESEND_API_KEY is not set — skipping send:", subject);
+    console.error("[_email] RESEND_API_KEY is not set — skipping send:", payload.subject);
     return { skipped: true };
   }
 
@@ -49,8 +55,10 @@ export async function sendEmail({ to, cc, subject, html, attachments, replyTo })
     headers: {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
-    body: JSON.stringify(buildEmailPayload({ to, cc, subject, html, attachments, replyTo })),
+    signal: AbortSignal.timeout(20_000),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {

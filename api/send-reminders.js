@@ -1,39 +1,22 @@
-// GET /api/send-reminders
-//
-// Meant to be called every 5-10 minutes by a scheduler (Vercel Cron, or a
-// free external pinger like cron-job.org) — see vercel.json / README notes.
-// Each run scans bookings whose parking session is currently in progress and
-// sends at most two emails per booking over its lifetime:
-//   - "halfway" reminder, once the session is >= 50% elapsed
-//   - "ending soon" reminder, once <= 15 minutes remain
-// Both go to the renter, CC'd to the host, per the product requirement.
-//
-// Idempotent by design: each booking has confirmation_email_sent_at /
-// reminder_halfway_sent_at / reminder_ending_sent_at columns (see
-// supabase-migration-003-email-reminders.sql) that get set right after a
-// send, so re-running this on overlapping schedules never double-sends.
-//
-// Auth: Vercel Cron automatically sends `Authorization: Bearer <CRON_SECRET>`
-// when CRON_SECRET is set as an env var — this handler requires that same
-// header, so it works identically whether triggered by Vercel Cron or any
-// other scheduler configured with the same secret.
-//
-// CHANGE LOG (this revision): halfway and ending reminders now share almost
-// all the same field-building logic — both render from a template that
-// needs hostName, locationId, directionsUrl, manageReservationUrl, and a
-// spot-map image, where previously only the ending reminder did. See
-// _email.js for the halfwayReminderHtml() design change.
+// GET /api/send-reminders — authenticated Vercel Cron, once per minute.
+// Halfway and 15-minute ending reminders use canonical session times.
+// Delivery snapshots, leases and provider idempotency live in
+// _reminder-delivery.js. Messages go to the Driver, CC'd to the Host.
 
 import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
-import { sendEmail, halfwayReminderHtml, endingReminderHtml } from "./_email.js";
+import { halfwayReminderHtml, endingReminderHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { renderHostLogoPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
-const ENDING_SOON_MINUTES = 15;
+import { timingSafeEqual } from "node:crypto";
+import { deliverReminder } from "./_reminder-delivery.js";
+import { dueReminder } from "./_reminder-window.js";
+
 
 export default async function handler(req, res) {
+  res.setHeader?.("Cache-Control", "private, no-store");
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -41,89 +24,101 @@ export default async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return res.status(503).json({ error: "Reminder service is not configured." });
   const authHeader = req.headers.authorization || "";
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const expected = Buffer.from(`Bearer ${cronSecret}`);
+  const actual = Buffer.from(authHeader);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) {
+    return res.status(503).json({ error: "Reminder email is not configured." });
+  }
   const now = new Date();
 
   // Do not filter on paid_at: Drivers may book and pay MONTHS before an
   // upcoming session. The canonical start/end, not payment age, decides
-  // whether a reminder is due. Indexing/pagination are rollout QA concerns.
-  const { data: bookings, error } = await supabaseAdmin
-    .from("bookings")
-    .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, reminder_halfway_sent_at, reminder_ending_sent_at")
-    .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .or("reminder_halfway_sent_at.is.null,reminder_ending_sent_at.is.null");
-
-  if (error) {
-    console.error("send-reminders: failed to load bookings:", error);
-    return res.status(500).json({ error: "Failed to load bookings" });
+  // whether a reminder is due.
+  const bookings = [];
+  // Supabase caps responses; page by primary key so older paid bookings do
+  // not hide today's active scheduled sessions beyond the first 1,000 rows.
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabaseAdmin
+      .from("bookings")
+      .select("id, listing_id, renter_id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate, status, reminder_halfway_sent_at, reminder_ending_sent_at")
+      .eq("status", "confirmed")
+      .not("paid_at", "is", null)
+      .or("reminder_halfway_sent_at.is.null,reminder_ending_sent_at.is.null")
+      .order("id").range(offset, offset + 499);
+    if (error) {
+      console.error("send-reminders: failed to load bookings");
+      return res.status(500).json({ error: "Failed to load bookings" });
+    }
+    bookings.push(...(data || []));
+    if (!data || data.length < 500) break;
   }
 
   const dueHalfway = [];
   const dueEnding = [];
 
+  let invalid = 0;
   for (const b of bookings || []) {
-    const { start, end } = getSessionWindow(b);
-    const startMs = start.getTime();
-    const endMs = end.getTime();
-    const nowMs = now.getTime();
-    if (nowMs < startMs || nowMs >= endMs) continue; // session hasn't started yet, or already ended
-
-    const halfway = startMs + (endMs - startMs) / 2;
-    const endingAt = endMs - ENDING_SOON_MINUTES * 60 * 1000;
-
-    // A late cron run or short session can cross both thresholds together.
-    // In the ending-soon window, send only the actionable final reminder.
-    if (!b.reminder_halfway_sent_at && nowMs >= halfway && nowMs < endingAt) dueHalfway.push({ ...b, end: endMs });
-    if (!b.reminder_ending_sent_at && nowMs >= endingAt) dueEnding.push({ ...b, end: endMs });
+    try {
+      const due = dueReminder(b, now.getTime());
+      if (due?.kind === "halfway") dueHalfway.push({ ...b, end: due.end });
+      if (due?.kind === "ending") dueEnding.push({ ...b, end: due.end });
+    } catch {
+      console.error("send-reminders: invalid session for booking", b.id);
+      invalid++;
+    }
   }
 
-  const results = { halfwaySent: 0, endingSent: 0, failed: 0 };
+  const results = { halfwaySent: 0, endingSent: 0, failed: invalid };
 
+  const deadline = Date.now() + 240_000;
   for (const b of dueHalfway) {
+    if (Date.now() >= deadline) break;
     try {
-      await sendReminder(b, "halfway");
-      results.halfwaySent++;
+      if (await sendReminder(b, "halfway")) results.halfwaySent++;
     } catch (err) {
-      console.error("send-reminders: halfway email failed for booking", b.id, err);
+      console.error("send-reminders: halfway email failed for booking", b.id, err.message);
       results.failed++;
     }
   }
 
   for (const b of dueEnding) {
+    if (Date.now() >= deadline) break;
     try {
-      await sendReminder(b, "ending");
-      results.endingSent++;
+      if (await sendReminder(b, "ending")) results.endingSent++;
     } catch (err) {
-      console.error("send-reminders: ending email failed for booking", b.id, err);
+      console.error("send-reminders: ending email failed for booking", b.id, err.message);
       results.failed++;
     }
   }
 
+  console.info("send-reminders: completed", JSON.stringify(results));
   return res.status(200).json(results);
 }
 
 async function sendReminder(booking, kind) {
-  const { data: listing } = await supabaseAdmin
+  const { data: listing, error: listingError } = await supabaseAdmin
     .from("listings")
     .select("title, address, spaces, spots, host_id")
     .eq("id", booking.listing_id)
     .single();
-  const { data: renter } = await supabaseAdmin
+  if (listingError || !listing) throw new Error("Reminder listing could not be loaded");
+  const { data: renter, error: renterError } = await supabaseAdmin
     .from("profiles")
     .select("name, email")
     .eq("id", booking.renter_id)
     .single();
-  if (!renter?.email) return;
+  if (renterError || !renter?.email) throw new Error("Reminder Driver email is missing");
 
   let hostEmail = null;
   let hostName = "your host";
   if (listing?.host_id) {
-    const { data: host } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
-    hostEmail = host?.email || null;
+    const { data: host, error: hostError } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
+    if (hostError || !host?.email) throw new Error("Reminder Host email is missing");
+    hostEmail = host.email;
     hostName = host?.name || hostName;
   }
 
@@ -204,11 +199,6 @@ async function sendReminder(booking, kind) {
     ? "Halfway through your parking session"
     : "Your parking session ends soon";
   const html = isHalfway ? halfwayReminderHtml(commonFields) : endingReminderHtml(commonFields);
-  const column = isHalfway ? "reminder_halfway_sent_at" : "reminder_ending_sent_at";
-
-  await sendEmail({ to: renter.email, cc: hostEmail || undefined, subject, html, attachments });
-
-  // Mark as sent immediately after a successful send so a later run in the
-  // same cron cycle (or an overlapping one) never sends it twice.
-  await supabaseAdmin.from("bookings").update({ [column]: new Date().toISOString() }).eq("id", booking.id);
+  return deliverReminder(supabaseAdmin, booking, kind,
+    { to: renter.email, cc: hostEmail || undefined, subject, html, attachments });
 }
