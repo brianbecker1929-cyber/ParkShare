@@ -5,7 +5,7 @@ import { jsonMethod, requireUser, supabaseAdmin } from "./_lib.js";
 import { privateBookingListing, canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
 
 const bookingColumns = [
-  "id","listing_id","renter_id","hours","total","status","paid_at",
+  "id","listing_id","renter_id","hours","total","status","paid_at","application_state",
   // Keep the canonical instant/zone through the privacy-safe projection:
   // omitting them makes both dashboards reinterpret Toronto local time as UTC.
   "booking_date","start_hour","scheduled_starts_at","property_time_zone",
@@ -40,7 +40,8 @@ export default async function handler(req, res) {
       const { data, error } = await supabaseAdmin.from("bookings").select(bookingColumns)
         .eq("renter_id", user.id).order("created_at", { ascending: false }).limit(250);
       if (error) throw error;
-      const rows = data || [];
+      // Rejected checkouts are financial audits in Transactions, not reservations.
+      const rows = (data || []).filter(b => b.application_state !== "rejected");
       const ids = [...new Set(rows.map(b => b.listing_id))];
       let listings = [];
       if (ids.length) {
@@ -85,7 +86,8 @@ export default async function handler(req, res) {
     ]);
     if (booked.error) throw booked.error;
     if (reviewed.error) throw reviewed.error;
-    const renterIds = [...new Set([...(booked.data || []).map(b => b.renter_id),
+    const reservationRows = (booked.data || []).filter(b => b.application_state !== "rejected");
+    const renterIds = [...new Set([...reservationRows.map(b => b.renter_id),
       ...(reviewed.data || []).map(r => r.user_id)].filter(Boolean))];
     let people = [];
     if (renterIds.length) {
@@ -95,7 +97,7 @@ export default async function handler(req, res) {
     }
     const names = new Map(people.map(p => [p.id, p.name]));
     const byId = new Map(listings.map(l => [Number(l.id), l]));
-    const bookings = (booked.data || []).map(b => publicBookingShape(
+    const bookings = reservationRows.map(b => publicBookingShape(
       b, byId.get(Number(b.listing_id)), names.get(b.renter_id) || "Driver", true,
     ));
     const reviews = (reviewed.data || []).map(r => ({
