@@ -94,6 +94,12 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     else if (table === "profiles") {
       const isHost = url.searchParams.get("id") === "eq.sample-host";
       result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
+    } else if (table === "settle_initial_booking_checkout") {
+      const request=JSON.parse(init.body);
+      assert.equal(request.p_hold_id,"hold_sample");
+      assert.equal(request.p_payment_reversed,false);
+      booking={...booking,...request.p_booking,id:42,application_state:"applied"};
+      return Response.json({applied:true,refund_required:false,booking});
     } else if (table === "apply_paid_booking_extension") {
       // Model the proposed Postgres RPC as an indivisible, idempotent
       // insert + duration update. No actual Supabase instance is modified.
@@ -125,7 +131,7 @@ test("all five delivered emails retain the booked vehicle and configured Spot B"
     const originalRetrieve = stripe.paymentIntents.retrieve;
     const originalChargeRetrieve = stripe.charges.retrieve;
     const originalRefundList = stripe.refunds.list;
-    stripe.charges.retrieve = async (id, params, options) => {assert.equal(options.stripeAccount,"acct_sample");return {id,payment_intent:"pi_ext_sample",currency:"cad",livemode:false,amount:500,amount_captured:500,amount_refunded:0,paid:true,captured:true,status:"succeeded"};};
+    stripe.charges.retrieve = async (id, params, options) => {assert.equal(options.stripeAccount,"acct_sample");const ext=id==="ch_ext";return {id,payment_intent:ext?"pi_ext_sample":"pi_booking_sample",currency:"cad",livemode:false,amount:ext?500:1235,amount_captured:ext?500:1235,amount_refunded:0,paid:true,captured:true,status:"succeeded"};};
     stripe.refunds.list = async () => ({data:[],has_more:false});
     stripe.paymentIntents.retrieve = async id => ({
       id, currency: "cad", status: "succeeded", livemode: false,

@@ -101,10 +101,11 @@ test("webhook reserves auto-refunds only for payment-integrity failures, not mis
   const booking = code.slice(code.indexOf("async function confirmBooking"), code.indexOf("async function confirmExtension"));
   const validatedAt = booking.indexOf("await validatedIntent(");
   const renterAt = booking.indexOf("requirePaidCheckoutReference({ data: renterProfile, error: renterError }");
-  const insertAt = booking.indexOf('.from("bookings")\n    .upsert(');
+  const insertAt = booking.indexOf('settleInitialBooking({');
   assert.ok(validatedAt < renterAt && renterAt < insertAt);
   assert.match(booking, /throw translatePaidBookingInsertError\(error\)/);
-  assert.match(booking, /error\.code === "23P01"/);
+  const settlementSql=await source("../supabase/migrations/20261021045013_initial_booking_refund_history.sql");
+  assert.match(settlementSql, /EXCEPTION WHEN exclusion_violation/);
   const ext = code.slice(code.indexOf("async function confirmExtension"), code.indexOf("async function sendExtensionConfirmedEmail"));
   assert.match(ext, /requirePaidCheckoutReference\(\{ data: booking, error: bookingError \}, "extension_parent_booking"\)/);
   const proc = code.slice(code.indexOf("async function processPaidCheckout"), code.indexOf("export default async function handler"));

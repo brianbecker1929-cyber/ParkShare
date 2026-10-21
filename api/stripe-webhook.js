@@ -4,8 +4,8 @@
 
 import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { stripe, supabaseAdmin, getSessionWindow } from "./_lib.js";
-import { isNewWebhookInsert } from "./_booking-rules.js";
 import { disputeReconciliation } from "./_refund-rules.js";
+import {settleInitialBooking,finishRejectedInitialBooking} from "./_initial-booking-payment.js";
 import { readExtensionPayment, rejectExtensionPayment, recoverRejectedExtensionRefund } from "./_extension-payment.js";
 import { reconcilePaymentRefund } from "./_refund-ledger.js";
 import { paymentReconciliationTarget, applyAccountScopedBookingReconciliation } from "./_refund-dispute-account-safety.js";
@@ -134,7 +134,7 @@ async function refundInvalidRegisteredCheckout(session, connectedAccountId, caus
   });
 }
 
-async function confirmBooking(session, connectedAccountId, hold) {
+async function confirmBooking(session, connectedAccountId, hold, event) {
   // NEVER use Stripe-provided metadata as a booking source of truth. A
   // Standard connected-account Host can create arbitrary paid sessions.
   const metadata = verifyBookingHoldSnapshot(hold);
@@ -218,45 +218,18 @@ async function confirmBooking(session, connectedAccountId, hold) {
     paid_at: new Date().toISOString(),
   };
 
-  // Upsert makes webhook retries safe. With ignoreDuplicates:true, Postgres
-  // does ON CONFLICT DO NOTHING — a retried/duplicate webhook returns no
-  // row here, which is exactly how we tell "genuinely new booking" (send
-  // the confirmation email) apart from "we already processed this" (don't).
-  const { data: inserted, error } = await supabaseAdmin
-    .from("bookings")
-    .upsert(row, { onConflict: "stripe_checkout_session_id", ignoreDuplicates: true })
-    .select("id, listing_id, renter_id, hours, total, spot_label, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, vehicle_type, vehicle_make, vehicle_model, vehicle_colour, license_plate");
-  if (error) {
-    // A hold should make this exceptionally rare, but a payment can complete
-    // at the exact expiry boundary. Never leave that customer charged without
-    // a booking: issue an idempotent automatic refund on a database conflict.
-    if (error.code === "23P01" && paymentIntentId && chargeAccountId) {
-      await stripe.refunds.create(
-        {
-          payment_intent: paymentIntentId,
-          reason: "requested_by_customer",
-          refund_application_fee: true,
-          metadata: { parkshare_reason: "booking_conflict", checkout_session_id: session.id },
-        },
-        { stripeAccount: chargeAccountId, idempotencyKey: `booking-conflict-${session.id}` }
-      );
-      await supabaseAdmin.from("booking_holds").delete().eq("id", hold.id).eq("stripe_checkout_session_id", session.id);
-      console.error("Automatically refunded conflicting paid checkout", session.id);
-      return;
-    }
+  let settlement;
+  try {
+    settlement=await settleInitialBooking({event,hold,row,stripe,db:supabaseAdmin,reconcile:reconcilePaymentRefund});
+  } catch(error) {
     throw translatePaidBookingInsertError(error);
   }
-
-  await supabaseAdmin.from("booking_holds").delete()
-    .eq("id", hold.id).eq("stripe_checkout_session_id", session.id);
-
-  if (isNewWebhookInsert(inserted)) {
-    await sendBookingConfirmationEmail(inserted[0]).catch(err => {
-      // Email failure should never fail the webhook / trigger a Stripe retry
-      // of the whole event — the booking itself is already confirmed.
+  if (settlement.applied) {
+    await sendBookingConfirmationEmail(settlement.booking).catch(err => {
       console.error("Failed to send booking confirmation email:", err);
     });
   }
+
 }
 
 // Only a server-created pending extension, registered under the actual
@@ -600,12 +573,17 @@ async function processPaidCheckout(session, connectedAccountId, event) {
   // Stripe can retry an already handled webhook after its short-lived hold
   // has been deleted. This check MUST precede the missing-hold rejection.
   const { data: existingBooking, error: bookedError } = await readCheckoutDb(
-    () => supabaseAdmin.from("bookings").select("id")
+    () => supabaseAdmin.from("bookings").select("id,application_state,checkout_rejection_reason,total,stripe_checkout_session_id,stripe_payment_intent_id,stripe_charge_id,stripe_connected_account_id")
       .eq("stripe_checkout_session_id", session.id).maybeSingle(),
     "booking_idempotency_lookup"
   );
   if (bookedError) throw bookedError;
-  if (existingBooking) return;
+  if (existingBooking) {
+    if(existingBooking.application_state === "rejected") {
+      await finishRejectedInitialBooking({event,booking:existingBooking,stripe,db:supabaseAdmin,reconcile:reconcilePaymentRefund});
+    }
+    return;
+  }
   const { data: existingExtension, error: extendedError } = await readCheckoutDb(
     () => supabaseAdmin.from("booking_extensions").select("id, application_state")
       .eq("stripe_checkout_session_id", session.id).maybeSingle(),
@@ -645,8 +623,9 @@ async function processPaidCheckout(session, connectedAccountId, event) {
   );
   if (holdError) throw holdError;
   if (hold) {
+    if(hold.expected_connected_account_id !== connectedAccountId)throw new Error("Registered checkout account mismatch");
     try {
-      await confirmBooking(session, connectedAccountId, hold);
+      await confirmBooking(session, connectedAccountId, hold, event);
     } catch (error) {
       if (!(error instanceof CheckoutIntegrityError)) throw error;
       await refundInvalidRegisteredCheckout(session, connectedAccountId, error);
