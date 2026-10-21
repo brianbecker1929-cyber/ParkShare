@@ -4004,14 +4004,19 @@ function HostDashboard({ user, setTab }) {
 
   const myListings = dbListings;
   // Only future and currently active reservations belong in this card.
-  // Completed/cancelled bookings remain included in lifetime statistics and
-  // transactions, but must never be presented to the host as upcoming work.
-  const upcomingBookings = dbBookings
+  // Completed/cancelled reservations stay findable in history, while only
+  // current reservations contribute to the Upcoming count.
+  const bookingsWithStatus = dbBookings
     .map(booking => ({
       ...booking,
       displayStatus: getBookingDisplayStatus(booking.status, booking.bookingStart, booking.bookingEnd, currentTime),
-    }))
+    }));
+  const upcomingBookings = bookingsWithStatus
     .filter(booking => booking.displayStatus === "Upcoming" || booking.displayStatus === "Active" || booking.displayStatus === "Cancellation pending");
+  const bookingHistory = bookingsWithStatus
+    .filter(booking => booking.displayStatus === "Completed" || booking.displayStatus === "Cancelled");
+  const [bookingView, setBookingView] = useState("upcoming");
+  const visibleBookings = bookingView === "history" ? bookingHistory : upcomingBookings;
   const [showAllListings, setShowAllListings] = useState(false);
   const [showAllBookings, setShowAllBookings] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
@@ -4048,6 +4053,10 @@ function HostDashboard({ user, setTab }) {
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const avgRating = hostReviews.length ? (hostReviews.reduce((sum, review) => sum + review.rating, 0) / hostReviews.length).toFixed(1) : "—";
   const scrollToDashboardSection = sectionId => {
+    if (sectionId === "host-dashboard-upcoming") {
+      setBookingView("upcoming");
+      setShowAllBookings(false);
+    }
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -4089,30 +4098,38 @@ function HostDashboard({ user, setTab }) {
           ))}
         </div>
 
-        {/* Upcoming Bookings */}
+        {/* Current reservations and retained booking history */}
         <div id="host-dashboard-upcoming" className="host-dashboard-panel host-dashboard-upcoming" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
-          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>📅 Upcoming bookings</div>
-            {upcomingBookings.length > 3 && (
-              <button onClick={() => setShowAllBookings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllBookings ? "Show less" : `View all ${upcomingBookings.length}`}</button>
-            )}
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>{bookingView === "history" ? "📅 Booking history" : "📅 Upcoming bookings"}</div>
+            <button type="button" disabled={hostLoading} onClick={() => setDashboardReload(value => value + 1)} style={{ minHeight: 44, border: "none", background: "none", color: C.navy, fontSize: 10, fontWeight: 700, cursor: hostLoading ? "default" : "pointer" }}>Refresh bookings</button>
           </div>
+          <div role="group" aria-label="Booking view" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "10px 15px" }}>
+            {[{ id: "upcoming", label: "Upcoming" }, { id: "history", label: "Booking history" }].map(view => (
+              <button type="button" key={view.id} aria-pressed={bookingView === view.id} onClick={() => { setBookingView(view.id); setShowAllBookings(false); }} style={{ minHeight: 44, border: "1px solid " + C.concrete, borderRadius: 9, background: bookingView === view.id ? C.navy : C.white, color: bookingView === view.id ? C.white : C.navy, padding: "8px 12px", fontFamily: "inherit", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{view.label}</button>
+            ))}
+          </div>
+          {bookingView === "history" && <p style={{ fontSize: 11, color: C.muted, padding: "0 15px", margin: "0 0 10px" }}>Recent completed and cancelled bookings.{setTab && <> <button type="button" onClick={() => setTab("Transactions")} style={{ minHeight: 44, border: "none", background: "none", padding: 0, color: C.navy, fontFamily: "inherit", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>View charges and refunds in Transactions →</button></>}</p>}
+          {!hostLoading && !hostError && visibleBookings.length > 3 && (
+              <button type="button" onClick={() => setShowAllBookings(v => !v)} style={{ minHeight: 44, border: "none", background: "none", color: C.navy, padding: "4px 15px", fontSize: 10, fontWeight: 700, cursor: "pointer", alignSelf: "flex-end" }}>{showAllBookings ? "Show less" : `View all ${visibleBookings.length}`}</button>
+            )}
           {cancelNotice && <div role="status" style={{ fontSize: 10, color: C.moss, padding: "9px 15px 0" }}>{cancelNotice}</div>}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {!hostLoading && !hostError && upcomingBookings.length === 0 && (
-              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No upcoming bookings.</div>
+            {!hostLoading && !hostError && visibleBookings.length === 0 && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>{bookingView === "history" ? "No completed or cancelled bookings yet." : "No upcoming bookings."}</div>
             )}
-            {upcomingBookings.slice(0, showAllBookings ? upcomingBookings.length : 3).map(b => (
+            {!hostLoading && !hostError && visibleBookings.slice(0, showAllBookings ? visibleBookings.length : 3).map(b => (
               <div key={b.id} className="host-dashboard-booking-row" style={{ padding: "13px 15px", borderBottom: "1px solid "+C.concrete }}>
                 <div className="host-dashboard-booking-heading">
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
                     <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>Reservation #PK-{b.rawId}</div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
                     <div>
-                      <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.displayStatus}</div>
-                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)} CAD</div>
+                      <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: b.displayStatus === "Cancelled" ? C.redLight : C.mossLight, color: b.displayStatus === "Cancelled" ? C.red : C.moss }}>{b.displayStatus}</div>
+                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{bookingView === "history" && <span style={{ display: "block", fontSize: 9, fontWeight: 400 }}>Booking total</span>}{money(b.total)} CAD</div>
                       {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
                     </div>
                     {b.canCancel && b.displayStatus === "Upcoming" && (
