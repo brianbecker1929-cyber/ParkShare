@@ -2116,12 +2116,13 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
+          <div className="ps-booking-reserve-row" style={{ paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
               <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
             </div>
             <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
+          </div>
           {!user && (
             <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
               Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
@@ -2132,7 +2133,6 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
             </div>
           )}
 
-          </div>
         </div>
       )}
 {showCalendar && (
