@@ -18,7 +18,7 @@ test("selected booking bay removes only Your spot, leaving Spot label visible", 
   assert.match(picker, /gridTemplateRows: isChosen \? "min-content minmax\(0, 1fr\)"/);
   assert.match(picker, /display: isChosen \? "grid" : "flex"/);
   assert.match(picker, /\{!isChosen && \(/, "Keep available and not-for-rent labels for other bays");
-  assert.match(picker, /isAvailable \? "Available" : !hostEnabled \? "Not for rent"/);
+  assert.match(picker, /listingSpotStatusText\(\{ isAvailable, hostEnabled, isRealListing, availableData, label: l \}\)/);
   assert.match(picker, /const isAvailable = canChooseListingSpot\(/);
   assert.match(picker, /isChosen && hasDrivewayVehicle\(vehicle\)/);
   assert.match(picker, /<DrivewayCarVisual vehicle=\{vehicle\} \/>/);

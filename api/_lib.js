@@ -215,7 +215,7 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
 //
 // Returns e.g. { A: true, B: false, C: true, D: true } — true means that
 // letter has no conflicting confirmed booking for this window.
-export async function checkAllSpotAvailability(listingId, labels, start, end) {
+export async function checkAllSpotAvailability(listingId, labels, start, end, { includeStates = false } = {}) {
   const wantedLabels = labels.map((l) => String(l).trim().toUpperCase());
 
   const { data: bookings, error } = await supabaseAdmin
@@ -228,7 +228,7 @@ export async function checkAllSpotAvailability(listingId, labels, start, end) {
 
   const { data: holds, error: holdsError } = await supabaseAdmin
     .from("booking_holds")
-    .select("spot_label")
+    .select("spot_label, expires_at")
     .eq("listing_id", listingId)
     .gt("expires_at", new Date().toISOString())
     .lt("starts_at", end.toISOString())
@@ -242,14 +242,20 @@ export async function checkAllSpotAvailability(listingId, labels, start, end) {
   const takenLabels = new Set(
     overlapping.map((b) => String(b.spot_label || "").trim().toUpperCase()).filter(Boolean)
   );
+  const bookedLabels = new Set(takenLabels);
+  const heldLabels = new Set();
   for (const hold of holds || []) {
     const heldLabel = String(hold.spot_label || "").trim().toUpperCase();
-    if (heldLabel) takenLabels.add(heldLabel);
+    if (heldLabel) { takenLabels.add(heldLabel); heldLabels.add(heldLabel); }
   }
 
   const status = {};
   for (const label of wantedLabels) {
     status[label] = !takenLabels.has(label);
   }
-  return status;
+  if (!includeStates) return status;
+  const spotState = Object.fromEntries(wantedLabels.map(label => [label,
+    bookedLabels.has(label) ? "booked" : heldLabels.has(label) ? "held" : "available",
+  ]));
+  return { spotStatus: status, spotState };
 }

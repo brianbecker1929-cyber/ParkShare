@@ -252,7 +252,7 @@ export default async function handler(req, res) {
         },
         metadata,
         success_url: `${origin}/?booking_success=1&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${origin}/?booking_cancelled=1`,
+        cancel_url: `${origin}/?booking_cancelled=1&checkout_hold=${encodeURIComponent(holdId)}`,
         expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
       },
       { stripeAccount: stripeAccountId }
