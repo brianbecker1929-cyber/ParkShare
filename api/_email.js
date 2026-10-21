@@ -20,6 +20,7 @@ import hostBookingTemplate from "./emails/templates/_host-booking.template.js";
 import endingReminderTemplate from "./emails/templates/_reminder-ending.template.js";
 import halfwayReminderTemplate from "./emails/templates/_reminder-halfway.template.js";
 import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.template.js";
+import refundConfirmedTemplate from "./emails/templates/_refund-confirmed.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
@@ -214,4 +215,31 @@ export function endingReminderHtml(args) {
 }
 export function extensionConfirmedHtml(args) {
   return renderEnvironmentEmail(extensionConfirmedTemplate, driverTicketFields(args));
+}
+
+export function refundConfirmedHtml(args) {
+  const e = escapeBookingHtml;
+  const host = args.audience === "host";
+  const amount = `$${(args.amountCents / 100).toFixed(2)}`;
+  return renderEnvironmentEmail(refundConfirmedTemplate, {
+    BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
+    PORTRAIT_URL: e(portraitUrl(args, host)),
+    PORTRAIT_ALT: host ? "William supporting ParkShare Hosts" : "Parker supporting ParkShare Drivers",
+    RECIPIENT_NAME: e(args.recipientName || (host ? "Host" : "Driver")),
+    REFUND_AMOUNT: e(amount), REFUND_REFERENCE: e(args.refundId),
+    BOOKING_NUMBER: e(`PK-${args.bookingId}`),
+    PROPERTY_ADDRESS: e(args.address || "Parking address unavailable"),
+    SPOT_LABEL: e(/^[A-H]$/.test(args.spotLabel || "") ? `Spot ${args.spotLabel}` : "Spot not specified"),
+    VEHICLE_DETAILS: e(args.vehicleDetails || "Vehicle not specified"),
+    SESSION_START: e(args.sessionStart), SESSION_END: e(args.sessionEnd), TIME_ZONE_LABEL: e(args.timeZoneLabel),
+    REFUND_MESSAGE: e(host
+      ? `Stripe has confirmed a ${amount} CAD refund to the Driver for ${args.extension ? "an extension payment on" : "the original payment for"} this booking.`
+      : `Stripe has confirmed your ${amount} CAD refund for ${args.extension ? "an extension payment on" : "the original payment for"} this booking.`),
+    BOOKING_OUTCOME: e(args.bookingOutcome),
+    PAYMENT_NOTE: e(host
+      ? "The amount above is the customer refund, not a Host payout statement. Other charges are separate. Check Transactions for the reconciled earnings."
+      : "The refund is returning to the original payment method. Your bank determines when it appears. This receipt covers only the refund above; other charges, including paid extensions, are separate."),
+    BOOKING_URL: host ? "https://www.myparkshare.ca/host-dashboard" : "https://www.myparkshare.ca/my-bookings",
+    SUPPORT_EMAIL: e(args.supportEmail),
+  });
 }
