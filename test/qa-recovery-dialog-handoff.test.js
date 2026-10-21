@@ -55,11 +55,11 @@ function elements(tree,predicate,out=[]){if(!tree||typeof tree!=='object')return
 
 function appHarness({messageBookingId=null,extendBookingId=null,update=async()=>({data:{user:{id:'B'}},error:null})}={}){
  const listeners=new Set();
- let current,parentResult,children=[],closedMessage=0,closedExtension=0;
+ let current,parentResult,children=[],closedMessage=0,closedExtension=0,latestSession=null;
  const authCalls=[],published=[],tasks=[];
  const hooks={useState:initial=>{const i=current.cursor++,r=current;if(!(i in r.slots))r.slots[i]={value:typeof initial==='function'?initial():initial};return [r.slots[i].value,v=>{r.writes++;const next=typeof v==='function'?v(r.slots[i].value):v;if(next!==r.slots[i].value){r.slots[i].value=next;r.dirty=true;}}];},useRef:initial=>{const i=current.cursor++;return current.slots[i]||(current.slots[i]={current:initial});},useEffect:(fn,deps)=>{const i=current.cursor++,r=current,old=r.slots[i];if(!old||deps.some((v,n)=>v!==old.deps[n])){r.slots[i]={deps,cleanup:old?.cleanup};r.effects.push(()=>{r.slots[i].cleanup?.();r.slots[i].cleanup=fn();});}}};
  const SignInModal=()=>null,ExtendSessionModal=()=>null;
- const supabase={auth:{onAuthStateChange:fn=>{listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},updateUser:async value=>{authCalls.push(value);return update();}}};
+ const supabase={auth:{onAuthStateChange:fn=>{listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},getSession:async()=>({data:{session:latestSession}}),updateUser:async value=>{authCalls.push(value);return update();}},from:table=>{assert.equal(table,'profiles');return {select:()=>({eq:(_key,id)=>({single:async()=>({data:{id,name:'Fixture '+id,role:'driver'}})})})};}};
  const values={React,...hooks,supabase,RECOVERY_SESSION_CHANGED,updateRecoveryPasswordForAccount:async({password})=>{authCalls.push({password});return update();},createAuthSessionSynchronizer:options=>createAuthSessionSynchronizer({...options,defer:fn=>tasks.push(fn)}),buildAppUser:p=>p,SignInModal,ExtendSessionModal,handleAuth:u=>published.push(u),closeEmailListing:()=>closedMessage++,setExtendBookingId:()=>closedExtension++,isExtensionContextCurrent:()=>true,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}}};
  const Parent=new Function(...Object.keys(values),parentCode+';return Parent;')(...Object.values(values));
  const Modal=new Function(...Object.keys(values),modalCode+';return SignInModal;')(...Object.values(values));
@@ -71,7 +71,7 @@ function appHarness({messageBookingId=null,extendBookingId=null,update=async()=>
  const find=predicate=>{const node=elements(render()[0]?.tree,predicate)[0];assert.ok(node,'control exists');return node;};
  const input=(id,value)=>find(n=>n.type==='input'&&n.props.id===id).props.onChange({target:{value}});
  render();
- return {render,find,input,authCalls,published,tasks,emit:(event,id)=>{for(const fn of [...listeners])fn(event,id?session(id):null);},open:()=>{parentResult.open();render();},setUser:user=>{parentResult.setUser(user);render();},stop:()=>{stop(root);for(const c of children)stop(c.runtime);},get child(){return children[0];},get user(){return parentResult.user;},get closedMessage(){return closedMessage;},get closedExtension(){return closedExtension;},get text(){return JSON.stringify(render().map(c=>c.tree));}};
+ return {render,find,input,authCalls,published,tasks,emit:(event,id)=>{latestSession=id?session(id):null;for(const fn of [...listeners])fn(event,latestSession);},open:()=>{parentResult.open();render();},setUser:user=>{parentResult.setUser(user);render();},stop:()=>{stop(root);for(const c of children)stop(c.runtime);},get child(){return children[0];},get user(){return parentResult.user;},get closedMessage(){return closedMessage;},get closedExtension(){return closedExtension;},get text(){return JSON.stringify(render().map(c=>c.tree));}};
 }
 
 test('recovery replaces an already-open sign-in dialog with a fresh password form',()=>{
@@ -100,4 +100,11 @@ test('closing recovery resets the next primary dialog to landing',()=>{
 });
 test('App recovery clears the previous displayed account before showing the password form',()=>{
  const h=appHarness();h.setUser({id:'A',role:'host'});h.emit('PASSWORD_RECOVERY','B');h.render();assert.equal(h.user,null);assert.equal(h.child.element.props.initialScreen,'recovery');h.stop();
+});
+test('normal recovery completion rehydrates only the current account through the restarted profile synchronizer',async()=>{
+ const h=appHarness();h.emit('PASSWORD_RECOVERY','B');h.render();h.input('ps-recovery-password','synthetic password');h.input('ps-recovery-confirm-password','synthetic password');
+ await h.find(n=>n.type==='form').props.onSubmit({preventDefault(){}});h.render();assert.match(h.text,/Your password has been updated/);assert.equal(h.authCalls.length,1);assert.equal(h.published.length,0);
+ // The real SDK emits INITIAL_SESSION for the new subscription. Drive that
+ // event and execute the actual deferred session/profile/session reads.
+ h.emit('INITIAL_SESSION','B');while(h.tasks.length)await h.tasks.shift()();h.render();assert.equal(h.user.id,'B');assert.equal(h.user.role,'driver');h.stop();
 });
