@@ -5,6 +5,7 @@ import { transform } from "esbuild";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { listingSpotStatusText } from "../src/lib/spotAvailability.js";
+import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
 
 const source = await readFile(process.env.QA_ABANDONED_APP_SOURCE || new URL("../src/App.jsx", import.meta.url), "utf8");
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
@@ -99,8 +100,8 @@ test("missing or failed acknowledgments keep cancellation unconfirmed and allow 
 test("actual bay markup labels a hold separately and never displays an old selected vehicle over a held bay", async () => {
   const start = source.indexOf("function SpotPicker("), end = source.indexOf("// Read-only booking view", start);
   const code = await transform(source.slice(start, end), { loader: "jsx" });
-  const Picker = new Function("React", "C", "DrivewayFrame", "canChooseListingSpot", "listingSpotStatusText", "hasDrivewayVehicle", "DrivewayCarVisual", code.code + ";return SpotPicker;")(
-    React, {}, ({ children }) => React.createElement("div", null, children), ({ label, availableData }) => availableData.spotStatus[label], listingSpotStatusText, () => true, () => React.createElement("span", null, "SELECTED VEHICLE"));
+  const Picker = new Function("React", "C", "DrivewayFrame", "canChooseListingSpot", "listingSpotStatusText", "hasDrivewayVehicle", "DrivewayCarVisual", "getListingSpotLayout", code.code + ";return SpotPicker;")(
+    React, {}, ({ children }) => React.createElement("div", null, children), ({ label, availableData }) => availableData.spotStatus[label], listingSpotStatusText, () => true, () => React.createElement("span", null, "SELECTED VEHICLE"), getListingSpotLayout);
   const html = renderToStaticMarkup(React.createElement(Picker, { availableCount: 2, chosen: 0, isRealListing: true,
     availableData: { available: true, spotStatus: { A: false, B: true }, spotState: { A: "held", B: "available" } } }));
   assert.match(html, /Checkout in progress/); assert.match(html, /up to 30 minutes/);

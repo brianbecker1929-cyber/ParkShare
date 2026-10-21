@@ -175,3 +175,27 @@ test("only a well-formed initial cancellation reference can request cleanup", as
   const source = await readFile(new URL("../api/create-checkout-session.js", import.meta.url), "utf8");
   assert.match(source, /cancel_url:.*booking_cancelled=1&checkout_hold=\$\{encodeURIComponent\(holdId\)\}/);
 });
+
+test("BUG-005250 availability returns the same real bay labels as the picker for one through eight bays", async () => {
+  tables.booking_holds = [];
+  for (const count of [1, 2, 3, 4, 6, 8]) {
+    for (const configured of [false, true]) {
+      Object.assign(tables.listings[0], { spaces: count, spots: configured ? Array.from({length:count}, () => ({forRent:true})) : [] });
+      const res = result(); await availability({method:"GET",query:{listingId:"7",hours:"1"}},res);
+      assert.equal(res.statusCode,200); assert.deepEqual(Object.keys(res.body.spotStatus),Array.from({length:count},(_,i)=>String.fromCharCode(65+i)));
+    }
+  }
+});
+test("BUG-005250 private physical gaps do not renumber later rentable bays in availability", async () => {
+  tables.booking_holds = [];
+  Object.assign(tables.listings[0], { spaces:3, spots:[false,true,false,false,true,false,false,true].map(forRent=>({forRent})) });
+  const res=result(); await availability({method:"GET",query:{listingId:"7",hours:"1"}},res);
+  assert.equal(res.statusCode,200); assert.deepEqual(res.body.spotStatus,{B:true,E:true,H:true});
+});
+test("BUG-005251 a full current four-bay window does not block a free future property-local slot", async () => {
+  tables.booking_holds=[]; Object.assign(tables.listings[0],{spaces:4,spots:Array.from({length:4},()=>({forRent:true}))});
+  tables.bookings=Array.from({length:4},(_,i)=>({id:i+1,listing_id:7,status:"confirmed",hours:1,paid_at:new Date(NOW).toISOString(),spot_label:String.fromCharCode(65+i)}));
+  const current=result(); await availability({method:"GET",query:{listingId:"7",hours:"1"}},current);assert.equal(current.body.available,false);
+  const future=result(); await availability({method:"GET",query:{listingId:"7",hours:"1",bookingDate:"2030-10-22",startHour:"9"}},future);
+  assert.equal(future.statusCode,200);assert.equal(future.body.available,true);assert.equal(future.body.spacesFree,4);assert.deepEqual(future.body.spotStatus,{A:true,B:true,C:true,D:true});assert.equal(tables.bookings.length,4);
+});

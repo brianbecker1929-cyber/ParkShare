@@ -8,16 +8,7 @@ import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod,
 import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
 import { resolveLocalBookingStart } from "./_booking-local-time.js";
 import { isValidBookingDuration } from "./_booking-rules.js";
-
-function rentableSpotLabels(listing) {
-  if (Array.isArray(listing.spots) && listing.spots.length > 0) {
-    return listing.spots
-      .map((spot, index) => spot?.forRent ? String.fromCharCode(65 + index) : null)
-      .filter(Boolean);
-  }
-  const count = Math.max(1, Math.min(8, Number(listing.spaces) || 1));
-  return Array.from({ length: count }, (_, index) => String.fromCharCode(65 + index));
-}
+import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
 
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
@@ -71,7 +62,7 @@ export default async function handler(req, res) {
       hours,
     });
 
-    const labels = rentableSpotLabels(listing);
+    const labels = getListingSpotLayout(listing).filter(spot => spot.forRent).map(spot => spot.label);
     const hostScheduleOpen = isListingAvailableForWindow(listing.availability, start, end, listing.time_zone);
     if (!hostScheduleOpen) {
       const spotStatus = Object.fromEntries(labels.map(label => [label, false]));
