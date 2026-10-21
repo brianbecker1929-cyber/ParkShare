@@ -9756,4 +9756,6 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-booking-vehicle-form-actions button:disabled { opacity: .6; cursor: wait; }
 .ps-booking-vehicle-form .ps-booking-vehicle-error { margin-top: 12px; color: #C53030; }
 .ps-booking-vehicle-edit { margin-top: 12px; }
+.ps-booking-reserve-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.ps-booking-reserve-row > button { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 420px) { .ps-booking-vehicle-form .ps-profile-vehicle-fields { grid-template-columns: minmax(0,1fr); } }
