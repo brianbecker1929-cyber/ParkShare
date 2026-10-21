@@ -54,5 +54,5 @@ test('Driver spending displays cumulative settled and pending refunds beneath th
  // with the authenticated transactions endpoint tested separately.
  const View=factory(React,()=>['spent',()=>{}],()=>({data:{spent:[{id:'booking-1',description:'Synthetic payment',date:'2026-10-19T12:00:00Z',status:'refund_pending',amount:115,refundedAmount:46,refundPendingAmount:11.5}],earned:[],payouts:[]},loading:false,error:''}),{},
   amount=>'$'+Number(amount).toFixed(2),({children})=>React.createElement('span',null,children),status=>({label:status}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution);
- const html=renderToStaticMarkup(React.createElement(View,{user:{role:'driver'}}));assert.match(html,/\$115.00/);assert.match(html,/\$46.00 refunded/);assert.match(html,/\$11.50.*refund pending/);
+ const html=renderToStaticMarkup(React.createElement(View,{user:{role:'driver'}}));assert.match(html,/\$115.00 CAD/);assert.match(html,/\$46.00.*CAD refunded/);assert.match(html,/\$11.50.*CAD refund pending/);assert.doesNotMatch(html,/CAD CAD/);assert.match(html,/Booking charges \(CAD\)/);assert.match(html,/earlier checkout converted by Stripe/);
 });

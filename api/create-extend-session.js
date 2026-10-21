@@ -1,3 +1,4 @@
+import {CAD_CHECKOUT_API_VERSION, requireCadCheckout} from "./_checkout-currency.js";
 // POST /api/create-extend-session
 // Extends an in-progress booking through Stripe Checkout.
 
@@ -91,6 +92,7 @@ export default async function handler(req, res) {
       const origin = getOrigin(req);
       session = await stripe.checkout.sessions.create({
       mode: "payment",
+        adaptive_pricing: { enabled: false },
       payment_method_types: ["card"],
       customer_email: user.email || undefined,
       line_items: [
@@ -102,7 +104,8 @@ export default async function handler(req, res) {
       success_url: `${origin}/?extension_success=1`,
       cancel_url: `${origin}/?extension_cancelled=1&extend_booking=${booking.id}`,
       expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
-    }, { stripeAccount: host.stripe_account_id });
+    }, { stripeAccount: host.stripe_account_id, apiVersion: CAD_CHECKOUT_API_VERSION });
+      requireCadCheckout(session, totalCents);
 
       // Bind trusted hold evidence to the exact Stripe Checkout session.
       // A paid webhook will reject a missing/mismatched hold before changing

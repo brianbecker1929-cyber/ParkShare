@@ -45,7 +45,7 @@ before(async()=>{
  });
  lib=await import('../api/_lib.js');
  mock.method(lib.stripe.accounts,'retrieve',async()=>({charges_enabled:true}));
- mock.method(lib.stripe.checkout.sessions,'create',async(...args)=>{charges.push(args);return {id:'cs_extension_fixture',url:'https://checkout.stripe.invalid/synthetic'};});
+ mock.method(lib.stripe.checkout.sessions,'create',async(...args)=>{charges.push(args);return {id:'cs_extension_fixture',url:'https://checkout.stripe.invalid/synthetic',currency:'cad',amount_total:690,adaptive_pricing:{enabled:false}};});
  mock.method(lib.stripe.checkout.sessions,'expire',async()=>{throw Error('no expiration expected');});
  ({default:extend}=await import('../api/create-extend-session.js'));({default:review}=await import('../api/reviews.js'));
 });
