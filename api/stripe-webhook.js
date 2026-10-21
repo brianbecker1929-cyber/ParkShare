@@ -352,9 +352,14 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
   if (!renter?.email) return;
 
   let hostName = "your host";
+  let hostEmail;
   if (listing?.host_id) {
-    const { data: host } = await supabaseAdmin.from("profiles").select("name").eq("id", listing.host_id).single();
+    const { data: host } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
     hostName = host?.name || hostName;
+    // Copy the listing's Host, never an address supplied in checkout metadata.
+    // Avoid adding the same mailbox twice when the Host is also the Driver.
+    const email = host?.email?.trim();
+    if (email && email.toLowerCase() !== renter.email.trim().toLowerCase()) hostEmail = email;
   }
 
   // booking.hours already reflects this extension (confirmExtension() above
@@ -406,6 +411,7 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
 
   await sendEmail({
     to: renter.email,
+    cc: hostEmail,
     subject: `Extension confirmed — +${addedTimeStr} added`,
     html: extensionConfirmedHtml({
       logoCid,

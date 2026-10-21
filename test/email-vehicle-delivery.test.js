@@ -181,7 +181,14 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
       await webhook(req, res);
       assert.equal(res.code, 200);
     }
-    await deliver({ type: "extension", booking_id: "42", added_hours: "1", total_cents: "500" }, "cs_ext_sample", 500, "pi_ext_sample");
+    const extensionMetadata = { type: "extension", booking_id: "42", added_hours: "1", total_cents: "500", host_email: "untrusted@example.invalid" };
+    await deliver(extensionMetadata, "cs_ext_sample", 500, "pi_ext_sample");
+    assert.deepEqual(sent[2].to, ["driver@example.invalid"]);
+    assert.deepEqual(sent[2].cc, ["host@example.invalid"], "Copy the actual listing Host on the paid extension confirmation");
+    assert.equal(booking.hours, 2);
+    await deliver(extensionMetadata, "cs_ext_sample", 500, "pi_ext_sample");
+    assert.equal(sent.length, 3, "A replay cannot send another Driver/Host extension email");
+    assert.equal(booking.hours, 2, "A replay cannot apply the extension twice");
     await deliver({ listing_id: "7", renter_id: "sample-renter", hours: "1", total_cents: "1235",
       subtotal_cents: "1000", service_fee_cents: "235",
       spot_label: chosenLabel, vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
