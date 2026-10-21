@@ -21,6 +21,10 @@
     {
       "path": "/api/send-reminders",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/send-refund-notifications",
+      "schedule": "* * * * *"
     }
   ],
   "functions": {
@@ -31,6 +35,9 @@
       "includeFiles": "node_modules/geo-tz/data/timezones.geojson.*"
     },
     "api/send-reminders.js": {
+      "maxDuration": 300
+    },
+    "api/send-refund-notifications.js": {
       "maxDuration": 300
     }
   }
