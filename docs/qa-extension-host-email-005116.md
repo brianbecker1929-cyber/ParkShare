@@ -20,3 +20,9 @@ On QA, extend a fresh paid active booking by one hour. Confirm the extension sta
 If the same paid event is replayed in the Stripe test environment, it must not add time or send a duplicate notification. Failed/refunded extension attempts must not receive a success confirmation. Existing historical extensions are not resent by this deployment.
 
 Live inbox delivery remains a BetterQA acceptance check. The existing non-blocking email failure handling is retained; this change does not introduce a new notification queue.
+
+## Release verification probe
+
+Live verification also reproduced `remindersReady: false` on both the previous and initial new deployment. The schema and service-role SELECT privilege were valid. QA held 20 reminder delivery rows with approximately 70 MB of stored payloads, while the readiness endpoint used an unbounded HEAD query selecting those payloads. HEAD omits the response body but does not remove the underlying query work.
+
+The reminder/refund outbox readiness queries now request zero rows. This still validates the named columns and table permissions without aggregating stored emails or attachments. The checks still return 503 for missing/inaccessible tables or database failures. The installed Supabase client regression exercises the actual readiness handler and verifies both bounded requests and these failure cases. Delivery records, reminder jobs and database schema are unchanged.

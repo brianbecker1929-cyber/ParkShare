@@ -18,10 +18,12 @@ export default async function handler(req, res) {
   checks.schemaReady = !error;
   const cleanupSchema = await supabaseAdmin.from("listing_photo_cleanup").select("object_path", {head:true});
   checks.photoCleanupReady = !cleanupSchema.error && Boolean(process.env.CRON_SECRET);
-  const reminders = await supabaseAdmin.from("booking_reminder_deliveries").select("id,payload,lease_until,provider_id,sent_at", {head:true});
-  checks.remindersReady = !reminders.error && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
-  const refundEmails = await supabaseAdmin.from("refund_email_deliveries").select("id,payload,sent_at,blocked_at", {head:true});
-  checks.refundNotificationsReady = !refundEmails.error && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
+  // Probe schema/permissions without aggregating archived HTML/CID payloads.
+  // HEAD suppresses the response body but an unbounded data query still runs.
+  const reminders = await supabaseAdmin.from("booking_reminder_deliveries").select("id,payload,lease_until,provider_id,sent_at", {head:true}).limit(0);
+  checks.remindersReady = !reminders.error && (reminders.status === 200 || reminders.status === 206) && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
+  const refundEmails = await supabaseAdmin.from("refund_email_deliveries").select("id,payload,sent_at,blocked_at", {head:true}).limit(0);
+  checks.refundNotificationsReady = !refundEmails.error && (refundEmails.status === 200 || refundEmails.status === 206) && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
   const ledgerSchema = await supabaseAdmin.from("payment_refunds").select("refund_id", {head:true});
   const bookingLedger = await supabaseAdmin.from("bookings").select("refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
   const extensionLedger = await supabaseAdmin.from("booking_extensions").select("application_state,refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
