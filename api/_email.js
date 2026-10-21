@@ -245,7 +245,8 @@ export function refundConfirmedHtml(args) {
     PAYMENT_NOTE: e(host
       ? "The amount above is the customer refund, not a Host payout statement. Other charges are separate. Check Transactions for the reconciled earnings."
       : "The refund is returning to the original payment method. Your bank determines when it appears. This receipt covers only the refund above; other charges, including paid extensions, are separate."),
-    BOOKING_URL: host ? "https://www.myparkshare.ca/host-dashboard" : "https://www.myparkshare.ca/my-bookings",
+    BOOKING_URL: args.rejected ? "https://www.myparkshare.ca/transactions" : host ? "https://www.myparkshare.ca/host-dashboard" : "https://www.myparkshare.ca/my-bookings",
+    BOOKING_ACTION_LABEL: args.rejected ? "View Transactions" : "View Booking",
     SUPPORT_EMAIL: e(args.supportEmail),
   });
 }

@@ -1,7 +1,7 @@
 // Synthetic, disposable database only; invoked after the captured schema restore.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export const initialBookingMigration=new URL('../supabase/migrations/20261021045013_initial_booking_refund_history.sql',import.meta.url);
+export const initialBookingMigration=new URL('../supabase/migrations/20261021210715_initial_booking_refund_history.sql',import.meta.url);
 export const HOST='00000000-0000-4000-8000-000000005271',DRIVER='00000000-0000-4000-8000-000000005272';
 export async function seedInitialBooking(db){
  await db.query(`insert into auth.users(id,email,raw_user_meta_data) values($1,'initial-host@example.invalid','{"role":"host"}'),($2,'initial-driver@example.invalid','{"role":"driver"}')`,[HOST,DRIVER]);

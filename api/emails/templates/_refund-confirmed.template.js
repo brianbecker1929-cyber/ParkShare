@@ -21,7 +21,7 @@ ${bookingHeaderTemplate('refund')}
 <p style="font-size:13px;line-height:21px;"><strong>Reservation times:</strong><br>[SESSION_START] – [SESSION_END]<br>[TIME_ZONE_LABEL]</p>
 <p style="padding:12px;background:#fff8e1;border:1px solid #eadcb6;font-size:14px;line-height:21px;">[BOOKING_OUTCOME]</p>
 <p style="font-size:13px;line-height:21px;">[PAYMENT_NOTE]</p>
-<p style="margin:20px 0;"><a href="[BOOKING_URL]" style="display:inline-block;padding:12px 18px;background:#FFC107;color:#0e1b2e;border:2px solid #0e1b2e;border-radius:7px;font-size:14px;font-weight:bold;text-decoration:none;">View Booking</a></p>
+<p style="margin:20px 0;"><a href="[BOOKING_URL]" style="display:inline-block;padding:12px 18px;background:#FFC107;color:#0e1b2e;border:2px solid #0e1b2e;border-radius:7px;font-size:14px;font-weight:bold;text-decoration:none;">[BOOKING_ACTION_LABEL]</a></p>
 <p style="font-size:12px;line-height:19px;">Questions? <a href="mailto:[SUPPORT_EMAIL]" style="color:#0e1b2e;">[SUPPORT_EMAIL]</a><br>This is an automatic refund receipt.</p>
 </td></tr><tr><td align="center" style="padding:16px;background:#1b2b3a;color:white;font-size:12px;"><a href="https://www.myparkshare.ca" style="color:#FFC107;">www.myparkshare.ca</a></td></tr>
 </table></td></tr></table></body></html>`;

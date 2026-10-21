@@ -16,18 +16,20 @@ export default async function handler(req,res) {
     cancelled_partial:{status:'refunded',actor:'host',reason:'The driveway is unavailable.',amount:500},
     extension:{status:'confirmed',extension:true},
     extension_partial:{status:'confirmed',extension:true,amount:500},
+    initial_conflict:{status:'refunded',rejected:true},
     long_reason:{status:'refunded',actor:'host',reason:'Maintenance: '+ 'LongRecordedReason'.repeat(30)},
   };
   const scenario=typeof req.query?.scenario==='string' && Object.hasOwn(cases,req.query.scenario) ? req.query.scenario : 'driver';
   const sample=cases[scenario], audience=req.query?.audience==='host'?'host':'driver';
-  const booking={id:'DEMO',status:sample.status,total:12.35,cancelled_by:sample.actor,cancellation_reason:sample.reason};
+  const booking={id:'DEMO',status:sample.status,total:12.35,cancelled_by:sample.actor,cancellation_reason:sample.reason,
+    application_state:sample.rejected?'rejected':'applied',checkout_rejection_reason:sample.rejected?'booking_conflict':null};
   const refund={extension_id:sample.extension?5:null,amount_cents:sample.amount||1235};
   const context=refundEmailContext({booking,refund,extension:{added_amount:12.35}});
   const times=formatBookingEmailTimes('2026-10-22T14:00:00Z','2026-10-22T15:00:00Z','2026-10-21T12:00:00Z','America/Toronto');
   let html=refundConfirmedHtml({...context,audience,recipientName:audience==='host'?'Sample Host':'Sample Driver',
-    bookingId:'DEMO',refundId:'re_SAMPLE_ONLY',amountCents:refund.amount_cents,address:'12 Example Crescent, Vaughan, Ontario',spotLabel:'F',vehicleDetails:'Honda · Civic · Blue · DEMO 123',
+    bookingId:'DEMO',refundId:'re_SAMPLE_ONLY',amountCents:refund.amount_cents,address:context.rejected&&audience==='driver'?'Parking was not confirmed — address withheld.':'12 Example Crescent, Vaughan, Ontario',spotLabel:'F',vehicleDetails:'Honda · Civic · Blue · DEMO 123',
     sessionStart:`${times.entryDateFull}, ${times.startTimeStr}`,sessionEnd:`${times.exitDateFull}, ${times.endTimeStr}`,timeZoneLabel:times.timeZoneLabel,
-    bookingOutcome:sample.status==='refunded'?'This booking is cancelled. It no longer reserves a parking space.':'Your booking remains confirmed. Check your booking for the current departure time.',supportEmail:'info@myparkshare.ca'});
+    bookingOutcome:context.rejected?'No parking reservation was confirmed. Check Transactions for the charge and refund.':sample.status==='refunded'?'This booking is cancelled. It no longer reserves a parking space.':'Your booking remains confirmed. Check your booking for the current departure time.',supportEmail:'info@myparkshare.ca'});
   const notice='<div style="background:#FFC107;padding:12px;font:700 13px/1.45 Arial,sans-serif;text-align:center;color:#0E1B2E;">REFUND EMAIL PREVIEW · SAMPLE BOOKING · NO EMAIL SENT</div>';
   html=html.replace(/<body([^>]*)>/i,`<body$1>${notice}`);
   const width=['320','375','390'].includes(req.query?.width)?req.query.width:null;

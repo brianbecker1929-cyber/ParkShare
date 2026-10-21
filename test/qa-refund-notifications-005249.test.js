@@ -92,6 +92,8 @@ for (const audience of ['driver','host']) test(`${audience} rejected-checkout re
   assert.ok(html.includes('requested parking space was no longer available'));
   assert.ok(html.includes('No parking reservation was confirmed'));
   assert.doesNotMatch(html,/BOOKING CANCELLED|Cancelled by:|This booking is cancelled/);
+  assert.ok(html.includes('View Transactions'));assert.ok(html.includes('https://parkshare-qa.vercel.app/transactions'));
+  assert.doesNotMatch(html,/\[[A-Z_]+\]/);
   if(audience==='driver'){assert.ok(!html.includes(state.listing.address));assert.ok(html.includes('address withheld'));}
   else assert.ok(html.includes(state.listing.address));
 });
