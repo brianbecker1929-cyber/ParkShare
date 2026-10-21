@@ -12,7 +12,7 @@ test('reminder migration: private payloads, immutable unique delivery and atomic
     await pool.query(`insert into auth.users values ('00000000-0000-4000-8000-000000000001');
       insert into public.profiles values ('00000000-0000-4000-8000-000000000001');
       insert into public.listings(host_id) values ('00000000-0000-4000-8000-000000000001');
-      insert into public.bookings(listing_id,hours,status) values (1,1,'confirmed');`);
+      insert into public.bookings(listing_id,hours,status,session_range) values (1,1,'confirmed',tstzrange(now()-interval '30 minutes',now()+interval '30 minutes','[)'));`);
     await pool.query(`insert into public.booking_reminder_deliveries(id,booking_id,kind,session_ends_at,payload)
       values ('booking-1-halfway',1,'halfway',now()+interval '30 minutes','{"to":["synthetic@example.invalid"],"html":"original"}');`);
     const lease = () => pool.query(`update public.booking_reminder_deliveries

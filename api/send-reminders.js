@@ -14,7 +14,6 @@ import { timingSafeEqual } from "node:crypto";
 import { deliverReminder } from "./_reminder-delivery.js";
 import { dueReminder } from "./_reminder-window.js";
 
-
 export default async function handler(req, res) {
   res.setHeader?.("Cache-Control", "private, no-store");
   if (req.method !== "GET" && req.method !== "POST") {
