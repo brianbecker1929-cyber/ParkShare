@@ -45,8 +45,21 @@ export function addCalendarDays(dateOnly, amount) {
   return date.toISOString().slice(0, 10);
 }
 
+// Twelve calendar months, inclusive. Clamp leap day to February 28 instead
+// of rolling into March; this is not a fixed 365-day window.
+export function latestHostExceptionDate(today) {
+  if (!isCalendarDate(today)) return null;
+  const date = new Date(today + "T00:00:00.000Z");
+  const month = date.getUTCMonth();
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  if (date.getUTCMonth() !== month) date.setUTCDate(0);
+  const latest = date.toISOString().slice(0, 10);
+  return isCalendarDate(latest) ? latest : null;
+}
+
 export function validateHostExceptionDates(exception, today) {
-  if (!isCalendarDate(today)) {
+  const latest = latestHostExceptionDate(today);
+  if (!latest) {
     return { valid: false, error: "The driveway schedule timezone is invalid. Check the timezone before saving special dates." };
   }
   if (!isCalendarDate(exception?.startDate) || !isCalendarDate(exception?.endDate)) {
@@ -58,13 +71,16 @@ export function validateHostExceptionDates(exception, today) {
   if (exception.endDate < exception.startDate) {
     return { valid: false, error: "The To date must be on or after the From date." };
   }
+  if (exception.startDate > latest || exception.endDate > latest) {
+    return { valid: false, error: `Special dates must be within 12 calendar months of today (through ${latest}).` };
+  }
   return { valid: true, error: null };
 }
 
 export function validateHostAvailabilityExceptions(input, now = new Date()) {
   const today = dateInScheduleTimezone(input?.timezone, now);
   if (!today) return {
-    valid: false, today: null,
+    valid: false, today: null, latest: null,
     issues: [{ id: "timezone", error: "The driveway schedule timezone is invalid. Check it before publishing." }],
   };
   const issues = [];
@@ -72,5 +88,5 @@ export function validateHostAvailabilityExceptions(input, now = new Date()) {
     const result = validateHostExceptionDates(exception, today);
     if (!result.valid) issues.push({ id: exception?.id ?? ("exception-" + index), error: result.error });
   }
-  return { valid: issues.length === 0, today, issues };
+  return { valid: issues.length === 0, today, latest: latestHostExceptionDate(today), issues };
 }

@@ -28,6 +28,7 @@ as $$
 declare
   v_zone text;
   v_today date;
+  v_latest date;
   v_exceptions jsonb;
   v_item jsonb;
   v_start text;
@@ -58,6 +59,7 @@ begin
     raise exception using errcode='23514', message='Availability timezone must match the trusted property timezone';
   end if;
   v_today := (clock_timestamp() at time zone v_zone)::date;
+  v_latest := (v_today + interval '12 months')::date;
 
   for v_item in select value from jsonb_array_elements(v_exceptions) as e(value)
   loop
@@ -79,6 +81,9 @@ begin
        or v_end_date < v_today
        or v_end_date < v_start_date then
       raise exception using errcode='23514', message='Availability exception must start today or later and end no earlier than its start';
+    end if;
+    if v_start_date > v_latest or v_end_date > v_latest then
+      raise exception using errcode='23514', message='Special dates must be within 12 calendar months of today';
     end if;
   end loop;
   return NEW;
