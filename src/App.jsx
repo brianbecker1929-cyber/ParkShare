@@ -15,7 +15,7 @@ import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
-import { availabilityRequestKey, canChooseListingSpot } from "./lib/spotAvailability";
+import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold } from "./lib/spotAvailability";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
@@ -1709,6 +1709,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const hours = bookingMode === "now" ? nowHours : advanceHours;
 
   const [showPayment, setShowPayment] = useState(false);
+  const availabilityPaused = useRef(false);
+  availabilityPaused.current = showPayment;
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
@@ -1785,11 +1787,31 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   useEffect(() => {
     if (numericIdForAvailability === null) return;
     let cancelled = false;
-    fetch(`/api/listing-availability?listingId=${numericIdForAvailability}&hours=1`)
+    let controller;
+    let revision = 0;
+    const load = () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      const attempt = ++revision;
+      fetch(`/api/listing-availability?listingId=${numericIdForAvailability}&hours=1`, { cache: "no-store", signal: controller.signal })
       .then(res => res.ok ? res.json() : null)
-      .then(data => { if (!cancelled && data) setLiveAvailability(data); })
+      .then(data => { if (!cancelled && attempt === revision && data) setLiveAvailability(data); })
       .catch(() => {}); // best-effort — booking itself is still enforced server-side regardless
-    return () => { cancelled = true; };
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    window.addEventListener("focus", load);
+    window.addEventListener("parkshare:availability-changed", load);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", load);
+      window.removeEventListener("parkshare:availability-changed", load);
+      document.removeEventListener("visibilitychange", load);
+    };
   }, [numericIdForAvailability]);
 
   // Live check tied to whatever the renter has actually selected — re-runs
@@ -1814,6 +1836,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   useEffect(() => {
     if (numericIdForAvailability === null) return;
     let cancelled = false;
+    let controller;
+    let revision = 0;
     setChosenSpot(null);
     setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
@@ -1821,7 +1845,12 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       params.set("bookingDate", localCalendarDate(date));
       params.set("startHour", String(startHour));
     }
-    fetch(`/api/listing-availability?${params.toString()}`)
+    const load = () => {
+      if (cancelled || availabilityPaused.current || document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      const attempt = ++revision;
+      fetch(`/api/listing-availability?${params.toString()}`, { cache: "no-store", signal: controller.signal })
       .then(async res => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(res.status >= 400 && res.status < 500 && typeof data.error === "string"
@@ -1829,12 +1858,25 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
         return data;
       })
       .then(data => {
-        if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data, error: false });
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, data, error: false });
       })
       .catch(error => {
-        if (!cancelled) setAvailabilityResult({ key: selectedWindowKey, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
       });
-    return () => { cancelled = true; };
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    window.addEventListener("focus", load);
+    window.addEventListener("parkshare:availability-changed", load);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", load);
+      window.removeEventListener("parkshare:availability-changed", load);
+      document.removeEventListener("visibilitychange", load);
+    };
   }, [selectedWindowKey, numericIdForAvailability]);
   const chosenSpotAvailable = chosenSpot !== null && canChooseListingSpot({
     isRealListing: numericIdForAvailability !== null,
@@ -4363,6 +4405,7 @@ function DrivewayFrame({ children }) {
 function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableData = null, isRealListing = false, vehicle = null }) {
   const labels = ["A", "B", "C", "D"];
   return (
+    <>
     <DrivewayFrame>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
@@ -4372,7 +4415,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableDat
           const isAvailable = canChooseListingSpot({
             isRealListing, hostRentable: hostEnabled, availableData, label: l,
           });
-          const isChosen = chosen === i;
+          const isChosen = chosen === i && isAvailable;
           return (
             <button key={l} className={`ps-spot-picker-bay${isChosen ? " is-selected" : ""}`} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
               borderRadius: 10, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
@@ -4414,13 +4457,17 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableDat
               {/* Selection is conveyed by the orange bay outline and vehicle.
                   No "Your spot" label stealing height from the car. */}
               {!isChosen && (
-                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{isAvailable ? "Available" : !hostEnabled ? "Not for rent" : isRealListing && !availableData ? "Checking…" : isRealListing && availableData?.available !== true ? "Unavailable" : "Already booked"}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{listingSpotStatusText({ isAvailable, hostEnabled, isRealListing, availableData, label: l })}</span>
               )}
             </button>
           );
         })}
       </div>
     </DrivewayFrame>
+    {Object.values(availableData?.spotState || {}).includes("held") && <p role="status" style={{ color: C.muted, fontSize: 12, lineHeight: 1.5 }}>
+      Checkout in progress means a temporary hold, lasting up to 30 minutes from checkout start. It becomes a booking only after payment is confirmed.
+    </p>}
+    </>
   );
 }
 
@@ -10727,6 +10774,49 @@ function ExtendSessionModal({ bookingId, user, isContextCurrent, onClose }) {
   );
 }
 
+function CheckoutCancellation({ holdId, user }) {
+  const [message, setMessage] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!holdId || !user?.id) return;
+    let active = true;
+    const controller = new AbortController();
+    setFailed(false);
+    setMessage("Checking your unpaid checkout hold…");
+    const release = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!active) return;
+        if (error || !session?.access_token || session.user?.id !== user.id) throw new Error("Sign in again to release your unpaid checkout hold.");
+        const response = await fetch("/api/cancel-booking-checkout", {
+          method: "POST", cache: "no-store", signal: controller.signal,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ holdId }),
+        });
+        const data = await response.json();
+        if (!active) return;
+        if (!response.ok || !["released", "not_found"].includes(data?.status)) throw new Error("Couldn't verify cancellation. Check My Bookings and Transactions before trying again.");
+        setMessage(data.status === "released"
+          ? "Your unpaid checkout was cancelled and its temporary spot hold was released."
+          : "No active checkout hold was found for this account. Check My Bookings and Transactions for the current status.");
+        window.dispatchEvent(new Event("parkshare:availability-changed"));
+      } catch (error) {
+        if (!active) return;
+        setFailed(true);
+        setMessage(error.message || "Couldn't verify checkout cancellation. Check your booking status.");
+      }
+    };
+    release();
+    return () => { active = false; controller.abort(); };
+  }, [holdId, user?.id, retry]);
+  if (!holdId) return null;
+  return <div role="status" style={{ padding: "12px 16px", color: C.navy, background: C.amberLight, fontSize: 13 }}>
+    {user ? message : "Sign in to release your unpaid checkout hold. Otherwise it expires automatically within 30 minutes of starting checkout."}
+    {failed && <button type="button" onClick={() => setRetry(value => value + 1)} style={{ marginLeft: 12 }}>Retry cancellation</button>}
+  </div>;
+}
+
 // Return URLs describe navigation, not a verified payment/fulfilment result.
 // Only authenticated booking, transaction and payout views establish status.
 function CheckoutReturnNotice({ kind, onDismiss }) {
@@ -10865,6 +10955,8 @@ export default function App() {
   const [authRecoveryRevision, setAuthRecoveryRevision] = useState(0);
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
+  // Capture before the navigation-only return handler removes query flags.
+  const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(window.location.search));
   const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
   const { bookingId: extendBookingId, select: setExtendBookingId, isCurrent: isExtensionContextCurrent } = useExtensionRequest(user);
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
@@ -11323,6 +11415,7 @@ export default function App() {
               <button type="button" onClick={() => changeTab("Profile")}>Complete profile →</button>
             </div>
           )}
+          <CheckoutCancellation key={user?.id || "anonymous"} holdId={checkoutHoldToCancel} user={user} />
           <CheckoutReturnNotice kind={checkoutBanner} onDismiss={() => setCheckoutBanner(null)} />
           <CheckoutReturnNotice kind={connectBanner} onDismiss={() => setConnectBanner(null)} />
           {tab === "Browse" && (messageBookingId

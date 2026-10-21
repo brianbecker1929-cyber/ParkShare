@@ -18,3 +18,20 @@ export function availabilityRequestKey({ listingId, mode, hours, bookingDate, st
     mode === "advance" ? String(startHour) : "now",
   ].join(":");
 }
+
+export function listingSpotStatusText({ isAvailable, hostEnabled, isRealListing, availableData, label }) {
+  if (!hostEnabled) return "Not for rent";
+  if (isAvailable) return "Available";
+  if (isRealListing && !availableData) return "Checking…";
+  if (availableData?.hostScheduleOpen === false) return "Unavailable";
+  if (availableData?.spotState?.[label] === "booked") return "Already booked";
+  if (availableData?.spotState?.[label] === "held") return "Checkout in progress";
+  return "Unavailable";
+}
+
+export function cancelledCheckoutHold(search) {
+  const params = new URLSearchParams(search);
+  const id = params.get("checkout_hold");
+  return params.get("booking_cancelled") === "1" &&
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id || "") ? id : null;
+}

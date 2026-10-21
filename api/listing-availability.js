@@ -20,6 +20,7 @@ function rentableSpotLabels(listing) {
 }
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store");
   if (!jsonMethod(req, res, "GET")) return;
 
   const listingId = Number(req.query?.listingId);
@@ -85,9 +86,9 @@ export default async function handler(req, res) {
     }
 
     const result = await checkAvailability(listingId, listing.spaces || 1, start, end);
-    const spotStatus = await checkAllSpotAvailability(listingId, labels, start, end);
+    const { spotStatus, spotState } = await checkAllSpotAvailability(listingId, labels, start, end, { includeStates: true });
 
-    return res.status(200).json({ ...result, hostScheduleOpen: true, spotStatus });
+    return res.status(200).json({ ...result, hostScheduleOpen: true, spotStatus, spotState });
   } catch (err) {
     console.error("listing-availability error:", err);
     return res.status(500).json({ error: "Couldn't check availability." });
