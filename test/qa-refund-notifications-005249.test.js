@@ -82,6 +82,19 @@ test('partial refund and extension refund do not claim cancellation or add parki
     assert.ok(html.includes('other charges, including paid extensions, are separate'));
   }
 });
+
+for (const audience of ['driver','host']) test(`${audience} rejected-checkout refund receipt cannot claim a cancelled reservation or leak an unbooked address`,async()=>{
+  const {db,state}=fixture({audience});
+  state.booking.application_state='rejected';state.booking.checkout_rejection_reason='booking_conflict';
+  await processRefundEmail(db,state.job);
+  const {html,subject}=state.calls[0].payload;
+  assert.match(subject,/unconfirmed booking attempt/);assert.match(html,/BOOKING NOT CONFIRMED/);
+  assert.ok(html.includes('requested parking space was no longer available'));
+  assert.ok(html.includes('No parking reservation was confirmed'));
+  assert.doesNotMatch(html,/BOOKING CANCELLED|Cancelled by:|This booking is cancelled/);
+  if(audience==='driver'){assert.ok(!html.includes(state.listing.address));assert.ok(html.includes('address withheld'));}
+  else assert.ok(html.includes(state.listing.address));
+});
 for(const audience of ['driver','host']) for(const [cancelledBy,label] of [['driver','Driver'],['host','Host'],['support','ParkShare Support'],['system','ParkShare system'],[null,'Not recorded']]) test(`${audience} receipt identifies recorded ${label} canceller without guessing from the recipient`,async()=>{
   const {db,state}=fixture({audience,cancelledBy,reason:'Event was rescheduled'});await processRefundEmail(db,state.job);
   const {html,subject}=state.calls[0].payload;

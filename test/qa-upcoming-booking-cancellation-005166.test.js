@@ -136,6 +136,14 @@ test("Driver with two hours of notice can cancel using the canonical UTC start",
   assert.equal(refunds[0][1].idempotencyKey, "booking-cancel-166");
 });
 
+for (const view of ['driver','host']) test(`${view} reservations exclude rejected financial audits while Transactions retains their separate history`,async()=>{
+  actor=view==='host'?HOST:DRIVER;
+  rows.push({...fixture(),id:167,application_state:'rejected',status:'refunded'});
+  const result=await list(view);
+  assert.deepEqual(result.bookings.map(b=>b.id),[166]);
+  assert.equal(rows.length,2,'Reading reservations never deletes the rejected audit');
+});
+
 test("exactly one hour notice remains eligible; repeat cancellation does not issue another refund", async () => {
   mock.timers.setTime(Date.parse("2026-10-20T17:00:00Z"));
   assert.equal((await cancel()).statusCode, 200);

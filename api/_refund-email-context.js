@@ -4,6 +4,17 @@ import {moneyCents} from './_host-earnings.js';
 // not the email audience or Stripe/request metadata. Never changes a refund.
 export function refundEmailContext({booking, refund, extension}) {
   const extensionPayment = Boolean(refund.extension_id);
+  if (!extensionPayment && booking.application_state === 'rejected') {
+    return {
+      rejected:true, cancelled:false, partial:Number(refund.amount_cents) < moneyCents(booking.total), extension:false,
+      headline:'Booking not confirmed — refund confirmed', headerTop:'BOOKING NOT CONFIRMED', headerBottom:'REFUND CONFIRMED',
+      refundContext:'This payment did not create a parking reservation.',
+      refundReason:booking.checkout_rejection_reason === 'booking_conflict'
+        ? 'The requested parking space was no longer available when payment completed.'
+        : 'This payment had already been reversed or was under review before a reservation could be confirmed.',
+      subject:`Refund confirmed for unconfirmed booking attempt PK-${booking.id}`,
+    };
+  }
   const cancelled = !extensionPayment && ['refunded','cancelled','canceled'].includes(String(booking.status || '').toLowerCase());
   let partial = false;
   try {

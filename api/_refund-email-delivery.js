@@ -12,7 +12,7 @@ function checked(result, step) {
 
 async function prepareMessage(db, job, refund) {
   const booking = checked(await db.from('bookings')
-    .select('id, listing_id, renter_id, status, total, cancelled_by, cancellation_reason, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_make, vehicle_model, vehicle_colour, license_plate, stripe_connected_account_id, stripe_payment_intent_id')
+    .select('id, listing_id, renter_id, application_state, checkout_rejection_reason, status, total, cancelled_by, cancellation_reason, hours, paid_at, booking_date, start_hour, scheduled_starts_at, property_time_zone, spot_label, vehicle_make, vehicle_model, vehicle_colour, license_plate, stripe_connected_account_id, stripe_payment_intent_id')
     .eq('id', job.booking_id).single(), 'booking lookup');
   if (!booking || !booking.paid_at) throw new Error('Refund notification booking unavailable');
   let extension;
@@ -31,7 +31,9 @@ async function prepareMessage(db, job, refund) {
   const {start,end} = getSessionWindow(booking);
   const times = formatBookingEmailTimes(start,end,new Date(),booking.property_time_zone || 'UTC');
   const cancelled = ['refunded','cancelled','canceled'].includes(booking.status);
-  const outcome = cancelled ? 'This booking is cancelled. It no longer reserves a parking space.'
+  const rejected = booking.application_state === 'rejected';
+  const outcome = rejected ? 'No parking reservation was confirmed. This payment does not reserve a parking space. Check Transactions for the charge and refund.'
+    : cancelled ? 'This booking is cancelled. It no longer reserves a parking space.'
     : booking.status === 'confirmed' ? 'Your booking remains confirmed. Check your booking for the current departure time.'
     : booking.status === 'completed' ? 'This booking has completed.'
     : 'Check your booking for its current status. This refund receipt does not confirm a reservation.';
@@ -40,7 +42,7 @@ async function prepareMessage(db, job, refund) {
     ...context,
     audience:job.audience,recipientName:recipient.name,amountCents:Number(refund.amount_cents),
     refundId:refund.refund_id,bookingId:booking.id,extension:Boolean(refund.extension_id),
-    address:listing?.address,spotLabel:booking.spot_label,
+    address:rejected && job.audience === 'driver' ? 'Parking was not confirmed — address withheld.' : listing?.address,spotLabel:booking.spot_label,
     vehicleDetails:[booking.vehicle_make,booking.vehicle_model,booking.vehicle_colour,booking.license_plate].filter(Boolean).join(' · '),
     sessionStart:`${times.entryDateFull}, ${times.startTimeStr}`,sessionEnd:`${times.exitDateFull}, ${times.endTimeStr}`,
     timeZoneLabel:times.timeZoneLabel,bookingOutcome:outcome,supportEmail:process.env.SUPPORT_EMAIL || SUPPORT_EMAIL,

@@ -25,7 +25,7 @@ export default async function handler(req, res) {
   const refundEmails = await supabaseAdmin.from("refund_email_deliveries").select("id,payload,sent_at,blocked_at", {head:true}).limit(0);
   checks.refundNotificationsReady = !refundEmails.error && (refundEmails.status === 200 || refundEmails.status === 206) && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
   const ledgerSchema = await supabaseAdmin.from("payment_refunds").select("refund_id", {head:true});
-  const bookingLedger = await supabaseAdmin.from("bookings").select("refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
+  const bookingLedger = await supabaseAdmin.from("bookings").select("application_state,checkout_rejection_reason,refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
   const extensionLedger = await supabaseAdmin.from("booking_extensions").select("application_state,refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
   checks.refundLedgerReady = !ledgerSchema.error && !bookingLedger.error && !extensionLedger.error;
   const publicParking = await supabaseAdmin.rpc("public_parking_page", {p_before_id: 1});

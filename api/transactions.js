@@ -66,7 +66,7 @@ function spendingRefundStatus(row, gross) {
 async function getSpentTransactions(userId) {
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, status, paid_at, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address)")
+    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, application_state, status, paid_at, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address)")
     .eq("renter_id", userId)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -84,7 +84,7 @@ async function getSpentTransactions(userId) {
       type: "booking",
       id: `booking-${b.id}`,
       bookingId: b.id,
-      description: precise ? b.listings?.title || "Parking session" : "Parking session",
+      description: b.application_state === "rejected" ? "Booking not confirmed" : precise ? b.listings?.title || "Parking session" : "Parking session",
       address: precise ? b.listings?.address || "" : "",
       amount: Number(b.total || 0),
       status: spendingRefundStatus(b, b.total),
@@ -128,7 +128,7 @@ async function getEarnedTransactions(userId) {
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, total, subtotal, service_fee, status, paid_at, spot_label, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, refund_total_amount, refund_pending_amount")
+    .select("id, listing_id, total, subtotal, service_fee, application_state, status, paid_at, spot_label, stripe_payment_intent_id, stripe_charge_id, stripe_connected_account_id, stripe_refund_id, refund_status, refund_amount, refund_total_amount, refund_pending_amount")
     .in("listing_id", listingIds)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -150,7 +150,7 @@ async function getEarnedTransactions(userId) {
         type: "booking",
         id: `booking-${b.id}`,
         bookingId: b.id,
-        description: listing?.title || "Parking session",
+        description: b.application_state === "rejected" ? "Booking not confirmed" : listing?.title || "Parking session",
         address: listing?.address || "",
         gross: Number(b.total || 0),
         status: b.status,
