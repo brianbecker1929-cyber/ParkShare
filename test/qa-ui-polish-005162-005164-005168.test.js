@@ -41,7 +41,7 @@ for(const name of ['MessagesView','MyBookingsView','TransactionsView']){
   assert.equal(html.includes('href="/parking"'),state==='empty');
   if(name==='TransactionsView'){
    assert.doesNotMatch(html,/What you&#x27;ve earned|Payouts/);
-   assert.match(html,/What you&#x27;ve paid/);
+   assert.match(html,/Booking charges \(CAD\)/);
   }
  });
 }

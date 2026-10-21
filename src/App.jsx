@@ -3501,7 +3501,7 @@ function TransactionsView({ user }) {
   const [section, setSection] = useState("spent"); // "spent" | "earned" | "payouts"
 
   const sections = user?.role === "driver" ? ["spent"] : ["spent", "earned", "payouts"];
-  const sectionLabels = { spent: "What you've paid", earned: "What you've earned", payouts: "Payouts" };
+  const sectionLabels = { spent: "Booking charges (CAD)", earned: "What you've earned", payouts: "Payouts" };
 
   const rows = section === "spent" ? data.spent : section === "earned" ? data.earned : [];
 
@@ -3522,6 +3522,7 @@ function TransactionsView({ user }) {
           ))}
       </div>
 
+      {section === "spent" && <p style={{ fontSize: 12, color: C.muted }}>Booking totals and refunds are recorded in CAD. For an earlier checkout converted by Stripe, use the Stripe receipt for the amount and currency charged to your payment method.</p>}
       {loading && <p style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
       {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
 
@@ -3546,10 +3547,10 @@ function TransactionsView({ user }) {
               </div>
               <div style={{ textAlign: "right" }}>
                 <Badge color={st.color}>{st.label}</Badge>
-                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{amount == null ? "Under review" : money(amount)}</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{amount == null ? "Under review" : `${money(amount)} CAD`}</div>
                 {section === "spent" && t.refundedAmount != null && (
                   <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
-                    {money(t.refundedAmount)} refunded{t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} refund pending</>}
+                    {money(t.refundedAmount)} CAD refunded{t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} CAD refund pending</>}
                   </div>
                 )}
               </div>
@@ -3557,9 +3558,9 @@ function TransactionsView({ user }) {
             {section === "earned" && (
               <div style={{ fontSize: 10, color: C.muted, marginTop: 8, paddingTop: 8, borderTop: "1px solid " + C.concrete }}>
                 {t.earningsState === "needs_review" ? "The remaining amount is awaiting review and is excluded from earnings totals." : <>
-                  {money(t.gross)} charged − {money(t.refundedAmount || 0)} refunded − {money(t.platformFee)} retained platform fee = {money(amount)} before Stripe processing fees
+                  {money(t.gross)} CAD charged − {money(t.refundedAmount || 0)} CAD refunded − {money(t.platformFee)} CAD retained platform fee = {money(amount)} CAD before Stripe processing fees
                   {t.approximateFeeSplit ? " (fee estimated)" : ""}
-                  {t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} refund pending</>}
+                  {t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} CAD refund pending</>}
                 </>}
               </div>
             )}
@@ -4111,7 +4112,7 @@ function HostDashboard({ user, setTab }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
                     <div>
                       <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.displayStatus}</div>
-                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)}</div>
+                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)} CAD</div>
                       {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
                     </div>
                     {b.canCancel && b.displayStatus === "Upcoming" && (
@@ -6252,7 +6253,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             </div>
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
-              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
+              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>Booking total: {money(b.total)} CAD</div>
               {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
 
             </div>

@@ -1,3 +1,4 @@
+import {CAD_CHECKOUT_API_VERSION, requireCadCheckout} from "./_checkout-currency.js";
 // POST /api/create-checkout-session
 // Creates a direct charge on the Host's connected Stripe account. ParkShare's
 // service fee is collected as an application fee.
@@ -223,6 +224,7 @@ export default async function handler(req, res) {
       session = await stripe.checkout.sessions.create(
       {
         mode: "payment",
+        adaptive_pricing: { enabled: false },
         payment_method_types: ["card"],
         customer_email: user.email || undefined,
         line_items: [
@@ -255,8 +257,9 @@ export default async function handler(req, res) {
         cancel_url: `${origin}/?booking_cancelled=1&checkout_hold=${encodeURIComponent(holdId)}`,
         expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
       },
-      { stripeAccount: stripeAccountId }
+      { stripeAccount: stripeAccountId, apiVersion: CAD_CHECKOUT_API_VERSION }
       );
+      requireCadCheckout(session, totalCents);
 
       // Stripe metadata is not a source of truth: record the exact session,
       // connected Host and approved price in a service-role-only hold.
@@ -272,10 +275,10 @@ export default async function handler(req, res) {
         .select("id")
         .maybeSingle();
       if (saveSessionError || !registeredHold) {
-        await stripe.checkout.sessions.expire(session.id, {}, { stripeAccount: stripeAccountId }).catch(() => {});
         throw saveSessionError || new Error("Unable to register a secure checkout hold.");
       }
     } catch (checkoutError) {
+      if (session?.id) await stripe.checkout.sessions.expire(session.id, {}, { stripeAccount: stripeAccountId }).catch(() => {});
       await supabaseAdmin.from("booking_holds").delete().eq("id", holdId);
       throw checkoutError;
     }
