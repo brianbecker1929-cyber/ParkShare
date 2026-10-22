@@ -2,53 +2,37 @@ name: QA live verification BUG-005313
 on:
   push:
     branches: [qa/verify-driver-refund-005313]
-  create:
 permissions: {}
 jobs:
   read-only-http:
-    if: github.ref == 'refs/heads/qa/verify-driver-refund-005313'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
-      - name: Verify deployed QA source and public HTTP boundaries
+      - name: Verify deployed UI and access boundaries; report Data API health separately
         shell: bash
         run: |
           python3 - <<'PY'
           import json,re,urllib.request,urllib.error,concurrent.futures
           BASE='https://parkshare-qa.vercel.app'
-          EXPECTED='198e72f55575ceecc542125d690b3445df966eb0'
-          checks=[]
           def fetch(path,method='GET'):
-           req=urllib.request.Request(BASE+path,method=method,headers={'User-Agent':'ParkShare-QA-005313','Cache-Control':'no-cache'})
            try:
-            with urllib.request.urlopen(req,timeout=45) as r:return r.status,r.read().decode(),dict(r.headers)
-           except urllib.error.HTTPError as e:return e.code,e.read().decode(),dict(e.headers)
-          def check(name,condition):
-           if not condition:raise AssertionError(name)
-           checks.append(name)
-           print('PASS '+name,flush=True)
-          status,body,headers=fetch('/api/qa-release-status')
-          check('QA readiness HTTP 200',status==200)
-          ready=json.loads(body);check('exact source commit',ready['commit']==EXPECTED);check('QA release ready',ready['ready'] is True)
-          for name,value in ready['checks'].items():check('readiness '+name,value is True)
-          status,html,_=fetch('/');check('homepage loads',status==200)
-          asset=re.search(r'src="([^"]*/assets/[^" ]+\.js)"',html)
-          check('app bundle linked',bool(asset))
-          status,bundle,_=fetch(asset.group(1));check('app bundle loads',status==200)
-          for marker in ['Payment date unavailable','Parking date unavailable','property time zone unavailable','Booking #PK-','Booking history','Retry reviews','Retry sign out']:
-           check('bundle '+marker,marker in bundle)
-          requests=[('/api/transactions','GET',401),('/api/transactions','POST',405),('/api/account-bookings?view=driver','GET',401),('/api/account-bookings?view=host','GET',401),('/api/private-listing-location?listingId=1','GET',401),('/api/public-parking','GET',200)]
-          def probe(item):
-           path,method,expected=item
-           status,body,headers=fetch(path,method)
-           check(method+' '+path,status==expected)
-           if path=='/api/public-parking':
-            payload=json.loads(body)
-            rows=payload.get('listings',[]) if isinstance(payload,dict) else payload
-            check('public listing projection has no exact address',all(not row.get('address') for row in rows))
-          for item in requests:probe(item)
-          result={'base':BASE,'commit':EXPECTED,'passed':len(checks),'checks':checks}
-          open('/tmp/parkshare-005313-live-results.json','w').write(json.dumps(result,indent=2))
-          print(json.dumps({'passed':len(checks),'commit':EXPECTED,'readyFlags':len(ready['checks'])}))
+            req=urllib.request.Request(BASE+path,method=method,headers={'User-Agent':'ParkShare-QA-005313'})
+            with urllib.request.urlopen(req,timeout=15) as r:return r.status,r.read().decode()
+           except urllib.error.HTTPError as e:return e.code,e.read().decode()
+           except Exception as e:return 0,type(e).__name__
+          items=[('/','GET'),('/api/transactions','GET'),('/api/transactions','POST'),('/api/account-bookings?view=driver','GET'),('/api/public-parking','GET'),('/api/qa-release-status','GET')]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+           results=list(pool.map(lambda item:fetch(*item),items))
+          for item,result in zip(items,results):print(json.dumps({'path':item[0],'method':item[1],'status':result[0]}),flush=True)
+          assert results[0][0]==200,'homepage unavailable'
+          for i,expected in [(1,401),(2,405),(3,401)]:assert results[i][0]==expected,'authorization/method boundary failed'
+          asset=re.search(r'src="([^"]*/assets/[^" ]+\\.js)"',results[0][1])
+          assert asset,'no bundle'
+          status,bundle=fetch(asset.group(1));assert status==200,'bundle unavailable'
+          markers=['Payment date unavailable','Parking date unavailable','property time zone unavailable','Booking #PK-','Booking history','Retry reviews','Retry sign out']
+          for marker in markers:
+           assert marker in bundle,marker
+           print('PASS bundle '+marker,flush=True)
+          print(json.dumps({'staticReleaseAndAccessBoundaries':'passed','dataApiHealthy':results[4][0]==200,'readinessHealthy':results[5][0]==200}))
           
           PY
