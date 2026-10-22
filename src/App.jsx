@@ -11091,6 +11091,7 @@ export default function App() {
   const signOutAccount = useRef(user?.id || null);
   signOutAccount.current = user?.id || null;
   useEffect(() => {
+    setSignOutNotice(notice => notice && user?.id && notice.accountId !== user.id ? null : notice);
     const attempt = signOutAttempt.current;
     if (attempt && user?.id && user.id !== attempt.accountId) {
       attempt.active = false; signOutAttempt.current = null; setSignOutNotice(null);

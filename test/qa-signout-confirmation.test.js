@@ -110,6 +110,10 @@ test('App account effects retire A→B→A attempts and hide old account feedbac
   const d=deferred(),h=rootHarness(()=>d.promise);const work=h.run();await Promise.resolve();await Promise.resolve();h.switchTo('B');assert.equal(h.html,'');h.switchTo('A');d.resolve({error:Error('old failure')});await work;
   assert.equal(h.render().user.id,'A');assert.equal(h.html,'');assert.deepEqual(h.routes,[]);h.stop();
 });
+test('a completed error is discarded on an account switch and does not reappear on return',async()=>{
+  const h=rootHarness(async()=>({error:Error('failure')}));await h.run();assert.match(h.html,/Retry sign out/);
+  h.switchTo('B');assert.equal(h.html,'');h.switchTo('A');assert.equal(h.html,'');h.stop();
+});
 test('App unmount cleanup prevents state writes from delayed SDK results',async()=>{
   const d=deferred(),h=rootHarness(()=>d.promise);const work=h.run();await Promise.resolve();await Promise.resolve();h.stop();d.resolve({error:Error('late')});await work;assert.equal(h.writesAfterStop,0);assert.deepEqual(h.routes,[]);
 });
