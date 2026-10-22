@@ -25,7 +25,7 @@ function harness(kind='modal',{auth=async()=>session('A'),post=async()=>reply(),
  },console:{error:()=>{}},useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const value=typeof v==='function'?v(slots[n].value):v;if(value!==slots[n].value){slots[n].value=value;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};pendingEffects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();effectSetups[n]=fn;});}}};
  const Components=new Function(...Object.keys(values),compiled.code+';return {modal:ReviewModal,section:ReviewsSection};')(...Object.values(values));
  function render(changes={}){props={...props,...changes};let count=0;do{dirty=false;cursor=0;tree=Components[kind]({...props,onClose:()=>closed++,onSubmit:()=>submitted++,onSubmitReview:()=>submitted++});assert.ok(++count<8);}while(dirty);for(const effect of pendingEffects.splice(0))effect();return tree;}
- const button=text=>{const found=elements(render(),n=>n.type===Btn&&label(n).includes(text))[0];assert.ok(found,`missing ${text}`);return found.props.onClick;};
+ const button=text=>{const found=elements(render(),n=>(n.type===Btn||n.type==='button')&&label(n).includes(text))[0];assert.ok(found,`missing ${text}`);return found.props.onClick;};
  const open=()=>{if(kind==='section')button('Write a review')();};
  const text=value=>{const area=elements(render(),n=>n.type==='textarea')[0];assert.ok(area);area.props.onChange({target:{value}});};
  const submit=()=>button('Submit review')();
@@ -69,6 +69,49 @@ test('section: public review response for an old listing cannot overwrite the ne
 });
 test('section: successful POST refreshes public reviews and reports success only once',async()=>{
  const h=harness('section');await h.submit();h.render();await tick();assert.equal(h.submitted,1);assert.equal(h.publicRequests.length,2);assert.match(JSON.stringify(h.render()),/Thanks for your review/);h.stop();
+});
+test('section: initial review loading never claims that a listing has no reviews',async()=>{
+ const pending=later(),h=harness('section',{publicRead:()=>pending.promise});const text=JSON.stringify(h.render());
+ assert.match(text,/Loading reviews/);assert.doesNotMatch(text,/No reviews yet/);h.stop();pending.resolve({ok:true,json:async()=>({reviews:[]})});await tick();
+});
+test('section: failed review reads show an error and retry rather than an empty history',async()=>{
+ const h=harness('section',{publicRead:async()=>({ok:false,json:async()=>({error:'private provider details'})})});await tick();const text=JSON.stringify(h.render());
+ assert.match(text,/Reviews are temporarily unavailable/);assert.doesNotMatch(text,/No reviews yet|private provider details/);assert.ok(h.hasError());assert.ok(h.button('Retry reviews'));h.stop();
+});
+test('section: only a successful empty array may display the genuine empty state',async()=>{
+ const h=harness('section');assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet/);await tick();
+ assert.match(JSON.stringify(h.render()),/No reviews yet/);assert.doesNotMatch(JSON.stringify(h.render()),/Loading reviews|temporarily unavailable/);h.stop();
+});
+test('section: transport, JSON and malformed summaries fail closed without false empty counts',async()=>{
+ for(const value of [null,{}, {reviews:null},{reviews:{}},{reviews:[null]},{reviews:[{rating:0}]},{reviews:[{rating:'5'}]},{reviews:[{rating:5,user:{id:'private'}}]}]){
+  const h=harness('section',{publicRead:async()=>({ok:true,json:async()=>value})});await tick();const text=JSON.stringify(h.render());assert.match(text,/Reviews are temporarily unavailable/);assert.doesNotMatch(text,/No reviews yet|private/);h.stop();
+ }
+ for(const where of ['transport','json']){const h=harness('section',{publicRead:async()=>{if(where==='transport')throw Error('private transport failure');return{ok:true,json:async()=>{throw Error('private malformed JSON');}};}});await tick();assert.match(JSON.stringify(h.render()),/Reviews are temporarily unavailable/);assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet|private transport|private malformed/);h.stop();}
+});
+test('section: explicit retry makes one current GET and replaces the error with loaded summaries',async()=>{
+ let count=0;const pending=later(),h=harness('section',{publicRead:async()=>++count===1?{ok:false}:pending.promise});await tick();const retry=h.button('Retry reviews');retry();retry();h.render();
+ assert.equal(h.publicRequests.length,2);assert.match(JSON.stringify(h.render()),/Loading reviews/);assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet|temporarily unavailable/);
+ pending.resolve({ok:true,json:async()=>({reviews:[{user:'ParkShare driver',rating:4,date:'Oct 2026',text:''}]})});await tick();assert.match(JSON.stringify(h.render()),/ParkShare driver/);assert.doesNotMatch(JSON.stringify(h.render()),/Loading reviews|temporarily unavailable|No reviews yet/);
+ retry();h.render();assert.equal(h.publicRequests.length,2);assert.equal(h.requests.length,0);assert.equal(h.publicRequests[0].options.signal.aborted,true);assert.equal(h.publicRequests[1].options.cache,'no-store');h.stop();
+});
+test('section: retry failures remain retryable without sending any review POST',async()=>{
+ const h=harness('section',{publicRead:async()=>({ok:false})});await tick();for(let n=2;n<=3;n++){h.button('Retry reviews')();h.render();await tick();assert.ok(h.hasError());assert.equal(h.publicRequests.length,n);}assert.equal(h.requests.length,0);h.stop();
+});
+test('section: listing changes discard old errors and cached retry callbacks even on A→B→A',async()=>{
+ const h=harness('section',{publicRead:async()=>({ok:false})});await tick();const oldRetry=h.button('Retry reviews');
+ h.render({listing:{id:'db-8',title:'Eight',rating:5}});assert.match(JSON.stringify(h.render()),/Loading reviews/);oldRetry();h.render();assert.equal(h.publicRequests.length,2);await tick();
+ h.render({listing:{id:'db-7',title:'Seven',rating:5}});await tick();oldRetry();h.render();assert.equal(h.publicRequests.length,3);h.stop();
+});
+test('section: delayed public failures and unmounted requests cannot write state or restore old errors',async()=>{
+ for(const mode of ['listing','unmount']){const old=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?old.promise:Promise.resolve({ok:true,json:async()=>({reviews:[]})})});
+  if(mode==='listing'){h.render({listing:{id:'db-8',title:'Eight',rating:5}});await tick();}else h.stop();
+  const writes=h.writes.length;old.reject(Error('old private failure'));await tick();assert.equal(h.writes.length,writes);if(mode==='listing')assert.match(JSON.stringify(h.render()),/No reviews yet/);assert.equal(h.publicRequests[0].options.signal.aborted,true);h.stop();
+ }
+});
+test('section: successful submission refresh shows loading until the new summary arrives',async()=>{
+ const pending=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?Promise.resolve({ok:true,json:async()=>({reviews:[]})}):pending.promise});await tick();await h.submit();
+ assert.match(JSON.stringify(h.render()),/Loading reviews/);assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet/);assert.equal(h.requests.length,1);assert.equal(h.publicRequests.length,2);
+ pending.resolve({ok:true,json:async()=>({reviews:[{rating:5,user:'ParkShare driver',text:''}]})});await tick();assert.match(JSON.stringify(h.render()),/Thanks for your review/);assert.doesNotMatch(JSON.stringify(h.render()),/Loading reviews|No reviews yet/);h.stop();
 });
 test('section: explicit demo reviews remain local and do not use the real API',async()=>{
  const h=harness('section');h.render({listing:{id:'demo',title:'Demo',rating:5},user:null});h.button('Write a review')();h.text('Demo experience');await h.submit();assert.equal(h.requests.length,0);assert.equal(h.submitted,1);assert.match(JSON.stringify(h.render()),/Demo experience/);h.stop();
