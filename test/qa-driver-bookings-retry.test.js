@@ -70,3 +70,18 @@ test('repeated failures remain retryable, and unmount retires a pending retry',a
 test('retry rechecks the account before reading private bookings',async()=>{
   let owner='A';const h=harness({auth:async()=>({data:{session:{access_token:owner+'-token',user:{id:owner}}}}),fetcher:async()=>Response.json({},{status:503})});h.commit();await tick();h.render();owner='B';h.click('Retry bookings');await tick();h.render();assert.equal(h.requests.length,1);assert.ok(h.button('Retry bookings'));assert.deepEqual(h.state.dbBookings,[]);h.stop();
 });
+
+test('actual booking load retains the property zone so the displayed date and filter agree',async()=>{
+  const b={...row(),booking_date:'2050-10-20',start_hour:21,scheduled_starts_at:'2050-10-21T01:00Z'};
+  const h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.render();
+  assert.match(h.state.dbBookings[0].date,/Oct 20, 2050/);
+  h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();assert.match(h.html(),/Fixture driveway/);assert.match(h.html(),/Showing 1 of 1 bookings/);
+  h.state.fromDate='2050-10-21';h.state.toDate='2050-10-21';h.render();assert.doesNotMatch(h.html(),/Fixture driveway/);assert.match(h.html(),/No bookings found for these dates/);h.stop();
+});
+
+test('immediate booking date stays aligned with the property display after refreshing',async()=>{
+  const b={...row(),booking_date:null,start_hour:null,scheduled_starts_at:null,paid_at:'2050-10-21T01:00Z'};
+  const h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();
+  assert.match(h.html(),/Fixture driveway/);assert.match(h.state.dbBookings[0].date,/Oct 20, 2050/);
+  h.click('Refresh bookings');await tick();h.render();assert.match(h.html(),/Showing 1 of 1 bookings/);assert.equal(h.state.fromDate,'2050-10-20');h.stop();
+});
