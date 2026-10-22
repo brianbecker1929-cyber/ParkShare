@@ -6149,6 +6149,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
             bookingIsScheduled: scheduled,
+            propertyTimeZone: row.property_time_zone || null,
             spotLabel: row.spot_label || "",
             total: row.total,
             vehicle: {
@@ -6231,7 +6232,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               aria-describedby={invalidDateRange ? "booking-date-filter-help booking-date-filter-error" : "booking-date-filter-help"} />
           </label>
         </div>
-        <small id="booking-date-filter-help">Filter by booking start date. Includes both dates.</small>
+        <small id="booking-date-filter-help">Filter by the displayed booking start date. Includes both dates.</small>
         {invalidDateRange && <p id="booking-date-filter-error" className="ps-booking-date-filter-error" role="alert">Choose an end date on or after the start date.</p>}
       </div>
       {!loading && !loadError && hasDateFilter && !invalidDateRange && (
