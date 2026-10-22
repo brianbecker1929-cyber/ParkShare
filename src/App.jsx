@@ -6069,6 +6069,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [dbBookings, setDbBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [bookingReload, setBookingReload] = useState(0);
   const [expandedPastBookings, setExpandedPastBookings] = useState({});
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -6096,6 +6097,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           const response = await fetch("/api/account-bookings?view=driver", {
             headers: { Authorization: `Bearer ${session.access_token}` },
             signal: controller.signal,
+            cache: "no-store",
           });
           if (!response.ok) throw new Error("Bookings unavailable");
           const payload = await response.json();
@@ -6178,7 +6180,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         setLoadError("We couldn't load your bookings right now. Please try again.");
       });
     return () => { active = false; controller.abort(); };
-  }, [user?.id]);
+  }, [user?.id, bookingReload]);
 
   // Scroll to and briefly highlight the booking a "View My Reservation"
   // email link pointed at, once it's actually loaded.
@@ -6203,7 +6205,13 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
   return (
     <div className="ps-driver-bookings" style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 680, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, margin: 0 }}>My bookings</h2>
+        <button type="button" disabled={loading || !user?.id} onClick={() => setBookingReload(value => value + 1)}
+          style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: loading ? "default" : "pointer" }}>
+          {loading ? "Loading bookings…" : loadError ? "Retry bookings" : "Refresh bookings"}
+        </button>
+      </div>
       <div className="ps-booking-date-filter" role="group" aria-labelledby="booking-date-filter-title">
         <div className="ps-booking-date-filter-heading">
           <strong id="booking-date-filter-title">Filter by date</strong>
@@ -6230,7 +6238,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         <p className="ps-booking-filter-results" role="status">Showing {bookings.length} of {dbBookings.length} bookings</p>
       )}
       {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
-      {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
+      {loading && <p role="status" style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
       {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
       {!loading && !loadError && dbBookings.length === 0 && (
         <div style={{ color: C.muted, fontSize: 13 }}>

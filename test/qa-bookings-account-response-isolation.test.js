@@ -20,7 +20,7 @@ function harness(){
  const setter=key=>value=>{state[key]=typeof value==='function'?value(state[key]):value;writes.push({key,value:state[key]});};
  function launch(owner,{session,response,cover}={}){
   const reply=response||later();let run;
-  const injected={user:{id:owner},supabase:{auth:{getSession:()=>session?.promise||Promise.resolve({data:{session:{access_token:owner+'-token',user:{id:owner}}}})}},
+  const injected={user:{id:owner},bookingReload:0,supabase:{auth:{getSession:()=>session?.promise||Promise.resolve({data:{session:{access_token:owner+'-token',user:{id:owner}}}})}},
    useEffect:(callback,dependencies)=>{run=callback;deps.push(dependencies);},fetch:async(url,options)=>{requests.push({owner,url,...options});return reply.promise;},
    setLoading:setter('loading'),setLoadError:setter('error'),setDbBookings:setter('rows'),
    fetchPrivateCoverDataUrl:(...args)=>{covers.push({owner,args});return cover?.promise||Promise.resolve(null);},
@@ -63,7 +63,7 @@ test('session lookup failure and malformed payload end loading without retaining
  }
 });
 test('successful current-account load preserves details and hydrates only its own private cover',async()=>{
- const h=harness(),photo=later(),a=h.launch('A',{cover:photo});await tick();a.reply.resolve(success([row('A')]));await tick();photo.resolve('data:image/webp;base64,AUTHORIZED');await tick();assert.equal(h.state.rows[0].listing.img,'data:image/webp;base64,AUTHORIZED');assert.equal(h.state.rows[0].spotLabel,'A');assert.equal(h.state.rows[0].total,27.6);assert.equal(h.requests[0].headers.Authorization,'Bearer A-token');assert.ok(h.requests[0].signal instanceof AbortSignal);assert.deepEqual(h.covers[0].args.slice(0,3),[1,1,'A-token']);assert.deepEqual(h.deps,[['A']]);assert.equal(h.state.loading,false);
+ const h=harness(),photo=later(),a=h.launch('A',{cover:photo});await tick();a.reply.resolve(success([row('A')]));await tick();photo.resolve('data:image/webp;base64,AUTHORIZED');await tick();assert.equal(h.state.rows[0].listing.img,'data:image/webp;base64,AUTHORIZED');assert.equal(h.state.rows[0].spotLabel,'A');assert.equal(h.state.rows[0].total,27.6);assert.equal(h.requests[0].headers.Authorization,'Bearer A-token');assert.ok(h.requests[0].signal instanceof AbortSignal);assert.deepEqual(h.covers[0].args.slice(0,3),[1,1,'A-token']);assert.deepEqual(h.deps,[['A',0]]);assert.equal(h.requests[0].cache,'no-store');assert.equal(h.state.loading,false);
 });
 test('React key isolates account-owned cards, filters and action dialogs on identity change',async()=>{
  const tag=source.match(/<MyBookingsView\b[^>]*\/>/)[0];const compiled=await transform(`function Parent({user}){return ${tag};}`,{loader:'jsx'});
