@@ -5,19 +5,20 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 import {hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution} from '../src/lib/hostTransactions.js';
+import {transactionDateDetails} from '../src/lib/transactionDetails.js';
 let factory,source;
 before(async()=>{
   source=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
   const code=source.slice(source.indexOf('function TransactionsView('),source.indexOf('function HostDashboard('));
   const compiled=await transform(code,{loader:'jsx',jsx:'transform'});
   factory=new Function('React','useState','useTransactions','C','money','Badge','transactionStatusLabel',
-    'hostTransactionPresentation','hostEarnedTotal','hostEarningsContribution',compiled.code+';return TransactionsView;');
+    'hostTransactionPresentation','hostEarnedTotal','hostEarningsContribution','transactionDateDetails',compiled.code+';return TransactionsView;');
 });
 function render({section='earned',earned=[],payoutsUnavailable=false}){
   const View=factory(React,()=>[section,()=>{}],()=>({data:{spent:[],earned,payouts:[],payoutsUnavailable},loading:false,error:''}),
     {navy:'#000',white:'#fff',concrete:'#ddd',moss:'green',muted:'#777',amber:'orange'},
     amount=>'$'+Number(amount).toFixed(2),({children})=>React.createElement('span',null,children),
-    status=>({label:status,color:'#000'}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution);
+    status=>({label:status,color:'#000'}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution,transactionDateDetails);
   return renderToStaticMarkup(React.createElement(View,{user:{id:'fixture'}}));
 }
 const partial={id:'booking-1',type:'booking',description:'Synthetic booking',date:'2026-10-19T12:00:00Z',status:'partially_refunded',
@@ -53,6 +54,6 @@ test('Driver spending displays cumulative settled and pending refunds beneath th
  // Use the same compiled real component factory; the data contract is shared
  // with the authenticated transactions endpoint tested separately.
  const View=factory(React,()=>['spent',()=>{}],()=>({data:{spent:[{id:'booking-1',description:'Synthetic payment',date:'2026-10-19T12:00:00Z',status:'refund_pending',amount:115,refundedAmount:46,refundPendingAmount:11.5}],earned:[],payouts:[]},loading:false,error:''}),{},
-  amount=>'$'+Number(amount).toFixed(2),({children})=>React.createElement('span',null,children),status=>({label:status}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution);
+  amount=>'$'+Number(amount).toFixed(2),({children})=>React.createElement('span',null,children),status=>({label:status}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution,transactionDateDetails);
  const html=renderToStaticMarkup(React.createElement(View,{user:{role:'driver'}}));assert.match(html,/\$115.00 CAD/);assert.match(html,/\$46.00.*CAD refunded/);assert.match(html,/\$11.50.*CAD refund pending/);assert.doesNotMatch(html,/CAD CAD/);assert.match(html,/Booking charges \(CAD\)/);assert.match(html,/earlier checkout converted by Stripe/);
 });
