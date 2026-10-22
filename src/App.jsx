@@ -11086,6 +11086,20 @@ export default function App() {
   const [messageThreadState, setMessageThreadState] = useState(null);
   const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(window.location.search));
   const [user, setUser] = useState(null);
+  const [signOutNotice, setSignOutNotice] = useState(null);
+  const signOutAttempt = useRef(null);
+  const signOutAccount = useRef(user?.id || null);
+  signOutAccount.current = user?.id || null;
+  useEffect(() => {
+    const attempt = signOutAttempt.current;
+    if (attempt && user?.id && user.id !== attempt.accountId) {
+      attempt.active = false; signOutAttempt.current = null; setSignOutNotice(null);
+    }
+  }, [user?.id]);
+  useEffect(() => () => {
+    if (signOutAttempt.current) signOutAttempt.current.active = false;
+    signOutAttempt.current = null;
+  }, []);
   const messageScope = useMemo(() => ({accountId: user?.id || null}), [user?.id]);
   const messageScopeRef = useRef(messageScope);
   messageScopeRef.current = messageScope;
@@ -11260,13 +11274,58 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setCheckoutBanner(null);
-    setConnectBanner(null);
-    setMessageThread(null);
-    setMessageBookingId(null);
-    moveToRoute("app", "Browse");
+    if (!user?.id || signOutAccount.current !== user.id || signOutAttempt.current) return;
+    const attempt = { accountId:user.id, active:true };
+    signOutAttempt.current = attempt;
+    const current = () => attempt.active && signOutAttempt.current === attempt && (!signOutAccount.current || signOutAccount.current === attempt.accountId);
+    const readSession = async () => {
+      const result = await supabase.auth.getSession();
+      if (result?.error || !result?.data || !("session" in result.data)) throw new Error("Session unavailable");
+      const session = result.data.session;
+      if (session !== null && (typeof session?.user?.id !== "string" || !session.user.id.trim())) throw new Error("Session unavailable");
+      return session;
+    };
+    const accountChanged = () => setSignOutNotice({accountId:attempt.accountId,kind:"error",message:"Your account changed. Refresh this page before signing out.",canRetry:false});
+    setSignOutNotice({accountId:attempt.accountId,kind:"pending",message:"Signing out…"});
+    let submitted = false;
+    try {
+      let session = await readSession();
+      if (!current()) return;
+      if (session && session.user.id !== attempt.accountId) { accountChanged(); return; }
+      if (session) {
+        submitted = true;
+        // Preserve the existing SDK/global scope; never erase shared storage
+        // ourselves or turn a failed revocation into a successful sign-out.
+        const result = await supabase.auth.signOut();
+        if (!current()) return;
+        if (!result || result.error) throw new Error("Sign-out unavailable");
+        session = await readSession();
+        if (!current()) return;
+        if (session && session.user.id !== attempt.accountId) { accountChanged(); return; }
+        if (session) throw new Error("Session still active");
+      }
+      setSignOutNotice(null);
+      setUser(null);
+      setCheckoutBanner(null);
+      setConnectBanner(null);
+      setMessageThread(null);
+      setMessageBookingId(null);
+      moveToRoute("app", "Browse");
+    } catch {
+      if (!current()) return;
+      let session;
+      try { session = await readSession(); } catch { /* An unreadable session is not proof of sign-out. */ }
+      if (!current()) return;
+      if (session && session.user.id !== attempt.accountId) { accountChanged(); return; }
+      const removed = submitted && session === null;
+      setSignOutNotice({accountId:attempt.accountId,kind:"error",showSignedOut:!session,
+        canRetry:Boolean(session),message:removed
+          ? "You're signed out on this browser, but sign-out on other devices could not be confirmed."
+          : session ? "We couldn't sign you out. Please try again."
+          : "We couldn't confirm sign-out. Refresh this page and check your account before trying again."});
+    } finally {
+      if (signOutAttempt.current === attempt) signOutAttempt.current = null;
+    }
   };
 
   // INITIAL_SESSION restores the saved session. SIGNED_IN / SIGNED_OUT
@@ -11440,6 +11499,17 @@ export default function App() {
 
   return (
     <>
+      {/* Sign-out feedback */}
+      {signOutNotice && (signOutNotice.accountId === user?.id || !user && signOutNotice.showSignedOut) && (
+        <div role={signOutNotice.kind === "error" ? "alert" : "status"} aria-live={signOutNotice.kind === "error" ? "assertive" : "polite"} style={{position:"fixed",bottom:16,left:16,right:16,zIndex:12000,maxWidth:560,margin:"0 auto",padding:16,borderRadius:12,background:C.navy,color:C.white,boxShadow:"0 4px 24px rgba(0,0,0,0.25)",fontSize:13,lineHeight:1.5}}>
+          <div>{signOutNotice.message}</div>
+          {signOutNotice.kind === "error" && <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+            {signOutNotice.canRetry && user?.id === signOutNotice.accountId && <button type="button" onClick={handleSignOut} style={{minHeight:44,padding:"8px 14px",border:0,borderRadius:8,background:C.amber,color:C.navy,fontWeight:700,cursor:"pointer"}}>Retry sign out</button>}
+            <button type="button" onClick={() => setSignOutNotice(null)} style={{minHeight:44,padding:"8px 14px",border:"1px solid rgba(255,255,255,0.5)",borderRadius:8,background:"transparent",color:C.white,cursor:"pointer"}}>Dismiss</button>
+          </div>}
+        </div>
+      )}
+      {/* End sign-out feedback */}
       {screen === "landing" ? (
         <LandingPage
           onSearchAddress={handleLandingSearch}
