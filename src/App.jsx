@@ -1442,13 +1442,16 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-  const [reviewRows, setReviewRows] = useState(() => ({ listingId: listing.id, rows: REVIEWS_DATA[listing.id] || [] }));
+  const [reviewRows, setReviewRows] = useState(() => ({ listingId: listing.id, revision:0, status:isRealListing ? "loading" : "loaded", rows: REVIEWS_DATA[listing.id] || [] }));
   const [reviewReload, setReviewReload] = useState(0);
-  const localReviews = reviewRows.listingId === listing.id ? reviewRows.rows : REVIEWS_DATA[listing.id] || [];
+  const reviewState = reviewRows.listingId === listing.id && reviewRows.revision === reviewReload
+    ? reviewRows : {status:isRealListing ? "loading" : "loaded",rows:REVIEWS_DATA[listing.id] || []};
+  const localReviews = reviewState.rows;
+  const reviewReadContext = useRef(null);
   const { draft, formOpen: showForm, submitted, error: submitError, submitting, open, cancel, change, submit } =
     useReviewSubmission(user, numericId, listing.id, payload => {
       if (isRealListing) setReviewReload(value => value + 1);
-      else setReviewRows(current => ({ listingId: listing.id, rows: [
+      else setReviewRows(current => ({ listingId: listing.id, revision:reviewReload, status:"loaded", rows: [
         { id: Date.now(), user: "You", rating: payload.rating, date: "Just now", text: payload.text },
         ...(current.listingId === listing.id ? current.rows : REVIEWS_DATA[listing.id] || []),
       ] }));
@@ -1457,24 +1460,34 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 
   useEffect(() => {
     if (!isRealListing) return;
-    let active = true;
+    const context = {active:true,listingId:listing.id,revision:reviewReload,retrying:false};
+    reviewReadContext.current = context;
     const controller = new AbortController();
+    setReviewRows({listingId:listing.id,revision:reviewReload,status:"loading",rows:[]});
     (async () => {
       try {
-        const response = await fetch("/api/public-reviews?listingId=" + numericId, { signal: controller.signal });
+        const response = await fetch("/api/public-reviews?listingId=" + numericId, { signal: controller.signal, cache:"no-store" });
         if (!response.ok) throw new Error("Reviews unavailable");
         const { reviews } = await response.json();
-        if (!active) return;
-        setReviewRows({ listingId: listing.id, rows: (reviews || []).map((row, index) => ({
+        if (!context.active) return;
+        if (!Array.isArray(reviews) || reviews.length > 100 || !reviews.every(row => row && !Array.isArray(row) && Number.isInteger(row.rating) && row.rating >= 1 && row.rating <= 5 && ["user","date","text"].every(key => row[key] == null || typeof row[key] === "string"))) throw new Error("Reviews unavailable");
+        setReviewRows({ listingId: listing.id, revision:reviewReload, status:"loaded", rows: reviews.map((row, index) => ({
           id: numericId + "-" + index, user: row.user || "ParkShare driver",
           rating: row.rating, date: row.date || "", text: row.text || "",
         })) });
-      } catch (error) {
-        if (active) console.error("Couldn't load privacy-safe review summary:", error);
+      } catch {
+        if (context.active) setReviewRows({listingId:listing.id,revision:reviewReload,status:"error",rows:[]});
       }
     })();
-    return () => { active = false; controller.abort(); };
+    return () => { context.active = false; controller.abort(); };
   }, [listing.id, reviewReload]);
+
+  const retryContext = reviewReadContext.current;
+  const retryReviews = () => {
+    if (reviewState.status !== "error" || !retryContext?.active || retryContext.retrying || reviewReadContext.current !== retryContext) return;
+    retryContext.retrying = true;
+    setReviewReload(value => value + 1);
+  };
 
   const avgRating = localReviews.length
     ? (localReviews.reduce((s, r) => s + r.rating, 0) / localReviews.length).toFixed(1)
@@ -1485,8 +1498,10 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
           <span style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>Reviews</span>
-          <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, marginLeft: 8 }}>★ {avgRating}</span>
-          <span style={{ fontSize: 12, color: C.muted, marginLeft: 4 }}>({localReviews.length})</span>
+          {reviewState.status === "loaded" && <>
+            {(!isRealListing || localReviews.length > 0) && <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, marginLeft: 8 }}>★ {avgRating}</span>}
+            <span style={{ fontSize: 12, color: C.muted, marginLeft: 4 }}>({localReviews.length})</span>
+          </>}
         </div>
         {!showForm && !submitted && (
           <Btn small variant="outline" onClick={open}>Write a review</Btn>
@@ -1525,6 +1540,11 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {reviewState.status === "loading" && <div role="status" style={{fontSize:13,color:C.muted}}>Loading reviews…</div>}
+        {reviewState.status === "error" && <div role="alert" style={{fontSize:13,color:C.muted}}>
+          <p style={{margin:"0 0 8px"}}>Reviews are temporarily unavailable. Please try again.</p>
+          <button type="button" onClick={retryReviews} style={{minHeight:44,padding:"8px 14px",border:"1px solid "+C.navy,borderRadius:8,background:C.white,color:C.navy,fontWeight:600,cursor:"pointer"}}>Retry reviews</button>
+        </div>}
         {localReviews.map(r => (
           <div key={r.id} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
@@ -1537,7 +1557,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
             <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, margin: 0 }}>{r.text}</p>
           </div>
         ))}
-        {localReviews.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>No reviews yet. Be the first!</div>}
+        {reviewState.status === "loaded" && localReviews.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>No reviews yet. Be the first!</div>}
       </div>
     </div>
   );
