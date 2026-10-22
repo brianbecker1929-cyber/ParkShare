@@ -26,7 +26,7 @@ jobs:
           for item,result in zip(items,results):print(json.dumps({'path':item[0],'method':item[1],'status':result[0]}),flush=True)
           assert results[0][0]==200,'homepage unavailable'
           for i,expected in [(1,401),(2,405),(3,401)]:assert results[i][0]==expected,'authorization/method boundary failed'
-          asset=re.search(r'src="([^"]*/assets/[^" ]+\\.js)"',results[0][1])
+          asset=re.search(r'src="([^"]*/assets/[^" ]+[.]js)"',results[0][1])
           assert asset,'no bundle'
           status,bundle=fetch(asset.group(1));assert status==200,'bundle unavailable'
           markers=['Payment date unavailable','Parking date unavailable','property time zone unavailable','Booking #PK-','Booking history','Retry reviews','Retry sign out']
