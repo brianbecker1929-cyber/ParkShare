@@ -19,6 +19,7 @@ import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
+import { transactionDateDetails } from "./lib/transactionDetails";
 import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold } from "./lib/spotAvailability";
 import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
@@ -3555,6 +3556,7 @@ function TransactionsView({ user }) {
       )}
 
       {!loading && !error && section !== "payouts" && rows.map(t => {
+        const dates = section === "spent" ? transactionDateDetails(t) : null;
         const presentation = hostTransactionPresentation(t);
         const st = section === "earned" ? { label: presentation.label, color: presentation.isIncome ? C.moss : C.muted } : transactionStatusLabel(t.status);
         const amount = section === "earned" ? t.earningsState === "needs_review" ? null : hostEarningsContribution(t) : t.amount;
@@ -3564,7 +3566,12 @@ function TransactionsView({ user }) {
               <div>
                 <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{t.description}</div>
                 {t.address && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>📍 {t.address}</div>}
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>
+                {dates ? <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                  <div>{dates.parking}</div>
+                  <div>{dates.paid}</div>
+                  <div>{dates.zone}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>
+                  <div>Booking #PK-{t.bookingId}</div>
+                </div> : <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>}
               </div>
               <div style={{ textAlign: "right" }}>
                 <Badge color={st.color}>{st.label}</Badge>

@@ -119,9 +119,36 @@ test('wrong connected-account fee object is never credited to the Host',async()=
   fees.fee_ch_one.account='acct_other';const r=await get();assert.equal(r.code,200);
   assert.equal(r.body.earned.find(t=>t.bookingId===1).earningsState,'needs_review');
 });
-test('unconfirmed/refunded Driver history does not disclose identifying property details',async()=>{
-  const r=await get();assert.equal(r.body.spent[0].description,'Parking session');assert.equal(r.body.spent[0].address,'');
+test('refunded spending retains its listing title without restoring exact address access',async()=>{
+  const r=await get();assert.equal(r.body.spent[0].description,'Other identifying title');assert.equal(r.body.spent[0].address,'');
   assert.equal(JSON.stringify(r.body).includes('Other private address'),false);
+});
+test('Driver refund history preserves payment date and exposes the separate canonical parking start',async()=>{
+  actor=DRIVER;
+  Object.assign(db.bookings[0],{status:'refunded',paid_at:'2026-10-18T02:30:00Z',scheduled_starts_at:'2026-10-22T16:00:00Z',property_time_zone:'America/Toronto',booking_date:'2026-10-22',start_hour:12});
+  const r=await get(),row=r.body.spent.find(t=>t.bookingId===1);
+  assert.equal(row.description,'Own driveway');assert.equal(row.address,'');
+  assert.equal(row.date,'2026-10-18T02:30:00Z');assert.equal(row.bookingStart,'2026-10-22T16:00:00.000Z');assert.equal(row.propertyTimeZone,'America/Toronto');
+  assert.equal(r.body.spent.some(t=>t.bookingId===3),false);
+  assert.equal(JSON.stringify(r.body).includes('cs_one'),false);
+  const query=calls.find(c=>c.table==='bookings'&&c.query.has('renter_id')).query;
+  assert.equal(query.get('renter_id'),'eq.'+DRIVER);
+});
+test('rejected payment stays unconfirmed without fabricating a parking start or address',async()=>{
+  actor=DRIVER;Object.assign(db.bookings[0],{application_state:'rejected',status:'refunded',scheduled_starts_at:'2026-10-22T16:00Z'});
+  const row=(await get()).body.spent.find(t=>t.bookingId===1);
+  assert.equal(row.description,'Booking not confirmed');assert.equal(row.address,'');assert.equal(row.bookingStart,null);
+});
+test('deleted listing and corrupt legacy schedule keep financial history usable',async()=>{
+  actor=DRIVER;db.listings=[];Object.assign(db.bookings[0],{status:'refunded',scheduled_starts_at:'invalid'});
+  const r=await get(),row=r.body.spent.find(t=>t.bookingId===1);
+  assert.equal(r.code,200);assert.equal(row.description,'Listing unavailable');assert.equal(row.bookingStart,null);assert.equal(row.address,'');assert.equal(row.amount,115);
+});
+test('refunded extension retains its parent listing, payment date and property zone',async()=>{
+  actor=DRIVER;db.bookings[0].property_time_zone='America/Vancouver';
+  db.booking_extensions=[{id:20,booking_id:1,added_hours:2,added_amount:23,status:'refunded',paid_at:'2026-10-18T15:00Z',refund_total_amount:23}];
+  const row=(await get()).body.spent.find(t=>t.type==='extension');
+  assert.equal(row.description,'Own driveway — added time');assert.equal(row.date,'2026-10-18T15:00Z');assert.equal(row.propertyTimeZone,'America/Vancouver');assert.equal(row.status,'refunded');assert.equal(row.refundedAmount,23);
 });
 test('entitled paid Driver retains exact location through the scoped history API',async()=>{
   actor=DRIVER;db.bookings[0].status='confirmed';

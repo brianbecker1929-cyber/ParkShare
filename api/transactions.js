@@ -24,6 +24,7 @@ import { jsonMethod, requireUser, stripe, supabaseAdmin } from "./_lib.js";
 import { hostEarningsForRecord, mapHostEarnings } from "./_host-earnings.js";
 import { loadTransactionHistory } from "./_transaction-history.js";
 import { canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
+import { getSessionWindow } from "./_booking-rules.js";
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
@@ -66,7 +67,7 @@ function spendingRefundStatus(row, gross) {
 async function getSpentTransactions(userId) {
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, application_state, status, paid_at, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address)")
+    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, application_state, status, paid_at, scheduled_starts_at, booking_date, start_hour, property_time_zone, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address)")
     .eq("renter_id", userId)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -78,31 +79,42 @@ async function getSpentTransactions(userId) {
     : [];
 
   const rows = [];
+  const bookingById = new Map((bookings || []).map(b => [b.id, b]));
   for (const b of bookings || []) {
-    const precise = canReadPreciseLocation({ userId, hostId: b.listings?.host_id, listingId: b.listing_id, booking: b });
+    const precise = b.application_state !== "rejected" && canReadPreciseLocation({ userId, hostId: b.listings?.host_id, listingId: b.listing_id, booking: b });
+    // The authenticated renter's financial history retains the listing title
+    // after cancellation/refund. Exact-address access remains a separate gate.
+    let bookingStart = null;
+    if (b.application_state !== "rejected") {
+      try { bookingStart = getSessionWindow(b).start.toISOString(); } catch { /* Legacy invalid schedule: do not invent a date. */ }
+    }
     rows.push({
       type: "booking",
       id: `booking-${b.id}`,
       bookingId: b.id,
-      description: b.application_state === "rejected" ? "Booking not confirmed" : precise ? b.listings?.title || "Parking session" : "Parking session",
+      description: b.application_state === "rejected" ? "Booking not confirmed" : b.listings?.title || "Listing unavailable",
       address: precise ? b.listings?.address || "" : "",
       amount: Number(b.total || 0),
       status: spendingRefundStatus(b, b.total),
       ...spendingRefundAmounts(b),
       date: b.paid_at,
+      bookingStart,
+      propertyTimeZone: b.property_time_zone || null,
       spotLabel: b.spot_label,
     });
   }
   for (const ext of extensions) {
+    const parent = bookingById.get(ext.booking_id);
     rows.push({
       type: "extension",
       id: `extension-${ext.id}`,
       bookingId: ext.booking_id,
-      description: ext.application_state === "rejected" ? "Extension not applied" : "Added time",
+      description: ext.application_state === "rejected" ? "Extension not applied" : `${parent?.listings?.title || "Listing unavailable"} — added time`,
       amount: Number(ext.added_amount || 0),
       status: spendingRefundStatus(ext, ext.added_amount),
       ...spendingRefundAmounts(ext),
       date: ext.paid_at,
+      propertyTimeZone: parent?.property_time_zone || null,
     });
   }
 
