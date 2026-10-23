@@ -1,0 +1,45 @@
+name: QA live verification Review rating accessibility
+on:
+  push:
+    branches: [qa/verify-review-rating-accessibility]
+permissions: {}
+jobs:
+  read-only-http:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify deployed UI and access boundaries; report Data API health separately
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,re,urllib.request,urllib.error,concurrent.futures
+          BASE='https://parkshare-qa.vercel.app'
+          def fetch(path,method='GET'):
+           try:
+            req=urllib.request.Request(BASE+path,method=method,headers={'User-Agent':'ParkShare-QA-review-rating-accessibility'})
+            with urllib.request.urlopen(req,timeout=15) as r:return r.status,r.read().decode()
+           except urllib.error.HTTPError as e:return e.code,e.read().decode()
+           except Exception as e:return 0,type(e).__name__
+          items=[('/','GET'),('/api/transactions','GET'),('/api/transactions','POST'),('/api/account-bookings?view=driver','GET'),('/api/public-parking','GET'),('/api/qa-release-status','GET'),('/api/messages','GET'),('/api/cancel-booking','GET')]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+           results=list(pool.map(lambda item:fetch(*item),items))
+          for item,result in zip(items,results):print(json.dumps({'path':item[0],'method':item[1],'status':result[0]}),flush=True)
+          assert results[0][0]==200,'homepage unavailable'
+          for i,expected in [(1,401),(2,405),(3,401),(6,401),(7,405)]:assert results[i][0]==expected,'authorization/method boundary failed'
+          asset=re.search(r'src="([^"]*/assets/[^" ]+[.]js)"',results[0][1])
+          assert asset,'no bundle'
+          status,bundle=fetch(asset.group(1));assert status==200,'bundle unavailable'
+          markers=['Payment date unavailable','Parking date unavailable','property time zone unavailable','Booking #PK-','Booking history','Retry reviews','Retry sign out','Retry bookings','Refresh bookings','Loading bookings…','Filter by the displayed booking start date. Includes both dates.','Retry transactions',"We couldn't load your recent transactions.",'Refresh conversations','Retry conversations','Loading inbox…','Self-service cancellation is no longer available. Contact support for help with this booking.','Checking your cancellation request. Please wait for confirmation.','Host cancellations must be requested before the booking starts. Contact support for help with this booking.']
+          for marker in markers:
+           assert marker in bundle,marker
+           print('PASS bundle '+marker,flush=True)
+          history_start=bundle.index('ps-driver-booking-followup')
+          history_logic=bundle[max(0,history_start-650):history_start]
+          assert re.search(r'=![A-Za-z_$][\w$]*\|\|\([A-Za-z_$][\w$]*\[[A-Za-z_$][\w$]*[.]id\]\?\?[A-Za-z_$][\w$]*\)',history_logic), 'Missing explicit history expansion override'
+          print('PASS bundle explicit history expansion overrides email highlight',flush=True)
+          assert bundle.count('"aria-label":"Your rating"')==2, 'Both rating groups must be named'
+          assert bundle.count(' out of 5`,"aria-pressed":')==2, 'Both forms need named ratings and selected states'
+          print('PASS bundle named rating choices and selected states in both review forms',flush=True)
+          print(json.dumps({'staticReleaseAndAccessBoundaries':'passed','dataApiHealthy':results[4][0]==200,'readinessHealthy':results[5][0]==200}))
+          
+          PY
