@@ -100,3 +100,25 @@ test('actual transaction React keys reset category selection for same-role accou
  for(const tag of tags){const compiled=await transform('function Parent({user}){return '+tag+';}',{loader:'jsx'});const Parent=new Function('React','TransactionsView',compiled.code+';return Parent;')(React,()=>null);const a=Parent({user:{id:'A'}}),b=Parent({user:{id:'B'}});assert.notEqual(a.key,b.key);assert.equal(a.key,Parent({user:{id:'A',name:'updated'}}).key);}
  assert.match(source.slice(source.indexOf('function HostDashboard('),source.indexOf('function MessagesView(')),/useTransactions\(user\)/);
 });
+
+test('failed financial history can retry one authenticated read and recover its rows',async()=>{
+ let calls=0;const h=harness({fetcher:async()=>++calls===1?Response.json({error:'Temporarily unavailable'},{status:503}):Response.json(rows('A'))});h.render('A');h.commit();await tick();const failed=h.render();assert.match(failed.error,/unavailable/);
+ failed.retry();const loading=h.render();assert.equal(loading.loading,true);assert.equal(loading.error,'');assert.deepEqual(loading.data,empty);h.commit();await tick();const recovered=h.render();assert.deepEqual(recovered.data,rows('A'));assert.equal(recovered.error,'');assert.equal(h.requests.length,2);
+ for(const request of h.requests){assert.equal(request.url,'/api/transactions');assert.equal(request.cache,'no-store');assert.equal(request.headers.Authorization,'Bearer A-token');assert.equal(request.method,undefined);}assert.equal(h.requests[0].signal.aborted,true);h.stop();
+});
+test('queued duplicate retry callbacks cannot start extra reads before or after the next render',async()=>{
+ const pending=deferred();let calls=0;const h=harness({fetcher:async()=>++calls===1?Response.json({},{status:503}):pending.promise});h.render('A');h.commit();await tick();const retry=h.render().retry;retry();retry();h.render();h.commit();retry();await tick();h.render().retry();h.render();h.commit();assert.equal(h.requests.length,2);pending.resolve(Response.json(rows('A')));await tick();h.stop();
+});
+test('every failed retry remains explicitly retryable without automatic polling',async()=>{
+ const h=harness({fetcher:async()=>Response.json({},{status:503})});h.render('A');h.commit();await tick();assert.equal(h.requests.length,1);
+ for(let i=0;i<2;i++){h.render().retry();h.render();h.commit();await tick();assert.ok(h.render().error);assert.equal(h.requests.length,i+2);}await tick();assert.equal(h.requests.length,3);h.stop();
+});
+test('old-account and disposed error callbacks cannot retry private financial reads',async()=>{
+ for(const change of ['account','unmount']){const h=harness({fetcher:async()=>Response.json({},{status:503})});h.render('A');h.commit();await tick();const retry=h.render().retry;if(change==='account')h.render('B');else h.stop();const writes=h.writes.length;retry();assert.equal(h.writes.length,writes);assert.equal(h.requests.length,1);h.stop();}
+});
+test('retry rechecks account ownership before any new transaction request',async()=>{
+ let owner='A';const h=harness({auth:async()=>session(owner),fetcher:async()=>Response.json({},{status:503})});h.render('A');h.commit();await tick();owner='B';h.render().retry();h.render();h.commit();await tick();assert.equal(h.requests.length,1);assert.match(h.render().error,/account changed/i);assert.deepEqual(h.render().data,empty);h.stop();
+});
+test('pending retry is aborted on unmount and cannot publish a late financial response',async()=>{
+ const pending=deferred();let calls=0;const h=harness({fetcher:async()=>++calls===1?Response.json({},{status:503}):pending.promise});h.render('A');h.commit();await tick();h.render().retry();h.render();h.commit();await tick();h.stop();const count=h.writes.length;pending.resolve(Response.json(rows('A')));await tick();assert.equal(h.writes.length,count);assert.equal(h.requests[1].signal.aborted,true);
+});

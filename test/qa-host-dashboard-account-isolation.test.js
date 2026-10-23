@@ -87,12 +87,12 @@ test('actual Host Dashboard key remounts cards, dialogs and payout state for eve
  const a=source.indexOf('<HostDashboard '),tag=source.slice(a,source.indexOf('/>',a)+2),compiled=await transform('function Parent({user}){return '+tag+';}',{loader:'jsx'});const Parent=new Function('React','HostDashboard','changeTab',compiled.code+';return Parent;')(React,()=>null,()=>{});assert.notEqual(Parent({user:{id:'A'}}).key,Parent({user:{id:'B'}}).key);assert.equal(Parent({user:{id:'A'}}).key,Parent({user:{id:'A',name:'new'}}).key);
 });
 
-async function hostMarkup(overrides={}){
+async function hostMarkup(overrides={},inspect){
  const whole=source.slice(begin,source.indexOf('// ─── Messages Inbox',begin)),stateNames=[...whole.matchAll(/const \[(\w+), \w+\] = useState/g)].map(m=>m[1]);let index=0;
  const components=Object.fromEntries([...whole.matchAll(/<([A-Z]\w*)\b/g)].map(m=>[m[1],()=>null]));
- const values={React,...components,useHostListingEdit:()=>({listing:null}),useHostListingDeletion:()=>({deletingId:null,confirmDeleteId:null}),useBookingCancellation:()=>({target:null,busy:false,error:"",notice:""}),C:new Proxy({},{get:()=>'#000'}),useState:initial=>{const name=stateNames[index++];return [name in overrides?overrides[name]:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect:()=>{},useTransactions:()=>({data:{earned:[],payouts:[]},loading:false,error:''}),hostEarnedTotal:()=>0,getBookingDisplayStatus:()=>'',money:v=>'$'+v,hostTransactionPresentation:()=>({label:'Paid'}),hostEarningsContribution:()=>0};
+ const values={React,...components,useHostListingEdit:()=>({listing:null}),useHostListingDeletion:()=>({deletingId:null,confirmDeleteId:null}),useBookingCancellation:()=>({target:null,busy:false,error:"",notice:""}),C:new Proxy({},{get:()=>'#000'}),useState:initial=>{const name=stateNames[index++];return [name in overrides?overrides[name]:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect:()=>{},useTransactions:()=>overrides.transactions||({data:{earned:[],payouts:[]},loading:false,error:''}),hostEarnedTotal:()=>0,getBookingDisplayStatus:()=>'',money:v=>'$'+v,hostTransactionPresentation:()=>({label:'Paid'}),hostEarningsContribution:()=>0};
  const compiled=await transform(whole,{loader:'jsx'}),View=new Function(...Object.keys(values),compiled.code+';return HostDashboard;')(...Object.values(values));
- return renderToStaticMarkup(React.createElement(View,{user:{id:'A',name:'Fixture Host'}}));
+ const tree=View({user:{id:'A',name:'Fixture Host'}});inspect?.(tree);return renderToStaticMarkup(tree);
 }
 test('actual dashboard distinguishes loading/error from confirmed empty Host history',async()=>{
  const loading=await hostMarkup();assert.match(loading,/Loading your dashboard/);for(const text of ['No listings yet','No upcoming bookings','No reviews yet'])assert.equal(loading.includes(text),false);
@@ -104,4 +104,20 @@ test('unavailable payout status shows a retry instead of claiming Stripe is disc
 });
 test('retry aborts the old load and its photos while preserving a newer successful reload',async()=>{
  const late=deferred();let calls=0;const h=harness({fetcher:()=>++calls===1?late.promise:Promise.resolve(Response.json(payload('LATEST')))});const stop=h.run('load');await tick();stop();h.run('load');await tick();late.resolve(Response.json(payload('STALE')));await tick();assert.equal(h.state.dbListings[0].title,'LATEST PRIVATE LISTING');assert.equal(h.state.hostLoading,false);assert.equal(h.state.hostError,'');assert.equal(h.requests[0].signal.aborted,true);h.stop();
+});
+
+test('failed Host financial history never claims there are no transactions or displays stale rows',async()=>{
+ for(const earned of [[],[{id:1,description:'STALE PRIVATE TRANSACTION',date:'2026-10-22',net:10}]]){
+  const html=await hostMarkup({hostLoading:false,transactions:{data:{earned,payouts:[]},loading:false,error:'Service unavailable',retry:()=>{}}});
+  assert.doesNotMatch(html,/No transactions yet|STALE PRIVATE TRANSACTION/);assert.match(html,/couldn&#x27;t load your recent transactions/);assert.match(html,/Retry transactions/);assert.match(html,/role="alert"/);assert.match(html,/Unavailable/);
+ }
+});
+test('Host financial empty history is shown only after a completed successful read',async()=>{
+ const loading=await hostMarkup({transactions:{data:{earned:[],payouts:[]},loading:true,error:''}});assert.doesNotMatch(loading,/No transactions yet|Retry transactions/);
+ const empty=await hostMarkup({transactions:{data:{earned:[],payouts:[]},loading:false,error:''}});assert.match(empty,/No transactions yet/);assert.doesNotMatch(empty,/Retry transactions/);
+});
+test('Host Retry transactions control invokes the financial hook retry directly',async()=>{
+ let calls=0,button;const walk=node=>{if(!React.isValidElement(node))return;if(node.type==='button'&&node.props.children==='Retry transactions')button=node;React.Children.forEach(node.props.children,walk);};
+ await hostMarkup({transactions:{data:{earned:[],payouts:[]},loading:false,error:'Unavailable',retry:()=>calls++}},walk);
+ assert.ok(button);assert.equal(button.props.type,'button');assert.ok(button.props.style.minHeight>=44);button.props.onClick();assert.equal(calls,1);
 });

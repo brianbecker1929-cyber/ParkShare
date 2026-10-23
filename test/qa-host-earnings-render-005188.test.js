@@ -8,18 +8,18 @@ import {hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution} fr
 import {transactionDateDetails} from '../src/lib/transactionDetails.js';
 let factory,source;
 before(async()=>{
-  source=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
+  source=await readFile(process.env.QA_TRANSACTION_SOURCE_FILE||new URL('../src/App.jsx',import.meta.url),'utf8');
   const code=source.slice(source.indexOf('function TransactionsView('),source.indexOf('function HostDashboard('));
   const compiled=await transform(code,{loader:'jsx',jsx:'transform'});
   factory=new Function('React','useState','useTransactions','C','money','Badge','transactionStatusLabel',
     'hostTransactionPresentation','hostEarnedTotal','hostEarningsContribution','transactionDateDetails',compiled.code+';return TransactionsView;');
 });
-function render({section='earned',earned=[],payoutsUnavailable=false}){
-  const View=factory(React,()=>[section,()=>{}],()=>({data:{spent:[],earned,payouts:[],payoutsUnavailable},loading:false,error:''}),
+function render({section='earned',earned=[],payoutsUnavailable=false,loading=false,error='',retry=()=>{},inspect}){
+  const View=factory(React,()=>[section,()=>{}],()=>({data:{spent:[],earned,payouts:[],payoutsUnavailable},loading,error,retry}),
     {navy:'#000',white:'#fff',concrete:'#ddd',moss:'green',muted:'#777',amber:'orange'},
     amount=>'$'+Number(amount).toFixed(2),({children})=>React.createElement('span',null,children),
     status=>({label:status,color:'#000'}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution,transactionDateDetails);
-  return renderToStaticMarkup(React.createElement(View,{user:{id:'fixture'}}));
+  const tree=View({user:{id:'fixture'}});inspect?.(tree);return renderToStaticMarkup(tree);
 }
 const partial={id:'booking-1',type:'booking',description:'Synthetic booking',date:'2026-10-19T12:00:00Z',status:'partially_refunded',
   earningsStatus:'partially_refunded',earningsState:'verified',gross:115,refundedAmount:23,platformFee:12,net:80};
@@ -56,4 +56,13 @@ test('Driver spending displays cumulative settled and pending refunds beneath th
  const View=factory(React,()=>['spent',()=>{}],()=>({data:{spent:[{id:'booking-1',description:'Synthetic payment',date:'2026-10-19T12:00:00Z',status:'refund_pending',amount:115,refundedAmount:46,refundPendingAmount:11.5}],earned:[],payouts:[]},loading:false,error:''}),{},
   amount=>'$'+Number(amount).toFixed(2),({children})=>React.createElement('span',null,children),status=>({label:status}),hostTransactionPresentation,hostEarnedTotal,hostEarningsContribution,transactionDateDetails);
  const html=renderToStaticMarkup(React.createElement(View,{user:{role:'driver'}}));assert.match(html,/\$115.00 CAD/);assert.match(html,/\$46.00.*CAD refunded/);assert.match(html,/\$11.50.*CAD refund pending/);assert.doesNotMatch(html,/CAD CAD/);assert.match(html,/Booking charges \(CAD\)/);assert.match(html,/earlier checkout converted by Stripe/);
+});
+
+test('Transactions page exposes a retry alert instead of empty history after a failed financial read',()=>{
+ let calls=0,button;const walk=node=>{if(!React.isValidElement(node))return;if(node.type==='button'&&node.props.children==='Retry transactions')button=node;React.Children.forEach(node.props.children,walk);};
+ const html=render({error:'Transactions unavailable',retry:()=>calls++,inspect:walk});assert.match(html,/role="alert"/);assert.doesNotMatch(html,/Nothing here yet|No payouts yet/);assert.ok(button);assert.ok(button.props.style.minHeight>=44);button.props.onClick();assert.equal(calls,1);
+});
+test('Transactions loading and valid empty results do not offer an error retry',()=>{
+ const loading=render({loading:true});assert.match(loading,/role="status"/);assert.doesNotMatch(loading,/Retry transactions|Nothing here yet/);
+ const empty=render({});assert.match(empty,/Nothing here yet/);assert.doesNotMatch(empty,/Retry transactions/);
 });

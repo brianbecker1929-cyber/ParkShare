@@ -3436,10 +3436,11 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
 // cache/context if this page gets hit often enough to matter.
 function useTransactions(user) {
   const emptyData = () => ({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
+  const [reloadRevision, setReloadRevision] = useState(0);
   // A fresh scope for each identity interval also covers A -> B -> A.
   // Mask old rows during render, before effect cleanup/reset can run. The
   // Host earnings card uses this hook without remounting its parent.
-  const scope = useMemo(() => ({ userId: user?.id || null }), [user?.id]);
+  const scope = useMemo(() => ({ userId: user?.id || null, retrying: false, active: false }), [user?.id, reloadRevision]);
   const currentScope = useRef(scope);
   currentScope.current = scope;
   const [snapshot, setSnapshot] = useState(() => ({ scope, data: emptyData(), loading: Boolean(scope.userId), error: "" }));
@@ -3447,6 +3448,7 @@ function useTransactions(user) {
   useEffect(() => {
     setSnapshot({ scope, data: emptyData(), loading: Boolean(scope.userId), error: "" });
     if (!scope.userId) return;
+    scope.active = true;
     const controller = new AbortController();
     let active = true;
     const isCurrent = () => active && currentScope.current === scope;
@@ -3484,10 +3486,16 @@ function useTransactions(user) {
       }
     })();
 
-    return () => { active = false; controller.abort(); };
+    return () => { active = false; scope.active = false; controller.abort(); };
   }, [scope]);
 
-  return snapshot.scope === scope ? snapshot : { data: emptyData(), loading: Boolean(scope.userId), error: "" };
+  const visible = snapshot.scope === scope ? snapshot : { data: emptyData(), loading: Boolean(scope.userId), error: "" };
+  const retry = () => {
+    if (currentScope.current !== scope || !scope.active || scope.retrying || !scope.userId || visible.loading || !visible.error) return;
+    scope.retrying = true;
+    setReloadRevision(value => value + 1);
+  };
+  return { ...visible, retry };
 }
 
 // Maps the real statuses your backend actually uses (bookings.status /
@@ -3519,7 +3527,7 @@ function money(n) {
 // ─── Transactions tab — full history for both what you've spent and, if
 // you host any listings, what you've earned and been paid out. ────────────
 function TransactionsView({ user }) {
-  const { data, loading, error } = useTransactions(user);
+  const { data, loading, error, retry } = useTransactions(user);
   const [section, setSection] = useState("spent"); // "spent" | "earned" | "payouts"
 
   const sections = user?.role === "driver" ? ["spent"] : ["spent", "earned", "payouts"];
@@ -3545,8 +3553,11 @@ function TransactionsView({ user }) {
       </div>
 
       {section === "spent" && <p style={{ fontSize: 12, color: C.muted }}>Booking totals and refunds are recorded in CAD. For an earlier checkout converted by Stripe, use the Stripe receipt for the amount and currency charged to your payment method.</p>}
-      {loading && <p style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
-      {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
+      {loading && <p role="status" style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
+      {error && <div role="alert" style={{ fontSize: 13, color: C.red }}>
+        <p>{error}</p>
+        <button type="button" onClick={retry} style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: "pointer" }}>Retry transactions</button>
+      </div>}
 
       {!loading && !error && section !== "payouts" && rows.length === 0 && (
         <div style={{ fontSize: 13, color: C.muted }}>
@@ -4067,7 +4078,7 @@ function HostDashboard({ user, setTab }) {
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
       setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
     });
-  const { data: txData, loading: txLoading, error: txError } = useTransactions(user);
+  const { data: txData, loading: txLoading, error: txError, retry: retryTransactions } = useTransactions(user);
 
   const now = new Date();
   const sameMonth = (d, monthsAgo) => {
@@ -4288,9 +4299,13 @@ function HostDashboard({ user, setTab }) {
             {setTab && <button onClick={() => setTab("Transactions")} style={{ minHeight: 34, background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>View all →</button>}
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {txLoading && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>Loading…</div>}
-            {!txLoading && txData.earned.length === 0 && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>No transactions yet.</div>}
-            {!txLoading && txData.earned.slice(0, 3).map(t => {
+            {txLoading && <div role="status" style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>Loading…</div>}
+            {!txLoading && txError && <div role="alert" style={{ fontSize: 11, color: C.red, padding: "16px 15px" }}>
+              <p>We couldn't load your recent transactions.</p>
+              <button type="button" onClick={retryTransactions} style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: "pointer" }}>Retry transactions</button>
+            </div>}
+            {!txLoading && !txError && txData.earned.length === 0 && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>No transactions yet.</div>}
+            {!txLoading && !txError && txData.earned.slice(0, 3).map(t => {
               const presentation = hostTransactionPresentation(t);
               const amount = hostEarningsContribution(t);
               const showAmount = t.earningsState === "verified" || presentation.isIncome;
