@@ -1440,6 +1440,7 @@ function useReviewSubmission(user, listingId, scope, onSubmitted, initiallyOpen 
 }
 
 function ReviewsSection({ listing, onSubmitReview, user }) {
+  const reviewTextId = useId();
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
@@ -1513,14 +1514,16 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your rating</div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div role="group" aria-label="Your rating" style={{ display: "flex", gap: 6 }}>
               {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => change({ rating: n })} disabled={submitting}
+                <button key={n} type="button" aria-label={`${n} ${n === 1 ? "star" : "stars"} out of 5`} aria-pressed={draft.rating === n}
+                  onClick={() => change({ rating: n })} disabled={submitting}
                   style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: n <= draft.rating ? C.amber : C.concrete, padding: 0 }}>★</button>
               ))}
             </div>
           </div>
-          <textarea
+          <label htmlFor={reviewTextId} style={{ display: "block", fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</label>
+          <textarea id={reviewTextId}
             value={draft.text}
             onChange={e => change({ text: e.target.value })} disabled={submitting} maxLength={1500}
             placeholder="Share your experience…"
@@ -6429,6 +6432,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 }
 
 function ReviewModal({ booking, onClose, onSubmit, user }) {
+  const reviewTextId = useId();
   const numericId = String(booking.listing.id).startsWith("db-") ? Number(String(booking.listing.id).slice(3)) : null;
   const { draft: { rating, text }, error, submitting, change, submit, cancel } =
     useReviewSubmission(user, numericId, booking.id, onSubmit, true);
@@ -6438,15 +6442,16 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
     <Modal title={"Review "+booking.listing.title} onClose={close}>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 8 }}>Your rating</div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div role="group" aria-label="Your rating" style={{ display: "flex", gap: 6 }}>
           {[1,2,3,4,5].map(n => (
-            <button key={n} onClick={() => change({ rating: n })} disabled={submitting} style={{ background:"none", border:"none", fontSize:28, cursor:"pointer", color: n <= rating ? C.amber : C.concrete, padding:0 }}>★</button>
+            <button key={n} type="button" aria-label={`${n} ${n === 1 ? "star" : "stars"} out of 5`} aria-pressed={rating === n}
+              onClick={() => change({ rating: n })} disabled={submitting} style={{ background:"none", border:"none", fontSize:28, cursor:"pointer", color: n <= rating ? C.amber : C.concrete, padding:0 }}>★</button>
           ))}
         </div>
       </div>
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</div>
-        <textarea
+        <label htmlFor={reviewTextId} style={{ display: "block", fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</label>
+        <textarea id={reviewTextId}
           value={text} onChange={e => change({ text: e.target.value })} disabled={submitting} maxLength={1500}
           placeholder="Share your experience with this driveway…"
           style={{ width:"100%", border:"1px solid "+C.concrete, borderRadius:8, padding:"10px 14px", fontSize:13, resize:"vertical", minHeight:90, fontFamily:"'Poppins', sans-serif", color:C.navy, outline:"none", boxSizing:"border-box" }}

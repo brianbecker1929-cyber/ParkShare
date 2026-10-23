@@ -19,7 +19,7 @@ function harness(kind='modal',{auth=async()=>session('A'),post=async()=>reply(),
  const slots=[],pendingEffects=[],effectSetups=[],writes=[],requests=[],publicRequests=[];let cursor=0,dirty=false,tree,closed=0,submitted=0;
  let props={user:{id:'A'},listing:{id:'db-7',title:'Seven',rating:5},booking:{id:'db-1',listing:{id:'db-7',title:'Seven'}}};
  const Modal=()=>null,Btn=()=>null;
- const values={React,C:{},Modal,Btn,Stars:()=>null,REVIEWS_DATA:{demo:[]},validId,supabase:{auth:{getSession:auth}},fetch:(url,options)=>{
+ const values={React,C:{},Modal,Btn,Stars:()=>null,REVIEWS_DATA:{demo:[]},validId,useId:()=>`review-text-${kind}`,supabase:{auth:{getSession:auth}},fetch:(url,options)=>{
   if(url.startsWith('/api/public-reviews')){publicRequests.push({url,options});return publicRead(url,options);}
   requests.push({url,options,body:JSON.parse(options.body)});return post(url,options);
  },console:{error:()=>{}},useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const value=typeof v==='function'?v(slots[n].value):v;if(value!==slots[n].value){slots[n].value=value;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};pendingEffects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();effectSetups[n]=fn;});}}};
@@ -123,3 +123,28 @@ test('booking review modal is keyed by the current account and selected booking'
 test('StrictMode effect cleanup/setup keeps the current form usable without reviving disposed callbacks',async()=>{
  for(const kind of ['modal','section']){const h=harness(kind),old=h.button('Submit review');h.replay();await old();assert.equal(h.requests.length,0);await h.submit();assert.equal(h.submitted,1);assert.equal(h.requests.length,1);h.stop();}
 });
+
+for(const kind of ['modal','section']){
+ test(`${kind}: rating choices have distinct spoken names and expose the exact selection`,async()=>{
+  const h=harness(kind,{post:async()=>reply(7,3)});
+  const choices=()=>elements(h.render(),n=>n.type==='button'&&label(n)==='★');
+  const group=elements(h.render(),n=>n.props?.role==='group'&&n.props['aria-label']==='Your rating')[0];
+  assert.ok(group,'Rating choices need an accessible group name');
+  assert.equal(choices().length,5);
+  choices().forEach((n,i)=>{assert.equal(n.props.type,'button');assert.equal(n.props['aria-label'],`${i+1} ${i===0?'star':'stars'} out of 5`);assert.equal(n.props['aria-pressed'],i===4);});
+  choices()[2].props.onClick();
+  assert.deepEqual(choices().map(n=>n.props['aria-pressed']),[false,false,true,false,false]);
+  const area=elements(h.render(),n=>n.type==='textarea')[0];
+  assert.ok(area.props.id,'Written review needs an ID');
+  const fieldLabel=elements(h.render(),n=>n.type==='label'&&n.props.htmlFor===area.props.id)[0];
+  assert.ok(fieldLabel,'Visible review label must name the textarea');assert.equal(label(fieldLabel),'Your review');
+  await h.submit();assert.equal(h.requests.length,1);assert.equal(h.requests[0].body.rating,3);assert.equal(h.requests[0].body.text,'A good driveway');assert.equal(h.submitted,1);h.stop();
+ });
+ test(`${kind}: submitting preserves accessible rating state while disabling changes`,async()=>{
+  const pending=later(),h=harness(kind,{post:()=>pending.promise}),work=h.submit();await tick();
+  const choices=elements(h.render(),n=>n.type==='button'&&label(n)==='★');assert.equal(choices.length,5);
+  choices.forEach((n,i)=>{assert.equal(n.props.disabled,true);assert.equal(n.props['aria-pressed'],i===4);assert.ok(n.props['aria-label']);});
+  assert.equal(elements(h.render(),n=>n.type==='textarea')[0].props.disabled,true);
+  pending.resolve(reply());await work;assert.equal(h.requests.length,1);assert.equal(h.submitted,1);h.stop();
+ });
+}
