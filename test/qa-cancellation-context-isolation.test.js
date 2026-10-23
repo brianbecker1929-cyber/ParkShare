@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import React from 'react';
 import {transform} from 'esbuild';
 import {validId} from '../src/lib/privateListingAccess.js';
+import {cancellationDeadlineError} from '../src/lib/bookingTime.js';
 const source=await readFile(process.env.QA_CANCELLATION_CONTEXT_SOURCE_FILE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const start=source.indexOf('async function requestBookingCancellation('),end=source.indexOf('function CancellationModal(',start);
 let code=source.slice(start,end);
@@ -17,15 +18,15 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const session=id=>({data:{session:{access_token:id+'-token',user:{id}}}});
 const booking=(id=42)=>({rawId:id,driver:'PRIVATE DRIVER '+id,listing:{title:'PRIVATE LISTING '+id,address:'PRIVATE ADDRESS',photos:['PRIVATE PHOTO']},vehicle:{plate:'PRIVATE PLATE'}});
 const success=()=>Response.json({bookingStatus:'refunded',message:'Current booking cancelled'});
-function harness({auth=async()=>session('A'),refresh=async()=>session('A'),fetcher=async()=>success(),actor='Driver'}={}){
- const slots=[],effects=[],requests=[],updates=[],writes=[];let cursor=0,changed=false,result,owner='A',refreshes=0;const cleanups=[];
+function harness({auth=async()=>session('A'),refresh=async()=>session('A'),fetcher=async()=>success(),actor='Driver',now=Date.now()}={}){
+ const slots=[],effects=[],requests=[],updates=[],writes=[];let cursor=0,changed=false,result,owner='A',refreshes=0,clock=now;const cleanups=[];
  const values={useState:initial=>{const n=cursor++;if(!slots[n])slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{const next=typeof v==='function'?v(slots[n].value):v;writes.push(n);if(next!==slots[n].value){slots[n].value=next;changed=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++;if(!slots[n]){slots[n]={deps};effects.push(fn);}},
-  supabase:{auth:{getSession:()=>auth(),refreshSession:()=>{refreshes++;return refresh();}}},validId,fetch:(url,init)=>{requests.push({url,...init});return fetcher(url,init);},setDbBookings:fn=>{updates.push(fn([{rawId:42},{rawId:43}]));}};
+  supabase:{auth:{getSession:()=>auth(),refreshSession:()=>{refreshes++;return refresh();}}},validId,cancellationDeadlineError:(deadline,at=clock)=>cancellationDeadlineError(deadline,at),fetch:(url,init)=>{requests.push({url,...init});return fetcher(url,init);},setDbBookings:fn=>{updates.push(fn([{rawId:42},{rawId:43}]));}};
  const hook=new Function(...Object.keys(values),code+';return useBookingCancellation;')(...Object.values(values));
  function render(id=owner){owner=id;let count=0;do{changed=false;cursor=0;result=hook(id?{id}:null,'Cancelled by '+actor,(id,data)=>updates.push({id,data}));assert.ok(++count<5);}while(changed);for(const fn of effects.splice(0))cleanups.push(fn());return result;}
  function stop(){for(const cleanup of cleanups.splice(0))cleanup?.();}
- const open=(id=42)=>{render().open(booking(id));return render();};
- return {render,open,stop,requests,updates,writes,get refreshes(){return refreshes;}};
+ const open=(id=42,extra={})=>{render().open({...booking(id),...extra});return render();};
+ return {render,open,stop,requests,updates,writes,setTime:value=>{clock=value;},get refreshes(){return refreshes;}};
 }
 
 test('cancellation rejects a different current account before POST, without refreshing it',async()=>{
@@ -80,13 +81,30 @@ test('same-account profile rerender preserves the current dialog and pending tok
  const reply=deferred(),h=harness({fetcher:()=>reply.promise}),dialog=h.open(),work=dialog.confirm();await tick();const next=h.render('A');assert.equal(next.requestKey,dialog.requestKey);assert.equal(next.busy,true);await next.confirm();assert.equal(h.requests.length,1);reply.resolve(Response.json({bookingStatus:'pending',message:'Refund processing'}));await work;assert.equal(h.render().notice,'Refund processing');assert.equal(h.updates.length,1);h.stop();
 });
 
+test('expired Driver intent cannot look up auth or POST a cancellation',async()=>{
+ let authCalls=0;const h=harness({now:1001,auth:async()=>{authCalls++;return session('A');}});await h.open(42,{cancellationDeadline:1000}).confirm();assert.equal(authCalls,0);assert.equal(h.requests.length,0);assert.match(h.render().error,/Self-service cancellation is no longer available/);assert.equal(h.render().busy,false);h.stop();
+});
+test('exact cutoff remains eligible and the copied deadline cannot be extended by mutating its source',async()=>{
+ const h=harness({now:1000}),input={...booking(),cancellationDeadline:1000};h.render().open(input);input.cancellationDeadline=9000;assert.equal(h.render().target.cancellationDeadline,1000);await h.render().confirm();assert.equal(h.requests.length,1);h.stop();
+});
+test('expiry during session lookup or refresh blocks the cancellation POST',async()=>{
+ for(const phase of ['lookup','refresh']){const pending=deferred(),h=harness({now:999,auth:phase==='lookup'?()=>pending.promise:async()=>({data:{session:null}}),refresh:()=>pending.promise});const work=h.open(42,{cancellationDeadline:1000}).confirm();await tick();h.setTime(1001);pending.resolve(session('A'));await work;assert.equal(h.requests.length,0);assert.match(h.render().error,/Contact support/);assert.equal(h.render().busy,false);h.stop();}
+});
+test('a cancellation sent before cutoff still applies its verified response after cutoff',async()=>{
+ const reply=deferred(),h=harness({now:999,fetcher:()=>reply.promise});const work=h.open(42,{cancellationDeadline:1000}).confirm();await tick();assert.equal(h.requests.length,1);h.setTime(1001);reply.resolve(success());await work;assert.equal(h.updates.length,1);assert.equal(h.render().target,null);assert.match(h.render().notice,/cancelled/);h.stop();
+});
+test('missing optional deadline preserves Host handling and invalid supplied deadlines fail closed',async()=>{
+ const host=harness({actor:'Host',now:1001});await host.open().confirm();assert.equal(host.requests.length,1);host.stop();
+ for(const cancellationDeadline of [null,NaN,Infinity,'1000']){const h=harness({now:999});await h.open(42,{cancellationDeadline}).confirm();assert.equal(h.requests.length,0);assert.match(h.render().error,/Contact support/);h.stop();}
+});
+
 for(const [name,next,actor,handler] of [['HostDashboard','// ─── Messages Inbox','Host','cancelHostBooking'],['MyBookingsView','function ReviewModal(','Driver','cancelDriverBooking']]){
  test(`actual ${actor} view wires its booking update, scoped open, close, confirm and modal key`,async()=>{
   const a=source.indexOf('function '+name+'('),view=source.slice(a,source.indexOf(next,a));let passed;
   const from=view.indexOf('  const { target: cancelTarget'),to=view.indexOf('\n    });',from)+8;
-  const updates=[];const props={target:{rawId:42,driver:'Driver',listing:{title:'Listing'}},busy:false,error:'',notice:'',requestKey:7,open:()=>{},close:()=>{},confirm:()=>{}};
+  const updates=[];const props={target:{rawId:42,driver:'Driver',listing:{title:'Listing'},cancellationDeadline:1000},busy:false,error:'',notice:'',requestKey:7,open:()=>{},close:()=>{},confirm:()=>{}};
   const bindings=new Function('useBookingCancellation','user','setDbBookings',view.slice(from,to)+';return {cancelTarget,cancelBusy,cancelError,cancelNotice,cancellationKey,openCancellation,closeCancellation,'+handler+'};')((...args)=>{passed=args;return props;},{id:'A'},fn=>updates.push(fn([{rawId:42},{rawId:43}])));
   assert.equal(passed[0].id,'A');assert.equal(passed[1],'Cancelled by '+actor);passed[2](42,{bookingStatus:'refunded'});assert.equal(updates[0][0].status,'Cancelled');assert.equal(updates[0][0].canCancel,false);assert.equal(updates[0][1].status,undefined);passed[2](42,{bookingStatus:'pending'});assert.equal(updates[1][0].status,'Cancellation pending');
-  const tagStart=view.indexOf('<CancellationModal\n'),tag=view.slice(tagStart,view.indexOf('/>',tagStart)+2),compiled=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,CancellationModal:()=>null,...bindings};const modal=new Function(...Object.keys(values),compiled.code+';return Parent;')(...Object.values(values))();assert.equal(modal.key,'7');assert.equal(modal.props.onClose,props.close);assert.equal(modal.props.onConfirm,props.confirm);assert.match(view,/openCancellation\(b\)/);
+  const tagStart=view.indexOf('<CancellationModal\n'),tag=view.slice(tagStart,view.indexOf('/>',tagStart)+2),compiled=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,CancellationModal:()=>null,...bindings};const modal=new Function(...Object.keys(values),compiled.code+';return Parent;')(...Object.values(values))();assert.equal(modal.key,'7');assert.equal(modal.props.onClose,props.close);assert.equal(modal.props.onConfirm,props.confirm);if(actor==='Driver')assert.equal(modal.props.cancellationDeadline,1000);assert.match(view,/openCancellation\(b\)/);
  });
 }

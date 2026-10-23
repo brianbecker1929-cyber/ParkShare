@@ -34,7 +34,7 @@ import {
 } from "./lib/navigation";
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
-import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
+import { formatBookingTimeRemaining, getBookingDisplayStatus, cancellationDeadlineError } from "./lib/bookingTime";
 import { matchesBookingDateRange } from "./lib/bookingDateFilter";
 import { parseMessageBookingId, bookingMessageListing, bookingMessageThread } from "./lib/bookingMessage";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
@@ -5976,9 +5976,11 @@ function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = 
   };
 }
 
-async function requestBookingCancellation(bookingId, reason, expectedAccountId, isContextCurrent = () => false) {
+async function requestBookingCancellation(bookingId, reason, expectedAccountId, isContextCurrent = () => false, cancellationDeadline) {
   if (!validId(bookingId) || !expectedAccountId) throw new Error("Choose a booking while signed in.");
   if (!isContextCurrent()) return null;
+  const initialDeadlineError = cancellationDeadlineError(cancellationDeadline);
+  if (initialDeadlineError) throw new Error(initialDeadlineError);
   let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (!isContextCurrent()) return null;
   let session = sessionData?.session;
@@ -5994,6 +5996,8 @@ async function requestBookingCancellation(bookingId, reason, expectedAccountId, 
 
   // The API remains responsible for authorization, eligibility and refund
   // idempotency. This guard prevents a new POST from an obsolete UI intent.
+  const finalDeadlineError = cancellationDeadlineError(cancellationDeadline);
+  if (finalDeadlineError) throw new Error(finalDeadlineError);
   const response = await fetch("/api/cancel-booking", {
     method: "POST",
     headers: {
@@ -6032,8 +6036,8 @@ function useBookingCancellation(user, reason, onCancelled) {
   const open = booking => {
     if (!mounted.current || latest.current !== current || !accountId || !validId(booking?.rawId) || current.request?.token.pending) return;
     if (current.request) current.request.token.active = false;
-    // Retain only the confirmation's immutable display fields and record ID.
-    const target = { rawId: booking.rawId, driver: booking.driver, listing: { title: booking.listing?.title } };
+    // Retain only immutable confirmation fields, record ID and optional deadline.
+    const target = { rawId: booking.rawId, driver: booking.driver, listing: { title: booking.listing?.title }, cancellationDeadline: booking.cancellationDeadline };
     replace({ accountId, request: { target, token: { active: true, pending: false }, error: "" }, notice: "", revision: current.revision + 1 });
   };
   const close = () => {
@@ -6053,7 +6057,7 @@ function useBookingCancellation(user, reason, onCancelled) {
     patch("");
     try {
       const bookingId = request.target.rawId;
-      const result = await requestBookingCancellation(bookingId, reason, accountId, () => isCurrent(token));
+      const result = await requestBookingCancellation(bookingId, reason, accountId, () => isCurrent(token), request.target.cancellationDeadline);
       if (!isCurrent(token) || !result) return;
       onCancelled(bookingId, result);
       token.active = false;
@@ -6069,19 +6073,22 @@ function useBookingCancellation(user, reason, onCancelled) {
     notice: current.notice, requestKey: current.revision, open, close, confirm };
 }
 
-function CancellationModal({ title, actor, busy, error, onClose, onConfirm }) {
+function CancellationModal({ title, actor, busy, error, onClose, onConfirm, cancellationDeadline }) {
+  const deadlineError = busy ? "" : cancellationDeadlineError(cancellationDeadline);
   return (
     <Modal title={title} onClose={onClose}>
+      {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineError}</div> : <>
       <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
         {actor === "host"
           ? "The Driver will receive a full refund, including the ParkShare service fee."
           : "Because this scheduled booking starts at least one hour from now, you'll receive a full refund, including the ParkShare service fee."}
       </p>
       <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>
-      {error && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+      </>}
+      {error && !deadlineError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
         <Btn variant="ghost" onClick={onClose} disabled={busy}>Keep booking</Btn>
-        <Btn variant="outline" full onClick={onConfirm} disabled={busy}>{busy ? "Cancelling…" : "Confirm cancellation"}</Btn>
+        <Btn variant="outline" full onClick={onConfirm} disabled={busy || Boolean(deadlineError)}>{busy ? "Cancelling…" : "Confirm cancellation"}</Btn>
       </div>
     </Modal>
   );
@@ -6172,6 +6179,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             bookingEnd: window.end.toISOString(),
             bookingIsScheduled: scheduled,
             propertyTimeZone: row.property_time_zone || null,
+            cancellationDeadline: window.start.getTime() - 60 * 60 * 1000,
             spotLabel: row.spot_label || "",
             total: row.total,
             vehicle: {
@@ -6296,7 +6304,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 )}
                 {isActive && <Btn small variant="primary" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
-                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { openCancellation(b); }}>Cancel booking</Btn>}
+                {b.canCancel && !hasEnded && !cancellationDeadlineError(b.cancellationDeadline, currentTime) && <Btn small variant="outline" onClick={() => { openCancellation(b); }}>Cancel booking</Btn>}
                 {canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
                 )}
@@ -6405,6 +6413,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           key={cancellationKey}
           title={`Cancel ${cancelTarget.listing.title}?`}
           actor="driver"
+          cancellationDeadline={cancelTarget.cancellationDeadline}
           busy={cancelBusy}
           error={cancelError}
           onClose={closeCancellation}
