@@ -5,7 +5,7 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 import {matchesBookingDateRange} from '../src/lib/bookingDateFilter.js';
-import {getBookingDisplayStatus} from '../src/lib/bookingTime.js';
+import {getBookingDisplayStatus,cancellationDeadlineError} from '../src/lib/bookingTime.js';
 
 // Run the real component, including its action and load effect. External
 // services and visual children are replaced; no live bookings are changed.
@@ -25,7 +25,7 @@ const text=node=>!React.isValidElement(node)?String(node??''):React.Children.toA
 function harness({fetcher=async()=>success([]),auth=async()=>({data:{session:{access_token:'A-token',user:{id:'A'}}}}),photo=async()=>null}={}){
   const state={},requests=[],photos=[],effects=[],refs=[],cleanups=new Map(),dependencies=new Map();let cursor=0,refCursor=0,tree;
   const components=Object.fromEntries([...whole.matchAll(/<([A-Z]\w*)\b/g)].map(m=>[m[1],props=>React.createElement('span',null,props.children)]));
-  const values={React,...components,...helpers,matchesBookingDateRange,getBookingDisplayStatus,
+  const values={React,...components,...helpers,matchesBookingDateRange,getBookingDisplayStatus,cancellationDeadlineError,
     C:new Proxy({},{get:()=>'#000'}),money:v=>'$'+Number(v).toFixed(2),bookingEventFromRow:()=>null,
     useState:initial=>{const key=names[cursor++];if(!(key in state))state[key]=typeof initial==='function'?initial():initial;return [state[key],v=>{state[key]=typeof v==='function'?v(state[key]):v;}];},
     useRef:initial=>refs[refCursor++]||(refs[refCursor-1]={current:initial}),useEffect:(fn,deps)=>effects.push({fn,deps}),
@@ -84,4 +84,10 @@ test('immediate booking date stays aligned with the property display after refre
   const h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();
   assert.match(h.html(),/Fixture driveway/);assert.match(h.state.dbBookings[0].date,/Oct 20, 2050/);
   h.click('Refresh bookings');await tick();h.render();assert.match(h.html(),/Showing 1 of 1 bookings/);assert.equal(h.state.fromDate,'2050-10-20');h.stop();
+});
+
+test('Driver cancellation action expires at the one-hour boundary without reloading bookings',async()=>{
+  const b=row(),h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.render();assert.match(h.html(),/Cancel booking/);assert.equal(h.state.dbBookings[0].canCancel,true);
+  const deadline=Date.parse(b.scheduled_starts_at)-3600000;h.state.currentTime=deadline;h.render();assert.match(h.html(),/Cancel booking/);
+  h.state.currentTime=deadline+1;h.render();assert.doesNotMatch(h.html(),/Cancel booking/);assert.match(h.html(),/Upcoming/);assert.equal(h.requests.length,1);assert.equal(h.state.dbBookings[0].canCancel,true);h.stop();
 });
