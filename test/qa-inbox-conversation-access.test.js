@@ -22,7 +22,7 @@ async function inbox(records,{owner='host',role='host'}={}){
  const View=new Function(...Object.keys(values),compiled+';return MessagesView;')(...Object.values(values));
  const render=()=>{cursor=0;return View({user:{id:owner,role},onOpenThread:value=>opened.push(value)});};
  render();mounted=true;const cleanups=effects.splice(0).map(fn=>fn());await tick();
- return {render,opened,requests,rows:()=>nodes(render(),node=>typeof node.props?.onClick==='function'),stop:()=>cleanups.forEach(fn=>fn?.())};
+ return {render,opened,requests,rows:()=>nodes(render(),node=>node.props?.className==='ps-conversation-row'),stop:()=>cleanups.forEach(fn=>fn?.())};
 }
 
 test('loaded conversation rows expose native keyboard controls with their visible accessible names',async()=>{

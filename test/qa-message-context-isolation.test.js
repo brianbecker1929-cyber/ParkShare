@@ -54,7 +54,7 @@ function inboxHarness(){
  const a=source.indexOf('function MessagesView('),code=source.slice(source.indexOf('  useEffect(() => {',a),source.indexOf('  const conversations =',a));
  const state={rows:[],loading:false,error:''},requests=[],writes=[];
  const set=key=>value=>{state[key]=typeof value==='function'?value(state[key]):value;writes.push(key);};
- function load(owner,{auth,reply=deferred()}={}){let run;const values={user:{id:owner},useEffect:callback=>{run=callback;},supabase:{auth:{getSession:()=>auth?.promise||Promise.resolve(session(owner))}},fetch:async(url,init)=>{requests.push({owner,url,...init});return reply.promise;},setDbConvos:set('rows'),setError:set('error'),setLoading:set('loading')};new Function(...Object.keys(values),code)(...Object.values(values));const cleanup=run();return {stop:typeof cleanup==='function'?cleanup:()=>{},reply};}
+ function load(owner,{auth,reply=deferred()}={}){let run;const values={user:{id:owner},inboxReload:0,useEffect:callback=>{run=callback;},supabase:{auth:{getSession:()=>auth?.promise||Promise.resolve(session(owner))}},fetch:async(url,init)=>{requests.push({owner,url,...init});return reply.promise;},setDbConvos:set('rows'),setError:set('error'),setLoading:set('loading')};new Function(...Object.keys(values),code)(...Object.values(values));const cleanup=run();return {stop:typeof cleanup==='function'?cleanup:()=>{},reply};}
  return {state,requests,writes,load};
 }
 const inbox=owner=>Response.json({conversations:[{listingId:7,bookingId:42,participantId:owner+'-party',title:owner+' PRIVATE ADDRESS',otherParty:owner+' private name',preview:owner+' PRIVATE TEXT'}]});
