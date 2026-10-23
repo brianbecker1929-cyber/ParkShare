@@ -83,3 +83,9 @@ test('history distinguishes loading, error and a successful empty response witho
 test('view controls reset expansion and Upcoming stat always returns to its matching reservations',()=>{
   const h=harness({dbBookings:Array.from({length:5},(_,i)=>booking(i+1,'Cancelled')).concat(booking(8))});h.click('Booking history');assert.ok(!h.panel().includes('Driver 5'));h.click('View all 5');assert.ok(h.panel().includes('Driver 5'));h.click('Show less');assert.ok(!h.panel().includes('Driver 5'));h.click('View all 5');h.clickUpcomingStat();assert.equal(h.state.bookingView,'upcoming');assert.equal(h.state.showAllBookings,false);assert.deepEqual(h.scrolls,['host-dashboard-upcoming']);assert.ok(h.panel().includes('Driver 8'));h.click('Booking history');assert.ok(!h.panel().includes('Driver 5'));
 });
+
+test('actual Host load records its start cutoff and removes cancellation actions at the start without reloading',async()=>{
+  const start=Date.parse('2050-10-22T16:00Z'),h=harness();const stop=await h.load([{id:42,listing_id:7,status:'confirmed',hours:1,total:17.25,scheduled_starts_at:new Date(start).toISOString(),property_time_zone:'America/Toronto',booking_date:'2050-10-22',start_hour:12,listings:{title:'Fixture'},profiles:{name:'Future Driver'}}]);
+  assert.equal(h.state.dbBookings[0].cancellationDeadline,start-1);h.state.currentTime=start-1;h.state.bookingActionId='db-42';h.render();assert.match(h.panel(),/Cancel booking/);
+  h.state.currentTime=start;h.render();assert.doesNotMatch(h.panel(),/Cancel booking|Actions for/);assert.match(h.panel(),/Active/);assert.equal(h.requests.length,1);assert.equal(h.requests[0].method,undefined);stop();
+});
