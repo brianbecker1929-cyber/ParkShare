@@ -28,6 +28,11 @@ test('Driver deadline matches the server policy immediately before, at and after
   const booking={renter_id:'driver',status:'confirmed',hours:1,booking_date:'2026-10-23',start_hour:11,scheduled_starts_at:new Date(start).toISOString(),paid_at:'2026-10-22T10:00Z'};
   for(const offset of [-1,0,1]){const now=deadline+offset;const server=evaluateCancellation({booking,userId:'driver',hostId:'host',now:new Date(now)});assert.equal(!cancellationDeadlineError(deadline,now),server.allowed,'offset '+offset);}
 });
+test('Host deadline matches server policy inside the Driver cutoff and strictly before the start',()=>{
+  const start=Date.parse('2026-10-23T15:00Z'),deadline=start-1;
+  const booking={renter_id:'driver',status:'confirmed',hours:1,booking_date:'2026-10-23',start_hour:11,scheduled_starts_at:new Date(start).toISOString(),paid_at:'2026-10-22T10:00Z'};
+  for(const offset of [-30*60000,-1,0,1]){const now=start+offset;const server=evaluateCancellation({booking,userId:'host',hostId:'host',now:new Date(now)});assert.equal(!cancellationDeadlineError(deadline,now),server.allowed,'offset '+offset);}
+});
 test('supplied invalid deadlines or invalid clocks fail closed while optional deadlines stay optional',()=>{
   assert.equal(cancellationDeadlineError(undefined,1001),'');
   for(const deadline of [null,NaN,Infinity,'1000'])assert.match(cancellationDeadlineError(deadline,999),/Contact support/);
@@ -36,6 +41,10 @@ test('supplied invalid deadlines or invalid clocks fail closed while optional de
 test('an open Driver dialog stops promising a refund and disables confirmation after the cutoff',()=>{
   const h=modal();h.setTime(1000);assert.equal(h.button('Confirm cancellation').props.disabled,false);assert.match(h.html(),/full refund/);
   h.setTime(1001);assert.equal(h.button('Confirm cancellation').props.disabled,true);assert.equal(h.button('Keep booking').props.disabled,false);assert.match(h.html(),/role="alert"/);assert.match(h.html(),/Contact support/);assert.doesNotMatch(h.html(),/full refund|5–10 business days/);
+});
+test('an open Host dialog expires at the start while allowing cancellation just before it',()=>{
+  const h=modal({actor:'host',deadline:999});h.setTime(999);assert.equal(h.button('Confirm cancellation').props.disabled,false);assert.match(h.html(),/Driver will receive a full refund/);
+  h.setTime(1000);assert.equal(h.button('Confirm cancellation').props.disabled,true);assert.equal(h.button('Keep booking').props.disabled,false);assert.match(h.html(),/Host cancellations must be requested before the booking starts/);assert.doesNotMatch(h.html(),/full refund|5–10 business days/);
 });
 test('a previously sent cancellation stays pending rather than reporting expiry while its response is unknown',()=>{
   const h=modal({busy:true});h.setTime(1001);assert.equal(h.button('Cancelling…').props.disabled,true);assert.equal(h.button('Keep booking').props.disabled,true);assert.match(h.html(),/role="status"/);assert.match(h.html(),/Please wait for confirmation/);assert.doesNotMatch(h.html(),/Contact support|full refund|5–10 business days/);

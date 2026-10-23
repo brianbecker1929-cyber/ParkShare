@@ -4004,6 +4004,8 @@ function HostDashboard({ user, setTab }) {
                   duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   bookingStart: window.start.toISOString(),
                   bookingEnd: window.end.toISOString(),
+                  // Host cancellation is allowed strictly before the start.
+                  cancellationDeadline: window.start.getTime() - 1,
                   total: row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
                   refundReviewRequired,
@@ -4371,6 +4373,7 @@ function HostDashboard({ user, setTab }) {
           key={cancellationKey}
           title={`Cancel ${cancelTarget.driver}'s booking?`}
           actor="host"
+          cancellationDeadline={cancelTarget.cancellationDeadline}
           busy={cancelBusy}
           error={cancelError}
           onClose={closeCancellation}
@@ -6075,9 +6078,10 @@ function useBookingCancellation(user, reason, onCancelled) {
 
 function CancellationModal({ title, actor, busy, error, onClose, onConfirm, cancellationDeadline }) {
   const deadlineError = busy ? "" : cancellationDeadlineError(cancellationDeadline);
+  const deadlineNotice = deadlineError && actor === "host" ? "Host cancellations must be requested before the booking starts. Contact support for help with this booking." : deadlineError;
   return (
     <Modal title={title} onClose={onClose}>
-      {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineError}</div> : <>
+      {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineNotice}</div> : <>
       <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
         {actor === "host"
           ? "The Driver will receive a full refund, including the ParkShare service fee."

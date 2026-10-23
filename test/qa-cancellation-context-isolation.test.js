@@ -98,6 +98,11 @@ test('missing optional deadline preserves Host handling and invalid supplied dea
  for(const cancellationDeadline of [null,NaN,Infinity,'1000']){const h=harness({now:999});await h.open(42,{cancellationDeadline}).confirm();assert.equal(h.requests.length,0);assert.match(h.render().error,/Contact support/);h.stop();}
 });
 
+test('Host start deadline permits the last pre-start instant and blocks expiry during auth',async()=>{
+ const start=1000,allowed=harness({actor:'Host',now:start-1});await allowed.open(42,{cancellationDeadline:start-1}).confirm();assert.equal(allowed.requests.length,1);allowed.stop();
+ for(const phase of ['already-started','lookup','refresh']){const pending=deferred();let authCalls=0;const h=harness({actor:'Host',now:phase==='already-started'?start:start-1,auth:()=>{authCalls++;return phase==='refresh'?Promise.resolve({data:{session:null}}):pending.promise;},refresh:()=>pending.promise});const work=h.open(42,{cancellationDeadline:start-1}).confirm();await tick();h.setTime(start);pending.resolve(session('A'));await work;assert.equal(h.requests.length,0);if(phase==='already-started')assert.equal(authCalls,0);assert.match(h.render().error,/Contact support/);assert.equal(h.render().busy,false);h.stop();}
+});
+
 for(const [name,next,actor,handler] of [['HostDashboard','// ─── Messages Inbox','Host','cancelHostBooking'],['MyBookingsView','function ReviewModal(','Driver','cancelDriverBooking']]){
  test(`actual ${actor} view wires its booking update, scoped open, close, confirm and modal key`,async()=>{
   const a=source.indexOf('function '+name+'('),view=source.slice(a,source.indexOf(next,a));let passed;
@@ -105,6 +110,6 @@ for(const [name,next,actor,handler] of [['HostDashboard','// ─── Messages 
   const updates=[];const props={target:{rawId:42,driver:'Driver',listing:{title:'Listing'},cancellationDeadline:1000},busy:false,error:'',notice:'',requestKey:7,open:()=>{},close:()=>{},confirm:()=>{}};
   const bindings=new Function('useBookingCancellation','user','setDbBookings',view.slice(from,to)+';return {cancelTarget,cancelBusy,cancelError,cancelNotice,cancellationKey,openCancellation,closeCancellation,'+handler+'};')((...args)=>{passed=args;return props;},{id:'A'},fn=>updates.push(fn([{rawId:42},{rawId:43}])));
   assert.equal(passed[0].id,'A');assert.equal(passed[1],'Cancelled by '+actor);passed[2](42,{bookingStatus:'refunded'});assert.equal(updates[0][0].status,'Cancelled');assert.equal(updates[0][0].canCancel,false);assert.equal(updates[0][1].status,undefined);passed[2](42,{bookingStatus:'pending'});assert.equal(updates[1][0].status,'Cancellation pending');
-  const tagStart=view.indexOf('<CancellationModal\n'),tag=view.slice(tagStart,view.indexOf('/>',tagStart)+2),compiled=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,CancellationModal:()=>null,...bindings};const modal=new Function(...Object.keys(values),compiled.code+';return Parent;')(...Object.values(values))();assert.equal(modal.key,'7');assert.equal(modal.props.onClose,props.close);assert.equal(modal.props.onConfirm,props.confirm);if(actor==='Driver')assert.equal(modal.props.cancellationDeadline,1000);assert.match(view,/openCancellation\(b\)/);
+  const tagStart=view.indexOf('<CancellationModal\n'),tag=view.slice(tagStart,view.indexOf('/>',tagStart)+2),compiled=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,CancellationModal:()=>null,...bindings};const modal=new Function(...Object.keys(values),compiled.code+';return Parent;')(...Object.values(values))();assert.equal(modal.key,'7');assert.equal(modal.props.onClose,props.close);assert.equal(modal.props.onConfirm,props.confirm);assert.equal(modal.props.cancellationDeadline,1000);assert.match(view,/openCancellation\(b\)/);
  });
 }
