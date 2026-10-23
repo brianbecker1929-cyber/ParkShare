@@ -4389,6 +4389,7 @@ function MessagesView({ onOpenThread, user }) {
   const [dbConvos, setDbConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [inboxReload, setInboxReload] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -4423,15 +4424,21 @@ function MessagesView({ onOpenThread, user }) {
     };
     load();
     return () => { active = false; controller.abort(); };
-  }, [user?.id]);
+  }, [user?.id, inboxReload]);
 
   const conversations = dbConvos;
 
   return (
     <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 4 }}>Messages</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, margin: 0 }}>Messages</h2>
+        <button type="button" disabled={loading || !user?.id} onClick={() => setInboxReload(value => value + 1)}
+          style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: loading ? "default" : "pointer" }}>
+          {loading ? "Loading inbox…" : error ? "Retry conversations" : "Refresh conversations"}
+        </button>
+      </div>
       <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Your ParkShare conversations.</p>
-      {loading && <div style={{ color: C.muted, fontSize: 13 }}>Loading conversations…</div>}
+      {loading && <div role="status" style={{ color: C.muted, fontSize: 13 }}>Loading conversations…</div>}
       {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
       {!loading && !error && conversations.length === 0 && (
         <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>
