@@ -22,7 +22,7 @@ const row=(status='confirmed')=>({id:42,listing_id:7,status,hours:1,total:17.25,
 const success=bookings=>Response.json({bookings});
 const nodes=tree=>!React.isValidElement(tree)?[]:[tree,...React.Children.toArray(tree.props.children).flatMap(nodes)];
 const text=node=>!React.isValidElement(node)?String(node??''):React.Children.toArray(node.props.children).map(text).join('');
-function harness({fetcher=async()=>success([]),auth=async()=>({data:{session:{access_token:'A-token',user:{id:'A'}}}}),photo=async()=>null}={}){
+function harness({fetcher=async()=>success([]),auth=async()=>({data:{session:{access_token:'A-token',user:{id:'A'}}}}),photo=async()=>null,highlightBookingId}={}){
   const state={},requests=[],photos=[],effects=[],refs=[],cleanups=new Map(),dependencies=new Map();let cursor=0,refCursor=0,tree;
   const components=Object.fromEntries([...whole.matchAll(/<([A-Z]\w*)\b/g)].map(m=>[m[1],props=>React.createElement('span',null,props.children)]));
   const values={React,...components,...helpers,matchesBookingDateRange,getBookingDisplayStatus,cancellationDeadlineError,
@@ -34,7 +34,7 @@ function harness({fetcher=async()=>success([]),auth=async()=>({data:{session:{ac
     fetchPrivateCoverDataUrl:(...args)=>{photos.push(args);return photo(...args);},setInterval:()=>1,clearInterval:()=>{},
   };
   const View=new Function(...Object.keys(values),compiled.code+';return MyBookingsView;')(...Object.values(values));
-  function render(){cursor=0;refCursor=0;effects.length=0;tree=View({user:{id:'A'}});return tree;}
+  function render(){cursor=0;refCursor=0;effects.length=0;tree=View({user:{id:'A'},highlightBookingId});return tree;}
   function commit(){render();effects.forEach(({fn,deps},i)=>{const previous=dependencies.get(i);if(previous&&deps.every((v,j)=>Object.is(v,previous[j])))return;cleanups.get(i)?.();dependencies.set(i,deps);cleanups.set(i,fn());});render();}
   function button(label){return nodes(tree).find(n=>n.type==='button'&&text(n)===label);}
   return {state,requests,photos,render,commit,button,html:()=>renderToStaticMarkup(tree),click(label){const b=button(label);assert.ok(b,'Missing button: '+label);assert.ok(!b.props.disabled);b.props.onClick();commit();},stop(){for(const cleanup of cleanups.values())if(typeof cleanup==='function')cleanup();}};
@@ -90,4 +90,31 @@ test('Driver cancellation action expires at the one-hour boundary without reload
   const b=row(),h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.render();assert.match(h.html(),/Cancel booking/);assert.equal(h.state.dbBookings[0].canCancel,true);
   const deadline=Date.parse(b.scheduled_starts_at)-3600000;h.state.currentTime=deadline;h.render();assert.match(h.html(),/Cancel booking/);
   h.state.currentTime=deadline+1;h.render();assert.doesNotMatch(h.html(),/Cancel booking/);assert.match(h.html(),/Upcoming/);assert.equal(h.requests.length,1);assert.equal(h.state.dbBookings[0].canCancel,true);h.stop();
+});
+
+for (const status of ['completed','refunded']) {
+  test(`email-highlighted ${status} booking can collapse, expand and retain its choice on refresh`,async()=>{
+    const h=harness({fetcher:async()=>success([row(status)]),highlightBookingId:'42'});
+    h.commit();await tick();h.render();
+    assert.match(h.html(),/PRIVATE ADDRESS/);
+    assert.match(h.html(),/aria-expanded="true"/);
+    h.click('Hide details−');
+    assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);
+    assert.match(h.html(),/aria-expanded="false"/);
+    assert.ok(h.button('View details+'));
+    h.click('Refresh bookings');await tick();h.render();
+    assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);
+    h.click('View details+');
+    assert.match(h.html(),/PRIVATE ADDRESS/);
+    assert.match(h.html(),/aria-expanded="true"/);
+    h.stop();
+  });
+}
+test('unhighlighted past bookings stay collapsed and upcoming bookings stay expanded',async()=>{
+  for(const status of ['completed','refunded','confirmed']){
+    const h=harness({fetcher:async()=>success([row(status)])});h.commit();await tick();h.render();
+    if(status==='confirmed') {assert.match(h.html(),/PRIVATE ADDRESS/);assert.ok(!h.button('View details+'));}
+    else {assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);h.click('View details+');assert.match(h.html(),/PRIVATE ADDRESS/);h.click('Hide details−');assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);}
+    h.stop();
+  }
 });
