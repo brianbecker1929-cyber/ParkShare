@@ -6289,7 +6289,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         const displayStatus = getBookingDisplayStatus(b.status, b.bookingStart, b.bookingEnd, currentTime);
         const hasEnded = displayStatus === "Completed";
         const isPast = displayStatus === "Completed" || displayStatus === "Cancelled";
-        const isExpanded = !isPast || isHighlighted || Boolean(expandedPastBookings[b.id]);
+        const isExpanded = !isPast || (expandedPastBookings[b.id] ?? isHighlighted);
         const isRideshareEligible = !hasEnded && (displayStatus === "Upcoming" || displayStatus === "Active");
         const isActive = displayStatus === "Active" && !hasEnded;
         const canReview = displayStatus === "Completed";
