@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import React from 'react';
 import {RECOVERY_SESSION_CHANGED} from '../src/lib/passwordRecovery.js';
-import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm} from '../src/lib/authForm.js';
+import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,validateNewPassword} from '../src/lib/authForm.js';
 const source=await readFile(process.env.QA_PASSWORD_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const a=source.indexOf('function SignInModal('),modal=source.slice(a,source.indexOf('// ─── Header',a));
 // Expose the same recovery submit Promise for deterministic awaiting.
@@ -15,7 +15,7 @@ function nodes(node,predicate,out=[]){if(!node||typeof node!=='object')return ou
 function harness({update=async()=>updated(),recoveryAccountId='synthetic-user'}={}){
  const listeners=new Set();
  const slots=[],effects=[],setups=[],writes=[],updates=[],published=[],completed=[];let cursor=0,dirty=false,tree,closed=0;
- const values={React,RECOVERY_SESSION_CHANGED,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}},buildAppUser:()=>{throw Error('No profile publication expected');},
+ const values={React,RECOVERY_SESSION_CHANGED,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,validateNewPassword,window:{location:{origin:'https://synthetic.invalid'}},buildAppUser:()=>{throw Error('No profile publication expected');},
  supabase:{auth:{onAuthStateChange:fn=>{listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},updateUser:async value=>{updates.push(value);return update(updates.length);}}},
  updateRecoveryPasswordForAccount:async({password})=>{updates.push({password});return update(updates.length);},
  useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();setups[n]=fn;});}}};

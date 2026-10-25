@@ -3,6 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import React from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
 import {validId} from '../src/lib/privateListingAccess.js';
 const source=await readFile(process.env.QA_REVIEW_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const start=source.includes('function useReviewSubmission(')?source.indexOf('function useReviewSubmission('):source.indexOf('function ReviewsSection(');
@@ -20,7 +21,7 @@ function harness(kind='modal',{auth=async()=>session('A'),post=async()=>reply(),
  let props={user:{id:'A'},listing:{id:'db-7',title:'Seven',rating:5},booking:{id:'db-1',listing:{id:'db-7',title:'Seven'}}};
  const Modal=()=>null,Btn=()=>null;
  const values={React,C:{},Modal,Btn,Stars:()=>null,REVIEWS_DATA:{demo:[]},validId,useId:()=>`review-text-${kind}`,supabase:{auth:{getSession:auth}},fetch:(url,options)=>{
-  if(url.startsWith('/api/public-reviews')){publicRequests.push({url,options});return publicRead(url,options);}
+  if(url.startsWith('/api/public-reviews')||url.startsWith('/api/listing-reviews')){publicRequests.push({url,options});return publicRead(url,options);}
   requests.push({url,options,body:JSON.parse(options.body)});return post(url,options);
  },console:{error:()=>{}},useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const value=typeof v==='function'?v(slots[n].value):v;if(value!==slots[n].value){slots[n].value=value;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};pendingEffects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();effectSetups[n]=fn;});}}};
  const Components=new Function(...Object.keys(values),compiled.code+';return {modal:ReviewModal,section:ReviewsSection};')(...Object.values(values));
@@ -46,7 +47,7 @@ for(const kind of ['modal','section']){
   const pending=later(),h=harness(kind,{post:()=>pending.promise});const submit=h.button('Submit review'),a=submit(),b=submit();await tick();assert.equal(h.requests.length,1);pending.resolve(reply());await Promise.all([a,b]);assert.equal(h.submitted,1);assert.equal(h.requests[0].options.headers.Authorization,'Bearer A-token');assert.deepEqual(h.requests[0].body,{listingId:7,rating:5,text:'A good driveway'});h.stop();
  });
  test(`${kind}: auth and transport failures show an error and unlock explicit retry`,async()=>{
-  for(const where of ['auth','post','http','json']){let calls=0;const h=harness(kind,{auth:async()=>{if(where==='auth'&&calls++===0)throw Error('Synthetic auth failure');return session('A');},post:async()=>{if(where==='auth')return reply();if(calls++===0){if(where==='post')throw Error('Synthetic network failure');if(where==='http')return {ok:false,json:async()=>({error:'Already reviewed'})};return {ok:true,json:async()=>{throw Error('Invalid JSON');}};}return reply();}});await assert.doesNotReject(h.submit());assert.equal(h.submitted,0);assert.ok(h.hasError());assert.equal(h.button('Submit review') instanceof Function,true);await h.submit();assert.equal(h.submitted,1);h.stop();}
+  for(const where of ['auth','post','http','json']){let calls=where==='auth'&&kind==='section'?-1:0;const h=harness(kind,{auth:async()=>{if(where==='auth'&&calls++===0)throw Error('Synthetic auth failure');return session('A');},post:async()=>{if(where==='auth')return reply();if(calls++===0){if(where==='post')throw Error('Synthetic network failure');if(where==='http')return {ok:false,json:async()=>({error:'Already reviewed'})};return {ok:true,json:async()=>{throw Error('Invalid JSON');}};}return reply();}});await assert.doesNotReject(h.submit());assert.equal(h.submitted,0);assert.ok(h.hasError());assert.equal(h.button('Submit review') instanceof Function,true);await h.submit();assert.equal(h.submitted,1);h.stop();}
  });
  test(`${kind}: closing during authentication prevents a POST and queued old submits`,async()=>{
   const pending=later(),h=harness(kind,{auth:()=>pending.promise}),old=h.button('Submit review'),work=old();h.cancel();await tick();const count=h.writes.length;pending.resolve(session('A'));await work;await old();assert.equal(h.requests.length,0);assert.equal(h.submitted,0);assert.equal(h.writes.length,count);h.stop();
@@ -65,7 +66,7 @@ for(const kind of ['modal','section']){
  });
 }
 test('section: public review response for an old listing cannot overwrite the new listing',async()=>{
- const first=later(),second=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?first.promise:second.promise});h.render({listing:{id:'db-8',title:'Eight',rating:5}});second.resolve({ok:true,json:async()=>({reviews:[{user:'Eight reviewer',text:'Eight review',rating:4}]})});await tick();first.resolve({ok:true,json:async()=>({reviews:[{user:'Seven reviewer',text:'Seven review',rating:1}]})});await tick();const text=JSON.stringify(h.render());assert.match(text,/Eight review/);assert.doesNotMatch(text,/Seven review/);assert.equal(h.publicRequests[0].options.signal.aborted,true);h.stop();
+ const first=later(),second=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?first.promise:second.promise});await tick();h.render({listing:{id:'db-8',title:'Eight',rating:5}});second.resolve({ok:true,json:async()=>({textAvailable:true,reviews:[{user:'Eight reviewer',text:'Eight review',rating:4}]})});await tick();first.resolve({ok:true,json:async()=>({textAvailable:true,reviews:[{user:'Seven reviewer',text:'Seven review',rating:1}]})});await tick();const text=JSON.stringify(h.render());assert.match(text,/Eight review/);assert.doesNotMatch(text,/Seven review/);assert.equal(h.publicRequests[0].options.signal.aborted,true);h.stop();
 });
 test('section: successful POST refreshes public reviews and reports success only once',async()=>{
  const h=harness('section');await h.submit();h.render();await tick();assert.equal(h.submitted,1);assert.equal(h.publicRequests.length,2);assert.match(JSON.stringify(h.render()),/Thanks for your review/);h.stop();
@@ -89,7 +90,7 @@ test('section: transport, JSON and malformed summaries fail closed without false
  for(const where of ['transport','json']){const h=harness('section',{publicRead:async()=>{if(where==='transport')throw Error('private transport failure');return{ok:true,json:async()=>{throw Error('private malformed JSON');}};}});await tick();assert.match(JSON.stringify(h.render()),/Reviews are temporarily unavailable/);assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet|private transport|private malformed/);h.stop();}
 });
 test('section: explicit retry makes one current GET and replaces the error with loaded summaries',async()=>{
- let count=0;const pending=later(),h=harness('section',{publicRead:async()=>++count===1?{ok:false}:pending.promise});await tick();const retry=h.button('Retry reviews');retry();retry();h.render();
+ let count=0;const pending=later(),h=harness('section',{publicRead:async()=>++count===1?{ok:false}:pending.promise});await tick();const retry=h.button('Retry reviews');retry();retry();h.render();await tick();
  assert.equal(h.publicRequests.length,2);assert.match(JSON.stringify(h.render()),/Loading reviews/);assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet|temporarily unavailable/);
  pending.resolve({ok:true,json:async()=>({reviews:[{user:'ParkShare driver',rating:4,date:'Oct 2026',text:''}]})});await tick();assert.match(JSON.stringify(h.render()),/ParkShare driver/);assert.doesNotMatch(JSON.stringify(h.render()),/Loading reviews|temporarily unavailable|No reviews yet/);
  retry();h.render();assert.equal(h.publicRequests.length,2);assert.equal(h.requests.length,0);assert.equal(h.publicRequests[0].options.signal.aborted,true);assert.equal(h.publicRequests[1].options.cache,'no-store');h.stop();
@@ -99,18 +100,18 @@ test('section: retry failures remain retryable without sending any review POST',
 });
 test('section: listing changes discard old errors and cached retry callbacks even on A→B→A',async()=>{
  const h=harness('section',{publicRead:async()=>({ok:false})});await tick();const oldRetry=h.button('Retry reviews');
- h.render({listing:{id:'db-8',title:'Eight',rating:5}});assert.match(JSON.stringify(h.render()),/Loading reviews/);oldRetry();h.render();assert.equal(h.publicRequests.length,2);await tick();
+ h.render({listing:{id:'db-8',title:'Eight',rating:5}});assert.match(JSON.stringify(h.render()),/Loading reviews/);oldRetry();h.render();await tick();assert.equal(h.publicRequests.length,2);await tick();
  h.render({listing:{id:'db-7',title:'Seven',rating:5}});await tick();oldRetry();h.render();assert.equal(h.publicRequests.length,3);h.stop();
 });
 test('section: delayed public failures and unmounted requests cannot write state or restore old errors',async()=>{
- for(const mode of ['listing','unmount']){const old=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?old.promise:Promise.resolve({ok:true,json:async()=>({reviews:[]})})});
+ for(const mode of ['listing','unmount']){const old=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?old.promise:Promise.resolve({ok:true,json:async()=>({reviews:[]})})});await tick();
   if(mode==='listing'){h.render({listing:{id:'db-8',title:'Eight',rating:5}});await tick();}else h.stop();
   const writes=h.writes.length;old.reject(Error('old private failure'));await tick();assert.equal(h.writes.length,writes);if(mode==='listing')assert.match(JSON.stringify(h.render()),/No reviews yet/);assert.equal(h.publicRequests[0].options.signal.aborted,true);h.stop();
  }
 });
 test('section: successful submission refresh shows loading until the new summary arrives',async()=>{
  const pending=later();let count=0;const h=harness('section',{publicRead:()=>++count===1?Promise.resolve({ok:true,json:async()=>({reviews:[]})}):pending.promise});await tick();await h.submit();
- assert.match(JSON.stringify(h.render()),/Loading reviews/);assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet/);assert.equal(h.requests.length,1);assert.equal(h.publicRequests.length,2);
+ assert.match(JSON.stringify(h.render()),/Loading reviews/);await tick();assert.doesNotMatch(JSON.stringify(h.render()),/No reviews yet/);assert.equal(h.requests.length,1);assert.equal(h.publicRequests.length,2);
  pending.resolve({ok:true,json:async()=>({reviews:[{rating:5,user:'ParkShare driver',text:''}]})});await tick();assert.match(JSON.stringify(h.render()),/Thanks for your review/);assert.doesNotMatch(JSON.stringify(h.render()),/Loading reviews|No reviews yet/);h.stop();
 });
 test('section: explicit demo reviews remain local and do not use the real API',async()=>{
@@ -148,3 +149,18 @@ for(const kind of ['modal','section']){
   pending.resolve(reply());await work;assert.equal(h.requests.length,1);assert.equal(h.submitted,1);h.stop();
  });
 }
+
+test('written review text renders as escaped text and private GETs carry the matching account token',async()=>{
+ const text='<script>alert("address")</script>\nHelpful parking';
+ const h=harness('section',{publicRead:async()=>({ok:true,json:async()=>({textAvailable:true,reviews:[{user:'ParkShare driver',rating:5,text}]})})});await tick();
+ const html=renderToStaticMarkup(h.render());assert.ok(html.includes('&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(html.includes('Helpful parking'));assert.equal(h.publicRequests[0].url,'/api/listing-reviews?listingId=7');assert.equal(h.publicRequests[0].options.headers.Authorization,'Bearer A-token');h.stop();
+});
+test('account changes hide already loaded private reviews immediately and discard an old in-flight response',async()=>{
+ const pending=later();let account='A',count=0;
+ const h=harness('section',{auth:async()=>session(account),publicRead:async()=>++count===1?{ok:true,json:async()=>({textAvailable:true,reviews:[{rating:5,text:'Private A instructions'}]})}:pending.promise});await tick();assert.match(JSON.stringify(h.render()),/Private A instructions/);
+ account='B';h.render({user:{id:'B'}});assert.doesNotMatch(JSON.stringify(h.render()),/Private A instructions/);await tick();
+ account=null;h.render({user:null});pending.resolve({ok:true,json:async()=>({textAvailable:true,reviews:[{rating:5,text:'Private B instructions'}]})});await tick();
+ // Defense in depth: even a malformed anonymous response cannot display text.
+ assert.doesNotMatch(JSON.stringify(h.render()),/Private [AB] instructions/);
+ assert.equal(h.publicRequests[1].options.signal.aborted,true);assert.equal(h.publicRequests[2].url,'/api/public-reviews?listingId=7');h.stop();
+});

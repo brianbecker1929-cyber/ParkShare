@@ -3,7 +3,7 @@ import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import React from 'react';
-import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm} from '../src/lib/authForm.js';
+import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,validateNewPassword} from '../src/lib/authForm.js';
 const source=await readFile(process.env.QA_AUTH_EMAIL_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const a=source.indexOf('function SignInModal('),modal=source.slice(a,source.indexOf('// ─── Header',a));
 // Expose the real sign-in/signup submit Promise only for deterministic setup.
@@ -13,7 +13,7 @@ const accepted=kind=>({data:kind==='resend'?{user:null,session:null}:{},error:nu
 function nodes(node,predicate,out=[]){if(!node||typeof node!=='object')return out;if(predicate(node))out.push(node);for(const child of React.Children.toArray(node.props?.children))nodes(child,predicate,out);return out;}
 function harness({send=async kind=>accepted(kind),verify=false,signIn}={}){
  const slots=[],effects=[],setups=[],writes=[],calls=[],logins=[];let cursor=0,dirty=false,tree,closed=0,clock=100000;
- const values={React,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,Date:class extends Date{static now(){return clock;}},window:{location:{origin:'https://synthetic.invalid'}},buildAppUser:()=>{throw Error('Unexpected authentication');},
+ const values={React,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,validateNewPassword,Date:class extends Date{static now(){return clock;}},window:{location:{origin:'https://synthetic.invalid'}},buildAppUser:()=>{throw Error('Unexpected authentication');},
  supabase:{auth:{resend:async options=>{calls.push({kind:'resend',...options});return send('resend',calls.length);},resetPasswordForEmail:async(email,options)=>{calls.push({kind:'reset',email,options});return send('reset',calls.length);},signInWithPassword:async value=>{logins.push(value);return signIn?signIn():{error:{message:'Email not confirmed'}};},signUp:async()=>({data:{user:{id:'synthetic'},session:null},error:null})}},
  useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();setups[n]=fn;});}}};
  const Component=new Function(...Object.keys(values),compiled+';return SignInModal;')(...Object.values(values));

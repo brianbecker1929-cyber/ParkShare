@@ -25,7 +25,7 @@ import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
-import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm } from "./lib/authForm";
+import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm, validateNewPassword } from "./lib/authForm";
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
@@ -1441,19 +1441,20 @@ function useReviewSubmission(user, listingId, scope, onSubmitted, initiallyOpen 
 
 function ReviewsSection({ listing, onSubmitReview, user }) {
   const reviewTextId = useId();
+  const accountId = user?.id || null;
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-  const [reviewRows, setReviewRows] = useState(() => ({ listingId: listing.id, revision:0, status:isRealListing ? "loading" : "loaded", rows: REVIEWS_DATA[listing.id] || [] }));
+  const [reviewRows, setReviewRows] = useState(() => ({ listingId: listing.id, accountId, revision:0, status:isRealListing ? "loading" : "loaded", rows: REVIEWS_DATA[listing.id] || [] }));
   const [reviewReload, setReviewReload] = useState(0);
-  const reviewState = reviewRows.listingId === listing.id && reviewRows.revision === reviewReload
+  const reviewState = reviewRows.listingId === listing.id && reviewRows.accountId === accountId && reviewRows.revision === reviewReload
     ? reviewRows : {status:isRealListing ? "loading" : "loaded",rows:REVIEWS_DATA[listing.id] || []};
   const localReviews = reviewState.rows;
   const reviewReadContext = useRef(null);
   const { draft, formOpen: showForm, submitted, error: submitError, submitting, open, cancel, change, submit } =
     useReviewSubmission(user, numericId, listing.id, payload => {
       if (isRealListing) setReviewReload(value => value + 1);
-      else setReviewRows(current => ({ listingId: listing.id, revision:reviewReload, status:"loaded", rows: [
+      else setReviewRows(current => ({ listingId: listing.id, accountId, revision:reviewReload, status:"loaded", rows: [
         { id: Date.now(), user: "You", rating: payload.rating, date: "Just now", text: payload.text },
         ...(current.listingId === listing.id ? current.rows : REVIEWS_DATA[listing.id] || []),
       ] }));
@@ -1462,27 +1463,40 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 
   useEffect(() => {
     if (!isRealListing) return;
-    const context = {active:true,listingId:listing.id,revision:reviewReload,retrying:false};
+    const context = {active:true,listingId:listing.id,accountId,revision:reviewReload,retrying:false};
     reviewReadContext.current = context;
     const controller = new AbortController();
-    setReviewRows({listingId:listing.id,revision:reviewReload,status:"loading",rows:[]});
+    setReviewRows({listingId:listing.id,accountId,revision:reviewReload,status:"loading",rows:[]});
     (async () => {
       try {
-        const response = await fetch("/api/public-reviews?listingId=" + numericId, { signal: controller.signal, cache:"no-store" });
+        let headers = {};
+        if (accountId) {
+          const {data, error} = await supabase.auth.getSession();
+          if (!context.active) return;
+          if (error || data?.session?.user?.id !== accountId || !data.session.access_token) throw new Error("Session changed");
+          headers.Authorization = `Bearer ${data.session.access_token}`;
+        }
+        const endpoint = accountId ? "/api/listing-reviews" : "/api/public-reviews";
+        const response = await fetch(endpoint + "?listingId=" + numericId, { headers, signal: controller.signal, cache:"no-store" });
         if (!response.ok) throw new Error("Reviews unavailable");
-        const { reviews } = await response.json();
+        const { reviews, textAvailable = false } = await response.json();
         if (!context.active) return;
+        if (accountId) {
+          const {data, error} = await supabase.auth.getSession();
+          if (!context.active) return;
+          if (error || data?.session?.user?.id !== accountId) throw new Error("Session changed");
+        }
         if (!Array.isArray(reviews) || reviews.length > 100 || !reviews.every(row => row && !Array.isArray(row) && Number.isInteger(row.rating) && row.rating >= 1 && row.rating <= 5 && ["user","date","text"].every(key => row[key] == null || typeof row[key] === "string"))) throw new Error("Reviews unavailable");
-        setReviewRows({ listingId: listing.id, revision:reviewReload, status:"loaded", rows: reviews.map((row, index) => ({
+        setReviewRows({ listingId: listing.id, accountId, revision:reviewReload, status:"loaded", textAvailable, rows: reviews.map((row, index) => ({
           id: numericId + "-" + index, user: row.user || "ParkShare driver",
-          rating: row.rating, date: row.date || "", text: row.text || "",
+          rating: row.rating, date: row.date || "", text: accountId && textAvailable === true ? row.text || "" : "",
         })) });
       } catch {
-        if (context.active) setReviewRows({listingId:listing.id,revision:reviewReload,status:"error",rows:[]});
+        if (context.active) setReviewRows({listingId:listing.id,accountId,revision:reviewReload,status:"error",rows:[]});
       }
     })();
     return () => { context.active = false; controller.abort(); };
-  }, [listing.id, reviewReload]);
+  }, [listing.id, reviewReload, accountId]);
 
   const retryContext = reviewReadContext.current;
   const retryReviews = () => {
@@ -1549,6 +1563,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
           <p style={{margin:"0 0 8px"}}>Reviews are temporarily unavailable. Please try again.</p>
           <button type="button" onClick={retryReviews} style={{minHeight:44,padding:"8px 14px",border:"1px solid "+C.navy,borderRadius:8,background:C.white,color:C.navy,fontWeight:600,cursor:"pointer"}}>Retry reviews</button>
         </div>}
+        {isRealListing && reviewState.status === "loaded" && localReviews.length > 0 && !reviewState.textAvailable && <p style={{fontSize:12,color:C.muted}}>Written reviews are available to the Host and Drivers with a confirmed paid booking, because they may contain private access details.</p>}
         {localReviews.map(r => (
           <div key={r.id} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
@@ -1558,7 +1573,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
               </div>
               <Stars rating={r.rating} size={12} />
             </div>
-            <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, margin: 0 }}>{r.text}</p>
+            {r.text && <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.text}</p>}
           </div>
         ))}
         {reviewState.status === "loaded" && localReviews.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>No reviews yet. Be the first!</div>}
@@ -7190,6 +7205,8 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const finalizeSignup = async () => {
     if (!canAct() || screen !== "disclaimer" || credentialAttempt.current?.pending || emailAttempt.current?.pending || !agreed || !pendingUser || !["driver", "host"].includes(pendingUser.role)) return;
     const registration = { ...pendingUser };
+    const registrationErrors = validateAuthForm(registration, "signup");
+    if (Object.keys(registrationErrors).length) { setAuthError(Object.values(registrationErrors).join(". ")); return; }
     const attempt = { active: true, pending: true };
     credentialAttempt.current = attempt;
     const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
@@ -7274,7 +7291,8 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   const updatePassword = async () => {
     if (!canAct() || screen !== "recovery" || !recoveryOwner.current.valid || recoveryOwner.current.accountId !== recoveryAccountId || credentialAttempt.current?.pending) return;
     const recoveryErrors = {};
-    if (form.password.length < MIN_NEW_PASSWORD_LENGTH) recoveryErrors.password = `Use at least ${MIN_NEW_PASSWORD_LENGTH} characters`;
+    const passwordError = validateNewPassword(form.password);
+    if (passwordError) recoveryErrors.password = passwordError;
     if (!confirmPassword) recoveryErrors.confirmPassword = "Confirm your new password";
     else if (form.password !== confirmPassword) recoveryErrors.confirmPassword = "Passwords do not match";
     setErrors(recoveryErrors);
@@ -7440,7 +7458,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                   style={iS(errors.password)} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`}
                   value={form.password} onChange={event => upd("password", event.target.value)}
                   aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signup-password-error" : "ps-signup-password-hint"} />
-                <div id="ps-signup-password-hint" style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Use 12 or more characters; a long passphrase works well.</div>
+                <div id="ps-signup-password-hint" style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Use 12 or more characters. Avoid common passwords and patterns; try several unrelated words.</div>
                 {errors.password && <div id="ps-signup-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
               </div>
               {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}

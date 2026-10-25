@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { emptyAuthForm, validateAuthForm, MIN_NEW_PASSWORD_LENGTH, isUnconfirmedEmailError } from "../src/lib/authForm.js";
+import { emptyAuthForm, validateAuthForm, MIN_NEW_PASSWORD_LENGTH, isUnconfirmedEmailError, validateNewPassword } from "../src/lib/authForm.js";
 
 test("screen changes start with empty credentials and no stale state", () => {
   assert.deepEqual(emptyAuthForm(), { name: "", email: "", password: "" });
@@ -19,4 +19,14 @@ test("signup validates names and email; sign-in rejects empty secrets", () => {
 test("resend control shown only for Supabase unconfirmed-email errors", () => {
   assert.equal(isUnconfirmedEmailError("Email not confirmed"), true);
   assert.equal(isUnconfirmedEmailError("Invalid login credentials"), false);
+});
+
+// Regression for the reported bypass of the length-only form policy.
+test("new passwords reject common, sequential and repeated patterns without composition rules", () => {
+  for (const password of ["123456789101112", "aaaaaaaaaaaa", "passwordpassword", "qwertyuiopasdf", "Password123!", "ParkShare2026!"]) {
+    assert.match(validateNewPassword(password), /less predictable/);
+    assert.ok(validateAuthForm({name:"Driver",email:"driver@example.com",password}, "signup").password);
+    assert.deepEqual(validateAuthForm({email:"driver@example.com",password}, "signin"), {});
+  }
+  assert.equal(validateNewPassword("pebble lantern orbit marigold"), null);
 });
