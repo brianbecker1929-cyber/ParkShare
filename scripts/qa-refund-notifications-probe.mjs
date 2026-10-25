@@ -4,7 +4,7 @@ export async function runRefundNotificationsProbe(db,report={checks:[]}) {
   const check=name=>report.checks.push({name:'refund notifications: '+name,status:'passed'});
   const digest=async()=> (await db.query("select md5(coalesce(string_agg(to_jsonb(b)::text,'|' order by id),'')) digest from public.bookings b")).rows[0].digest;
   const before=await digest();
-  await db.exec(await readFile(new URL('../supabase/migrations/20261021111213_refund_notifications_005249.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20261021112637_refund_notifications_005249.sql',import.meta.url),'utf8'));
   assert.equal(await digest(),before);
   assert.equal((await db.query('select count(*)::int n from public.refund_email_deliveries')).rows[0].n,0);
   check('migration changes no booking or historical refund and queues no historical emails');

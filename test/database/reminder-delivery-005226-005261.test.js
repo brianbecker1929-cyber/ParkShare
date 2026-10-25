@@ -8,7 +8,7 @@ test('reminder migration: private payloads, immutable unique delivery and atomic
   const pool = new pg.Pool({connectionString:url,max:4});
   try {
     await pool.query(await readFile(new URL('./booking-holds-fixture.sql',import.meta.url),'utf8'));
-    await pool.query(await readFile(new URL('../../supabase/migrations/20261021103527_booking_reminder_delivery_005226_005261.sql',import.meta.url),'utf8'));
+    await pool.query(await readFile(new URL('../../supabase/migrations/20261021104409_booking_reminder_delivery_005226_005261.sql',import.meta.url),'utf8'));
     await pool.query(`insert into auth.users values ('00000000-0000-4000-8000-000000000001');
       insert into public.profiles values ('00000000-0000-4000-8000-000000000001');
       insert into public.listings(host_id) values ('00000000-0000-4000-8000-000000000001');

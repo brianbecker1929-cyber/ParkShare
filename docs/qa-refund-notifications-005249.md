@@ -32,7 +32,7 @@ Bank posting time is not promised and the Host receipt is not a payout statement
 
 ## Reliability and rollout
 
-Apply `20261021111213_refund_notifications_005249.sql` before deploying. Queue
+Apply `20261021112637_refund_notifications_005249.sql` before deploying. Queue
 and rollout settings have RLS and no anonymous/authenticated privileges. The
 cron `/api/send-refund-notifications` runs every minute using `CRON_SECRET`.
 QA scans only test-mode refunds. It claims up to ten jobs per run using a

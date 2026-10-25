@@ -48,7 +48,7 @@ describe("atomic paid extension database proposal (disposable PostgreSQL only)",
     for (const file of files) await pool.query(await read(file));
     await pool.query(setupSchema);
     await pool.query(await read("../../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql"));
-    await pool.query(await read("../../supabase/migrations/20261020205407_extension_settlement_005116_005260.sql"));
+    await pool.query(await read("../../supabase/migrations/20261021040753_extension_settlement_005116_005260.sql"));
   });
 
   beforeEach(async () => {

@@ -1,0 +1,43 @@
+name: Production-shaped schema rehearsal
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  production-schema-rehearsal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: parkshare_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parkshare_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Rehearse captured production catalog with synthetic data
+        run: node scripts/run-production-schema-rehearsal.mjs
+        env:
+          PRODUCTION_SCHEMA_REHEARSAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/parkshare_test
+      - name: Preserve production-shaped rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-schema-rehearsal-results
+          path: production-schema-rehearsal-results.json
+          if-no-files-found: error
