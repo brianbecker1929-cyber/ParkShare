@@ -2,6 +2,7 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { getSessionWindow, windowsOverlap } from "./_booking-rules.js";
 import { trustedStripeReturnOrigin } from "./_trusted-stripe-origin.js";
+import { countOccupiedSpots } from "./_booking-capacity.js";
 
 export { getSessionWindow } from "./_booking-rules.js";
 
@@ -130,7 +131,7 @@ export async function checkAvailability(listingId, spaces, start, end) {
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
     .not("paid_at", "is", null);
@@ -138,7 +139,7 @@ export async function checkAvailability(listingId, spaces, start, end) {
 
   const { data: holds, error: holdsError } = await supabaseAdmin
     .from("booking_holds")
-    .select("id, starts_at, ends_at")
+    .select("id, starts_at, ends_at, spot_label")
     .eq("listing_id", listingId)
     .gt("expires_at", new Date().toISOString())
     .lt("starts_at", end.toISOString())
@@ -150,7 +151,7 @@ export async function checkAvailability(listingId, spaces, start, end) {
     return windowsOverlap(w.start, w.end, start, end);
   });
 
-  const spacesTaken = overlapping.length + (holds || []).length;
+  const spacesTaken = countOccupiedSpots(overlapping, holds || []);
   const spacesFree = Math.max(0, Number(spaces) - spacesTaken);
   return { available: spacesFree > 0, spacesTotal: Number(spaces), spacesTaken, spacesFree };
 }

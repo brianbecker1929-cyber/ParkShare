@@ -3,6 +3,7 @@
 // Never use a client-provided user ID to authorize a query.
 import { jsonMethod, requireUser, supabaseAdmin } from "./_lib.js";
 import { privateBookingListing, canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
+import { withBookingChargeTotals } from "./_booking-display-total.js";
 
 const bookingColumns = [
   "id","listing_id","renter_id","hours","total","status","paid_at","application_state",
@@ -41,7 +42,7 @@ export default async function handler(req, res) {
         .eq("renter_id", user.id).order("created_at", { ascending: false }).limit(250);
       if (error) throw error;
       // Rejected checkouts are financial audits in Transactions, not reservations.
-      const rows = (data || []).filter(b => b.application_state !== "rejected");
+      const rows = await withBookingChargeTotals(supabaseAdmin, (data || []).filter(b => b.application_state !== "rejected"));
       const ids = [...new Set(rows.map(b => b.listing_id))];
       let listings = [];
       if (ids.length) {
@@ -86,7 +87,7 @@ export default async function handler(req, res) {
     ]);
     if (booked.error) throw booked.error;
     if (reviewed.error) throw reviewed.error;
-    const reservationRows = (booked.data || []).filter(b => b.application_state !== "rejected");
+    const reservationRows = await withBookingChargeTotals(supabaseAdmin, (booked.data || []).filter(b => b.application_state !== "rejected"));
     const renterIds = [...new Set([...reservationRows.map(b => b.renter_id),
       ...(reviewed.data || []).map(r => r.user_id)].filter(Boolean))];
     let people = [];

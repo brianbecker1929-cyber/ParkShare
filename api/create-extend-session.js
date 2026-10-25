@@ -102,7 +102,7 @@ export default async function handler(req, res) {
       payment_intent_data: { application_fee_amount: serviceFeeCents, metadata },
       metadata,
       success_url: `${origin}/?extension_success=1`,
-      cancel_url: `${origin}/?extension_cancelled=1&extend_booking=${booking.id}`,
+      cancel_url: `${origin}/?extension_cancelled=1&extension_hold=${encodeURIComponent(holdId)}`,
       expires_at: Math.floor(holdExpiresAt.getTime() / 1000),
     }, { stripeAccount: host.stripe_account_id, apiVersion: CAD_CHECKOUT_API_VERSION });
       requireCadCheckout(session, totalCents);

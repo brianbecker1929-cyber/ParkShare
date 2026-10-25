@@ -20,7 +20,7 @@ import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { transactionDateDetails } from "./lib/transactionDetails";
-import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold } from "./lib/spotAvailability";
+import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
 import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
@@ -4009,7 +4009,7 @@ function HostDashboard({ user, setTab }) {
                   bookingEnd: window.end.toISOString(),
                   // Host cancellation is allowed strictly before the start.
                   cancellationDeadline: window.start.getTime() - 1,
-                  total: row.total,
+                  total: row.charged_total ?? row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
                   refundReviewRequired,
                   canCancel: !(Number(row.refund_total_amount) > 0) && !refundInFlight && !cancelled && !completed && window.start.getTime() > now,
@@ -6188,7 +6188,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             propertyTimeZone: row.property_time_zone || null,
             cancellationDeadline: window.start.getTime() - 60 * 60 * 1000,
             spotLabel: row.spot_label || "",
-            total: row.total,
+            total: row.charged_total ?? row.total,
             vehicle: {
               vehicleMake: row.vehicle_make || "",
               vehicleModel: row.vehicle_model || "",
@@ -10995,7 +10995,7 @@ function ExtendSessionModal({ bookingId, user, isContextCurrent, onClose }) {
   );
 }
 
-function CheckoutCancellation({ holdId, user }) {
+function CheckoutCancellation({ holdId, user, extension = false }) {
   const [message, setMessage] = useState("");
   const [retry, setRetry] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -11010,7 +11010,7 @@ function CheckoutCancellation({ holdId, user }) {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (!active) return;
         if (error || !session?.access_token || session.user?.id !== user.id) throw new Error("Sign in again to release your unpaid checkout hold.");
-        const response = await fetch("/api/cancel-booking-checkout", {
+        const response = await fetch(extension ? "/api/cancel-extension-checkout" : "/api/cancel-booking-checkout", {
           method: "POST", cache: "no-store", signal: controller.signal,
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ holdId }),
@@ -11030,7 +11030,7 @@ function CheckoutCancellation({ holdId, user }) {
     };
     release();
     return () => { active = false; controller.abort(); };
-  }, [holdId, user?.id, retry]);
+  }, [holdId, user?.id, retry, extension]);
   if (!holdId) return null;
   return <div role="status" style={{ padding: "12px 16px", color: C.navy, background: C.amberLight, fontSize: 13 }}>
     {user ? message : "Sign in to release your unpaid checkout hold. Otherwise it expires automatically within 30 minutes of starting checkout."}
@@ -11197,6 +11197,7 @@ export default function App() {
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
   // Capture before the navigation-only return handler removes query flags.
   const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(window.location.search));
+  const [extensionHoldToCancel] = useState(() => cancelledExtensionCheckoutHold(window.location.search));
   const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
   const { bookingId: extendBookingId, select: setExtendBookingId, isCurrent: isExtensionContextCurrent } = useExtensionRequest(user);
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
@@ -11725,6 +11726,7 @@ export default function App() {
             </div>
           )}
           <CheckoutCancellation key={user?.id || "anonymous"} holdId={checkoutHoldToCancel} user={user} />
+          <CheckoutCancellation key={`extension-${user?.id || "anonymous"}`} holdId={extensionHoldToCancel} user={user} extension />
           <CheckoutReturnNotice kind={checkoutBanner} onDismiss={() => setCheckoutBanner(null)} />
           <CheckoutReturnNotice kind={connectBanner} onDismiss={() => setConnectBanner(null)} />
           {tab === "Browse" && (messageBookingId

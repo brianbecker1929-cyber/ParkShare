@@ -65,6 +65,10 @@ test('session lookup failure and malformed payload end loading without retaining
 test('successful current-account load preserves details and hydrates only its own private cover',async()=>{
  const h=harness(),photo=later(),a=h.launch('A',{cover:photo});await tick();a.reply.resolve(success([row('A')]));await tick();photo.resolve('data:image/webp;base64,AUTHORIZED');await tick();assert.equal(h.state.rows[0].listing.img,'data:image/webp;base64,AUTHORIZED');assert.equal(h.state.rows[0].spotLabel,'A');assert.equal(h.state.rows[0].total,27.6);assert.equal(h.requests[0].headers.Authorization,'Bearer A-token');assert.ok(h.requests[0].signal instanceof AbortSignal);assert.deepEqual(h.covers[0].args.slice(0,3),[1,1,'A-token']);assert.deepEqual(h.deps,[['A',0]]);assert.equal(h.requests[0].cache,'no-store');assert.equal(h.state.loading,false);
 });
+test('Driver card uses the server total including extensions without recalculating a charge',async()=>{
+ const h=harness(),a=h.launch('A');await tick();a.reply.resolve(success([{...row('A'),charged_total:51.75}]));await tick();
+ assert.equal(h.state.rows[0].total,51.75);
+});
 test('React key isolates account-owned cards, filters and action dialogs on identity change',async()=>{
  const tag=source.match(/<MyBookingsView\b[^>]*\/>/)[0];const compiled=await transform(`function Parent({user}){return ${tag};}`,{loader:'jsx'});
  const names=['React','MyBookingsView','setMessageThread','setExtendBookingId','navigateToParking','changeNavigationApp','viewBookingId'];
