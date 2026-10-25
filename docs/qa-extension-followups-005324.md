@@ -26,7 +26,7 @@ extension-confirmation email. Retain and regression-test that behavior.
 
 Run the regression suite and build, native PostgreSQL capacity/race tests, and
 the full captured-schema rehearsal. Apply migration
-`20261025151011_deduplicate_extension_spot_capacity_005324.sql` to ParkShare-QA
+`20261025152330_deduplicate_extension_spot_capacity_005324.sql` to ParkShare-QA
 only after those gates pass; it changes procedure calculations, not table data.
 Deploy the reviewed commit to Vercel project `parkshare-qa` and verify its alias.
 Do not merge this QA release into the production/main branch.
