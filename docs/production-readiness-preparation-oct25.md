@@ -29,7 +29,7 @@ production-shaped experiment.
 
 `test/database/fixtures/production-schema-oct25.json` captures only catalog
 definitions, policies, role flags/memberships, grants and relevant bucket
-configuration from production at 2026-10-25T21:37:38Z. It contains no application
+configuration from production at 2026-10-25T21:43:10Z. It contains no application
 rows, auth accounts, passwords, sessions, object names or keys. Auth and Storage
 schema definitions are present to restore actual foreign keys/triggers/RLS
 dependencies, rather than mocking an incomplete application schema.
