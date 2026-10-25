@@ -27,7 +27,7 @@ const report={checks:[],migrations:[],sourceCommit:execFileSync('git',['rev-pars
   fixtureSha256:createHash('sha256').update(fixture).digest('hex'),releaseApproved:false};
 const client=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});
 const check=async(name,fn)=>{await fn();report.checks.push({name,status:'passed'});};
-const install=async(db,path)=>{await db.exec(await readFile(new URL('../'+path,import.meta.url),'utf8'));report.migrations.push({name:path,status:'passed'});};
+const install=async(db,path,trace=report.migrations)=>{await db.exec(await readFile(new URL('../'+path,import.meta.url),'utf8'));trace.push({name:path,status:'passed'});};
 try {
   await client.connect();
   assert.equal((await client.query('select current_database() db')).rows[0].db,'parkshare_test');
@@ -45,7 +45,7 @@ try {
   const prepareBaseline=async db=>{
     for(const path of ['supabase-migration-010-preserve-bookings-on-listing-delete.sql',
       'supabase-migration-011-registered-checkouts.sql','supabase-migration-012-host-role-listings-rls.sql',
-      'supabase-migration-013-listing-photos-storage.sql']) await install(db,path);
+      'supabase-migration-013-listing-photos-storage.sql']) await install(db,path,report.prerequisites??=[]);
   };
   await runSchemaProbes(db,report,{snapshot,prepareBaseline});
   assert.equal(report.findings?.length??0,0,'Unresolved production-shaped core finding');
@@ -80,8 +80,8 @@ try {
   });
   console.log(`PASS: ${report.checks.length} production-shaped SQL checks. Production release remains on HOLD.`);
 } catch(error) {
-  report.error={code:error.code??null,message:error.message};
-  console.error('Production-shaped rehearsal FAILED:',error.message);process.exitCode=1;
+  report.error={code:error.code??null,message:error.message,stack:error.stack};
+  console.error('Production-shaped rehearsal FAILED:',error.stack);process.exitCode=1;
 } finally {
   await writeFile('production-schema-rehearsal-results.json',JSON.stringify(report,null,2)+'\n');
   await client.end();
