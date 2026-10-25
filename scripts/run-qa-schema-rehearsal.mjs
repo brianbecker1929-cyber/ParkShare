@@ -15,6 +15,7 @@ import {runListingPublicationProbe} from './qa-listing-publication-probe.mjs';
 import {runListingTimezoneProbe} from './qa-listing-timezone-probe.mjs';
 import {runPublicParkingProbe} from './qa-public-parking-probe.mjs';
 import { runRefundLedgerProbe } from './qa-refund-ledger-probe.mjs';
+import {runExtensionCapacityProbe} from './qa-extension-capacity-probe.mjs';
 
 const raw=process.env.QA_SCHEMA_REHEARSAL_DATABASE_URL;
 assert.ok(raw,'Set QA_SCHEMA_REHEARSAL_DATABASE_URL to LOCAL disposable PostgreSQL 17 /parkshare_test');
@@ -36,6 +37,7 @@ try {
   await runExtensionSettlementProbe(db,report);
   await runRefundNotificationsProbe(db,report);
   await runInitialBookingRefundProbe(db,report);
+  await runExtensionCapacityProbe(db,report);
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {

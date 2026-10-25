@@ -35,3 +35,10 @@ export function cancelledCheckoutHold(search) {
   return params.get("booking_cancelled") === "1" &&
     /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id || "") ? id : null;
 }
+
+export function cancelledExtensionCheckoutHold(search) {
+  const params = new URLSearchParams(search);
+  const id = params.get("extension_hold");
+  return params.get("extension_cancelled") === "1" &&
+    /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id || "") ? id : null;
+}
