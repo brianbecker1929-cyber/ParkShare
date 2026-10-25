@@ -11,8 +11,9 @@ const ACCOUNT='acct_synthetic_rehearsal';
 const readProposal=name=>readFile(new URL('../docs/sql-proposals/'+name,import.meta.url),'utf8');
 const rpc={hold:'public.create_booking_hold(bigint,uuid,text,timestamptz,timestamptz,timestamptz)',reserve:'public.reserve_extension_checkout_hold(bigint,uuid,numeric,timestamptz)',apply:'public.apply_paid_booking_extension(text,bigint,uuid,numeric,integer,text,text,text,timestamptz)'};
 
-export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
-  const snapshot=await loadSnapshot();
+export async function runSchemaProbes(db, report={checks:[],migrations:[]}, options={}) {
+  const snapshot=options.snapshot??await loadSnapshot();
+  const prepareBaseline=options.prepareBaseline??(async()=>{});
   const query=(sql,args=[])=>db.query(sql,args);
   const row=async(sql,args=[])=> (await query(sql,args)).rows[0];
   const check=async(name,fn)=>{await fn();report.checks.push({name,status:'passed'});};
@@ -24,7 +25,7 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
       const r=await query(sql,args); await db.exec('COMMIT;'); return r;
     } catch(e){await db.exec('ROLLBACK;');throw e;}
   }
-  await check('remote/QA source is PostgreSQL 17; local engine also PostgreSQL 17',async()=>{
+  await check('captured source and local engine are PostgreSQL 17',async()=>{
     report.engine=(await row('SELECT version() version')).version;
     assert.ok(snapshot.inventory.version.startsWith('PostgreSQL 17.'));
     assert.ok(report.engine.startsWith('PostgreSQL 17.'));
@@ -52,6 +53,7 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
     assert.equal((await row("SELECT has_column_privilege('anon','public.profiles','name','SELECT') allowed")).allowed,true);
     assert.equal((await row("SELECT has_table_privilege('anon','public.profiles','SELECT') allowed")).allowed,false);
   });
+  await prepareBaseline(db);
   // All rows below are synthetic. QA application rows are never exported.
   for(const [id,role] of [[HOST,'host'],[DRIVER,'driver'],[OTHER,'driver']]) await query(
     "INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,jsonb_build_object('name','Synthetic rehearsal','role',$3::text))",
@@ -201,6 +203,7 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
   }
   // Fault injection: reproduce a review collision in a fresh LOCAL restore.
   await restoreSnapshot(db,snapshot);
+  await prepareBaseline(db);
   for(const [id,role] of [[HOST,'host'],[DRIVER,'driver']]) await query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,jsonb_build_object('role',$3::text))",[id,id+'@example.invalid',role]);
   const collisionListing=(await row("INSERT INTO public.listings(host_id,title,address,price) VALUES($1,'Synthetic collision','100 Test Lane, Toronto, ON M5V 2T6',12) RETURNING id",[HOST])).id;
   await query("INSERT INTO public.reviews(listing_id,user_id,rating,text) VALUES($1,$2,5,'Synthetic duplicate one'),($1,$2,4,'Synthetic duplicate two')",[collisionListing,DRIVER]);

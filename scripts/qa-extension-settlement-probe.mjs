@@ -1,7 +1,7 @@
 // Only the disposable full-schema runner invokes this synthetic-data probe.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export const extensionSettlementMigration=new URL('../supabase/migrations/20261020205407_extension_settlement_005116_005260.sql',import.meta.url);
+export const extensionSettlementMigration=new URL('../supabase/migrations/20261021040753_extension_settlement_005116_005260.sql',import.meta.url);
 export async function runExtensionSettlementProbe(db,report){
  const check=name=>report.checks.push({name:'extension settlement: '+name,status:'passed'});
  await db.exec(await readFile(extensionSettlementMigration,'utf8'));
