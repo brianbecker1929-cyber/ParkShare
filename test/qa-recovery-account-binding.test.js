@@ -75,3 +75,9 @@ test('inactive, invalid-password or invalid-config attempts never make a passwor
   for(const value of ['',null,'short']){const x=fixture();await assert.rejects(x.run({password:value}),/at least 12/);assert.equal(x.reads,0);}
   for(const config of [{authUrl:'http://fixture.invalid'},{publishableKey:''}]){const x=fixture();await assert.rejects(x.run(config),/temporarily unavailable/);assert.equal(x.calls.length,0);}
 });
+
+test('reset rejects the reported sequence and common patterns before session reads or writes',async()=>{
+ for(const password of ['123456789101112','passwordpassword','aaaaaaaaaaaa']){
+  const h=fixture();await assert.rejects(h.run({password}),/less predictable/);assert.equal(h.reads,0);assert.equal(h.calls.length,0);
+ }
+});

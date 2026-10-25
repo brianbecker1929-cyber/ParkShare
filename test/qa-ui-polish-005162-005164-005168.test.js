@@ -70,3 +70,10 @@ test('both desktop auth controls retain branded styles at 761, 790 and 819 pixel
   assert.equal(styles['.ps-desktop-auth-actions button']['min-height'],'40px');
  }
 });
+
+test('BUG-005268 reserve row wraps its items while keeping the payment button label intact',()=>{
+ const declarations={};css.walkRules(rule=>{if(['.ps-booking-reserve-row','.ps-booking-reserve-row > button'].includes(rule.selector)){declarations[rule.selector]||={};rule.walkDecls(d=>declarations[rule.selector][d.prop]=d.value);}});
+ assert.equal(declarations['.ps-booking-reserve-row']['flex-wrap'],'wrap');assert.equal(declarations['.ps-booking-reserve-row > button']['white-space'],'nowrap');assert.equal(declarations['.ps-booking-reserve-row > button']['flex-shrink'],'0');
+ const row=app.slice(app.indexOf('<div className="ps-booking-reserve-row"'),app.indexOf('Your session is signed out. Sign in to continue booking'));
+ assert.match(row,/<\/Btn>\s*<\/div>\s*\{!user/);
+});

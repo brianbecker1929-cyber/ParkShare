@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {transform} from 'esbuild';
 import React from 'react';
 import {RECOVERY_SESSION_CHANGED} from '../src/lib/passwordRecovery.js';
-import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm} from '../src/lib/authForm.js';
+import {emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,validateNewPassword} from '../src/lib/authForm.js';
 
 const source=await readFile(process.env.QA_RECOVERY_APP_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const syncSource=await readFile(process.env.QA_RECOVERY_SYNC_SOURCE||new URL('../src/lib/authSessionSync.js',import.meta.url),'utf8');
@@ -60,7 +60,7 @@ function appHarness({messageBookingId=null,extendBookingId=null,update=async()=>
  const hooks={useState:initial=>{const i=current.cursor++,r=current;if(!(i in r.slots))r.slots[i]={value:typeof initial==='function'?initial():initial};return [r.slots[i].value,v=>{r.writes++;const next=typeof v==='function'?v(r.slots[i].value):v;if(next!==r.slots[i].value){r.slots[i].value=next;r.dirty=true;}}];},useRef:initial=>{const i=current.cursor++;return current.slots[i]||(current.slots[i]={current:initial});},useEffect:(fn,deps)=>{const i=current.cursor++,r=current,old=r.slots[i];if(!old||deps.some((v,n)=>v!==old.deps[n])){r.slots[i]={deps,cleanup:old?.cleanup};r.effects.push(()=>{r.slots[i].cleanup?.();r.slots[i].cleanup=fn();});}}};
  const SignInModal=()=>null,ExtendSessionModal=()=>null;
  const supabase={auth:{onAuthStateChange:fn=>{listeners.add(fn);return {data:{subscription:{unsubscribe:()=>listeners.delete(fn)}}};},getSession:async()=>({data:{session:latestSession}}),updateUser:async value=>{authCalls.push(value);return update();}},from:table=>{assert.equal(table,'profiles');return {select:()=>({eq:(_key,id)=>({single:async()=>({data:{id,name:'Fixture '+id,role:'driver'}})})})};}};
- const values={React,...hooks,supabase,RECOVERY_SESSION_CHANGED,updateRecoveryPasswordForAccount:async({password})=>{authCalls.push({password});return update();},createAuthSessionSynchronizer:options=>createAuthSessionSynchronizer({...options,defer:fn=>tasks.push(fn)}),buildAppUser:p=>p,SignInModal,ExtendSessionModal,handleAuth:u=>published.push(u),closeEmailListing:()=>closedMessage++,setExtendBookingId:()=>closedExtension++,isExtensionContextCurrent:()=>true,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,window:{location:{origin:'https://synthetic.invalid'}}};
+ const values={React,...hooks,supabase,RECOVERY_SESSION_CHANGED,updateRecoveryPasswordForAccount:async({password})=>{authCalls.push({password});return update();},createAuthSessionSynchronizer:options=>createAuthSessionSynchronizer({...options,defer:fn=>tasks.push(fn)}),buildAppUser:p=>p,SignInModal,ExtendSessionModal,handleAuth:u=>published.push(u),closeEmailListing:()=>closedMessage++,setExtendBookingId:()=>closedExtension++,isExtensionContextCurrent:()=>true,C:{},ResponsiveMascot:()=>null,emptyAuthForm,isUnconfirmedEmailError,MIN_NEW_PASSWORD_LENGTH,signupOutcome,validateAuthForm,validateNewPassword,window:{location:{origin:'https://synthetic.invalid'}}};
  const Parent=new Function(...Object.keys(values),parentCode+';return Parent;')(...Object.values(values));
  const Modal=new Function(...Object.keys(values),modalCode+';return SignInModal;')(...Object.values(values));
  const runtime=()=>({slots:[],effects:[],cursor:0,dirty:false,writes:0});

@@ -1,4 +1,4 @@
-import { MIN_NEW_PASSWORD_LENGTH } from './authForm.js';
+import { validateNewPassword } from './authForm.js';
 
 export const RECOVERY_SESSION_CHANGED = 'Your recovery session changed or could not be verified. Close this dialog and reopen your password reset link. If you already submitted, try signing in with the new password before requesting another reset.';
 const uncertain = "We couldn't confirm your password update. Try signing in with your new password before requesting another reset.";
@@ -13,7 +13,8 @@ export async function updateRecoveryPasswordForAccount({
 }) {
   if (!isCurrent()) return null;
   if (typeof expectedAccountId !== 'string' || !expectedAccountId.trim()) throw sessionError();
-  if (typeof password !== 'string' || password.length < MIN_NEW_PASSWORD_LENGTH) throw new Error(`Use at least ${MIN_NEW_PASSWORD_LENGTH} characters`);
+  const passwordError = validateNewPassword(password);
+  if (passwordError) throw new Error(passwordError);
   const session = async () => {
     let result;
     try { result = await client.auth.getSession(); }
