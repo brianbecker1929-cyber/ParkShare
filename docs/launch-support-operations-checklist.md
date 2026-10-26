@@ -32,14 +32,23 @@ _Proposed pre-launch procedure; October 2026. Internal owners, inbox operation, 
 | Privacy / account deletion request | Confirm receipt, preserve privacy and use approved identity verification | Escalate to the designated privacy owner; follow retention and legal obligations |
 | Suspected fraud, threats or safety emergency | Prioritize immediate safety; instruct users to contact emergency services where appropriate | Restrict access, escalate promptly and preserve relevant authorized records |
 
-## Suggested customer response templates
-Use verified facts only and update placeholders from the corresponding support case.
+## Customer response templates and detailed procedures
 
-**Booking issue:** "Thanks for contacting ParkShare about reservation [reference]. We're checking the booking details and the space's availability. Please do not park in an unassigned or unauthorized space. We'll provide the next confirmed step as soon as possible."
+Use [Support and incident procedures](support-incident-procedures.md) for the current
+payment discrepancy, occupied-space, failed-extension and refund workflows,
+customer replies, verification requirements, handoff and closure criteria.
+The companion replaces the earlier short response examples in this checklist.
+It also contains discussion exercises that can proceed during the QA outage;
+these do not certify live payment, email or application behavior.
 
-**Payment discrepancy:** "Thanks for reporting this payment concern. We're reviewing the checkout and reservation records to determine whether a charge was completed and a booking was created. Please avoid making another payment for the same reservation while we investigate."
+Before activating support:
 
-**Refund inquiry:** "We've received your request regarding reservation [reference]. We'll review the cancellation terms that applied to your booking and any payment or refund activity before confirming the outcome."
+- [ ] Confirm the primary support owner and backup.
+- [ ] Confirm staffed coverage, holidays and the after-hours route.
+- [ ] Confirm the payment approver, execution permissions and refund limits.
+- [ ] Confirm engineering and safety escalation contacts.
+- [ ] Agree the proposed internal response targets after staffing is confirmed;
+      do not publish them as a guaranteed service level.
 
 ## Release and escalation checklist
 
