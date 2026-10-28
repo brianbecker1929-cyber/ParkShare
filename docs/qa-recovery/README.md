@@ -160,9 +160,25 @@ Tests and QA full-schema rehearsal. Its Preview server returned HTTP 200 with
 all 15 readiness checks true. Synthetic email HTML returned HTTP 200 with seven
 fixed-preview links and zero stable-QA links. The owner retried successfully: the website loaded the new Driver account,
 its profile-completion banner and the parking map with markers. Driver website
-sign-in is verified after the profile grant correction. Host website sign-in
-remains to be checked. Payment webhook/checkout and
+sign-in is verified after the profile grant correction. BetterQA subsequently confirmed existing Host sign-in, the Host dashboard,
+listing and listing history all work and appear intact. Payment webhook/checkout and
 stable QA cutover remain pending. No assistant-triggered email was sent.
+
+## BetterQA handover and Host confirmation — October 28
+
+The owner sent the recovery link to BetterQA. BetterQA reports successful existing
+Host sign-in and intact dashboard, listing and listing history. They have started
+retesting repaired bugs, followed by booking, payment, refund and email flows
+using Stripe test cards only. Stable QA has not been cut over.
+
+BetterQA reports the existing "Finish Stripe verification" banner remains.
+A read-only source/recovery comparison found all 16 Host profile Stripe account
+fingerprints and onboarding/charge/payout/requirements fields match exactly;
+zero differences. This confirms the migration preserved the stored onboarding
+state. It does not verify current Stripe provider requirements, webhook routing,
+test checkout, refunds or payouts. Do not mark those flows passed, force
+onboarding flags, or change payment settings from the banner alone. Obtain the
+specific error and affected test scenario if BetterQA encounters a blocker.
 
 ## Encrypted recovery checkpoints
 
