@@ -1,10 +1,10 @@
-# ParkShare-QA recovery checkpoint — October 27, 2026
+# ParkShare-QA recovery checkpoint — October 28, 2026
 
 ## Current state
 
 The replacement database and private file restore **succeeded**. Driver and Host
-password login and profile isolation passed API smoke tests. The QA website has
-**not** been switched, so BetterQA's website retesting remains blocked.
+password login and profile isolation passed API smoke tests. An isolated Vercel preview now connects to the replacement database. The stable
+QA website has **not** been switched, so BetterQA's website retesting remains blocked.
 
 | Purpose | Identifier |
 | --- | --- |
@@ -74,8 +74,37 @@ the database checkpoint retains the prior state for later reconciliation.
 
 The six URL/public-key/Maps/sender configuration overrides are prepared only for
 Preview branch `qa/recovery-preflight-oct27` in the QA Vercel project.
-Vercel still needs the replacement server API key separately, scoped to that
-Preview branch. Stable QA Production settings have not been changed.
+The owner entered the replacement server key in the branch-specific Preview
+variable on October 28. Vercel metadata confirms the update and the deployed
+server's schema/ledger checks confirm the key works. An independent Preview
+`CRON_SECRET` is also prepared; its next build will load it. Stable QA Production
+environment values have not been changed.
+
+## October 28 isolated preview and permission correction
+
+Preview deployment `dpl_GsVscPwff8NLqGmTVcmsBm2mLY9d` is READY at
+https://parkshare-7xluxin2l-eska-technologies.vercel.app for commit
+`03be2ecfc87106d553e634413249f6c38691a8ef`. It has Preview target and only a
+recovery-branch alias. Its server reads the replacement schema, refund ledger
+and bounded parking RPC successfully; Stripe TEST/webhook and Maps settings
+are present. Overall readiness remains blocked on email and scheduled-route
+configuration, and website end-to-end checks remain pending.
+
+The first deployment exposed an ACL mismatch the earlier count/RLS checks did
+not cover: replacement default grants were broader on 14 application functions
+and 13 public tables. Source and target catalog ACLs were compared. In a
+target-only transaction, excess anon/authenticated privileges were revoked,
+with exact precondition checks and normalized source-ACL equality checks before
+commit. No application rows or source grants changed. Column-level profile
+grants already matched and were preserved. Archived owner-only default ACLs are
+semantically equivalent. Publication and timezone readiness now both return true;
+anon/authenticated cannot execute the publication RPC. Counts remain 34 users,
+17 listings, 61 bookings. Do not treat row counts and RLS alone as complete
+permission verification for any future restore.
+
+The stable QA URL still reports its original application commit and failing
+original-backend schema checks. Do not advertise recovery readiness or switch
+the stable alias until remaining checks pass.
 
 ## Encrypted recovery checkpoints
 
@@ -96,9 +125,8 @@ GitHub's ciphertext artifact retention is one day; preserve the downloaded copy.
 
 ## Remaining work
 
-1. Enter the replacement server API key securely in the QA Vercel project's
-   Preview environment for branch `qa/recovery-preflight-oct27`. The GitHub
-   Actions secret used for file migration cannot be read back through Vercel.
+1. The recovery server key is entered and verified. Finish the branch-specific
+   email setting and rebuild to load the prepared scheduled-route secret.
 2. Configure replacement Auth site URL, redirect URLs and SMTP/email settings.
 3. Finish the isolated QA deployment's email/cron settings, preserving Stripe
    TEST keys, webhook verification and Maps configuration. Keep only one active
