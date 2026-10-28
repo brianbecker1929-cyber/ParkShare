@@ -34,3 +34,17 @@ test('a missing required schema column blocks readiness',async()=>{const r=await
 test('photo cleanup configuration is required for QA readiness',async()=>{const r=await run({CRON_SECRET:''});assert.equal(r.code,503);assert.equal(r.value.checks.photoCleanupReady,false);});
 
 test("reminders require email and cron configuration",async()=>{ for(const env of [{CRON_SECRET:""},{RESEND_API_KEY:""},{EMAIL_FROM:""}]) assert.equal((await run(env)).value.checks.remindersReady,false); });
+
+test('recovery return links are accepted only for the exact isolated Preview site and backend',async()=>{
+ const env={VERCEL_ENV:'preview',SUPABASE_URL:'https://heqxirlsorcztsawaldg.supabase.co',
+ VITE_SUPABASE_URL:'https://heqxirlsorcztsawaldg.supabase.co',APP_URL:'https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app'};
+ assert.equal((await run(env)).value.ready,true);
+ assert.equal((await run({...env,APP_URL:env.APP_URL+'/'})).value.ready,true);
+ for(const change of [{VERCEL_ENV:'production'},{VERCEL_ENV:undefined},
+ {SUPABASE_URL:qa.SUPABASE_URL,VITE_SUPABASE_URL:qa.SUPABASE_URL},
+ {APP_URL:'https://attacker.invalid'},{APP_URL:env.APP_URL+'.attacker.invalid'},
+ {APP_URL:'https://www.myparkshare.ca'}]){
+  const r=await run({...env,...change});assert.equal(r.code,503);assert.equal(r.value.checks.qaLinks,false);
+ }
+ assert.equal((await run({...env,VERCEL_PROJECT_ID:'production-project'})).code,404);
+});

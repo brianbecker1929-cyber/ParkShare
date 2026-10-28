@@ -124,9 +124,15 @@ Browser verification confirmed the home page and all 17 public parking results
 load from the recovery deployment. The map fails with
 `RefererNotAllowedMapError`: the new Preview host needs authorization on the
 Google Maps browser key. Use the fixed branch preview alias for ongoing checks.
-Supabase Auth site/redirect/SMTP settings still need configuration and validation.
-`APP_URL` still points to the stable QA origin, so payment and transactional email
-return links have not yet been isolated to the preview. Do not announce readiness
+The owner reports saving Resend SMTP settings (sender no-reply@myparkshare.ca,
+name ParkShare QA, smtp.resend.com:465, username resend), the fixed branch preview
+Site URL, and exact origin redirects for that branch and stable QA. These settings
+still need authentication email delivery/return verification.
+A branch-only `APP_URL` override is being set to the fixed preview origin.
+The QA readiness guard now accepts that exact origin only with the recovery
+backend, QA project ID and Preview environment; stable QA behavior is preserved.
+Eight focused readiness tests passed, including wrong host/project/backend and
+Production rejection. Payment/email return flows still need live verification. Do not announce readiness
 or cut over before these remaining boundaries pass. No email was sent.
 
 ## Encrypted recovery checkpoints
@@ -150,7 +156,8 @@ GitHub's ciphertext artifact retention is one day; preserve the downloaded copy.
 
 1. The recovery server key is entered and verified. The branch-specific
    email setting and scheduled-route secret are loaded and configuration checks pass.
-2. Configure replacement Auth site URL, redirect URLs and SMTP/email settings.
+2. Verify replacement Auth site/redirect/SMTP settings saved by the owner and
+   test actual authentication email delivery/return.
 3. Finish the isolated QA deployment's email/cron settings, preserving Stripe
    TEST keys, webhook verification and Maps configuration. Keep only one active
    delivery path at cutover; historical refund jobs remain held for review.

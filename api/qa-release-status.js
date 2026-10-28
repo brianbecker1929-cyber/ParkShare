@@ -15,7 +15,12 @@ export default async function handler(req, res) {
     webhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     emailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM),
     mapsConfigured: Boolean(process.env.VITE_GOOGLE_MAPS_API_KEY),
-    qaLinks: process.env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa.vercel.app",
+    qaLinks: process.env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa.vercel.app" || (
+      process.env.VERCEL_ENV === "preview" &&
+      process.env.VERCEL_PROJECT_ID === "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC" &&
+      process.env.SUPABASE_URL === "https://heqxirlsorcztsawaldg.supabase.co" &&
+      process.env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app"
+    ),
   };
   const {error} = await supabaseAdmin.from("listings").select("id,time_zone", {count:"exact",head:true});
   checks.schemaReady = !error;
