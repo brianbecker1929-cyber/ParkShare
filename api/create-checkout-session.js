@@ -138,8 +138,13 @@ export default async function handler(req, res) {
     if (!stripeAccountId) return res.status(409).json({ error: "This Host has not finished setting up payouts yet." });
 
     const account = await stripe.accounts.retrieve(stripeAccountId);
-    if (!account.charges_enabled) {
-      return res.status(409).json({ error: "This Host's Stripe account isn't ready to accept payments yet." });
+    // Match the Host dashboard's completed-onboarding rule using Stripe's
+    // current state. Cached profile flags and charges alone are insufficient.
+    if (account.details_submitted !== true || account.charges_enabled !== true || account.payouts_enabled !== true) {
+      return res.status(409).json({
+        error: "This Host has not finished Stripe verification and payouts setup. Please choose another parking space.",
+        code: "host_payouts_not_ready",
+      });
     }
 
     const { hourlyCents, subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(

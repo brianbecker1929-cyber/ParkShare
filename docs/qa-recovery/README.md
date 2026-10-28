@@ -180,6 +180,31 @@ test checkout, refunds or payouts. Do not mark those flows passed, force
 onboarding flags, or change payment settings from the banner alone. Obtain the
 specific error and affected test scenario if BetterQA encounters a blocker.
 
+## BetterQA payment blocker and payout eligibility — October 28
+
+BetterQA confirms Host 1 sign-in, dashboard, listings, history and earnings,
+plus signup, confirmation, reset and sign-in email flows returning to recovery.
+They report 18 repaired bugs Ready to Release, 17 new issues, and test counts of
+19 passed, 12 failed and 72 blocked. Those counts total 103 of the stated 109;
+the remaining six statuses need clarification. No production release is approved.
+
+BUG-005436 is the current payment blocker: successful test Checkout returns do
+not create bookings or send booking emails. Three October 28 registered holds
+have no booking, including the Bremner Boulevard test listing. Stripe inspection
+is required to verify the destination and signed deliveries and reconcile the
+original payments before releasing the stranded reservation. No hold/payment
+evidence has been deleted. An unsigned probe confirmed the preview webhook is
+publicly reachable and rejects missing signatures with HTTP 400. Signature
+verification and payment-account ownership checks remain enabled.
+
+BUG-005444 code now checks the current Stripe `details_submitted`,
+`charges_enabled` and `payouts_enabled` fields before both booking and extension
+holds/Checkout creation. Incomplete Hosts receive HTTP 409 instead of a payment
+URL. Forty focused checks, the full local test suite and the Vite build passed.
+See `docs/qa-host-payout-eligibility-005444.md` for acceptance and remaining gates.
+This does not fix the independent webhook delivery issue or complete onboarding
+for any Host. No actual production setting, payment or refund was changed.
+
 ## Encrypted recovery checkpoints
 
 The original source export and the expanded pre-restore checkpoint are retained
