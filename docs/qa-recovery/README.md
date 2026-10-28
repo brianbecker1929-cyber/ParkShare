@@ -158,8 +158,10 @@ notified. No account/password or application data changed during the correction.
 Latest tested app commit `28c6ac31f2ff072aaf5edf66e6ce805159f6d4d1` passed GitHub
 Tests and QA full-schema rehearsal. Its Preview server returned HTTP 200 with
 all 15 readiness checks true. Synthetic email HTML returned HTTP 200 with seven
-fixed-preview links and zero stable-QA links. Actual website sign-in needs the
-owner's retry after the profile grant correction. Payment webhook/checkout and
+fixed-preview links and zero stable-QA links. The owner retried successfully: the website loaded the new Driver account,
+its profile-completion banner and the parking map with markers. Driver website
+sign-in is verified after the profile grant correction. Host website sign-in
+remains to be checked. Payment webhook/checkout and
 stable QA cutover remain pending. No assistant-triggered email was sent.
 
 ## Encrypted recovery checkpoints
