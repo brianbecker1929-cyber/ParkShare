@@ -96,7 +96,8 @@ and 13 public tables. Source and target catalog ACLs were compared. In a
 target-only transaction, excess anon/authenticated privileges were revoked,
 with exact precondition checks and normalized source-ACL equality checks before
 commit. No application rows or source grants changed. Column-level profile
-grants already matched and were preserved. Archived owner-only default ACLs are
+grants initially matched; the table-level revocations also removed them. They
+were explicitly restored and verified in the later profile correction below. Archived owner-only default ACLs are
 semantically equivalent. Publication and timezone readiness now both return true;
 anon/authenticated cannot execute the publication RPC. Counts remain 34 users,
 17 listings, 61 bookings. Do not treat row counts and RLS alone as complete
@@ -116,24 +117,50 @@ was inspected; the credential was not read back or logged.
 Preview deployment `dpl_4u6SwFbUUuUp513fsc7iGAw61n46` is READY at
 https://parkshare-ec2uc3m5l-eska-technologies.vercel.app for commit
 `1cddf0c7f35a49abbbb2b0f6931f3433f52ddc21`.
-`/api/qa-release-status` returned HTTP 200, `ready:true`, all 14 configuration/
+`/api/qa-release-status` returned HTTP 200, `ready:true`, all 15 configuration/
 database checks true. These presence checks do not prove email delivery or
 payment webhook delivery.
 
 Browser verification confirmed the home page and all 17 public parking results
-load from the recovery deployment. The map fails with
-`RefererNotAllowedMapError`: the new Preview host needs authorization on the
-Google Maps browser key. Use the fixed branch preview alias for ongoing checks.
+load from the recovery deployment. The initial map failed with
+`RefererNotAllowedMapError`. The owner added the fixed recovery branch host to
+the QA browser key's allowed websites. Browser verification then rendered the
+map, parking markers and 17 listings with no Google Maps errors. Use the fixed
+branch preview alias for ongoing checks.
 The owner reports saving Resend SMTP settings (sender no-reply@myparkshare.ca,
 name ParkShare QA, smtp.resend.com:465, username resend), the fixed branch preview
 Site URL, and exact origin redirects for that branch and stable QA. These settings
 still need authentication email delivery/return verification.
-A branch-only `APP_URL` override is being set to the fixed preview origin.
+A branch-only `APP_URL` override is set to the fixed preview origin.
 The QA readiness guard now accepts that exact origin only with the recovery
 backend, QA project ID and Preview environment; stable QA behavior is preserved.
 Eight focused readiness tests passed, including wrong host/project/backend and
 Production rejection. Payment/email return flows still need live verification. Do not announce readiness
 or cut over before these remaining boundaries pass. No email was sent.
+
+## Confirmed signup and profile-field permission correction
+
+The owner's new Driver signup reached the replacement database. Resend recorded
+the confirmation email as delivered, and the owner received and followed it.
+Supabase confirmed the email and successful password authentication. The browser
+then received HTTP 403 for its three-field profile read.
+
+Diagnosis found the earlier table-level permission revocations had also removed
+the existing column-level profile grants. Restored exactly the source's
+`GRANT SELECT (id,name,role) ON public.profiles TO authenticated`.
+The change was verified in one transaction using the new Driver and an existing
+Host under the authenticated database role: each could read its own three fields
+and could not see other profiles. Assertions also denied anonymous profile reads,
+private email/Stripe fields and direct profile writes. An independent catalog
+read confirms the exact three column ACLs now match the source. Schema cache was
+notified. No account/password or application data changed during the correction.
+
+Latest tested app commit `28c6ac31f2ff072aaf5edf66e6ce805159f6d4d1` passed GitHub
+Tests and QA full-schema rehearsal. Its Preview server returned HTTP 200 with
+all 15 readiness checks true. Synthetic email HTML returned HTTP 200 with seven
+fixed-preview links and zero stable-QA links. Actual website sign-in needs the
+owner's retry after the profile grant correction. Payment webhook/checkout and
+stable QA cutover remain pending. No assistant-triggered email was sent.
 
 ## Encrypted recovery checkpoints
 
