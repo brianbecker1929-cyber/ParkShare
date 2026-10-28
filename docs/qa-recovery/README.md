@@ -2,8 +2,9 @@
 
 ## Current state
 
-The replacement database restore **succeeded**. The QA website has **not** been
-switched, so BetterQA's backend-dependent retesting remains blocked.
+The replacement database and private file restore **succeeded**. Driver and Host
+password login and profile isolation passed API smoke tests. The QA website has
+**not** been switched, so BetterQA's website retesting remains blocked.
 
 | Purpose | Identifier |
 | --- | --- |
@@ -48,6 +49,34 @@ recognizes the replacement while retaining its project/site restrictions.
 Seven restore safety checks, 18 focused application checks, GitHub Tests and
 QA full-schema rehearsal passed. No stable alias cutover has occurred.
 
+## Private files and password login verified
+
+[File-copy and Auth smoke run 40625576738](https://github.com/brianbecker1929-cyber/ParkShare/actions/runs/40625576738)
+passed both private-bucket checks, downloaded all originals, encrypted a checkpoint
+before target writes, uploaded all four files and verified every download checksum.
+The four files total 16220907 bytes. Both buckets remain private, and object owner
+fields match. Three active listing cover/photo references were relinked in the
+replacement; no original-project photo URLs remain in `public.listings`.
+
+Disposable Driver and Host accounts each passed password login, own-profile reads
+and cross-user profile isolation. Both accounts were signed out and removed.
+Original accounts remain unchanged: 34 users/profiles. No emails were sent.
+
+The encrypted file ZIP SHA256 is
+`f2e6bd7525d419b28ec2006e7c388f9a714e90f576f8dc12c836ce0feb79ceb8`.
+Its digest, CMS decryption and all four inner file checksums passed independent
+verification. The checkpoint and non-sensitive reports are retained outside Git.
+
+Copied delivery review found no unsent reminders and two historical, unprepared
+refund-notification jobs. Those two copied jobs were held with `blocked_at` in
+the replacement to prevent automatic historical sends. Originals are unchanged;
+the database checkpoint retains the prior state for later reconciliation.
+
+The six URL/public-key/Maps/sender configuration overrides are prepared only for
+Preview branch `qa/recovery-preflight-oct27` in the QA Vercel project.
+Vercel still needs the replacement server API key separately, scoped to that
+Preview branch. Stable QA Production settings have not been changed.
+
 ## Encrypted recovery checkpoints
 
 The original source export and the expanded pre-restore checkpoint are retained
@@ -67,18 +96,17 @@ GitHub's ciphertext artifact retention is one day; preserve the downloaded copy.
 
 ## Remaining work
 
-1. Copy and hash-verify the four actual private Storage files. Their metadata
-   rows are restored; their bytes are not. The original `listing-photos` bucket
-   is private, so secure server API access is needed for both projects.
+1. Enter the replacement server API key securely in the QA Vercel project's
+   Preview environment for branch `qa/recovery-preflight-oct27`. The GitHub
+   Actions secret used for file migration cannot be read back through Vercel.
 2. Configure replacement Auth site URL, redirect URLs and SMTP/email settings.
-3. Configure an isolated QA deployment with replacement API URL/key pairs.
-   Preserve Stripe TEST keys, webhook verification, email and Maps configuration.
-4. Review copied reminder/refund delivery queues before enabling background
-   workers. Keep only one active delivery path at cutover.
-5. Verify Driver/Host login and profiles, parking discovery, booking/spot
-   conflicts, Stripe test checkout/webhooks/extensions/refunds, email links,
-   Storage access and all readiness checks.
-6. Switch `parkshare-qa.vercel.app` only after these checks pass. Retain the
+3. Finish the isolated QA deployment's email/cron settings, preserving Stripe
+   TEST keys, webhook verification and Maps configuration. Keep only one active
+   delivery path at cutover; historical refund jobs remain held for review.
+4. Verify the website end-to-end: Driver/Host login and profiles, parking
+   discovery, booking/spot conflicts, Stripe test checkout/webhooks/extensions/
+   refunds, email links, private Storage access and all readiness checks.
+5. Switch `parkshare-qa.vercel.app` only after these checks pass. Retain the
    original project and previous deployment for Support and rollback, then
    record the exact ready release and accounts for BetterQA.
 
