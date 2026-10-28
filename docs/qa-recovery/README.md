@@ -1,79 +1,87 @@
-# ParkShare-QA replacement preflight — October 27, 2026
+# ParkShare-QA recovery checkpoint — October 27, 2026
 
-Source deployment: `2ae1c71bd119984675ff57a067dff9e3a79627ae`.
-Source Supabase: `biydlfekindgaslgktsx`, Canada Central.
-QA Vercel: `prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC`.
-The live production project `oyxrussraxjgqwzpwyca` is not a recovery target.
+## Environments
 
-## Current state
+| Purpose | Identifier |
+| --- | --- |
+| Original QA Supabase | `biydlfekindgaslgktsx` |
+| Replacement Supabase | `heqxirlsorcztsawaldg` |
+| Recovery organization | `rsfbtpuwdtdzahrmkrxd` — ParkShare QA Recovery |
+| Region | `ca-central-1` |
+| QA Vercel project | `prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC` |
+| Current QA application commit | `2ae1c71bd119984675ff57a067dff9e3a79627ae` |
+| Excluded production Supabase | `oyxrussraxjgqwzpwyca` |
 
-The original database responds to read-only SQL. Its Auth/Data API return 521;
-QA parking search/readiness return 503. No restart, resize, source schema change,
-data migration, paid resource or alias switch has been performed for this recovery.
+The recovery organization is on Pro, purchased by the owner. Supabase quoted
+$0 additional monthly for its first replacement project. The replacement was
+created and basic Auth/Data API responses checked. It has no public application
+tables and has not been connected to the QA website.
 
-Read-only inventory: 16 application tables, 17 application functions, 19 public/storage
-policies, 24 recorded migrations, 34 Auth accounts and one storage bucket with four
-recorded objects. Logical row text is approximately 120 MB; listings and reminder
-payloads account for almost all of it. A catalog inventory is not a database backup.
+At the latest pre-export application check, the original Auth and profile Data
+API returned 521; QA parking search and readiness returned 503. The current
+website still uses the original backend. BetterQA remains blocked.
 
-The owner selected a separate QA organization. It does not yet exist in the connected
-Supabase account. The current connection can list organizations but cannot create one.
-Create the new organization without creating or moving any projects first. Then obtain
-and approve its subscription and project costs before provisioning paid capacity.
+## Source backup completed
 
-## Secure source database export
+The owner reset the original QA database password after reviewing the impact
+and added the credential privately as `QA_RECOVERY_SOURCE_DATABASE_URL`.
+The website source and QA environment inventory use Supabase HTTP API keys.
+Any separate direct database client using the old password needs updating.
 
-The prepared workflow uses a new repository Actions secret named
-`QA_RECOVERY_SOURCE_DATABASE_URL`. Enter the original QA project's direct database
-or session-pooler connection string there, with its existing database password URL-encoded.
-Use the original QA Connect panel. The frontend anon/service keys are not database passwords.
-Do not reset the source password simply to fill this secret without reviewing the impact.
+[Backup run 40554102964](https://github.com/brianbecker1929-cyber/ParkShare/actions/runs/40554102964)
+succeeded. It exported roles, schema and data read-only, encrypted before upload,
+and cleaned up runner plaintext. The encrypted artifact was downloaded and
+preserved separately from the repository.
 
-The source validator permits only the fixed original QA project and SSL, excludes
-production and transaction-pooler port 6543, and never prints the credential. The job
-performs the documented Supabase CLI logical export (roles/schema/data), encrypts the
-archive to the recovery public certificate, and uploads only ciphertext. Missing credentials
-fail before export. No restore, migration, source restart or compute change is included.
+Integrity verification:
+- Encrypted ZIP size: 115310842 bytes.
+- Encrypted ZIP SHA256: `5acd1c1f88d42c52ec0c25d8a3a93029227ce209621fed13c1efcd54257e1d04`.
+- Export time: `2026-10-28T02:11:57Z` (October 27 in Toronto).
+- CMS decryption succeeded using the private key from the original recovery handoff.
+- All three SQL file sizes and checksums matched the manifest.
+- Key COPY-block counts matched fresh direct SQL: 34 Auth users, 34 identities,
+  34 profiles, 17 listings, 61 bookings, one Storage bucket and four object records.
 
-The private decryption key is held outside the Git repository in the owner's recovery
-handoff package. It must never be committed, shared in BugBoard, or uploaded as a GitHub
-artifact. The encrypted GitHub artifact is retained for one day; download and retain the
-verified encrypted backup promptly. The logical export still requires a trial restore and
-record-count/relationship checks before calling it a verified recovery backup.
+This is an integrity-checked database export, not yet a restore-tested recovery
+backup. It includes application/private/archive schemas as emitted by the CLI,
+and account rows. It does not include actual Storage file bytes or project
+Auth/SMTP settings. Supabase-managed schema customizations need separate review.
+Migration history was captured in the earlier catalog inventory; the current
+workflow does not separately dump `supabase_migrations`.
 
-## Replacement stages
+Never commit database URLs, passwords, the private decryption key, decrypted
+SQL data or the encrypted backup to this repository. GitHub's temporary artifact
+retention is one day; the downloaded persistent copy must be retained.
 
-1. Confirm the new organization's exact subscription/project quote and approve cost.
-2. Complete the encrypted source export and verify checksums after decryption.
-3. Provision a new project; verify empty Auth/Data API health before importing.
-4. Restore reviewed application schema, users/identities, data, grants, RLS, functions,
-   sequence states and migration history. Review managed Auth/Storage customizations;
-   do not blindly overwrite the new project's managed service schemas.
-5. Copy the four storage objects and verify bytes/paths separately. A database export
-   records storage metadata, not the actual files.
-6. Configure Supabase Auth site URL/redirects and custom SMTP. Reuse or re-enter email
-   credentials securely. Vercel's QA secret variables cannot be read back; retain them
-   on the existing QA project or obtain new values rather than exposing them.
-7. Update only QA Supabase URL/public key/server key pairs. Preserve Stripe TEST keys,
-   webhook verification, email, Maps and cron settings. Keep background delivery jobs
-   disabled on the replacement until old queued reminders/refund emails are reviewed,
-   avoiding duplicate sends. There must be only one active worker path at cutover.
-8. Adjust the explicit old-project guards in `api/qa-release-status.js` and
-   `api/_email-preview.js` for the new QA project. Keep production excluded.
-9. Validate a temporary deployment: Driver/Host login, own-profile loading, listings,
-   booking/spot conflicts, test checkout, signed webhook, extension/refund, email links,
-   Storage access and all readiness checks. A 200 health endpoint is not end-to-end proof.
-10. Switch the stable QA alias only after validation. Record the exact deployment and
-    database project refs, preserve the old source and the rollback configuration, and
-    tell BetterQA which accounts/data and release are ready for retest.
+## Remaining restore and cutover stages
 
-## Open dependencies
+1. Obtain the replacement database connection credential as a separate GitHub
+   Actions secret, `QA_RECOVERY_TARGET_DATABASE_URL`. It must identify only
+   `heqxirlsorcztsawaldg`; never reuse the original source secret as a target.
+2. Prepare and review a restore restricted to the exact replacement project.
+   Refuse a populated target, preserve the source, use SSL, suppress sensitive
+   logs and retain an encrypted checkpoint before target writes.
+3. Restore and verify application/private schemas, accounts/identities, data,
+   sequence values, grants, RLS, functions, migration records and reviewed
+   managed Auth/Storage customizations. Compare counts and relationships.
+4. Transfer the four Storage files separately and verify bytes and paths.
+5. Configure Auth site URL/redirects, email settings and test integrations.
+   Obtain unreadable credentials securely rather than putting them in chat.
+6. Adjust QA-only Supabase project guards in `api/qa-release-status.js` and
+   `api/_email-preview.js`. Update only QA URL/key pairs; preserve Stripe TEST,
+   webhook, email, Maps and cron settings.
+7. Keep new background delivery workers disabled until historical reminder and
+   refund queues are reviewed. Only one active worker path may exist at cutover.
+8. Verify a temporary QA deployment: Driver/Host login and profiles, listings,
+   booking/spot conflicts, Stripe test checkout/webhooks/extensions/refunds,
+   email links, Storage and all readiness checks.
+9. Switch the stable QA alias only after validation, retaining rollback settings
+   and the original project for Support. Record the exact deployment and project
+   refs before telling BetterQA to resume.
 
-- A new separate QA organization and approved paid capacity.
-- Existing source database connection credential entered as the repository secret.
-- Successful source export and restore rehearsal; no database backup is claimed yet.
-- Auth/SMTP settings and any unreadable credentials supplied through secure service settings.
-- Actual target project ID/API keys; guard changes and the alias switch remain pending.
+No migration, source restart, compute resize or stable QA alias switch has been
+performed during this checkpoint. The source password rotation and isolated paid
+organization/project provisioning are recorded above.
 
 Official migration guidance:
 https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore
