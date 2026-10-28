@@ -22,7 +22,6 @@ jobs:
     env:
       QA_RECOVERY_SOURCE_DATABASE_URL: ${{ secrets.QA_RECOVERY_SOURCE_DATABASE_URL }}
       QA_RECOVERY_TARGET_DATABASE_URL: ${{ secrets.QA_RECOVERY_TARGET_DATABASE_URL }}
-      QA_RECOVERY_RESTORE_DIR: ${{ runner.temp }}/parkshare-qa-replacement-restore
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -34,22 +33,26 @@ jobs:
           docker pull postgres:17.6-bookworm > /dev/null
           npm exec --yes --package=supabase@2.122.0 -- supabase db dump --help > /dev/null
       - name: Validate connections and prepare encrypted source checkpoint
+        env:
+          QA_RECOVERY_RESTORE_DIR: ${{ runner.temp }}/parkshare-qa-replacement-restore
         run: python scripts/qa-recovery-restore.py prepare
       - name: Retain encrypted checkpoint before any target writes
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: parkshare-qa-pre-restore-${{ github.run_id }}
-          path: ${{ env.QA_RECOVERY_RESTORE_DIR }}/pre-restore-checkpoint.cms
+          path: ${{ runner.temp }}/parkshare-qa-replacement-restore/pre-restore-checkpoint.cms
           if-no-files-found: error
           retention-days: 1
       - name: Restore only the empty replacement and verify
+        env:
+          QA_RECOVERY_RESTORE_DIR: ${{ runner.temp }}/parkshare-qa-replacement-restore
         run: python scripts/qa-recovery-restore.py restore
       - name: Upload non-sensitive verification report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: parkshare-qa-restore-verification-${{ github.run_id }}
-          path: ${{ env.QA_RECOVERY_RESTORE_DIR }}/restore-verification.json
+          path: ${{ runner.temp }}/parkshare-qa-replacement-restore/restore-verification.json
           if-no-files-found: ignore
           retention-days: 7
       - name: Remove all runner export files
