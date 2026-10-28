@@ -1,87 +1,90 @@
 # ParkShare-QA recovery checkpoint — October 27, 2026
 
-## Environments
+## Current state
+
+The replacement database restore **succeeded**. The QA website has **not** been
+switched, so BetterQA's backend-dependent retesting remains blocked.
 
 | Purpose | Identifier |
 | --- | --- |
 | Original QA Supabase | `biydlfekindgaslgktsx` |
 | Replacement Supabase | `heqxirlsorcztsawaldg` |
-| Recovery organization | `rsfbtpuwdtdzahrmkrxd` — ParkShare QA Recovery |
+| Recovery organization | `rsfbtpuwdtdzahrmkrxd` — ParkShare QA Recovery (Pro) |
 | Region | `ca-central-1` |
 | QA Vercel project | `prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC` |
-| Current QA application commit | `2ae1c71bd119984675ff57a067dff9e3a79627ae` |
+| Stable QA application commit | `2ae1c71bd119984675ff57a067dff9e3a79627ae` |
+| Prepared QA guard commit | `6d9ef30ff059ff08dd03a2768923266112febff0` |
 | Excluded production Supabase | `oyxrussraxjgqwzpwyca` |
 
-The recovery organization is on Pro, purchased by the owner. Supabase quoted
-$0 additional monthly for its first replacement project. The replacement was
-created and basic Auth/Data API responses checked. It has no public application
-tables and has not been connected to the QA website.
+The owner purchased Pro and provisioned its first replacement project at a quoted
+$0 additional monthly. Source and target database credentials were entered as
+separate GitHub Actions secrets after the owner reset their database passwords.
+No passwords, API keys, private key or database rows are committed to this repository.
 
-At the latest pre-export application check, the original Auth and profile Data
-API returned 521; QA parking search and readiness returned 503. The current
-website still uses the original backend. BetterQA remains blocked.
+## Successful restore and verification
 
-## Source backup completed
+[Guarded restore run 40622226720](https://github.com/brianbecker1929-cyber/ParkShare/actions/runs/40622226720)
+validated both exact project URLs, checked the target was empty, exported the
+source read-only, and retained an encrypted checkpoint **before target writes**.
+The restore ran in a single transaction, with row-count, relationship, catalog
+and public-RLS checks before commit. It restored migration history plus the
+custom Auth trigger and three Storage policies separately from managed schemas.
 
-The owner reset the original QA database password after reviewing the impact
-and added the credential privately as `QA_RECOVERY_SOURCE_DATABASE_URL`.
-The website source and QA environment inventory use Supabase HTTP API keys.
-Any separate direct database client using the old password needs updating.
+Verified by the restore and independent SQL/API checks:
 
-[Backup run 40554102964](https://github.com/brianbecker1929-cyber/ParkShare/actions/runs/40554102964)
-succeeded. It exported roles, schema and data read-only, encrypted before upload,
-and cleaned up runner plaintext. The encrypted artifact was downloaded and
-preserved separately from the repository.
+- 34 users, 34 identities, 34 profiles, 17 listings and 61 bookings.
+- All exported table counts match the fresh source snapshot.
+- 16 public tables, all with RLS; 19 public/Auth/Storage policies.
+- 20 application functions, 9 custom triggers and 24 migration records.
+- Foreign-key relationship checks passed.
+- Replacement Auth health and the events Data API probe returned HTTP 200.
+- The original Auth/Data API still returned 521, and stable QA readiness 503.
+- Target security advisories match the source's six existing categories, with
+  no ERROR-level advisory. Existing warnings remain for separate review.
 
-Integrity verification:
-- Encrypted ZIP size: 115310842 bytes.
-- Encrypted ZIP SHA256: `5acd1c1f88d42c52ec0c25d8a3a93029227ce209621fed13c1efcd54257e1d04`.
-- Export time: `2026-10-28T02:11:57Z` (October 27 in Toronto).
-- CMS decryption succeeded using the private key from the original recovery handoff.
-- All three SQL file sizes and checksums matched the manifest.
-- Key COPY-block counts matched fresh direct SQL: 34 Auth users, 34 identities,
-  34 profiles, 17 listings, 61 bookings, one Storage bucket and four object records.
+The QA readiness guard accepts the two fixed QA project URLs and requires
+matching browser/server configuration. The synthetic email-preview guard also
+recognizes the replacement while retaining its project/site restrictions.
+Seven restore safety checks, 18 focused application checks, GitHub Tests and
+QA full-schema rehearsal passed. No stable alias cutover has occurred.
 
-This is an integrity-checked database export, not yet a restore-tested recovery
-backup. It includes application/private/archive schemas as emitted by the CLI,
-and account rows. It does not include actual Storage file bytes or project
-Auth/SMTP settings. Supabase-managed schema customizations need separate review.
-Migration history was captured in the earlier catalog inventory; the current
-workflow does not separately dump `supabase_migrations`.
+## Encrypted recovery checkpoints
 
-Never commit database URLs, passwords, the private decryption key, decrypted
-SQL data or the encrypted backup to this repository. GitHub's temporary artifact
-retention is one day; the downloaded persistent copy must be retained.
+The original source export and the expanded pre-restore checkpoint are retained
+outside Git. Both ZIP digests, CMS decryption and inner manifest checksums passed.
+Keep the private key in the original recovery handoff private and separate from
+shared test reports.
 
-## Remaining restore and cutover stages
+| Archive | SHA256 |
+| --- | --- |
+| Original source ZIP | `5acd1c1f88d42c52ec0c25d8a3a93029227ce209621fed13c1efcd54257e1d04` |
+| Expanded pre-restore ZIP | `b1766b76c1cfd82e8cbefc8fb68433d29c7b9c45cf1f256e1083bc751476edd9` |
 
-1. Obtain the replacement database connection credential as a separate GitHub
-   Actions secret, `QA_RECOVERY_TARGET_DATABASE_URL`. It must identify only
-   `heqxirlsorcztsawaldg`; never reuse the original source secret as a target.
-2. Prepare and review a restore restricted to the exact replacement project.
-   Refuse a populated target, preserve the source, use SSL, suppress sensitive
-   logs and retain an encrypted checkpoint before target writes.
-3. Restore and verify application/private schemas, accounts/identities, data,
-   sequence values, grants, RLS, functions, migration records and reviewed
-   managed Auth/Storage customizations. Compare counts and relationships.
-4. Transfer the four Storage files separately and verify bytes and paths.
-5. Configure Auth site URL/redirects, email settings and test integrations.
-   Obtain unreadable credentials securely rather than putting them in chat.
-6. Adjust QA-only Supabase project guards in `api/qa-release-status.js` and
-   `api/_email-preview.js`. Update only QA URL/key pairs; preserve Stripe TEST,
-   webhook, email, Maps and cron settings.
-7. Keep new background delivery workers disabled until historical reminder and
-   refund queues are reviewed. Only one active worker path may exist at cutover.
-8. Verify a temporary QA deployment: Driver/Host login and profiles, listings,
-   booking/spot conflicts, Stripe test checkout/webhooks/extensions/refunds,
-   email links, Storage and all readiness checks.
-9. Switch the stable QA alias only after validation, retaining rollback settings
-   and the original project for Support. Record the exact deployment and project
-   refs before telling BetterQA to resume.
+The expanded checkpoint includes roles/schema/data, migration schema/history,
+managed schema customizations and verification material. Its ZIP is 115347194
+bytes; all eleven manifest file checksums passed after independent decryption.
+GitHub's ciphertext artifact retention is one day; preserve the downloaded copy.
 
-No migration, source restart, compute resize or stable QA alias switch has been
-performed during this checkpoint. The source password rotation and isolated paid
-organization/project provisioning are recorded above.
+## Remaining work
+
+1. Copy and hash-verify the four actual private Storage files. Their metadata
+   rows are restored; their bytes are not. The original `listing-photos` bucket
+   is private, so secure server API access is needed for both projects.
+2. Configure replacement Auth site URL, redirect URLs and SMTP/email settings.
+3. Configure an isolated QA deployment with replacement API URL/key pairs.
+   Preserve Stripe TEST keys, webhook verification, email and Maps configuration.
+4. Review copied reminder/refund delivery queues before enabling background
+   workers. Keep only one active delivery path at cutover.
+5. Verify Driver/Host login and profiles, parking discovery, booking/spot
+   conflicts, Stripe test checkout/webhooks/extensions/refunds, email links,
+   Storage access and all readiness checks.
+6. Switch `parkshare-qa.vercel.app` only after these checks pass. Retain the
+   original project and previous deployment for Support and rollback, then
+   record the exact ready release and accounts for BetterQA.
+
+Never rerun the restore against a populated target. Its guard refuses that case.
+No source restart or compute resize was performed for this recovery.
+Do not merge this isolated recovery branch into the production branch.
 
 Official migration guidance:
 https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore
