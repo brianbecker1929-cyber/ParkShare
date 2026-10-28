@@ -1,0 +1,78 @@
+name: Copy and verify QA private files
+
+on:
+  push:
+    branches: [qa/recovery-preflight-oct27]
+    paths:
+      - .github/workflows/qa-recovery-storage-copy.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parkshare-qa-private-file-copy
+  cancel-in-progress: false
+
+jobs:
+  storage:
+    if: github.repository == 'brianbecker1929-cyber/ParkShare'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      QA_RECOVERY_SOURCE_SUPABASE_SECRET_KEY: ${{ secrets.QA_RECOVERY_SOURCE_SUPABASE_SECRET_KEY }}
+      QA_RECOVERY_TARGET_SUPABASE_SECRET_KEY: ${{ secrets.QA_RECOVERY_TARGET_SUPABASE_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install locked SDK and validate copy guards
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test test/qa-recovery-storage.test.js
+      - name: Download and encrypt all original private files before target writes
+        env:
+          QA_RECOVERY_STORAGE_DIR: ${{ runner.temp }}/parkshare-qa-private-files
+        run: |
+          node scripts/qa-recovery-storage.mjs prepare
+          python - <<'PY'
+          import os,pathlib,tarfile,subprocess,json
+          root=pathlib.Path(os.environ['QA_RECOVERY_STORAGE_DIR'])
+          manifest=json.loads((root/'storage-manifest.json').read_text())
+          with tarfile.open(root/'private-files.tar.gz','w:gz') as archive:
+              archive.add(root/'storage-manifest.json',arcname='storage-manifest.json')
+              for file in manifest['objects']: archive.add(root/file['filename'],arcname=file['filename'])
+          subprocess.run(['openssl','cms','-encrypt','-binary','-aes-256-cbc','-in',str(root/'private-files.tar.gz'),'-out',str(root/'private-files.cms'),'-outform','DER','docs/qa-recovery/backup-recipient-public.pem'],check=True)
+          PY
+      - name: Retain encrypted original file checkpoint
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: parkshare-qa-private-files-${{ github.run_id }}
+          path: ${{ runner.temp }}/parkshare-qa-private-files/private-files.cms
+          if-no-files-found: error
+          retention-days: 1
+      - name: Copy only fixed replacement files and verify every checksum
+        env:
+          QA_RECOVERY_STORAGE_DIR: ${{ runner.temp }}/parkshare-qa-private-files
+        run: node scripts/qa-recovery-storage.mjs restore
+      - name: Verify replacement Driver and Host password login with disposable accounts
+        env:
+          QA_RECOVERY_STORAGE_DIR: ${{ runner.temp }}/parkshare-qa-private-files
+        run: node scripts/qa-recovery-storage.mjs auth
+      - name: Retain non-sensitive verification reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: parkshare-qa-private-files-verification-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/parkshare-qa-private-files/storage-verification.json
+            ${{ runner.temp }}/parkshare-qa-private-files/auth-smoke-verification.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove all runner file copies
+        if: always()
+        run: |
+          python - <<'PY'
+          import os,pathlib,shutil
+          shutil.rmtree(pathlib.Path(os.environ['RUNNER_TEMP'])/'parkshare-qa-private-files',ignore_errors=True)
+          PY
