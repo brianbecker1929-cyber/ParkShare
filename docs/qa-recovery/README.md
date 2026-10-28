@@ -106,6 +106,29 @@ The stable QA URL still reports its original application commit and failing
 original-backend schema checks. Do not advertise recovery readiness or switch
 the stable alias until remaining checks pass.
 
+## Email configuration checkpoint — October 28
+
+The owner created a separate sending-only Resend key named
+`ParkShare-QA-Recovery`, restricted to the verified `myparkshare.ca` domain,
+and entered it in branch-specific Preview `RESEND_API_KEY`. Only metadata
+was inspected; the credential was not read back or logged.
+
+Preview deployment `dpl_4u6SwFbUUuUp513fsc7iGAw61n46` is READY at
+https://parkshare-ec2uc3m5l-eska-technologies.vercel.app for commit
+`1cddf0c7f35a49abbbb2b0f6931f3433f52ddc21`.
+`/api/qa-release-status` returned HTTP 200, `ready:true`, all 14 configuration/
+database checks true. These presence checks do not prove email delivery or
+payment webhook delivery.
+
+Browser verification confirmed the home page and all 17 public parking results
+load from the recovery deployment. The map fails with
+`RefererNotAllowedMapError`: the new Preview host needs authorization on the
+Google Maps browser key. Use the fixed branch preview alias for ongoing checks.
+Supabase Auth site/redirect/SMTP settings still need configuration and validation.
+`APP_URL` still points to the stable QA origin, so payment and transactional email
+return links have not yet been isolated to the preview. Do not announce readiness
+or cut over before these remaining boundaries pass. No email was sent.
+
 ## Encrypted recovery checkpoints
 
 The original source export and the expanded pre-restore checkpoint are retained
@@ -125,8 +148,8 @@ GitHub's ciphertext artifact retention is one day; preserve the downloaded copy.
 
 ## Remaining work
 
-1. The recovery server key is entered and verified. Finish the branch-specific
-   email setting and rebuild to load the prepared scheduled-route secret.
+1. The recovery server key is entered and verified. The branch-specific
+   email setting and scheduled-route secret are loaded and configuration checks pass.
 2. Configure replacement Auth site URL, redirect URLs and SMTP/email settings.
 3. Finish the isolated QA deployment's email/cron settings, preserving Stripe
    TEST keys, webhook verification and Maps configuration. Keep only one active
