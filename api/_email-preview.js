@@ -26,7 +26,7 @@ export function sampleEmailBooking(query = {}) {
 // Vercel previews. The real production project remains excluded.
 export function isEmailPreviewEnvironment(env = process.env) {
   return env.VERCEL_ENV === "preview" || (
-    env.SUPABASE_URL === "https://biydlfekindgaslgktsx.supabase.co" &&
+    ["https://biydlfekindgaslgktsx.supabase.co", "https://heqxirlsorcztsawaldg.supabase.co"].includes(env.SUPABASE_URL) &&
     env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa.vercel.app" &&
     (!env.VERCEL_PROJECT_ID || env.VERCEL_PROJECT_ID === "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC")
   );
