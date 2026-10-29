@@ -787,6 +787,17 @@ export default async function handler(req, res) {
     return res.status(400).send(`Webhook Error: ${error.message}`);
   }
 
+  // Log only correlation identifiers, never payloads, addresses or credentials.
+  const deliveryContext = {
+    eventId: event.id,
+    eventType: event.type,
+    objectId: event.data?.object?.id || null,
+    connectedAccountId: event.account || null,
+    livemode: event.livemode,
+    deploymentId: process.env.VERCEL_DEPLOYMENT_ID || null,
+    branch: process.env.VERCEL_GIT_COMMIT_REF || null,
+  };
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -843,8 +854,10 @@ export default async function handler(req, res) {
         break;
     }
 
+    console.info("[stripe-webhook] processed", deliveryContext);
     return res.status(200).json({ received: true });
   } catch (error) {
+    console.error("[stripe-webhook] failed", deliveryContext);
     const referenceNotice = paidCheckoutReferenceLog(error, {
       eventId: event.id,
       sessionId: event.data?.object?.id,

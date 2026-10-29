@@ -17,6 +17,11 @@ export function isTransientSupabaseError(error) {
   if (TRANSIENT_STATUS.has(Number(error.status))) return true;
   if (TRANSIENT_CODES.has(String(error.code || "").toUpperCase())) return true;
   const message = String(error.message || "");
+  // Recovery gateway errors can omit HTTP status and PostgREST code.
+  // Match the observed transport message exactly, never a generic SQL timeout.
+  if (/^upstream request timeout[.!]?$/i.test(message.trim())) {
+    return !error.code || TRANSIENT_CODES.has(String(error.code).toUpperCase());
+  }
   // Do not use a loose "timeout" match: a persistent SQL statement timeout
   // or a foreign-key/permission failure is not a transient connection fault.
   return /(?:^|\b)(?:gateway timeout|connection timed out|connection reset|fetch failed|error code 522|error code 524)(?:\b|$)/i.test(message)
