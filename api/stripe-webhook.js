@@ -854,7 +854,7 @@ export default async function handler(req, res) {
         break;
     }
 
-    console.info("[stripe-webhook] processed", deliveryContext);
+    console.info?.("[stripe-webhook] processed", deliveryContext);
     return res.status(200).json({ received: true });
   } catch (error) {
     console.error("[stripe-webhook] failed", deliveryContext);

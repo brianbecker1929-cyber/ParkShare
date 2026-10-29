@@ -123,7 +123,7 @@ test("upstream wording cannot turn SQL, permission or integrity failures into re
 });
 
 const tracedSource = await readFile(new URL("../api/stripe-webhook.js", import.meta.url), "utf8");
-function tracedWebhookFixture(fail = false) {
+function tracedWebhookFixture(fail = false, noInfo = false) {
   const logs = [];
   const event = {id:"evt_trace_fixture",type:"account.updated",livemode:false,account:"acct_trace_fixture",
     data:{object:{id:"acct_trace_fixture",email:"never-log@example.invalid",metadata:{secret:"never-log-this"}}}};
@@ -136,6 +136,7 @@ function tracedWebhookFixture(fail = false) {
     paidCheckoutReferenceLog:()=>null,
     console:{info:(...args)=>logs.push(["info",...args]),error:(...args)=>logs.push(["error",...args])},
   };
+  if(noInfo) delete deps.console.info;
   const handler = new Function(...Object.keys(deps),handlerCode)(...Object.values(deps));
   return {logs,async run(){
     const res={status(n){this.code=n;return this;},json(body){this.body=body;return this;}};
@@ -154,4 +155,9 @@ test("failed webhook retains HTTP 500 and logs the same event identifiers withou
   assert.ok(f.logs.some(row=>row[1]==="[stripe-webhook] failed"&&row[2].eventId==="evt_trace_fixture"));
   assert.ok(!f.logs.some(row=>row[1]==="[stripe-webhook] processed"));
   assert.doesNotMatch(JSON.stringify(f.logs),/never-log/);
+});
+
+test("success tracing cannot change the webhook outcome when a minimal logger has no info method",async()=>{
+  const f=tracedWebhookFixture(false,true),res=await f.run();assert.equal(res.code,200);
+  assert.deepEqual(res.body,{received:true});
 });
