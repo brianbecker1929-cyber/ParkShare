@@ -138,8 +138,13 @@ export default async function handler(req, res) {
     if (!stripeAccountId) return res.status(409).json({ error: "This Host has not finished setting up payouts yet." });
 
     const account = await stripe.accounts.retrieve(stripeAccountId);
-    if (!account.charges_enabled) {
-      return res.status(409).json({ error: "This Host's Stripe account isn't ready to accept payments yet." });
+    // Match the Host dashboard's completed-onboarding rule using Stripe's
+    // current state. Cached profile flags and charges alone are insufficient.
+    if (account.details_submitted !== true || account.charges_enabled !== true || account.payouts_enabled !== true) {
+      return res.status(409).json({
+        error: "This Host has not finished Stripe verification and payouts setup. Please choose another parking space.",
+        code: "host_payouts_not_ready",
+      });
     }
 
     const { hourlyCents, subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(
@@ -233,8 +238,10 @@ export default async function handler(req, res) {
               currency: "cad",
               unit_amount: subtotalCents,
               product_data: {
-                name: listing.title || "ParkShare parking booking",
-                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}${bookingEvent ? ` · ${bookingEvent.name}` : ""}`.slice(0, 500),
+                // Host titles can contain the exact street address. Keep all
+                // customer-visible pre-payment copy independent of free text.
+                name: "ParkShare parking booking",
+                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}`,
               },
             },
             quantity: 1,
@@ -289,3 +296,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message || "Unable to start checkout." });
   }
 }
+

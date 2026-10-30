@@ -52,7 +52,12 @@ export default async function handler(req, res) {
     const { data: host } = await supabaseAdmin.from("profiles").select("stripe_account_id").eq("id", listing.host_id).single();
     if (!host?.stripe_account_id) return res.status(409).json({ error: "This Host has not finished setting up payouts yet." });
     const account = await stripe.accounts.retrieve(host.stripe_account_id);
-    if (!account.charges_enabled) return res.status(409).json({ error: "This Host is not ready to accept payments." });
+    if (account.details_submitted !== true || account.charges_enabled !== true || account.payouts_enabled !== true) {
+      return res.status(409).json({
+        error: "This Host has not finished Stripe verification and payouts setup. Additional time cannot be purchased yet.",
+        code: "host_payouts_not_ready",
+      });
+    }
 
     const subtotalCents = Math.round(Number(listing.price) * 100 * addedHours);
     const serviceFeeCents = Math.round(subtotalCents * SERVICE_FEE_RATE);

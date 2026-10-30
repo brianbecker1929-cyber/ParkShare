@@ -13,7 +13,7 @@ import { CheckoutIntegrityError, verifyPaidCheckout, verifyBookingHoldSnapshot }
 import { retryTransientSupabaseRead, isMissingSupabaseRow } from "./_webhook-db-retry.js";
 import { isExpectedCheckoutTermination, matchesRegisteredCheckoutAccount, canFailUnpaidBooking } from "./_checkout-terminal-safety.js";
 import { PaidCheckoutReferenceError, requirePaidCheckoutReference, translatePaidBookingInsertError, paidCheckoutReferenceLog } from "./_paid-checkout-reference.js";
-import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml } from "./_email.js";
+import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensionConfirmedHtml, hostExtensionConfirmedHtml } from "./_email.js";
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
@@ -322,18 +322,19 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
     .select("name, email")
     .eq("id", booking.renter_id)
     .single();
-  if (!renter?.email) return;
 
   let hostName = "your host";
   let hostEmail;
   if (listing?.host_id) {
     const { data: host } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
     hostName = host?.name || hostName;
-    // Copy the listing's Host, never an address supplied in checkout metadata.
+    // Notify the authoritative listing Host, never a checkout-supplied address.
     // Avoid adding the same mailbox twice when the Host is also the Driver.
     const email = host?.email?.trim();
-    if (email && email.toLowerCase() !== renter.email.trim().toLowerCase()) hostEmail = email;
+    if (email && email.toLowerCase() !== renter?.email?.trim().toLowerCase()) hostEmail = email;
   }
+
+  if (!renter?.email && !hostEmail) return;
 
   // booking.hours already reflects this extension (confirmExtension() above
   // updated it before calling this function), so getSessionWindow() here
@@ -382,15 +383,11 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
 
   const address = listing?.address || "";
 
-  await sendEmail({
-    to: renter.email,
-    cc: hostEmail,
-    subject: `Extension confirmed — +${addedTimeStr} added`,
-    html: extensionConfirmedHtml({
+  const shared = {
       logoCid,
       portraitCid,
       bookingId: booking.id,
-      renterName: renter.name || "there",
+      renterName: renter?.name || "there",
       hostName,
       address,
       locationId: booking.listing_id,
@@ -408,8 +405,43 @@ async function sendExtensionConfirmedEmail(bookingId, addedHours, totalCents) {
       extendUrl: `https://www.myparkshare.ca/?extend_booking=${booking.id}`,
       supportEmail: process.env.SUPPORT_EMAIL || SUPPORT_EMAIL,
       supportPhone: process.env.SUPPORT_PHONE || "(555) 123-4567",
+  };
+  const notifications = [];
+  if (renter?.email) notifications.push({
+    audience: "Driver",
+    send: () => sendEmail({
+      to: renter.email,
+      subject: `Extension confirmed — +${addedTimeStr} added`,
+      html: extensionConfirmedHtml(shared),
+      attachments,
     }),
-    attachments,
+  });
+  if (hostEmail) {
+    const hostAttachments = attachments.filter(file => file.content_id !== portraitCid);
+    let hostPortraitCid;
+    try {
+      const portrait = await renderHostPortraitPng();
+      hostPortraitCid = "parkshare-william-portrait-ext-" + booking.id;
+      hostAttachments.push({ filename: "parkshare-william-portrait.png", content: portrait.toString("base64"), content_id: hostPortraitCid });
+    } catch (err) {
+      console.error("Using hosted William portrait for extension email:", err);
+    }
+    notifications.push({
+      audience: "Host",
+      send: () => sendEmail({
+        to: hostEmail,
+        subject: `Parking extended — Spot ${booking.spot_label || "—"} (+${addedTimeStr})`,
+        html: hostExtensionConfirmedHtml({ ...shared, portraitCid: hostPortraitCid, driverName: renter?.name || "ParkShare Driver" }),
+        attachments: hostAttachments,
+      }),
+    });
+  }
+  // Attempt each private notification even when the other recipient fails.
+  const outcomes = await Promise.allSettled(notifications.map(notification =>
+    Promise.resolve().then(notification.send)));
+  outcomes.forEach((outcome, index) => {
+    if (outcome.status === "rejected") console.error(
+      `Extension ${notifications[index].audience} notification failed:`, outcome.reason);
   });
 }
 
@@ -755,6 +787,17 @@ export default async function handler(req, res) {
     return res.status(400).send(`Webhook Error: ${error.message}`);
   }
 
+  // Log only correlation identifiers, never payloads, addresses or credentials.
+  const deliveryContext = {
+    eventId: event.id,
+    eventType: event.type,
+    objectId: event.data?.object?.id || null,
+    connectedAccountId: event.account || null,
+    livemode: event.livemode,
+    deploymentId: process.env.VERCEL_DEPLOYMENT_ID || null,
+    branch: process.env.VERCEL_GIT_COMMIT_REF || null,
+  };
+
   try {
     switch (event.type) {
       case "checkout.session.completed":
@@ -811,8 +854,10 @@ export default async function handler(req, res) {
         break;
     }
 
+    console.info?.("[stripe-webhook] processed", deliveryContext);
     return res.status(200).json({ received: true });
   } catch (error) {
+    console.error("[stripe-webhook] failed", deliveryContext);
     const referenceNotice = paidCheckoutReferenceLog(error, {
       eventId: event.id,
       sessionId: event.data?.object?.id,

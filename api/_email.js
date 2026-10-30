@@ -20,6 +20,7 @@ import hostBookingTemplate from "./emails/templates/_host-booking.template.js";
 import endingReminderTemplate from "./emails/templates/_reminder-ending.template.js";
 import halfwayReminderTemplate from "./emails/templates/_reminder-halfway.template.js";
 import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.template.js";
+import hostExtensionConfirmedTemplate from "./emails/templates/_host-extension-confirmed.template.js";
 import refundConfirmedTemplate from "./emails/templates/_refund-confirmed.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -215,6 +216,16 @@ export function endingReminderHtml(args) {
 }
 export function extensionConfirmedHtml(args) {
   return renderEnvironmentEmail(extensionConfirmedTemplate, driverTicketFields(args));
+}
+
+export function hostExtensionConfirmedHtml(args) {
+  return renderEnvironmentEmail(hostExtensionConfirmedTemplate, {
+    ...driverTicketFields(args),
+    HOST_NAME: escapeBookingHtml(args.hostName || "Host"),
+    DRIVER_NAME: escapeBookingHtml(args.driverName || "ParkShare Driver"),
+    HOST_PORTRAIT_URL: escapeBookingHtml(portraitUrl(args, true)),
+    HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
+  });
 }
 
 export function refundConfirmedHtml(args) {

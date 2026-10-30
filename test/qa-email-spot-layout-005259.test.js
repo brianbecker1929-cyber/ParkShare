@@ -72,6 +72,7 @@ test('sample layout selectors are bounded and support physical labels A-H',()=>{
 test('preview environment gate permits isolated QA and excludes real production or mismatched projects',()=>{
   const qa={VERCEL_ENV:'production',SUPABASE_URL:'https://biydlfekindgaslgktsx.supabase.co',APP_URL:'https://parkshare-qa.vercel.app',VERCEL_PROJECT_ID:'prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC'};
   assert.equal(isEmailPreviewEnvironment(qa),true);
+  assert.equal(isEmailPreviewEnvironment({...qa,SUPABASE_URL:'https://heqxirlsorcztsawaldg.supabase.co'}),true);
   assert.equal(isEmailPreviewEnvironment({VERCEL_ENV:'preview'}),true);
   for(const change of [{VERCEL_PROJECT_ID:'other'},{APP_URL:'https://www.myparkshare.ca'},{SUPABASE_URL:'https://other.supabase.co'}])assert.equal(isEmailPreviewEnvironment({...qa,...change}),false);
   assert.equal(isEmailPreviewEnvironment({VERCEL_ENV:'production'}),false);

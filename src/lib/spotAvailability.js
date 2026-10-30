@@ -19,6 +19,22 @@ export function availabilityRequestKey({ listingId, mode, hours, bookingDate, st
   ].join(":");
 }
 
+// A closed Host schedule says nothing about whether a bay is occupied.
+// Share this wording between the booking panel and the spot picker.
+export function listingAvailabilityMessage(data, mode) {
+  const when = mode === "now" ? "right now" : "that time";
+  if (data?.hostScheduleOpen === false || data?.reason === "host_schedule") {
+    return `Outside the Host's available hours for ${when}. Choose another time or a shorter duration.`;
+  }
+  if (data?.available === true) {
+    return `${data.spacesFree} of ${data.spacesTotal} spot${data.spacesTotal === 1 ? "" : "s"} free for ${when}. Tap the one you'd like to park in.`;
+  }
+  if (data?.hostScheduleOpen === true && data?.available === false) {
+    return `All spots are taken for ${when} — try a different ${mode === "now" ? "duration" : "time"}, or pick a different listing.`;
+  }
+  return "This time is unavailable. Please check availability again or choose another time.";
+}
+
 export function listingSpotStatusText({ isAvailable, hostEnabled, isRealListing, availableData, label }) {
   if (!hostEnabled) return "Not for rent";
   if (isAvailable) return "Available";
@@ -42,3 +58,4 @@ export function cancelledExtensionCheckoutHold(search) {
   return params.get("extension_cancelled") === "1" &&
     /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id || "") ? id : null;
 }
+

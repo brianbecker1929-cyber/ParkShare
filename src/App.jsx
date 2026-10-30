@@ -20,7 +20,8 @@ import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { transactionDateDetails } from "./lib/transactionDetails";
-import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
+import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, listingAvailabilityMessage, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
+import { formatBookNowTimes } from "./lib/bookNowTimes";
 import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
@@ -1751,6 +1752,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
   const hours = bookingMode === "now" ? nowHours : advanceHours;
+  const bookNowTimes = formatBookNowTimes(listing.timeZone, hours);
 
   const [showPayment, setShowPayment] = useState(false);
   const availabilityPaused = useRef(false);
@@ -2061,7 +2063,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {bookingMode === "now" ? (
             <>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
-                Starts the moment you pay · {new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
+                Starts the moment you pay · {bookNowTimes?.start || "Listing local time unavailable"}
               </div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>How long do you need?</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2090,7 +2092,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
                 </div>
               )}
               <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
-                Ends around {new Date(Date.now() + hours * 3600 * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
+                {bookNowTimes ? `Ends around ${bookNowTimes.end}` : "Estimated departure unavailable until the listing's time zone is verified."}
               </div>
             </>
           ) : (
@@ -2138,9 +2140,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🔴</span>
                 <span style={{ fontSize: 10, color: C.navy, fontWeight: 700 }}>
-                  {selectedAvailability.reason === "host_schedule"
-                    ? `Host is not accepting bookings for that ${bookingMode === "now" ? "time" : "slot"} — choose another time`
-                    : `Full for that ${bookingMode === "now" ? "time" : "slot"} — try a different ${bookingMode === "now" ? "duration" : "time"}`}
+                  {listingAvailabilityMessage(selectedAvailability, bookingMode)}
                 </span>
               </div>
             )
@@ -2189,9 +2189,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           )}
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>
             {selectedAvailability
-              ? (selectedAvailability.available
-                  ? `${selectedAvailability.spacesFree} of ${selectedAvailability.spacesTotal} spot${selectedAvailability.spacesTotal === 1 ? "" : "s"} free for ${bookingMode === "now" ? "right now" : "that time"}. Tap the one you'd like to park in.`
-                  : `All spots are taken for ${bookingMode === "now" ? "right now" : "that time"} — try a different ${bookingMode === "now" ? "duration" : "time"}, or pick a different listing.`)
+              ? listingAvailabilityMessage(selectedAvailability, bookingMode)
               : numericIdForAvailability !== null
                 ? (availabilityFailed ? "Availability could not be checked. Please retry later." : "Checking this time slot. Spot selection will unlock when availability is confirmed.")
                 : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`}
@@ -4434,6 +4432,7 @@ function MessagesView({ onOpenThread, user }) {
           participantId: c.participantId,
           title: c.title,
           host: c.otherParty,
+          partyRole: c.partyRole,
           hostImg: "🧑",
           preview: c.preview,
         })));
@@ -11789,4 +11788,5 @@ export default function App() {
     </>
   );
 }
+
 

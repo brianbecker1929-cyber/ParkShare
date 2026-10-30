@@ -2,7 +2,7 @@
 // Only the current JWT principal's reservations/listings leave the server.
 // Never use a client-provided user ID to authorize a query.
 import { jsonMethod, requireUser, supabaseAdmin } from "./_lib.js";
-import { privateBookingListing, canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
+import { privateBookingListing, canReadPreciseLocation, canReadCancelledBookingTitle } from "../src/lib/privateListingAccess.js";
 import { withBookingChargeTotals } from "./_booking-display-total.js";
 
 const bookingColumns = [
@@ -21,11 +21,11 @@ const bookingColumns = [
 
 const listingColumns = "id,host_id,title,address,price,description,features,spaces,spots,lat,lng";
 
-function publicBookingShape(row, listing, participantName, fullLocation) {
+function publicBookingShape(row, listing, participantName, fullLocation, historicalTitle = false) {
   const { stripe_checkout_session_id, ...safeBooking } = row;
   return {
     ...safeBooking,
-    listings: privateBookingListing({ ...listing, profiles: { name: participantName } }, fullLocation),
+    listings: privateBookingListing({ ...listing, profiles: { name: participantName } }, fullLocation, historicalTitle),
     profiles: { name: participantName || "Driver" },
   };
 }
@@ -66,7 +66,10 @@ export default async function handler(req, res) {
         const precise = l && canReadPreciseLocation({
           userId: user.id, hostId: l.host_id, listingId: l.id, booking: b,
         });
-        return publicBookingShape(b, l, precise ? names.get(l?.host_id) : "Host", precise);
+        const historicalTitle = l && canReadCancelledBookingTitle({
+          userId: user.id, listingId: l.id, booking: b,
+        });
+        return publicBookingShape(b, l, precise ? names.get(l?.host_id) : "Host", precise, historicalTitle);
       });
       res.setHeader("Cache-Control", "private, no-store");
       return res.status(200).json({ bookings });
@@ -112,3 +115,4 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: "Your parking account details are temporarily unavailable." });
   }
 }
+

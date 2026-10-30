@@ -1,0 +1,65 @@
+name: Guarded QA replacement restore
+
+on:
+  push:
+    branches: [qa/recovery-preflight-oct27]
+    paths:
+      - .github/workflows/qa-recovery-restore.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parkshare-qa-replacement-restore
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    if: github.repository == 'brianbecker1929-cyber/ParkShare'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      QA_RECOVERY_SOURCE_DATABASE_URL: ${{ secrets.QA_RECOVERY_SOURCE_DATABASE_URL }}
+      QA_RECOVERY_TARGET_DATABASE_URL: ${{ secrets.QA_RECOVERY_TARGET_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Validate isolation guards
+        run: python -m unittest discover -s test -p 'qa_recovery_restore_test.py' -v
+      - name: Prepare pinned database clients
+        run: |
+          docker pull postgres:17.6-bookworm > /dev/null
+          npm exec --yes --package=supabase@2.122.0 -- supabase db dump --help > /dev/null
+      - name: Validate connections and prepare encrypted source checkpoint
+        env:
+          QA_RECOVERY_RESTORE_DIR: ${{ runner.temp }}/parkshare-qa-replacement-restore
+        run: python scripts/qa-recovery-restore.py prepare
+      - name: Retain encrypted checkpoint before any target writes
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: parkshare-qa-pre-restore-${{ github.run_id }}
+          path: ${{ runner.temp }}/parkshare-qa-replacement-restore/pre-restore-checkpoint.cms
+          if-no-files-found: error
+          retention-days: 1
+      - name: Restore only the empty replacement and verify
+        env:
+          QA_RECOVERY_RESTORE_DIR: ${{ runner.temp }}/parkshare-qa-replacement-restore
+        run: python scripts/qa-recovery-restore.py restore
+      - name: Upload non-sensitive verification report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: parkshare-qa-restore-verification-${{ github.run_id }}
+          path: ${{ runner.temp }}/parkshare-qa-replacement-restore/restore-verification.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Remove all runner export files
+        if: always()
+        run: |
+          python - <<'PY'
+          import os, pathlib, shutil
+          root = pathlib.Path(os.environ['RUNNER_TEMP']) / 'parkshare-qa-replacement-restore'
+          shutil.rmtree(root, ignore_errors=True)
+          PY

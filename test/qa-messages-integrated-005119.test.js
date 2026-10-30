@@ -145,6 +145,30 @@ test('paid booking inbox and owning Host retain the authorized listing title',as
   user=HOST;records.messages=[incoming(1,A,HOST)];
   assert.equal((await request('GET')).body.conversations[0].title,PRIVATE_TITLE);
 });
+test('BUG-005480 inbox roles follow the listing relationship for both participants',async()=>{
+  let r=await request('GET');
+  assert.equal(r.body.conversations[0].partyRole,'Host');
+  user=HOST;r=await request('GET');
+  assert.equal(r.body.conversations.length,2);
+  for(const conversation of r.body.conversations)assert.equal(conversation.partyRole,'Driver');
+  assert.equal(writes.length,0);
+});
+test('BUG-005480 a Host account acting as Driver is labelled Driver on someone else’s listing',async()=>{
+  records.profiles.find(p=>p.id===A).role='host';
+  user=HOST;
+  const r=await request('GET',{}, {role:'Host'});
+  const conversation=r.body.conversations.find(c=>c.participantId===A);
+  assert.equal(conversation.partyRole,'Driver');
+  assert.equal(conversation.otherParty,'Driver A');
+});
+test('BUG-005480 missing names use the correct relationship label',async()=>{
+  records.profiles.forEach(p=>p.name=null);
+  assert.equal((await request('GET')).body.conversations[0].otherParty,'Host');
+  user=HOST;
+  for(const conversation of (await request('GET')).body.conversations) {
+    assert.equal(conversation.partyRole,'Driver');assert.equal(conversation.otherParty,'Driver');
+  }
+});
 test('cancelled/unpaid booking inbox stays generic and exact context is denied',async()=>{
   records.messages=[incoming(1,A,HOST,100)];
   for(const status of ['pending','cancelled','refunded']) {
@@ -166,3 +190,4 @@ test('conversation lookup failure blocks Host reply and hides raw database detai
   assert.equal(r.code,500);assert.equal(writes.length,0);
   assert.equal(JSON.stringify(r.body).includes('Sensitive database'),false);
 });
+
