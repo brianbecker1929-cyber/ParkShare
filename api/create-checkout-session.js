@@ -238,8 +238,10 @@ export default async function handler(req, res) {
               currency: "cad",
               unit_amount: subtotalCents,
               product_data: {
-                name: listing.title || "ParkShare parking booking",
-                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}${bookingEvent ? ` · ${bookingEvent.name}` : ""}`.slice(0, 500),
+                // Host titles can contain the exact street address. Keep all
+                // customer-visible pre-payment copy independent of free text.
+                name: "ParkShare parking booking",
+                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}`,
               },
             },
             quantity: 1,
@@ -294,3 +296,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message || "Unable to start checkout." });
   }
 }
+
