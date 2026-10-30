@@ -156,13 +156,17 @@ export default async function handler(req, res) {
         userId: user.id, hostId: listingResult.data?.host_id,
         listingId: row.listing_id, booking,
       });
+      // Roles belong to this listing relationship, not a profile's global role.
+      const partyRole = listingResult.data?.host_id === otherId ? "Host"
+        : listingResult.data?.host_id === user.id ? "Driver" : "ParkShare user";
       conversations.push({
         id: `${row.listing_id}-${row.booking_id || "listing"}-${otherId}`,
         listingId: row.listing_id,
         bookingId: row.booking_id,
         participantId: otherId,
         title: mayReadTitle ? listingResult.data?.title || "Listing" : "Private parking",
-        otherParty: profileResult.data?.name || (listingResult.data?.host_id === otherId ? "Host" : "Renter"),
+        otherParty: profileResult.data?.name || partyRole,
+        partyRole,
         preview: row.text,
         createdAt: row.created_at,
       });
@@ -175,3 +179,4 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 404 ? "Conversation unavailable." : "Unable to load or send messages right now." });
   }
 }
+

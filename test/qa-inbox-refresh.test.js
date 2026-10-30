@@ -10,6 +10,8 @@ const source=await readFile(process.env.QA_MESSAGE_SOURCE_FILE||new URL('../src/
 const begin=source.indexOf('function MessagesView(');
 const whole=source.slice(begin,source.indexOf('// Shared driveway frame',begin));
 const compiled=await transform(whole,{loader:'jsx'});
+const panelStart=source.indexOf('function MessagingPanel(');
+const compiledPanel=await transform(source.slice(panelStart,source.indexOf('// ─── Payment Flow',panelStart)),{loader:'jsx'});
 const names=[...whole.matchAll(/const \[(\w+), \w+\] = useState/g)].map(m=>m[1]);
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const later=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
@@ -46,6 +48,22 @@ test('Refresh conversations retrieves an incoming conversation while staying in 
 test('refreshed same-listing rows retain distinct identities and open the selected booking and participant',async()=>{
   const h=harness({fetcher:async()=>success([conversation(),conversation('Driver B',43)])});h.commit();await tick();h.render();h.click('Refresh conversations');await tick();h.render();const rows=h.rows();assert.notEqual(rows[0].key,rows[1].key);rows[1].props.onClick();assert.equal(h.opened[0].bookingId,43);assert.equal(h.opened[0].participantId,'Driver B');assert.equal(h.opened[0].id,'db-7');h.stop();
 });
+test('BUG-005480 inbox selection preserves the role and the actual chat header renders it',async()=>{
+  for(const partyRole of ['Driver','Host']) {
+    const h=harness({fetcher:async()=>success([{...conversation('Synthetic participant'),partyRole}])});
+    try{
+      h.commit();await tick();h.render();h.rows()[0].props.onClick();
+      const listing=h.opened[0];assert.equal(listing.partyRole,partyRole);
+      const values={React,C:{},INITIAL_THREADS:{},messageConversationKey,
+        useState:value=>[value,()=>{}],useRef:value=>({current:value}),useEffect:()=>{}};
+      const Panel=new Function(...Object.keys(values),compiledPanel.code+';return MessagingPanel;')(...Object.values(values));
+      const html=renderToStaticMarkup(Panel({listing,user:{id:'A'},onClose:()=>{}}));
+      assert.match(html,new RegExp(partyRole+' · Fixture driveway'));
+      assert.doesNotMatch(html,new RegExp((partyRole==='Driver'?'Host':'Driver')+' · Fixture driveway'));
+      assert.match(html,/Synthetic participant/);
+    }finally{h.stop();}
+  }
+});
 test('repeated failures stay retryable and a successful empty response is not an error',async()=>{
   let count=0;const h=harness({fetcher:async()=>++count<3?Response.json({},{status:503}):success([])});h.commit();await tick();h.render();h.click('Retry conversations');await tick();h.render();assert.ok(h.button('Retry conversations'));h.click('Retry conversations');await tick();h.render();assert.match(h.html(),/No conversations yet/);assert.doesNotMatch(h.html(),/role="alert"/);assert.ok(h.button('Refresh conversations'));assert.equal(h.requests.length,3);h.stop();
 });
@@ -61,3 +79,4 @@ test('closing Messages aborts a pending retry and ignores its late private body 
 test('inbox refresh is an accessible native action unavailable during its pending read',async()=>{
   const pending=later();const h=harness({fetcher:()=>pending.promise});h.commit();const b=h.button('Loading inbox…');assert.ok(b);assert.equal(b.props.type,'button');assert.ok(b.props.disabled);assert.ok(b.props.style.minHeight>=44);pending.resolve(success([]));await tick();h.render();assert.equal(h.button('Refresh conversations').props.disabled,false);h.stop();
 });
+

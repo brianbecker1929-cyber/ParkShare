@@ -4432,6 +4432,7 @@ function MessagesView({ onOpenThread, user }) {
           participantId: c.participantId,
           title: c.title,
           host: c.otherParty,
+          partyRole: c.partyRole,
           hostImg: "🧑",
           preview: c.preview,
         })));
