@@ -6,6 +6,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 import {matchesBookingDateRange} from '../src/lib/bookingDateFilter.js';
 import {getBookingDisplayStatus,cancellationDeadlineError} from '../src/lib/bookingTime.js';
+import {canReadCancelledBookingTitle,privateBookingListing} from '../src/lib/privateListingAccess.js';
 
 // Run the real component, including its action and load effect. External
 // services and visual children are replaced; no live bookings are changed.
@@ -53,6 +54,24 @@ test('Refresh picks up Host cancellation and retains the selected date range',as
   h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();assert.match(h.html(),/Upcoming/);
   h.click('Refresh bookings');assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);await tick();h.render();
   assert.match(h.html(),/Cancelled/);assert.equal(h.state.fromDate,'2050-10-20');assert.equal(h.state.toDate,'2050-10-20');assert.equal(h.state.dbBookings[0].canCancel,false);h.stop();
+});
+test('BUG-005485 past cancelled booking retains its title when collapsed, expanded and refreshed',async()=>{
+  const original={id:7,title:'Driveway at 123 Fixture Lane',address:'SEPARATE PRIVATE ADDRESS',lat:43.123456,lng:-79.123456,
+    spots:[{lat:43.123456}],description:'PRIVATE ACCESS CODE',profiles:{name:'PRIVATE HOST NAME'}};
+  const b={...row('refunded'),renter_id:'A',application_state:'applied',paid_at:'2020-10-01T00:00Z',
+    booking_date:'2020-10-20',scheduled_starts_at:'2020-10-20T13:00Z',stripe_checkout_session_id:'cs_fixture_paid'};
+  b.listings=privateBookingListing(original,false,canReadCancelledBookingTitle({userId:'A',listingId:7,booking:b}));
+  const h=harness({fetcher:async()=>success([b])});
+  try{
+    h.commit();await tick();h.render();
+    for(const action of [null,'View details+','Hide details−','Refresh bookings']) {
+      if(action){h.click(action);await tick();h.render();}
+      const html=h.html();assert.match(html,/Driveway at 123 Fixture Lane/);assert.match(html,/Cancelled/);
+      assert.doesNotMatch(html,/Private parking|SEPARATE PRIVATE ADDRESS|PRIVATE ACCESS CODE|PRIVATE HOST NAME|43\.123456/);
+    }
+    assert.equal(h.state.dbBookings[0].canCancel,false);assert.equal(h.state.dbBookings[0].canReview,false);
+    assert.equal(h.photos.length,0,'Cancelled history never requests private photos');
+  }finally{h.stop();}
 });
 test('refreshed empty history is a successful read, distinct from loading or failure',async()=>{
   const h=harness();h.commit();assert.ok(h.button('Loading bookings…').props.disabled);assert.match(h.html(),/role="status"/);assert.doesNotMatch(h.html(),/don't have any bookings/);
@@ -118,3 +137,4 @@ test('unhighlighted past bookings stay collapsed and upcoming bookings stay expa
     h.stop();
   }
 });
+
