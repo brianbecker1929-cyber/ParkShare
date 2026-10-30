@@ -5,7 +5,8 @@ import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 import {getListingSpotLayout} from '../src/lib/listingSpotLayout.js';
-import {canChooseListingSpot,availabilityRequestKey,listingSpotStatusText} from '../src/lib/spotAvailability.js';
+import {canChooseListingSpot,availabilityRequestKey,listingSpotStatusText,listingAvailabilityMessage} from '../src/lib/spotAvailability.js';
+import {formatBookNowTimes} from '../src/lib/bookNowTimes.js';
 import {getBookableVehicles} from '../src/lib/driverProfile.js';
 import {futureBookingDate,localCalendarDate} from '../src/lib/bookingCalendarDate.js';
 import {calculateBookingAmounts} from '../api/_booking-rules.js';
@@ -47,7 +48,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function detailHarness({count=4,flags,fetcher}={}){
  const slots=[],effects=[],requests=[],intervals=new Map();let cursor=0,dirty=false,tree,timerId=0;
  const props={listing:{id:'db-7',spaces:flags?flags.filter(Boolean).length:count,spots:flags?.map(forRent=>({forRent}))||[],title:'Synthetic layout',price:12,features:[],timeZone:'America/Toronto'},user:{id:'driver',vehicleMake:'Honda',vehicleModel:'Accord',vehicleColour:'Blue',licensePlate:'QA 250'}};
- const values={React,C,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,
+ const values={React,C,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,
   getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:[9,10,11],END_HOUR_OPTIONS:[10,11,12],
   window:{setInterval:fn=>{intervals.set(++timerId,fn);return timerId;},clearInterval:id=>intervals.delete(id),addEventListener(){},removeEventListener(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}},
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
@@ -102,3 +103,33 @@ test('Host can add a vehicle for Park Now without changing the selected bay or d
  const payment=h.find(node=>node.type===h.values.PaymentModal);
  assert.equal(payment.props.chosenSpot,2);assert.equal(payment.props.date,undefined);assert.equal(payment.props.startHour,undefined);assert.equal(payment.props.user.role,'host');assert.equal(payment.props.selectedVehicleId,'primary');h.stop();
 });
+
+test('BUG-005466 rendered Book Now shows property-local dates and timezone on both labels',()=>{
+ const savedNow=Date.now,savedZone=process.env.TZ;let h;
+ Date.now=()=>Date.parse('2026-10-31T03:30:00Z');process.env.TZ='Europe/Athens';
+ try{
+  h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+  let html=renderToStaticMarkup(h.render());
+  assert.match(html,/Oct 30, 2026, 11:30.*EDT \(America\/Toronto\)/);
+  assert.match(html,/Ends around Oct 31, 2026, 12:30.*EDT \(America\/Toronto\)/);
+  h.render({listing:{...h.props.listing,timeZone:'America/Vancouver'}});
+  html=renderToStaticMarkup(h.render());
+  assert.match(html,/Oct 30, 2026, 8:30.*PDT \(America\/Vancouver\)/);
+ }finally{h?.stop();Date.now=savedNow;if(savedZone===undefined)delete process.env.TZ;else process.env.TZ=savedZone;}
+});
+
+test('BUG-005467 rendered panel and picker explain closed Host hours without claiming occupancy',async()=>{
+ const closed={...open(4),available:false,hostScheduleOpen:false,reason:'host_schedule',spacesFree:0,spotStatus:{A:false,B:false,C:false,D:false}};
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>closed})});
+ try{
+  await h.flush();
+  const tree=h.render(),html=renderToStaticMarkup(tree);
+  assert.match(html,/Outside the Host&#x27;s available hours/);
+  const pickerMessage=walk(tree).find(node=>node.type==='p'&&typeof node.props.children==='string'&&node.props.children.includes('available hours'));
+  assert.ok(pickerMessage,'Spot picker also explains the schedule');
+  assert.doesNotMatch(pickerMessage.props.children,/All spots are taken/);
+  assert.equal(h.pay().props.disabled,true);
+  h.choose(0);h.render();assert.equal(h.pay().props.disabled,true);
+ }finally{h.stop();}
+});
+
