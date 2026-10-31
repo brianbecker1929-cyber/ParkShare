@@ -4,6 +4,7 @@
 import { jsonMethod, requireUser, supabaseAdmin } from "./_lib.js";
 import { privateBookingListing, canReadPreciseLocation, canReadCancelledBookingTitle } from "../src/lib/privateListingAccess.js";
 import { withBookingChargeTotals } from "./_booking-display-total.js";
+import { bookingDisplayTimeZone } from "./_booking-display-time-zone.js";
 
 const bookingColumns = [
   "id","listing_id","renter_id","hours","total","status","paid_at","application_state",
@@ -19,12 +20,13 @@ const bookingColumns = [
   "stripe_checkout_session_id",
 ].join(",");
 
-const listingColumns = "id,host_id,title,address,price,description,features,spaces,spots,lat,lng";
+const listingColumns = "id,host_id,title,address,price,description,features,spaces,spots,lat,lng,time_zone";
 
 function publicBookingShape(row, listing, participantName, fullLocation, historicalTitle = false) {
   const { stripe_checkout_session_id, ...safeBooking } = row;
   return {
     ...safeBooking,
+    property_time_zone: bookingDisplayTimeZone(row, listing),
     listings: privateBookingListing({ ...listing, profiles: { name: participantName } }, fullLocation, historicalTitle),
     profiles: { name: participantName || "Driver" },
   };

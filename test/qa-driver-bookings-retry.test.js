@@ -94,6 +94,7 @@ test('actual booking load retains the property zone so the displayed date and fi
   const b={...row(),booking_date:'2050-10-20',start_hour:21,scheduled_starts_at:'2050-10-21T01:00Z'};
   const h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.render();
   assert.match(h.state.dbBookings[0].date,/Oct 20, 2050/);
+  assert.equal(h.state.dbBookings[0].timeZoneLabel,'America/Toronto local time');
   h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();assert.match(h.html(),/Fixture driveway/);assert.match(h.html(),/Showing 1 of 1 bookings/);
   h.state.fromDate='2050-10-21';h.state.toDate='2050-10-21';h.render();assert.doesNotMatch(h.html(),/Fixture driveway/);assert.match(h.html(),/No bookings found for these dates/);h.stop();
 });
@@ -142,6 +143,7 @@ for (const status of ['completed','refunded']) {
     const h=harness({fetcher:async()=>success([row(status)]),highlightBookingId:'42'});
     h.commit();await tick();h.render();
     assert.match(h.html(),/PRIVATE ADDRESS/);
+    assert.match(h.html(),/America\/Toronto local time/);
     assert.match(h.html(),/aria-expanded="true"/);
     h.click('Hide details−');
     assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);

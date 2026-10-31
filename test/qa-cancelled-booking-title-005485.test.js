@@ -3,10 +3,11 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { canReadCancelledBookingTitle, canReadPreciseLocation, privateBookingListing } from "../src/lib/privateListingAccess.js";
 import { withBookingChargeTotals } from "../api/_booking-display-total.js";
+import { bookingDisplayTimeZone } from "../api/_booking-display-time-zone.js";
 
 const listing = { id: 7, host_id: "H", title: "Driveway at 123 Fixture Lane", address: "123 Fixture Lane",
   lat: 43.123456, lng: -79.123456, spaces: 2, spots: [{ forRent: true, lat: 43.123456 }],
-  description: "Private access instructions", img: "PRIVATE PHOTO", profiles: { name: "Private Host" } };
+  description: "Private access instructions", img: "PRIVATE PHOTO", profiles: { name: "Private Host" }, time_zone: "America/Toronto" };
 const booking = { id: 42, listing_id: 7, renter_id: "A", status: "refunded", application_state: "applied",
   paid_at: "2026-10-01T10:00:00Z", stripe_checkout_session_id: "cs_fixture_paid", hours: 1, total: 14.13,
   scheduled_starts_at: "2026-10-02T13:00:00Z", property_time_zone: "America/Toronto", spot_label: "A" };
@@ -44,7 +45,7 @@ function fixture(rows = [booking], userId = "A") {
     res.status(405).json({ error: "Method not allowed" }); return false;
   };
   const values = { jsonMethod, requireUser, supabaseAdmin: db, privateBookingListing, canReadPreciseLocation,
-    canReadCancelledBookingTitle, withBookingChargeTotals };
+    canReadCancelledBookingTitle, withBookingChargeTotals, bookingDisplayTimeZone };
   const handler = new Function(...Object.keys(values), source + ";return handler;")(...Object.values(values));
   return { calls, async get(query = {}) {
     const res = { headers: {}, status(n) { this.code = n; return this; }, json(body) { this.body = body; return this; },
@@ -122,4 +123,15 @@ test("BUG-005485 signed-out and unrelated accounts cannot retrieve another Drive
 test("BUG-005485 missing listing data does not crash or fabricate a historical title", async () => {
   const res = await fixture([{ ...booking, listing_id: 999 }]).get();
   assert.equal(res.code, 200); assert.equal(res.body.bookings[0].listings.title, "Private parking");
+});
+
+test("BUG-005446 own legacy booking gets the listing zone without changing its saved instants or private projection", async () => {
+  const legacy={...booking,property_time_zone:null,scheduled_starts_at:null,booking_date:null,start_hour:null,paid_at:'2026-10-19T18:06:55.806Z'};
+  const before=structuredClone(legacy),res=await fixture([legacy]).get();
+  assert.equal(res.code,200);assert.equal(res.body.bookings[0].property_time_zone,'America/Toronto');
+  assert.equal(res.body.bookings[0].paid_at,legacy.paid_at);assert.equal(res.body.bookings[0].scheduled_starts_at,null);
+  assert.equal(res.body.bookings[0].listings.lat,null);assert.equal(res.body.bookings[0].listings.description,'');
+  assert.deepEqual(legacy,before);
+  const snapshot=await fixture([{...legacy,property_time_zone:'America/Vancouver'}]).get();
+  assert.equal(snapshot.body.bookings[0].property_time_zone,'America/Vancouver');
 });

@@ -5,6 +5,7 @@ import {Readable} from 'node:stream';
 import Stripe from 'stripe';
 import {settleInitialBooking,finishRejectedInitialBooking} from '../api/_initial-booking-payment.js';
 import {reconcilePaymentRefund} from '../api/_refund-ledger.js';
+import {bookingDisplayTimeZone} from '../api/_booking-display-time-zone.js';
 import {verifyBookingHoldSnapshot,verifyPaidCheckout,CheckoutIntegrityError} from '../api/_checkout-integrity.js';
 import {requirePaidCheckoutReference,translatePaidBookingInsertError,paidCheckoutReferenceLog} from '../api/_paid-checkout-reference.js';
 const source=await readFile(process.env.QA_INITIAL_BOOKING_WEBHOOK_SOURCE||new URL('../api/stripe-webhook.js',import.meta.url),'utf8');
@@ -122,7 +123,7 @@ test('Transactions includes owned failed-booking charge and actual refund state 
   const calls=[];let projection='';
   const db={from(table){assert.equal(table,'bookings');return {select(fields){projection=fields;return this},eq(k,v){calls.push([k,v]);return this},not(k,op,v){assert.deepEqual([k,op,v],['paid_at','is',null]);return this},async order(){return {data:[Object.fromEntries(projection.split(',').map(k=>[k.trim(),row[k.trim()]]))]}}}}};
   const code=txSource.slice(txSource.indexOf('function spendingRefundAmounts'),txSource.indexOf('// Money the user has EARNED'));
-  const get=new Function('supabaseAdmin','canReadPreciseLocation','fetchExtensionsForBookings',code+';return getSpentTransactions;')(db,()=>false,async ids=>{assert.deepEqual(ids,[71]);return []});
+  const get=new Function('supabaseAdmin','canReadPreciseLocation','fetchExtensionsForBookings','bookingDisplayTimeZone',code+';return getSpentTransactions;')(db,()=>false,async ids=>{assert.deepEqual(ids,[71]);return []},bookingDisplayTimeZone);
   const [transaction]=await get('driver');assert.equal(transaction.description,'Booking not confirmed');assert.equal(transaction.amount,11.5);assert.equal(transaction.status,status);assert.equal(transaction.refundedAmount,settled);assert.equal(transaction.refundPendingAmount,pending);assert.deepEqual(calls,[['renter_id','driver']]);
  }
 });

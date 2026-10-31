@@ -158,10 +158,10 @@ function BookingVehicleVisual({ vehicle }) {
   );
 }
 
-function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime }) {
+function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime, timeZoneLabel }) {
   const timeRemaining = isActive ? formatBookingTimeRemaining(bookingEnd, currentTime) : "";
   return (
-    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
+    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${timeZoneLabel ? `, ${timeZoneLabel}` : ""}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
       <div className="ps-booking-schedule-cell is-date">
         <span>Date</span>
         <strong>{date}</strong>
@@ -184,6 +184,7 @@ function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isAct
           <strong role="timer">{timeRemaining}</strong>
         </div>
       )}
+      {timeZoneLabel && <div style={{ gridColumn: "1 / -1", padding: "5px 10px", fontSize: 11, color: C.white, borderTop: "1px solid rgba(255,255,255,.16)" }}>{timeZoneLabel}</div>}
     </div>
   );
 }
@@ -4032,6 +4033,7 @@ function HostDashboard({ user, setTab }) {
                   date: display.date,
                   startTime: display.startTime,
                   endTime: display.endTime,
+                  timeZoneLabel: display.timeZoneLabel,
                   duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   bookingStart: window.start.toISOString(),
                   bookingEnd: window.end.toISOString(),
@@ -4224,6 +4226,7 @@ function HostDashboard({ user, setTab }) {
                   date={b.date}
                   startTime={b.startTime}
                   endTime={b.endTime}
+                  timeZoneLabel={b.timeZoneLabel}
                   duration={b.duration}
                   bookingEnd={b.bookingEnd}
                   isActive={b.displayStatus === "Active"}
@@ -5997,7 +6000,10 @@ function clientBookingWindow(booking) {
 }
 
 function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = null) {
-  const timeZone = propertyTimeZone || (scheduled ? "UTC" : undefined);
+  let timeZone = propertyTimeZone || "UTC";
+  let verifiedZone = Boolean(propertyTimeZone);
+  try { new Intl.DateTimeFormat("en-CA", { timeZone }).format(0); }
+  catch { timeZone = "UTC"; verifiedZone = false; }
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
   const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
@@ -6008,6 +6014,7 @@ function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = 
     date: start.toLocaleDateString("en-CA", dateOptions),
     startTime: start.toLocaleTimeString("en-CA", timeOptions),
     endTime: end.toLocaleTimeString("en-CA", timeOptions),
+    timeZoneLabel: verifiedZone ? `${timeZone} local time` : "UTC (property time zone unavailable)",
   };
 }
 
@@ -6210,6 +6217,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             date: display.date,
             startTime: display.startTime,
             endTime: display.endTime,
+            timeZoneLabel: display.timeZoneLabel,
             duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
@@ -6381,9 +6389,10 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           </div>
           {isPast ? (
             <div className="ps-past-booking-overview">
-              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}`}>
+              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}, ${b.timeZoneLabel}`}>
                 <strong>{b.date}</strong>
                 <span>{b.startTime} – {b.endTime} <span className="ps-past-booking-duration">· {b.duration}</span></span>
+                <span>{b.timeZoneLabel}</span>
               </div>
               <button
                 type="button"
@@ -6402,6 +6411,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             date={b.date}
             startTime={b.startTime}
             endTime={b.endTime}
+            timeZoneLabel={b.timeZoneLabel}
             duration={b.duration}
             bookingEnd={b.bookingEnd}
             isActive={displayStatus === "Active"}
