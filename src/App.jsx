@@ -31,6 +31,7 @@ import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signup
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
+  hasNavigationDestination,
   openNavigation,
   savePreferredNavigationProvider,
 } from "./lib/navigation";
@@ -431,6 +432,7 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
 
   const providers = getAvailableNavigationProviders();
   const isPreview = request.mode === "preview";
+  const destinationAvailable = hasNavigationDestination(request.listing);
   const descriptions = {
     waze: "Live traffic, road reports, and driving guidance",
     google: "Driving directions in Google Maps",
@@ -440,11 +442,14 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
   return (
     <Modal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
       <div className="ps-navigation-chooser">
-        <p>
+        {destinationAvailable ? <p>
           {isPreview
-            ? `Choose an app to preview driving directions to ${request.listing.title || "this parking space"}.`
+            ? "Choose an app to preview the parking area. For public listings this is an approximate route; exact directions are available from your confirmed booking."
             : "Choose your preferred navigation app. Your parking location is ready to open."}
-        </p>
+        </p> : <p id="navigation-location-error" role="alert">
+          {isPreview ? "An approximate route preview is unavailable for this listing because its map location is missing. Choose another listing, or use exact directions from a confirmed booking."
+            : "Directions are unavailable because this reservation's location is missing. Please contact ParkShare support."}
+        </p>}
         <div className="ps-navigation-destination">
           <span aria-hidden="true">📍</span>
           <div>
@@ -458,6 +463,9 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
               key={provider.id}
               type="button"
               className={`ps-navigation-provider is-${provider.id}`}
+              disabled={!destinationAvailable}
+              aria-describedby={!destinationAvailable ? "navigation-location-error" : undefined}
+              style={!destinationAvailable ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
               onClick={() => onChoose(provider.id)}
             >
               <span className="ps-navigation-provider-icon" aria-hidden="true">
@@ -476,9 +484,9 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
             </button>
           ))}
         </div>
-        <p className="ps-navigation-remember-note">
+        {destinationAvailable && <p className="ps-navigation-remember-note">
           ParkShare remembers your selection for future <strong>Navigate to parking</strong> buttons. You can change it anytime.
-        </p>
+        </p>}
         <button type="button" className="ps-navigation-cancel" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
@@ -11135,7 +11143,8 @@ function CheckoutReturnNotice({ kind, onDismiss }) {
 // Retain only the immutable fields needed by the chooser and map apps.
 function navigationDestination(listing) {
   if (!listing || typeof listing !== "object") return null;
-  return { id: listing.id, title: listing.title, address: listing.address, lat: listing.lat, lng: listing.lng };
+  return { id: listing.id, title: listing.title, address: listing.address, lat: listing.lat, lng: listing.lng,
+    ...(listing.locationPrecision === "approximate" ? { locationPrecision: "approximate" } : {}) };
 }
 
 function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
@@ -11169,6 +11178,7 @@ function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
     if (latest.current !== current) return false;
     const destination = navigationDestination(listing);
     if (!destination) return false;
+    if (!hasNavigationDestination(destination)) return replace({ listing: destination, mode: "navigate" });
     const available = getAvailableNavigationProviders().some(provider => provider.id === preferredProvider);
     if (preferredProvider && available) {
       if (!replace(null)) return false;
@@ -11180,6 +11190,7 @@ function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
     if (latest.current !== current || !current.request?.listing) return false;
     if (!getAvailableNavigationProviders().some(option => option.id === provider)) return false;
     const destination = current.request.listing;
+    if (!hasNavigationDestination(destination)) return false;
     if (!replace(null)) return false;
     savePreferredNavigationProvider(provider);
     onPreferredProvider(provider);

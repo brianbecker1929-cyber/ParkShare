@@ -4,10 +4,39 @@ import assert from "node:assert/strict";
 import {
   NAVIGATION_PREFERENCE_KEY,
   buildNavigationUrl,
+  hasNavigationDestination,
+  openNavigation,
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
   savePreferredNavigationProvider,
 } from "../src/lib/navigation.js";
+
+test("BUG-005447 privacy labels with missing or invalid coordinates never become map searches", () => {
+  for(const address of ["Approximate location — full address after confirmed booking","Approximate area","Address available with a confirmed booking","Exact parking location",""]){
+    for(const [lat,lng] of [[null,null],[43.7,null],[null,-79.4],[NaN,-79.4],[91,-79.4],[43.7,181]]){
+      assert.equal(hasNavigationDestination({address,lat,lng}),false);
+      for(const provider of ['google','waze','apple'])assert.equal(buildNavigationUrl(address,lat,lng,'Android',provider),null);
+    }
+  }
+});
+test("BUG-005447 public routes use rounded area coordinates without exporting an address",()=>{
+  for(const provider of ['google','waze','apple']){
+    const url=new URL(buildNavigationUrl('PRIVATE STREET ADDRESS',43.789012,-79.456789,'Android',provider,'approximate'));
+    const target=url.searchParams.get(provider==='google'?'destination':provider==='apple'?'daddr':'ll');
+    assert.equal(target,'43.79,-79.46');assert.equal(url.searchParams.has('q'),false);assert.doesNotMatch(url.href,/PRIVATE|789012|456789/);
+    assert.equal(buildNavigationUrl('PRIVATE STREET ADDRESS',null,null,'Android',provider,'approximate'),null);
+  }
+});
+test("openNavigation refuses an unusable public destination before window.open",()=>{
+  const previous=Object.getOwnPropertyDescriptor(globalThis,'window'),calls=[];
+  Object.defineProperty(globalThis,'window',{configurable:true,value:{navigator:{userAgent:'Android'},open:(...args)=>calls.push(args)}});
+  try{
+    assert.equal(openNavigation({address:'Approximate location — full address after confirmed booking',lat:null,lng:null},'google'),false);
+    assert.equal(calls.length,0);
+    assert.equal(openNavigation({address:'Approximate area',lat:43.789012,lng:-79.456789,locationPrecision:'approximate'},'google'),true);
+    assert.equal(new URL(calls[0][0]).searchParams.get('destination'),'43.79,-79.46');assert.equal(calls[0][2],'noopener,noreferrer');
+  }finally{if(previous)Object.defineProperty(globalThis,'window',previous);else delete globalThis.window;}
+});
 
 test("Google Maps route links prefer exact listing coordinates", () => {
   assert.equal(
