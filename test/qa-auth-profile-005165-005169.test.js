@@ -37,14 +37,23 @@ test('role query failure and invalid sessions cannot modify a profile',async()=>
   const res=response();await handler({method:'PATCH',body:{name:'Driver'}},res);assert.equal(res.code,mode==='anonymous'?401:500);
  }
 });
-test('direct /profile route blocks Host rendering and provides a safe dashboard destination',()=>{
+test('direct /profile separates signed-out sign-in guidance from Host role denial',()=>{
  const start=app.indexOf('  const requireDriver = '),end=app.indexOf('  const requireAuth = ',start);
  assert.ok(start>0);const code=transformSync(app.slice(start,end)+'\nreturn requireDriver;',{loader:'jsx',jsx:'transform'}).code;
  for(const role of ['host','driver',null]){
-  let nav;const gate=new Function('React','user','changeTab','setShowAuth','C',code)(React,role?{role}:null,x=>nav=x,()=>{},{});
+  let nav,shown=false,screen;const gate=new Function('React','user','changeTab','setShowAuth','setAuthInitialScreen','C',code)(React,role?{role}:null,x=>nav=x,x=>shown=x,x=>screen=x,{});
   const result=gate(React.createElement('p',null,'Vehicle editor'));const html=renderToStaticMarkup(result);
   assert.equal(html.includes('Vehicle editor'),role==='driver');
-  if(role==='host'){result.props.children.find(e=>e.type==='button').props.onClick();assert.equal(nav,'Host Dashboard');}
+  if(role==='host'){
+   assert.match(html,/Driver account required/);assert.match(html,/Vehicle profiles are available to Driver accounts/);
+   result.props.children.find(e=>e.type==='button').props.onClick();assert.equal(nav,'Host Dashboard');assert.equal(shown,false);assert.equal(screen,undefined);
+  }
+  if(!role){
+   assert.match(html,/Sign in required/);assert.match(html,/Sign in to view and manage your profile and vehicle details/);
+   assert.doesNotMatch(html,/Driver account required|Vehicle profiles are available to Driver accounts/);
+   const button=result.props.children.find(e=>e.type==='button');assert.equal(button.props.children,'Sign in');button.props.onClick();
+   assert.equal(screen,'signin');assert.equal(shown,true);assert.equal(nav,undefined,'Sign-in keeps the current Profile destination');
+  }
  }
  assert.match(app,/tab === "Profile" && requireDriver\(<DriverProfileView/);
 });

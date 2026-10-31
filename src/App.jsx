@@ -11580,11 +11580,15 @@ export default function App() {
     if (user?.role === "driver") return content;
     return (
       <div role="alert" style={{ padding: "60px 24px", textAlign: "center", color: C.navy }}>
-        <h3>Driver account required</h3>
-        <p>Vehicle profiles are available to Driver accounts.</p>
-        <button type="button" onClick={() => user ? changeTab("Host Dashboard") : setShowAuth(true)}
+        <h3>{user ? "Driver account required" : "Sign in required"}</h3>
+        <p>{user ? "Vehicle profiles are available to Driver accounts." : "Sign in to view and manage your profile and vehicle details."}</p>
+        <button type="button" onClick={() => {
+          if (user) { changeTab("Host Dashboard"); return; }
+          setAuthInitialScreen("signin");
+          setShowAuth(true);
+        }}
           style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
-          {user ? "Return to Host Dashboard" : "Sign in / Join free"}
+          {user ? "Return to Host Dashboard" : "Sign in"}
         </button>
       </div>
     );
