@@ -10,6 +10,7 @@ import {formatBookNowTimes} from '../src/lib/bookNowTimes.js';
 import {getBookableVehicles} from '../src/lib/driverProfile.js';
 import {futureBookingDate,localCalendarDate} from '../src/lib/bookingCalendarDate.js';
 import {calculateBookingAmounts} from '../api/_booking-rules.js';
+import {validateBookingDuration,MAX_BOOKING_HOURS} from '../src/lib/bookingDuration.js';
 const source=await readFile(process.env.QA_SPOT_LAYOUT_APP||new URL('../src/App.jsx',import.meta.url),'utf8');
 const compiledPicker=await transform(source.slice(source.indexOf('function SpotPicker('),source.indexOf('// Read-only booking view shared')),{loader:'jsx'});
 const compiledDetail=await transform(source.slice(source.indexOf('function ListingDetail('),source.indexOf('// The email opens the actual booked listing')).replaceAll('import.meta.env.VITE_GOOGLE_MAPS_API_KEY','false'),{loader:'jsx'});
@@ -48,7 +49,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function detailHarness({count=4,flags,fetcher}={}){
  const slots=[],effects=[],requests=[],intervals=new Map();let cursor=0,dirty=false,tree,timerId=0;
  const props={listing:{id:'db-7',spaces:flags?flags.filter(Boolean).length:count,spots:flags?.map(forRent=>({forRent}))||[],title:'Synthetic layout',price:12,features:[],timeZone:'America/Toronto'},user:{id:'driver',vehicleMake:'Honda',vehicleModel:'Accord',vehicleColour:'Blue',licensePlate:'QA 250'}};
- const values={React,C,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,
+ const values={React,C,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
   getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:[9,10,11],END_HOUR_OPTIONS:[10,11,12],
   window:{setInterval:fn=>{intervals.set(++timerId,fn);return timerId;},clearInterval:id=>intervals.delete(id),addEventListener(){},removeEventListener(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}},
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
@@ -130,6 +131,43 @@ test('BUG-005467 rendered panel and picker explain closed Host hours without cla
   assert.doesNotMatch(pickerMessage.props.children,/All spots are taken/);
   assert.equal(h.pay().props.disabled,true);
   h.choose(0);h.render();assert.equal(h.pay().props.disabled,true);
+ }finally{h.stop();}
+});
+
+test('BUG-005448/005483/005484 invalid custom input stays visible, hides a quote, and cannot open spot selection or payment',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();h.find(n=>n.type==='button'&&n.props.children==='Custom').props.onClick();h.render();await h.flush();
+  for(const value of ['0','0.5','-3','abc','','800','1.1']){
+   const before=h.requests.length;
+   h.find(n=>n.type==='input'&&n.props.id==='booking-custom-hours').props.onChange({target:{value}});h.render();await h.flush();
+   const input=h.find(n=>n.type==='input'&&n.props.id==='booking-custom-hours');assert.equal(input.props.value,value);assert.equal(input.props['aria-invalid'],true);assert.match(input.props['aria-describedby'],/booking-duration-error/);
+   assert.equal(h.requests.length,before,'Invalid duration never queries availability');
+   assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();
+   const choose=h.find(n=>n.type==='button'&&n.props.children==='Choose spot');assert.equal(choose.props.disabled,true);choose.props.onClick();
+   const tree=h.render(),html=renderToStaticMarkup(tree),quote=walk(tree).find(n=>n.props?.className==='ps-booking-reserve-row');
+   assert.match(html,/role="alert"/);assert.doesNotMatch(renderToStaticMarkup(quote),/\$|NaN/);
+   assert.doesNotMatch(html,/Ends around|Missing or invalid listingId/);
+   assert.equal(walk(tree).some(n=>n.type===h.values.PaymentModal||n.type===h.values.SpotPicker),false);
+  }
+  h.find(n=>n.type==='input'&&n.props.id==='booking-custom-hours').props.onChange({target:{value:'1.25'}});h.render();await h.flush();
+  assert.ok(h.requests.some(r=>r.url.includes('hours=1.25')));
+  h.find(n=>n.type==='button'&&n.props.children==='Choose spot').props.onClick();h.choose(1);h.render();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();
+  assert.equal(h.find(n=>n.type===h.values.PaymentModal).props.hours,1.25);
+ }finally{h.stop();}
+});
+
+test('an outstanding valid availability response cannot revive payment after duration becomes invalid',async()=>{
+ const pending=[],h=detailHarness({fetcher:url=>new Promise(resolve=>pending.push({url,resolve}))});
+ try{
+  h.find(n=>n.type==='button'&&n.props.children==='Custom').props.onClick();h.render();
+  h.find(n=>n.type==='input'&&n.props.id==='booking-custom-hours').props.onChange({target:{value:'800'}});h.render();
+  for(const request of pending)request.resolve({ok:true,json:async()=>open(4)});
+  await h.flush();assert.equal(h.pay().props.disabled,true);assert.match(renderToStaticMarkup(h.render()),/maximum booking length is 744/);
+  h.find(n=>n.type==='button'&&n.props.children==='1 hr').props.onClick();h.render();
+  assert.equal(h.pay().props.disabled,true,'Returning to a valid chip still waits for a fresh current-window response');
+  pending.at(-1).resolve({ok:true,json:async()=>open(4)});await h.flush();
+  h.find(n=>n.type==='button'&&n.props.children==='Choose spot').props.onClick();h.choose(0);h.render();assert.equal(h.pay().props.disabled,false);
  }finally{h.stop();}
 });
 

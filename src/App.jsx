@@ -22,6 +22,7 @@ import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution 
 import { transactionDateDetails } from "./lib/transactionDetails";
 import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, listingAvailabilityMessage, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
 import { formatBookNowTimes } from "./lib/bookNowTimes";
+import { validateBookingDuration, MAX_BOOKING_HOURS } from "./lib/bookingDuration";
 import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
@@ -1728,7 +1729,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [nowDuration, setNowDuration] = useState(1);
   const [nowCustomHours, setNowCustomHours] = useState("3");
   const isCustomDuration = !NOW_DURATIONS.includes(nowDuration);
-  const nowHours = isCustomDuration ? Math.max(1, Number(nowCustomHours) || 1) : nowDuration;
+  const nowDurationValidation = validateBookingDuration(isCustomDuration ? nowCustomHours : nowDuration);
+  const nowHours = nowDurationValidation.hours;
 
   // Schedule for Later — the original date + start/end hour pickers.
   const [startHour, setStartHour] = useState(9);
@@ -1752,7 +1754,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
   const hours = bookingMode === "now" ? nowHours : advanceHours;
-  const bookNowTimes = formatBookNowTimes(listing.timeZone, hours);
+  const durationError = bookingMode === "now" ? nowDurationValidation.error : "";
+  const bookNowTimes = durationError ? null : formatBookNowTimes(listing.timeZone, hours);
 
   const [showPayment, setShowPayment] = useState(false);
   const availabilityPaused = useRef(false);
@@ -1788,6 +1791,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const spotVehiclePickerRef = useRef(null);
   const spotLayout = getListingSpotLayout(listing);
   const chooseSpot = (index) => {
+    if (durationError) return;
     const hostRentable = spotLayout[index]?.forRent === true;
     if (!canChooseListingSpot({
       isRealListing: numericIdForAvailability !== null,
@@ -1873,11 +1877,18 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   });
   const [availabilityResult, setAvailabilityResult] = useState(null);
   // A result for the *previous* day, mode or duration can never unlock a bay.
-  const selectedAvailability = availabilityResult?.key === selectedWindowKey
+  const selectedAvailability = !durationError && availabilityResult?.key === selectedWindowKey
     ? availabilityResult.data : null;
   const availabilityFailed = availabilityResult?.key === selectedWindowKey
     && availabilityResult.error;
   useEffect(() => {
+    if (durationError) {
+      setAvailabilityResult(null);
+      setChosenSpot(null);
+      setShowPayment(false);
+      setShowSpotPicker(false);
+      return;
+    }
     if (numericIdForAvailability === null) return;
     let cancelled = false;
     let controller;
@@ -1922,7 +1933,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       document.removeEventListener("visibilitychange", load);
     };
   }, [selectedWindowKey, numericIdForAvailability]);
-  const chosenSpotAvailable = chosenSpot !== null && canChooseListingSpot({
+  const chosenSpotAvailable = !durationError && chosenSpot !== null && canChooseListingSpot({
     isRealListing: numericIdForAvailability !== null,
     hostRentable: spotLayout[chosenSpot]?.forRent === true,
     availableData: selectedAvailability,
@@ -2063,7 +2074,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {bookingMode === "now" ? (
             <>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
-                Starts the moment you pay · {bookNowTimes?.start || "Listing local time unavailable"}
+                Starts the moment you pay · {bookNowTimes?.start || (durationError ? "Enter a valid duration" : "Listing local time unavailable")}
               </div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>How long do you need?</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2086,14 +2097,17 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               </div>
               {isCustomDuration && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <input type="number" min="1" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                  <input id="booking-custom-hours" type="number" min="1" max={MAX_BOOKING_HOURS} step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                    aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-duration-help booking-duration-error" : "booking-duration-help"}
                     style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif" }} />
-                  <span style={{ fontSize: 12, color: C.muted }}>hours</span>
+                  <label htmlFor="booking-custom-hours" style={{ fontSize: 12, color: C.muted }}>hours</label>
                 </div>
               )}
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
+              {isCustomDuration && <p id="booking-duration-help" style={{ fontSize: 11, color: C.muted, marginTop: 0 }}>1–744 hours (31 days), in 15-minute increments.</p>}
+              {durationError && <p id="booking-duration-error" role="alert" style={{ fontSize: 12, color: C.red }}>{durationError}</p>}
+              {!durationError && <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
                 {bookNowTimes ? `Ends around ${bookNowTimes.end}` : "Estimated departure unavailable until the listing's time zone is verified."}
-              </div>
+              </div>}
             </>
           ) : (
             <>
@@ -2126,7 +2140,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {/* Live check tied to exactly what's selected above — re-runs on
               every duration/date/time change, so this never lags behind
               what's actually being booked. */}
-          {numericIdForAvailability !== null && (
+          {!durationError && numericIdForAvailability !== null && (
             selectedAvailability === null ? (
               <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed || "Checking availability… Spot selection is temporarily disabled."}</div>
             ) : selectedAvailability.available ? (
@@ -2149,7 +2163,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
-              <button onClick={() => setShowSpotPicker(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
+              <button type="button" disabled={Boolean(durationError)} onClick={() => { if (!durationError) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
@@ -2159,9 +2173,10 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div className="ps-booking-reserve-row" style={{ paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
+              {durationError ? <div style={{ fontSize: 12, color: C.muted }}>Enter a valid duration to see the total.</div>
+                : <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>}
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => { if (!durationError && chosenSpotAvailable && selectedVehicle && !vehicleEditorOpen) setShowPayment(true); }} disabled={Boolean(durationError) || !chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
           </div>
           {!user && (
             <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
@@ -2180,7 +2195,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <MiniCalendar selected={date} onSelect={(d) => { setDate(d); setShowCalendar(false); }} />
         </Modal>
       )}
-      {showSpotPicker && (
+      {showSpotPicker && !durationError && (
         <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
           {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
@@ -2281,7 +2296,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
       <ReviewsSection listing={listing} user={user} />
 
-      {showPayment && (
+      {showPayment && !durationError && (
       <PaymentModal
           key={bookingCheckoutKey({ listing, hours, chosenSpot, date: bookingMode === "advance" ? date : undefined,
             startHour: bookingMode === "advance" ? startHour : undefined, endHour: bookingMode === "advance" ? endHour : undefined,

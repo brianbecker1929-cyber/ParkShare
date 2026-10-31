@@ -21,8 +21,11 @@ export default async function handler(req, res) {
     ? Number(req.query.startHour)
     : null;
 
-  if (!Number.isSafeInteger(listingId) || listingId <= 0 || !isValidBookingDuration(hours, { scheduled: !!bookingDate })) {
+  if (!Number.isSafeInteger(listingId) || listingId <= 0) {
     return res.status(400).json({ error: "Missing or invalid listingId." });
+  }
+  if (!isValidBookingDuration(hours, { scheduled: !!bookingDate })) {
+    return res.status(400).json({ code: "invalid_booking_duration", error: "Choose a booking length from 1 to 744 hours (31 days), in 15-minute increments." });
   }
 
   try {
