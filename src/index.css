@@ -3871,6 +3871,11 @@ button, input, select, textarea { font: inherit; }
   gap: 1px;
 }
 
+.ps-parking-search-input:focus-visible {
+  outline: 3px solid #0E1B2E;
+  outline-offset: 3px;
+}
+
 .ps-browse-listing-heading {
   padding: 16px 14px 6px;
   color: #0E1B2E;

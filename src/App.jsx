@@ -3202,8 +3202,8 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
           <div style={{ flex: 1, position: "relative" }}>
-            <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
-              style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
+            <input className="ps-parking-search-input" ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
+              style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
             {loadingSug && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11 }}>⏳</span>}
             {/* Autocomplete dropdown */}
             {suggestions.length === 0 && sugError && !loadingSug && query.length >= 2 && (
