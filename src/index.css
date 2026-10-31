@@ -9759,3 +9759,6 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-booking-reserve-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .ps-booking-reserve-row > button { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 420px) { .ps-booking-vehicle-form .ps-profile-vehicle-fields { grid-template-columns: minmax(0,1fr); } }
+.ps-navigation-modal::backdrop {
+  background: rgba(27, 42, 59, 0.55);
+}

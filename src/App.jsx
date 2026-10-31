@@ -413,15 +413,55 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
   return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
 }
 
-function Modal({ children, onClose, title }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-      <div role="dialog" aria-modal="true" aria-label={title} style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
+function Modal({ children, onClose, title, nativeModal = false }) {
+  const dialogRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!nativeModal) return;
+    const dialog = dialogRef.current;
+    const opener = dialog.ownerDocument.activeElement;
+    // showModal places the chooser in the top layer, makes the background
+    // inert, and moves focus to its first enabled control (the close button).
+    dialog.showModal();
+    return () => {
+      dialog.close();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, [nativeModal]);
+  const panelStyle = { background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" };
+  const content = <>
         <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>{title}</div>
           <button onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ padding: "20px 22px" }}>{children}</div>
+      </>;
+  if (nativeModal) return <dialog ref={dialogRef} className="ps-navigation-modal" aria-label={title}
+    style={{ ...panelStyle, position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", border: 0, padding: 0 }}
+    onCancel={event => {
+      event.preventDefault();
+      // Close through the scoped React handler so a queued provider choice
+      // cannot launch a destination after Escape has dismissed this request.
+      onClose();
+    }}
+    onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const dialog = event.currentTarget;
+      const controls = [...dialog.querySelectorAll("button:not(:disabled)")];
+      const first = controls[0], last = controls.at(-1);
+      const active = dialog.ownerDocument.activeElement;
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (active === first || active === dialog)) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog)) {
+        event.preventDefault(); first.focus();
+      }
+    }}>
+    {content}
+  </dialog>;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={panelStyle}>
+        {content}
       </div>
     </div>
   );
@@ -440,7 +480,7 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
   };
 
   return (
-    <Modal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
+    <Modal nativeModal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
       <div className="ps-navigation-chooser">
         {destinationAvailable ? <p>
           {isPreview
