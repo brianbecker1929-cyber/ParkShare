@@ -98,6 +98,32 @@ test('actual booking load retains the property zone so the displayed date and fi
   h.state.fromDate='2050-10-21';h.state.toDate='2050-10-21';h.render();assert.doesNotMatch(h.html(),/Fixture driveway/);assert.match(h.html(),/No bookings found for these dates/);h.stop();
 });
 
+test('BUG-005465 reservation references use each saved booking ID, independent of listing and list order',async()=>{
+  let rows=[{...row(),id:82},{...row(),id:81}];
+  const h=harness({fetcher:async()=>success(rows)});
+  try{
+    h.commit();await tick();h.render();
+    let html=h.html();assert.match(html,/Reservation #PK-82/);assert.match(html,/Reservation #PK-81/);
+    assert.doesNotMatch(html,/Reservation #PK-db-|Reservation #PK-7\b/);
+    rows=[rows[1],rows[0]];h.click('Refresh bookings');await tick();h.render();html=h.html();
+    assert.ok(html.indexOf('Reservation #PK-81')<html.indexOf('Reservation #PK-82'));
+    h.state.fromDate='2050-10-21';h.render();assert.doesNotMatch(h.html(),/Reservation #PK-/);
+  }finally{h.stop();}
+});
+
+test('BUG-005465 a historical reservation number remains visible while collapsed, expanded and email-highlighted',async()=>{
+  for(const status of ['completed','refunded']){
+    const h=harness({fetcher:async()=>success([{...row(status),id:81}]),highlightBookingId:'81'});
+    try{
+      h.commit();await tick();h.render();
+      for(const action of [null,'Hide details−','View details+','Refresh bookings']){
+        if(action){h.click(action);await tick();h.render();}
+        assert.equal((h.html().match(/Reservation #PK-81/g)||[]).length,1);
+      }
+    }finally{h.stop();}
+  }
+});
+
 test('immediate booking date stays aligned with the property display after refreshing',async()=>{
   const b={...row(),booking_date:null,start_hour:null,scheduled_starts_at:null,paid_at:'2050-10-21T01:00Z'};
   const h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();

@@ -6355,6 +6355,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.navy, lineHeight: 1.5, overflowWrap: "anywhere" }}>Reservation #PK-{b.rawId}</div>
             </div>
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
