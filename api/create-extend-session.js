@@ -1,4 +1,5 @@
 import {CAD_CHECKOUT_API_VERSION, requireCadCheckout} from "./_checkout-currency.js";
+import { checkoutRateLimit } from "./_checkout-rate-limit.js";
 // POST /api/create-extend-session
 // Extends an in-progress booking through Stripe Checkout.
 
@@ -83,7 +84,9 @@ export default async function handler(req, res) {
     // PR #167's per-Driver checkout quotas apply to the shared hold RPC.
     // Return a meaningful rate-limit response BEFORE Stripe Checkout begins.
     if (holdError?.code === "P0058") {
-      return res.status(429).json({ error: "Too many active parking checkouts. Please try again later." });
+      const limit = checkoutRateLimit(holdError);
+      if (limit.retryAfterSeconds) res.setHeader("Retry-After", String(limit.retryAfterSeconds));
+      return res.status(429).json(limit);
     }
     if (holdError) throw holdError;
     const reserved = Array.isArray(reservedRows) ? reservedRows[0] : reservedRows;

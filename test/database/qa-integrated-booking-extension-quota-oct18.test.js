@@ -33,6 +33,7 @@ describe("combined Driver hold quotas and paid extension reservation (disposable
    "../../docs/sql-proposals/bug-005118-unpaid-hold-rate-limits.sql"]) await pool.query(await read(p));
   await pool.query(schema);
   await pool.query(await read("../../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql"));
+  await pool.query(await read("../../supabase/migrations/20261031191201_checkout_rate_limit_recovery_005462.sql"));
  });
  after(async()=>{await pool?.end()});
  beforeEach(async()=>{
@@ -62,7 +63,7 @@ describe("combined Driver hold quotas and paid extension reservation (disposable
  });
  test("active Driver quota blocks extension before Stripe checkout",async()=>{
   await pool.query("insert into public.booking_holds(listing_id,renter_id,starts_at,ends_at,expires_at,spot_label) values($1,$2,now()+interval '2 hours',now()+interval '3 hours',now()+interval '30 minutes','B'),($1,$2,now()+interval '4 hours',now()+interval '5 hours',now()+interval '30 minutes','C')",[listing,RENTER]);
-  await assert.rejects(extension(),e=>e.code==="P0058");
+  await assert.rejects(extension(),e=>e.code==="P0058"&&JSON.parse(e.detail).reason==='active_checkouts');
   assert.equal((await pool.query("select count(*)::int n from public.booking_holds")).rows[0].n,2);
  });
 });

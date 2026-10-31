@@ -1,4 +1,5 @@
 import {CAD_CHECKOUT_API_VERSION, requireCadCheckout} from "./_checkout-currency.js";
+import { checkoutRateLimit } from "./_checkout-rate-limit.js";
 // POST /api/create-checkout-session
 // Creates a direct charge on the Host's connected Stripe account. ParkShare's
 // service fee is collected as an application fee.
@@ -171,10 +172,9 @@ export default async function handler(req, res) {
       // unpaid Checkout starts, including concurrent requests to other
       // listings. Do not create any Stripe Session when over the limit.
       if (holdError.code === "P0058") {
-        return res.status(429).json({
-          error: "You've started several parking checkouts recently. Please try again later or contact ParkShare support.",
-          code: "checkout_rate_limited",
-        });
+        const limit = checkoutRateLimit(holdError);
+        if (limit.retryAfterSeconds) res.setHeader("Retry-After", String(limit.retryAfterSeconds));
+        return res.status(429).json(limit);
       }
       if (holdError.code === "P0001") {
         return res.status(409).json({ error: "This spot is currently booked or being held by another driver. Please choose a different spot or time." });
