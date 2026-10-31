@@ -3231,7 +3231,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
               </div>
             )}
           </div>
-          <select value={sort} onChange={e => setSort(e.target.value)}
+          <select aria-label="Sort parking results" value={sort} onChange={e => setSort(e.target.value)}
             style={{ flexShrink: 0, border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 8px", fontSize: 11, color: C.navy, cursor: "pointer", background: C.warmWhite }}>
             <option value="distance">Nearest</option>
             <option value="price">Price</option>
