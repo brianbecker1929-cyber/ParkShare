@@ -3894,9 +3894,27 @@ function HostDashboard({ user, setTab }) {
   const [connecting, setConnecting] = useState(false);
   const onboardingAttempt = useRef(null);
 
-  useEffect(() => () => {
-    if (onboardingAttempt.current) onboardingAttempt.current.active = false;
-    onboardingAttempt.current = null;
+  useEffect(() => {
+    const invalidateAttempt = () => {
+      if (onboardingAttempt.current) onboardingAttempt.current.active = false;
+      onboardingAttempt.current = null;
+    };
+    const restoreDashboard = event => {
+      if (!event.persisted) return;
+      // Back from Stripe can restore this component without remounting it.
+      // Discard the old link request and recheck status before another attempt.
+      invalidateAttempt();
+      setConnecting(false);
+      setConnectError("");
+      setDashboardReload(value => value + 1);
+    };
+    window.addEventListener("pagehide", invalidateAttempt);
+    window.addEventListener("pageshow", restoreDashboard);
+    return () => {
+      window.removeEventListener("pagehide", invalidateAttempt);
+      window.removeEventListener("pageshow", restoreDashboard);
+      invalidateAttempt();
+    };
   }, [user?.id]);
 
   useEffect(() => {

@@ -14,15 +14,15 @@ const session=id=>({data:{session:{access_token:id+'-token',user:{id}}}});
 const payload=id=>({listings:[{id:7,title:id+' PRIVATE LISTING',address:id+' PRIVATE ADDRESS',price:12}],reviews:[{id:1,listing_id:7,text:id+' PRIVATE REVIEW',profiles:{name:id+' reviewer'},rating:5}],bookings:[{id:42,listing_id:7,listings:{title:id+' PRIVATE LISTING',address:id+' PRIVATE ADDRESS'},profiles:{name:id+' PRIVATE DRIVER'},vehicle_make:'Fixture',license_plate:id+' PRIVATE PLATE',hours:1,total:13.8,status:'confirmed',scheduled_starts_at:'2026-12-01T15:00:00Z',property_time_zone:'America/Toronto'}]});
 const status=(enabled=false)=>({connected:true,chargesEnabled:enabled,payoutsEnabled:enabled});
 function harness({auth=async()=>session('A'),refresh=async()=>session('A'),fetcher=async url=>Response.json(url.includes('connect-status')?status():payload('A')),photo=async()=>null}={}){
- const state={},writes=[],requests=[],photos=[],redirects=[],refs=[];let effects=[],cursor=0,refCursor=0,actions,refreshes=0;
+ const state={},writes=[],requests=[],photos=[],redirects=[],refs=[],events=new EventTarget();let effects=[],cursor=0,refCursor=0,actions,refreshes=0;
  const values={useState:initial=>{const name=names[cursor++];if(!(name in state))state[name]=typeof initial==='function'?initial():initial;return [state[name],v=>{writes.push(name);state[name]=typeof v==='function'?v(state[name]):v;}];},useRef:initial=>refs[refCursor++]||(refs[refCursor-1]={current:initial}),useEffect:(fn,deps)=>effects.push({fn,deps}),
-  supabase:{auth:{getSession:()=>auth(),refreshSession:()=>{refreshes++;return refresh();}}},fetch:(url,init)=>{requests.push({url,...init});return fetcher(url,init);},fetchPrivateCoverDataUrl:(...args)=>{photos.push(args);return photo(...args);},clientBookingWindow:row=>({start:new Date(row.scheduled_starts_at),end:new Date(Date.parse(row.scheduled_starts_at)+3600000)}),clientBookingDisplay:()=>({date:'Dec 1',startTime:'10 AM',endTime:'11 AM'}),bookingEventFromRow:()=>null,setInterval:()=>1,clearInterval:()=>{},window:{location:{assign:url=>redirects.push(url)}}};
+  supabase:{auth:{getSession:()=>auth(),refreshSession:()=>{refreshes++;return refresh();}}},fetch:(url,init)=>{requests.push({url,...init});return fetcher(url,init);},fetchPrivateCoverDataUrl:(...args)=>{photos.push(args);return photo(...args);},clientBookingWindow:row=>({start:new Date(row.scheduled_starts_at),end:new Date(Date.parse(row.scheduled_starts_at)+3600000)}),clientBookingDisplay:()=>({date:'Dec 1',startTime:'10 AM',endTime:'11 AM'}),bookingEventFromRow:()=>null,setInterval:()=>1,clearInterval:()=>{},window:{addEventListener:events.addEventListener.bind(events),removeEventListener:events.removeEventListener.bind(events),location:{assign:url=>redirects.push(url)}}};
  const Component=new Function(...Object.keys(values),prefix+'return {connectStripe};\n}; return HostDashboard;')(...Object.values(values));
  const cleanups=[];
  function render(id='A'){cursor=0;refCursor=0;effects=[];actions=Component({user:id?{id}:null});return effects;}
  function run(kind){const match=effects.find(e=>kind==='load'?e.fn.toString().includes('/api/account-bookings'):kind==='status'?/connect-status|refreshStripeStatus/.test(e.fn.toString()):e.fn.toString().includes('onboardingAttempt'));if(!match){if(kind==='life')return ()=>{};throw Error('Missing effect '+kind);}const stop=match.fn();const cleanup=typeof stop==='function'?stop:()=>{};cleanups.push(cleanup);return cleanup;}
  render();
- return {state,writes,requests,photos,redirects,render,run,get refreshes(){return refreshes;},connect:()=>actions.connectStripe(),stop(){for(const stop of cleanups.splice(0))stop();}};
+ return {state,writes,requests,photos,redirects,render,run,get refreshes(){return refreshes;},page(type,persisted=true){const event=new Event(type);Object.defineProperty(event,'persisted',{value:persisted});events.dispatchEvent(event);},connect:()=>actions.connectStripe(),stop(){for(const stop of cleanups.splice(0))stop();}};
 }
 
 test('late Host account response cannot overwrite another account listings, drivers, reviews or plates',async()=>{
@@ -69,6 +69,29 @@ test('pending payout onboarding lookup or refresh cannot POST after leaving the 
 });
 test('repeated Connect clicks start one pending POST, bound to the original account',async()=>{
  const reply=deferred(),h=harness({fetcher:()=>reply.promise});h.run('life');const one=h.connect(),two=h.connect();await tick();assert.equal(h.requests.length,1);assert.equal(h.requests[0].method,'POST');assert.equal(h.requests[0].headers.Authorization,'Bearer A-token');assert.deepEqual(JSON.parse(h.requests[0].body),{});reply.resolve(Response.json({url:'https://connect.stripe.com/synthetic'}));await Promise.all([one,two]);assert.deepEqual(h.redirects,['https://connect.stripe.com/synthetic']);assert.equal(h.state.connecting,true);h.stop();
+});
+test('BUG-005491 cached Back return unlocks setup, refreshes payout status and creates a fresh link only on click',async()=>{
+ let links=0;const h=harness({fetcher:async url=>Response.json(url.includes('connect-status')?status(false):{url:'https://connect.stripe.com/link-'+(++links)})});h.run('life');await h.connect();
+ assert.equal(h.state.connecting,true);h.page('pageshow',false);assert.equal(h.state.connecting,true);assert.equal(h.state.dashboardReload,0);
+ h.page('pagehide');h.state.connectError='OLD ERROR';h.page('pageshow');assert.equal(h.state.connecting,false);assert.equal(h.state.connectError,'');assert.equal(h.state.dashboardReload,1);assert.equal(h.requests.length,1);assert.equal(links,1);
+ const effects=h.render();assert.ok(effects.find(e=>e.fn.toString().includes('/api/connect-status')).deps.includes(1));h.run('status');await tick();assert.equal(h.state.stripeStatus.loading,false);assert.equal(h.state.stripeStatus.payoutsEnabled,false);assert.equal(h.requests[1].cache,'no-store');assert.equal(h.requests[1].headers.Authorization,'Bearer A-token');
+ await h.connect();assert.deepEqual(h.redirects,['https://connect.stripe.com/link-1','https://connect.stripe.com/link-2']);assert.equal(links,2);h.stop();
+});
+test('BUG-005491 leaving the page invalidates a pending auth lookup before it can POST',async()=>{
+ const lookup=deferred(),h=harness({auth:()=>lookup.promise});h.run('life');const work=h.connect();h.page('pagehide');lookup.resolve(session('A'));await work;assert.equal(h.requests.length,0);assert.equal(h.redirects.length,0);h.page('pageshow');assert.equal(h.state.connecting,false);h.stop();
+});
+test('BUG-005491 stale success or failure cannot navigate, show errors or unlock a newer request after restoration',async()=>{
+ for(const fail of [false,true]){
+  const old=deferred(),fresh=deferred();let calls=0;const h=harness({fetcher:()=>++calls===1?old.promise:fresh.promise});h.run('life');const previous=h.connect();await tick();h.page('pagehide');h.page('pageshow');const current=h.connect();await tick();const n=h.writes.length;
+  if(fail)old.reject(Error('STALE ERROR'));else old.resolve(Response.json({url:'https://connect.stripe.com/OLD'}));await previous;assert.equal(h.writes.length,n);assert.equal(h.state.connecting,true);assert.equal(h.state.connectError,'');assert.equal(h.redirects.length,0);
+  await h.connect();assert.equal(calls,2);fresh.resolve(Response.json({url:'https://connect.stripe.com/FRESH'}));await current;assert.deepEqual(h.redirects,['https://connect.stripe.com/FRESH']);h.stop();
+ }
+});
+test('BUG-005491 pageshow alone also invalidates old work, and disposal removes both lifecycle listeners',async()=>{
+ const reply=deferred(),h=harness({fetcher:()=>reply.promise});h.run('life');const work=h.connect();await tick();h.page('pageshow');const n=h.writes.length;reply.resolve(Response.json({url:'https://connect.stripe.com/OLD'}));await work;assert.equal(h.writes.length,n);assert.equal(h.redirects.length,0);assert.equal(h.state.connecting,false);h.stop();h.page('pagehide');h.page('pageshow');assert.equal(h.writes.length,n);
+});
+test('BUG-005491 restored account switch refreshes only the new Host and removes the old listener',async()=>{
+ let owner='A';const h=harness({auth:async()=>session(owner),fetcher:async url=>Response.json(url.includes('connect-status')?status():{url:'https://connect.stripe.com/'+owner})});const leave=h.run('life');await h.connect();leave();owner='B';h.render('B');h.run('life');h.page('pageshow');assert.equal(h.state.dashboardReload,1);assert.equal(h.state.connecting,false);h.render('B');h.run('status');await tick();assert.equal(h.requests.at(-1).headers.Authorization,'Bearer B-token');await h.connect();assert.deepEqual(h.redirects,['https://connect.stripe.com/A','https://connect.stripe.com/B']);h.stop();
 });
 test('a completed onboarding POST cannot redirect or change UI after dashboard disposal',async()=>{
  const reply=deferred(),h=harness({fetcher:()=>reply.promise});h.run('life');const work=h.connect();await tick();h.stop();const n=h.writes.length;reply.resolve(Response.json({url:'https://connect.stripe.com/OLD'}));await work;assert.equal(h.requests.length,1);assert.equal(h.redirects.length,0);assert.equal(h.writes.length,n);
