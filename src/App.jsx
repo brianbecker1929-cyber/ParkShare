@@ -2739,7 +2739,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
   };
 
   return (
-    <main className="ps-discover-view">
+    <div className="ps-discover-view">
       <section className="ps-discover-hero">
         <span className="ps-discover-kicker">DISCOVER YOUR DESTINATION</span>
         <h1>Choose where you're going.<br />We'll help you park nearby.</h1>
@@ -2871,7 +2871,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           <EventSubmissionForm onClose={() => setEventSubmissionOpen(false)} />
         </Modal>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -6955,7 +6955,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   return (
-    <main className="ps-driver-profile-page">
+    <div className="ps-driver-profile-page">
       <section className="ps-driver-profile-intro">
         <div>
           <div className="ps-profile-eyebrow">DRIVER PROFILE</div>
@@ -7086,7 +7086,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
           <button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</button>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -7930,6 +7930,16 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
 
   return (
     <header className={`ps-header${dashboardMobileHeader ? " ps-header-dashboard" : ""}`} style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
+      <a className="ps-skip-link" href="#main-content" onClick={event => {
+        const content = document.getElementById("main-content");
+        if (!content) return;
+        event.preventDefault();
+        // Keep the target below the current desktop/mobile sticky header.
+        const headerHeight = event.currentTarget.closest("header")?.getBoundingClientRect().height || 0;
+        content.style.scrollMarginTop = `${Math.ceil(headerHeight) + 8}px`;
+        content.focus({ preventScroll: true });
+        content.scrollIntoView({ block: "start", behavior: "instant" });
+      }}>Skip to main content</a>
       <style>{`
         /* One header system for every public ParkShare page. */
         .ps-mobile-header-row { display: none !important; }
@@ -8400,6 +8410,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* Section 1 — Hero */}
       <section className="ps-home-v2-hero">
@@ -8536,6 +8547,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       </section>
 
       {/* Section 7 — Footer */}
+      </main>
       <HomeFooter
         hostFirst
         onLegalClick={onLegalClick}
@@ -8614,6 +8626,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
         <div id="legal-documents" style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32, scrollMarginTop: 90 }}>
@@ -8860,6 +8873,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         </div>
       </div>
 
+      </main>
       <HomeFooter onLegalClick={(section = "terms") => document.getElementById(section)?.scrollIntoView({ block: "start" })} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -8947,6 +8961,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
     <div className="ps-trust-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={onHostClick} onAboutClick={onAboutClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       <section id="trust" className="ps-trust-v2-hero">
         <div className="ps-trust-v2-hero-copy">
@@ -8977,7 +8992,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         {TRUST_SECTIONS.map((s) => <button key={s.id} onClick={() => s.id === "privacy" ? onLegalClick?.("privacy") : scrollTo(s.id)}><span>{s.icon}</span>{s.title}</button>)}
       </nav>
 
-      <main className="ps-trust-v2-content">
+      <div className="ps-trust-v2-content">
         <section id="community" className="ps-trust-v2-intro">
           <div className="ps-trust-v2-eyebrow">A MARKETPLACE BUILT ON CLEAR EXPECTATIONS</div>
           <h2>Safety works better when everyone knows their part.</h2>
@@ -9062,8 +9077,9 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           <div className="ps-trust-v2-closing-actions"><button className="ps-trust-v2-primary" onClick={onDriverClick}>Find Parking</button><button className="ps-trust-v2-closing-dark" onClick={onHostClick}>Become a Host</button></div>
           <button className="ps-trust-v2-legal-link" onClick={onLegalClick}>Review ParkShare Legal &amp; T/C →</button>
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -9105,6 +9121,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut}
         onHostClick={onHostClick} onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       <section id="about" className="ps-about-hero">
         <div className="ps-about-hero-copy">
@@ -9138,7 +9155,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         ))}
       </nav>
 
-      <main className="ps-about-content">
+      <div className="ps-about-content">
         <section className="ps-about-intro">
           <P>Every day, parking spaces sit empty while Drivers search for somewhere convenient to park — near work, transit, events, hospitals, restaurants, campuses and neighbourhood destinations.</P>
           <P>At the same time, homeowners and property owners already have parking space that may be unused for hours at a time.</P>
@@ -9272,8 +9289,9 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
           <button className="ps-about-trust-link" onClick={onTrustClick}>Learn About Trust &amp; Safety →</button>
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
         onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
@@ -9380,6 +9398,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       {/* Hero */}
       <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
@@ -9684,6 +9703,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
       </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -9815,6 +9835,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* 1 — Hero */}
       <section className="ps-driver-v2-hero">
@@ -9850,7 +9871,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         ))}
       </nav>
 
-      <main className="ps-driver-v2-main">
+      <div className="ps-driver-v2-main">
         {/* 2 — Find Parking That Fits Your Plans */}
         <section id="find" className="ps-driver-v2-find">
           <div className="ps-driver-v2-intro">
@@ -10039,8 +10060,9 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
             draggable={false}
           />
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -10681,6 +10703,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         onTrustClick={onTrustClick}
         onHelpClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="ps-help-hero">
         <div className="ps-help-hero-copy">
@@ -10716,7 +10739,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </div>
       </section>
 
-      <main className="ps-help-shell">
+      <div className="ps-help-shell">
         {searching ? (
           <div className="ps-help-search-results">
             <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
@@ -10814,8 +10837,9 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             </div>
           </section>
         </div>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -10937,6 +10961,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="ps-contact-hero">
         <div className="ps-contact-hero-copy">
@@ -10956,7 +10981,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </div>
       </section>
 
-      <main className="ps-contact-shell">
+      <div className="ps-contact-shell">
         <section className="ps-contact-details">
           <div>
             <h2>Reach ParkShare Support</h2>
@@ -10986,8 +11011,9 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
             </form>
           )}
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -11867,6 +11893,7 @@ export default function App() {
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
           <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
           <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} onHostClick={openHost} onAboutClick={openAbout} onTrustClick={openTrust} onHelpClick={openHelp} />
+          <main id="main-content" tabIndex={-1}>
           {driverProfileCompletion && !driverProfileCompletion.complete && tab !== "Profile" && (
             <div className="ps-profile-reminder" role="status">
               <span><strong>Complete your Driver profile</strong> · {driverProfileCompletion.completed} of {driverProfileCompletion.total} details ready</span>
@@ -11889,6 +11916,7 @@ export default function App() {
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key={"driver:" + user?.id} user={user} />
             : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}
+          </main>
           {messageThread && <MessagingPanel key={messageConversationKey(user?.id, messageThread)} listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />

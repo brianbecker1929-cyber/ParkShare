@@ -1,5 +1,26 @@
 * { box-sizing: border-box; }
 
+.ps-skip-link {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  z-index: 200;
+  max-width: calc(100% - 24px);
+  padding: 12px 16px;
+  border: 2px solid #0E1B2E;
+  border-radius: 8px;
+  background: #fff;
+  color: #0E1B2E;
+  font-weight: 700;
+  text-decoration: underline;
+  transform: translateY(calc(-100% - 12px));
+}
+.ps-skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid #FFC107;
+  outline-offset: 2px;
+}
+
 /* Discover disclosure: the panel is portaled beyond horizontal nav clipping. */
 .ps-header .ps-discover-nav-trigger {
   display: inline-flex;
