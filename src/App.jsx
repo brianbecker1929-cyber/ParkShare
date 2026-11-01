@@ -7694,58 +7694,48 @@ function NativeDialog({ children, onClose, title, className, style, returnFocus 
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
-// ─── Floating Parker Help Assistant ────────────────────────────────────────────
-function FloatingParkerHelp({ onHelpClick, onContactClick }) {
+// ─── Parker Help Assistant ─────────────────────────────────────────────────────
+function ParkerHelp({ onHelpClick, onContactClick }) {
   const [open, setOpen] = useState(false);
   const [activeQ, setActiveQ] = useState(null);
-  const [pos, setPos] = useState(null); // { right, bottom } in px; null = default corner
-  const dragState = useRef({ dragging: false, moved: false, startX: 0, startY: 0, startRight: 16, startBottom: 16 });
+  const panelId = useId();
+  const trigger = useRef(null);
+  const backButton = useRef(null);
+  const topicButtons = useRef([]);
+  const focusAfterChange = useRef(null);
 
-  const BTN_SIZE = 60;
+  useEffect(() => {
+    const target = focusAfterChange.current;
+    focusAfterChange.current = null;
+    if (!open || target === null) return;
+    (target === "answer" ? backButton.current : topicButtons.current[target])?.focus();
+  }, [open, activeQ]);
 
-  const clampPos = (right, bottom) => {
-    const maxRight = window.innerWidth - BTN_SIZE;
-    const maxBottom = window.innerHeight - BTN_SIZE;
-    return { right: Math.min(Math.max(right, 0), maxRight), bottom: Math.min(Math.max(bottom, 0), maxBottom) };
+  const closeHelp = () => {
+    setOpen(false);
+    setActiveQ(null);
+    focusAfterChange.current = null;
+    trigger.current?.focus();
   };
 
-  const onPointerDown = (e) => {
-    const current = pos || { right: 16, bottom: 16 };
-    dragState.current = {
-      dragging: true, moved: false,
-      startX: e.clientX, startY: e.clientY,
-      startRight: current.right, startBottom: current.bottom,
-    };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-
-  const onPointerMove = (e) => {
-    const d = dragState.current;
-    if (!d.dragging) return;
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
-    if (d.moved) {
-      setPos(clampPos(d.startRight - dx, d.startBottom - dy));
-    }
-  };
-
-  const onPointerUp = () => {
-    dragState.current.dragging = false;
-  };
-
-  const handleClick = () => {
-    if (dragState.current.moved) { dragState.current.moved = false; return; }
-    setOpen(o => !o);
-  };
-
-  const corner = pos || { right: 16, bottom: 16 };
-  const panelOnLeft = corner.right > (typeof window !== "undefined" ? window.innerWidth - 340 : 340);
-
+  // Reserve space in document flow: help must never sit over maps, reviews or cards.
   return (
-    <div style={{ position: "fixed", right: corner.right, bottom: corner.bottom, zIndex: 1500, fontFamily: "'Poppins', sans-serif" }}>
+    <div className="ps-parker-help" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 60px", alignItems: "center", gap: 16, width: "100%", maxWidth: 1180, boxSizing: "border-box", padding: "20px 24px", margin: "0 auto", fontFamily: "'Poppins', sans-serif" }} onKeyDown={event => {
+      if (event.key === "Escape" && open) { event.preventDefault(); closeHelp(); }
+    }}>
+      <div style={{ minWidth: 0, color: C.navy }}>
+        <strong>Need a hand?</strong>
+        <div style={{ fontSize: 13 }}>Ask Parker for help with ParkShare.</div>
+      </div>
+      <button ref={trigger} type="button" aria-label="ParkShare help" aria-expanded={open} aria-controls={panelId}
+        onClick={() => { if (open) closeHelp(); else setOpen(true); }}
+        style={{ width: 60, height: 60, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white,
+          boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px " + C.navy, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 0, overflow: "hidden", touchAction: "manipulation" }}>
+        <img src={PARKER.icon} alt="Parker help" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+      </button>
       {open && (
-        <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
+        <div id={panelId} role="region" aria-label="Ask Parker" style={{ gridColumn: "1 / -1", justifySelf: "end", width: "100%", minWidth: 0, maxWidth: 540, boxSizing: "border-box", background: C.white, borderRadius: 18, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "2px solid " + C.navy }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderRadius: "16px 16px 0 0", position: "relative", zIndex: 1 }}>
             <div style={{ width: 68, height: 68, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 2 }}>
               <img src={PARKER.icon} alt="Parker" style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -7754,7 +7744,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
               <div style={{ color: C.white, fontWeight: 700, fontSize: 14 }}>Ask Parker</div>
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 11 }}>Your ParkShare helper</div>
             </div>
-            <button onClick={() => { setOpen(false); setActiveQ(null); }} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 26, height: 26, cursor: "pointer", color: C.white, fontSize: 14, flexShrink: 0 }}>×</button>
+            <button type="button" aria-label="Close Parker help" onClick={closeHelp} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 44, height: 44, cursor: "pointer", color: C.white, fontSize: 14, flexShrink: 0 }}>×</button>
           </div>
 
           <div style={{ padding: "14px 16px" }}>
@@ -7763,7 +7753,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Hi, I'm Parker! What can I help with?</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {HELP_TOPICS.map((t, i) => (
-                    <button key={i} onClick={() => setActiveQ(i)} style={{ textAlign: "left", background: C.warmWhite, border: "1.5px solid " + C.concrete, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: C.navy, fontWeight: 600, cursor: "pointer" }}>
+                    <button key={i} ref={node => { topicButtons.current[i] = node; }} type="button" onClick={() => { focusAfterChange.current = "answer"; setActiveQ(i); }} style={{ textAlign: "left", background: C.warmWhite, border: "1.5px solid " + C.concrete, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: C.navy, fontWeight: 600, cursor: "pointer" }}>
                       {t.q}
                     </button>
                   ))}
@@ -7774,7 +7764,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
               </>
             ) : (
               <div>
-                <button onClick={() => setActiveQ(null)} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: 0, marginBottom: 10 }}>← Back to topics</button>
+                <button ref={backButton} type="button" onClick={() => { focusAfterChange.current = activeQ; setActiveQ(null); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: 0, marginBottom: 10 }}>← Back to topics</button>
                 <div style={{ fontWeight: 700, color: C.navy, fontSize: 13, marginBottom: 8 }}>{HELP_TOPICS[activeQ].q}</div>
                 <div style={{ background: C.mossLight, border: "1px solid " + C.moss, borderRadius: 10, padding: "12px 14px", color: C.navy, fontSize: 13, lineHeight: 1.5 }}>
                   {HELP_TOPICS[activeQ].a}
@@ -7790,21 +7780,6 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
           </div>
         </div>
       )}
-
-      <button
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClick={handleClick}
-        style={{
-          width: BTN_SIZE, height: BTN_SIZE, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white,
-          boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px " + C.navy, cursor: "grab",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 0, overflow: "hidden",
-          marginLeft: "auto", touchAction: "none", userSelect: "none",
-        }} aria-label="ParkShare help">
-        <img src={PARKER.icon} alt="Parker help" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
-      </button>
     </div>
   );
 }
@@ -11945,9 +11920,9 @@ export default function App() {
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key={"driver:" + user?.id} user={user} />
             : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}
+          {tab !== "Profile" && <ParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           </main>
           {messageThread && <MessagingPanel key={messageConversationKey(user?.id, messageThread)} listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
-          {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
