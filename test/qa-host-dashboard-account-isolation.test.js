@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import React from 'react';
+import {createHostListingJournal} from '../src/lib/hostListingState.js';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 
@@ -14,15 +15,15 @@ const session=id=>({data:{session:{access_token:id+'-token',user:{id}}}});
 const payload=id=>({listings:[{id:7,title:id+' PRIVATE LISTING',address:id+' PRIVATE ADDRESS',price:12}],reviews:[{id:1,listing_id:7,text:id+' PRIVATE REVIEW',profiles:{name:id+' reviewer'},rating:5}],bookings:[{id:42,listing_id:7,listings:{title:id+' PRIVATE LISTING',address:id+' PRIVATE ADDRESS'},profiles:{name:id+' PRIVATE DRIVER'},vehicle_make:'Fixture',license_plate:id+' PRIVATE PLATE',hours:1,total:13.8,status:'confirmed',scheduled_starts_at:'2026-12-01T15:00:00Z',property_time_zone:'America/Toronto'}]});
 const status=(enabled=false)=>({connected:true,chargesEnabled:enabled,payoutsEnabled:enabled});
 function harness({auth=async()=>session('A'),refresh=async()=>session('A'),fetcher=async url=>Response.json(url.includes('connect-status')?status():payload('A')),photo=async()=>null}={}){
- const state={},writes=[],requests=[],photos=[],redirects=[],refs=[],events=new EventTarget();let effects=[],cursor=0,refCursor=0,actions,refreshes=0;
- const values={useState:initial=>{const name=names[cursor++];if(!(name in state))state[name]=typeof initial==='function'?initial():initial;return [state[name],v=>{writes.push(name);state[name]=typeof v==='function'?v(state[name]):v;}];},useRef:initial=>refs[refCursor++]||(refs[refCursor-1]={current:initial}),useEffect:(fn,deps)=>effects.push({fn,deps}),
+ const state={},writes=[],requests=[],photos=[],redirects=[],refs=[],events=new EventTarget(),memos=new Map();let effects=[],cursor=0,refCursor=0,actions,refreshes=0;
+ const values={createHostListingJournal:account=>createHostListingJournal(account,null),useMemo:(fn,deps)=>{const key=deps.join();if(!memos.has(key))memos.set(key,fn());return memos.get(key);},useState:initial=>{const name=names[cursor++];if(!(name in state))state[name]=typeof initial==='function'?initial():initial;return [state[name],v=>{writes.push(name);state[name]=typeof v==='function'?v(state[name]):v;}];},useRef:initial=>refs[refCursor++]||(refs[refCursor-1]={current:initial}),useEffect:(fn,deps)=>effects.push({fn,deps}),
   supabase:{auth:{getSession:()=>auth(),refreshSession:()=>{refreshes++;return refresh();}}},fetch:(url,init)=>{requests.push({url,...init});return fetcher(url,init);},fetchPrivateCoverDataUrl:(...args)=>{photos.push(args);return photo(...args);},clientBookingWindow:row=>({start:new Date(row.scheduled_starts_at),end:new Date(Date.parse(row.scheduled_starts_at)+3600000)}),clientBookingDisplay:()=>({date:'Dec 1',startTime:'10 AM',endTime:'11 AM'}),bookingEventFromRow:()=>null,setInterval:()=>1,clearInterval:()=>{},window:{addEventListener:events.addEventListener.bind(events),removeEventListener:events.removeEventListener.bind(events),location:{assign:url=>redirects.push(url)}}};
  const Component=new Function(...Object.keys(values),prefix+'return {connectStripe};\n}; return HostDashboard;')(...Object.values(values));
  const cleanups=[];
  function render(id='A'){cursor=0;refCursor=0;effects=[];actions=Component({user:id?{id}:null});return effects;}
  function run(kind){const match=effects.find(e=>kind==='load'?e.fn.toString().includes('/api/account-bookings'):kind==='status'?/connect-status|refreshStripeStatus/.test(e.fn.toString()):e.fn.toString().includes('onboardingAttempt'));if(!match){if(kind==='life')return ()=>{};throw Error('Missing effect '+kind);}const stop=match.fn();const cleanup=typeof stop==='function'?stop:()=>{};cleanups.push(cleanup);return cleanup;}
  render();
- return {state,writes,requests,photos,redirects,render,run,get refreshes(){return refreshes;},page(type,persisted=true){const event=new Event(type);Object.defineProperty(event,'persisted',{value:persisted});events.dispatchEvent(event);},connect:()=>actions.connectStripe(),stop(){for(const stop of cleanups.splice(0))stop();}};
+ return {state,writes,requests,photos,redirects,render,run,journal:()=>memos.values().next().value,get refreshes(){return refreshes;},page(type,persisted=true){const event=new Event(type);Object.defineProperty(event,'persisted',{value:persisted});events.dispatchEvent(event);},connect:()=>actions.connectStripe(),stop(){for(const stop of cleanups.splice(0))stop();}};
 }
 
 test('late Host account response cannot overwrite another account listings, drivers, reviews or plates',async()=>{
@@ -113,7 +114,7 @@ test('actual Host Dashboard key remounts cards, dialogs and payout state for eve
 async function hostMarkup(overrides={},inspect){
  const whole=source.slice(begin,source.indexOf('// ─── Messages Inbox',begin)),stateNames=[...whole.matchAll(/const \[(\w+), \w+\] = useState/g)].map(m=>m[1]);let index=0;
  const components=Object.fromEntries([...whole.matchAll(/<([A-Z]\w*)\b/g)].map(m=>[m[1],()=>null]));
- const values={React,...components,useHostListingEdit:()=>({listing:null}),useHostListingDeletion:()=>({deletingId:null,confirmDeleteId:null}),useBookingCancellation:()=>({target:null,busy:false,error:"",notice:""}),C:new Proxy({},{get:()=>'#000'}),useState:initial=>{const name=stateNames[index++];return [name in overrides?overrides[name]:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect:()=>{},useTransactions:()=>overrides.transactions||({data:{earned:[],payouts:[]},loading:false,error:''}),hostEarnedTotal:()=>0,getBookingDisplayStatus:()=>'',money:v=>'$'+v,hostTransactionPresentation:()=>({label:'Paid'}),hostEarningsContribution:()=>0};
+ const values={React,...components,createHostListingJournal:account=>createHostListingJournal(account,null),useMemo:fn=>fn(),useHostListingEdit:()=>({listing:null}),useHostListingDeletion:()=>({deletingId:null,confirmDeleteId:null}),useBookingCancellation:()=>({target:null,busy:false,error:"",notice:""}),C:new Proxy({},{get:()=>'#000'}),useState:initial=>{const name=stateNames[index++];return [name in overrides?overrides[name]:typeof initial==='function'?initial():initial,()=>{}];},useRef:initial=>({current:initial}),useEffect:()=>{},useTransactions:()=>overrides.transactions||({data:{earned:[],payouts:[]},loading:false,error:''}),hostEarnedTotal:()=>0,getBookingDisplayStatus:()=>'',money:v=>'$'+v,hostTransactionPresentation:()=>({label:'Paid'}),hostEarningsContribution:()=>0};
  const compiled=await transform(whole,{loader:'jsx'}),View=new Function(...Object.keys(values),compiled.code+';return HostDashboard;')(...Object.values(values));
  const tree=View({user:{id:'A',name:'Fixture Host'}});inspect?.(tree);return renderToStaticMarkup(tree);
 }
@@ -143,4 +144,20 @@ test('Host Retry transactions control invokes the financial hook retry directly'
  let calls=0,button;const walk=node=>{if(!React.isValidElement(node))return;if(node.type==='button'&&node.props.children==='Retry transactions')button=node;React.Children.forEach(node.props.children,walk);};
  await hostMarkup({transactions:{data:{earned:[],payouts:[]},loading:false,error:'Unavailable',retry:()=>calls++}},walk);
  assert.ok(button);assert.equal(button.props.type,'button');assert.ok(button.props.style.minHeight>=44);button.props.onClick();assert.equal(calls,1);
+});
+
+test('BUG-005488 a delayed dashboard snapshot cannot revive a confirmed deleted card or revert saved fields',async()=>{
+ const pending=deferred(),h=harness({fetcher:()=>pending.promise});h.run('load');await tick();h.journal().remove('db-7');pending.resolve(Response.json(payload('A')));await tick();assert.deepEqual(h.state.dbListings,[]);assert.equal(h.state.dbBookings.length,1,'Reservation history is retained');h.stop();
+ const edit=deferred(),other=harness({fetcher:()=>edit.promise});other.run('load');await tick();other.journal().save('db-7',{price:15,description:'Saved',features:[],spots:[],spaces:1});edit.resolve(Response.json(payload('A')));await tick();assert.equal(other.state.dbListings[0].price,15);assert.equal(other.state.dbListings[0].description,'Saved');other.stop();
+});
+test('BUG-005488 listing confirmation is a visible live status and cannot leak another account notice',async()=>{
+ const notice={accountId:'A',message:'Listing deleted.',error:false};assert.match(await hostMarkup({listingNotice:notice}),/role="status"[^>]*>Listing deleted/);assert.match(await hostMarkup({listingNotice:{...notice,error:true,message:'Unable to confirm deletion.'}}),/role="alert"[^>]*>Unable to confirm deletion/);assert.doesNotMatch(await hostMarkup({listingNotice:{...notice,accountId:'B',message:'OTHER PRIVATE NOTICE'}}),/OTHER PRIVATE NOTICE/);
+});
+
+test('BUG-005488 feedback stays beside Your listings on the mobile dashboard',async()=>{
+ let panel;const walk=node=>{if(!React.isValidElement(node))return;if(node.props.id==='host-dashboard-listings')panel=node;React.Children.forEach(node.props.children,walk);};await hostMarkup({listingNotice:{accountId:'A',message:'Listing changes saved.',error:false}},walk);assert.ok(panel);assert.match(renderToStaticMarkup(panel),/Listing changes saved/);
+});
+
+test('BUG-005488 an explicit newer dashboard read accepts subsequent server edits',async()=>{
+ const h=harness({fetcher:async()=>Response.json({...payload('A'),listings:[{id:7,title:'Server',price:18}]})});h.journal().save(7,{price:15,description:'Prior save',features:[],spots:[],spaces:1});h.run('load');await tick();assert.equal(h.state.dbListings[0].price,18);h.stop();
 });

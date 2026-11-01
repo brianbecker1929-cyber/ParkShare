@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import React from 'react';
 import {transform} from 'esbuild';
 import {validId} from '../src/lib/privateListingAccess.js';
+import {listingEditMatches} from '../src/lib/hostListingState.js';
 import {validateHourlyRate} from '../src/lib/listingPrice.js';
 const source=await readFile(process.env.QA_LISTING_EDIT_SOURCE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const a=source.indexOf('async function persistHostListingEdit(');let code;
@@ -14,18 +15,18 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const session=id=>({data:{session:{user:{id},access_token:id+'-token'}}});
 const fixture=(id=7)=>({rawId:id,id:'db-'+id,title:'PRIVATE TITLE',address:'PRIVATE ADDRESS',photos:['PRIVATE PHOTO'],price:12,description:'Old description',features:['CCTV'],spots:[{id:'A',bounds:{north:1,south:0,east:1,west:0},forRent:true}],spaces:1});
 const saved=(id=7)=>({id,price:'13.50',description:'Server description',features:['Covered'],spots:[{id:'A',bounds:{north:1,south:0,east:1,west:0},forRent:true}],spaces:1});
-function harness({auth=async()=>session('A'),reply=async()=>({data:saved(),error:null})}={}){
+function harness({auth=async()=>session('A'),reply=async()=>({data:saved(),error:null}),read=async()=>({data:null,error:null}),onUnavailable=null}={}){
  const slots=[],effects=[],cleanups=[],writes=[],queries=[],updates=[],alerts=[];let cursor=0,changed=false,result,owner='A',authCalls=0;
- const values={validId,validateHourlyRate,structuredClone,useState:initial=>{const n=cursor++;if(!slots[n])slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;changed=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:fn=>{const n=cursor++;if(!slots[n]){slots[n]={};effects.push(fn);}},alert:m=>alerts.push(m),setDbListings:fn=>updates.push(fn([fixture(7),fixture(8)])),supabase:{auth:{getSession:()=>{authCalls++;return auth();}},from:table=>({update:payload=>{const query={table,payload,filters:[],select:null};queries.push(query);const builder={eq:(key,value)=>{query.filters.push([key,value]);return builder;},select:columns=>{query.select=columns;return builder;},maybeSingle:()=>reply(query),then:(yes,no)=>Promise.resolve(reply(query)).then(yes,no)};return builder;}})}};
+ const values={validId,validateHourlyRate,listingEditMatches,structuredClone,useState:initial=>{const n=cursor++;if(!slots[n])slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;changed=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:fn=>{const n=cursor++;if(!slots[n]){slots[n]={};effects.push(fn);}},alert:m=>alerts.push(m),setDbListings:fn=>updates.push(fn([fixture(7),fixture(8)])),supabase:{auth:{getSession:()=>{authCalls++;return auth();}},from:table=>({select:columns=>{const query={table,payload:null,filters:[],select:columns};queries.push(query);const builder={eq:(key,value)=>{query.filters.push([key,value]);return builder;},maybeSingle:()=>read(query)};return builder;},update:payload=>{const query={table,payload,filters:[],select:null};queries.push(query);const builder={eq:(key,value)=>{query.filters.push([key,value]);return builder;},select:columns=>{query.select=columns;return builder;},maybeSingle:()=>reply(query),then:(yes,no)=>Promise.resolve(reply(query)).then(yes,no)};return builder;}})}};
  const Hook=new Function(...Object.keys(values),code+';return useHostListingEdit;')(...Object.values(values));
- function render(id=owner){owner=id;let n=0;do{cursor=0;changed=false;result=Hook(id?{id}:null,(id,data)=>updates.push({id,data}));assert.ok(++n<5);}while(changed);for(const fn of effects.splice(0))cleanups.push(fn());return result;}
+ function render(id=owner){owner=id;let n=0;do{cursor=0;changed=false;result=Hook(id?{id}:null,(id,data)=>updates.push({id,data}),onUnavailable);assert.ok(++n<5);}while(changed);for(const fn of effects.splice(0))cleanups.push(fn());return result;}
  const open=(id=7)=>{render().open(fixture(id));return render();};
  const stop=()=>{for(const fn of cleanups.splice(0))fn?.();};
  return {render,open,stop,queries,updates,alerts,writes,slots,get authCalls(){return authCalls;}};
 }
 
 test('zero-row listing update is rejected instead of reporting success or changing the card',async()=>{
- const h=harness({reply:async()=>({data:null,error:null})}),editor=h.open();await assert.rejects(editor.save({...fixture(),price:13}),/wasn't updated/);assert.equal(h.updates.length,0);assert.ok(h.render().listing);h.stop();
+ const h=harness({reply:async()=>({data:null,error:null})}),editor=h.open();await assert.rejects(editor.save({...fixture(),price:13}),/no longer available/);assert.equal(h.updates.length,0);assert.ok(h.render().listing);h.stop();
 });
 test('listing save rejects a different session owner before issuing an update',async()=>{
  const h=harness({auth:async()=>session('B')}),editor=h.open();await assert.rejects(editor.save(fixture()),/account changed|expired/i);assert.equal(h.queries.length,0);assert.equal(h.updates.length,0);h.stop();
@@ -93,7 +94,18 @@ test('actual editor validates rate and rentable spots before starting save',asyn
  for(const [index,value] of [[0,'-1'],[4,[false]]]){const h=modal();h.states[index]=value;await h.save();assert.equal(h.payloads.length,0);assert.equal(h.closed,0);assert.ok(h.states[6]);h.stop();}
 });
 test('actual Host binding applies only saved fields and keys each editor with scoped handlers',async()=>{
- const start=source.indexOf('  const { listing: editingListing'),end=source.indexOf('\n    });',start)+8;let args,rows;
+ const start=source.indexOf('  const { listing: editingListing'),end=source.indexOf('\n\n  const { target: cancelTarget',start);let args,rows;
  const props={listing:fixture(),requestKey:7,open:()=>{},close:()=>{},save:()=>{},isCurrent:()=>true};
- const bindings=new Function('useHostListingEdit','user','setDbListings',source.slice(start,end)+';return {editingListing,editingKey,openListingEdit,closeListingEdit,saveListingEdit,isListingEditCurrent};')((...values)=>{args=values;return props;},{id:'A'},fn=>{rows=fn([fixture(7),fixture(8)]);});args[1]('db-7',{price:13.5});assert.equal(rows[0].price,13.5);assert.equal(rows[1].price,12);assert.equal(rows[0].id,'db-7');const x=source.indexOf('<EditListingModal\n'),tag=source.slice(x,source.indexOf('/>',x)+2),built=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,EditListingModal:()=>null,...bindings},element=new Function(...Object.keys(values),built.code+';return Parent;')(...Object.values(values))();assert.equal(element.key,'7');assert.equal(element.props.onSave,props.save);assert.equal(element.props.onClose,props.close);assert.equal(element.props.isContextCurrent,props.isCurrent);assert.match(source,/openListingEdit\(l\)/);
+ const bindings=new Function('useHostListingEdit','user','setDbListings','listingJournal','showListingNotice',source.slice(start,end)+';return {editingListing,editingKey,openListingEdit,closeListingEdit,saveListingEdit,isListingEditCurrent};')((...values)=>{args=values;return props;},{id:'A'},fn=>{rows=fn([fixture(7),fixture(8)]);},{save(){},hide(){}},()=>{});args[1]('db-7',{price:13.5});assert.equal(rows[0].price,13.5);assert.equal(rows[1].price,12);assert.equal(rows[0].id,'db-7');const x=source.indexOf('<EditListingModal\n'),tag=source.slice(x,source.indexOf('/>',x)+2),built=await transform('function Parent(){return '+tag+';}',{loader:'jsx'});const values={React,EditListingModal:()=>null,...bindings},element=new Function(...Object.keys(values),built.code+';return Parent;')(...Object.values(values))();assert.equal(element.key,'7');assert.equal(element.props.onSave,props.save);assert.equal(element.props.onClose,props.close);assert.equal(element.props.isContextCurrent,props.isCurrent);assert.match(source,/openListingEdit\(l\)/);
+});
+
+test('BUG-005488 empty successful PATCH verifies persisted values once without replaying a write',async()=>{
+ const original=fixture(),h=harness({reply:async()=>({data:null,error:null}),read:async()=>({data:{...original,id:7,price:'12.00'},error:null})});try{assert.equal(await h.open().save(original),true);assert.equal(h.queries.length,2);assert.equal(h.queries[1].payload,null);assert.deepEqual(h.queries[1].filters,[['id',7],['host_id','A']]);assert.equal(h.updates[0].data.price,12);assert.equal(h.authCalls,2);}finally{h.stop();}
+});
+test('BUG-005488 empty PATCH with missing or different stored values never reports saved',async()=>{
+ for(const kind of ['missing','different','error']){const unavailable=[],h=harness({reply:async()=>({data:null,error:null}),read:async()=>kind==='error'?{error:Error('private')}:{data:kind==='missing'?null:saved(),error:null},onUnavailable:(...args)=>unavailable.push(args)});try{const editor=h.open();if(kind==='missing'){assert.equal(await editor.save(fixture()),false);assert.equal(unavailable[0][0],'db-7');assert.match(unavailable[0][1],/already have been deleted/);assert.equal(h.render().listing,null);}else{await assert.rejects(editor.save(fixture()),/confirm saved changes/);assert.equal(unavailable.length,0);assert.ok(h.render().listing);}assert.equal(h.updates.length,0);assert.equal(h.queries.filter(q=>q.payload).length,1);}finally{h.stop();}}
+});
+test('BUG-005488 fallback read cannot publish after close or an SDK session switch',async()=>{
+ const pending=deferred(),h=harness({reply:async()=>({data:null,error:null}),read:()=>pending.promise}),editor=h.open(),work=editor.save(fixture());await tick();editor.close();pending.resolve({data:{...fixture(),id:7}});assert.equal(await work,false);assert.equal(h.updates.length,0);h.stop();
+ let n=0;const unavailable=[],changed=harness({auth:async()=>session(++n===1?'A':'B'),reply:async()=>({data:null,error:null}),read:async()=>({data:null}),onUnavailable:()=>unavailable.push(true)});await assert.rejects(changed.open().save(fixture()),/account changed/);assert.equal(unavailable.length,0);assert.equal(changed.updates.length,0);changed.stop();
 });

@@ -33,6 +33,7 @@ function publicBookingShape(row, listing, participantName, fullLocation, histori
 }
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "private, no-store");
   if (!jsonMethod(req, res, "GET")) return;
   const user = await requireUser(req, res);
   if (!user) return;

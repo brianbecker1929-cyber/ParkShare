@@ -1,3 +1,4 @@
+import {createHostListingJournal, listingEditMatches} from "./lib/hostListingState.js";
 import HostOnboarding from "./components/HostOnboarding.jsx";
 import DeferredAuth from "./components/DeferredAuth.jsx";
 import HostProfileView from "./components/HostProfileView.jsx";
@@ -3764,7 +3765,7 @@ function ListingDeletionDialog({ title, busy, onClose, onConfirm }) {
   </Modal>;
 }
 
-function useHostListingDeletion(user, onDeleted) {
+function useHostListingDeletion(user, onDeleted, onNotice = null) {
   const accountId = user?.id || null;
   const [context, setContext] = useState(() => ({ accountId, request: null }));
   let current = context;
@@ -3805,9 +3806,14 @@ function useHostListingDeletion(user, onDeleted) {
     try {
       const result = await deleteHostListing(supabase, { listingId: request.rawId, hostId: accountId, isContextCurrent: () => isCurrent(token) });
       if (!isCurrent(token) || result.obsolete) return;
-      if (!result.ok) { alert(result.message); return; }
+      if (!result.ok) {
+        if (result.unavailable) onDeleted(request.displayId);
+        if (onNotice) onNotice(result.message, !result.unavailable); else alert(result.message);
+        return;
+      }
       onDeleted(request.displayId);
-      if (result.photoCleanupPending) alert("Listing deleted. Photo cleanup is queued and will retry automatically.");
+      const message = result.photoCleanupPending ? "Listing deleted. Photo cleanup is queued and will retry automatically." : "Listing deleted.";
+      if (onNotice) onNotice(message, false); else if (result.photoCleanupPending) alert(message);
     } finally {
       token.pending = false;
       if (isCurrent(token)) {
@@ -3835,12 +3841,31 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
     throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
   }
   if (!isContextCurrent()) return null;
-  const { data, error } = await supabase.from("listings").update(changes)
+  const { data: updatedRow, error } = await supabase.from("listings").update(changes)
     .eq("id", listingId).eq("host_id", accountId)
     .select("id,price,description,features,spots,spaces").maybeSingle();
   if (!isContextCurrent()) return null;
   if (error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
-  if (!data || String(data.id) !== String(listingId)) throw new Error("This listing wasn't updated. Refresh your listings and reopen the editor.");
+  let data = updatedRow;
+  if (!data) {
+    // HTTP success without a representation cannot prove whether a write
+    // matched. Read once under the same owner; never replay the mutation.
+    const verified = await supabase.from("listings").select("id,price,description,features,spots,spaces")
+      .eq("id", listingId).eq("host_id", accountId).maybeSingle();
+    if (!isContextCurrent()) return null;
+    const {data: latestAuth, error: latestAuthError} = await supabase.auth.getSession();
+    if (!isContextCurrent()) return null;
+    if (latestAuthError || !latestAuth?.session?.access_token || latestAuth.session.user?.id !== accountId) throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
+    if (verified.error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+    if (!verified.data) {
+      const missing = new Error("This listing is no longer available. It may already have been deleted.");
+      missing.code = "listing_not_available";
+      throw missing;
+    }
+    if (!listingEditMatches(verified.data, changes)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+    data = verified.data;
+  }
+  if (String(data.id) !== String(listingId)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
   const savedRate = validateHourlyRate(data.price);
   if (!savedRate.valid || !Number.isInteger(Number(data.spaces)) || Number(data.spaces) < 1 || !Array.isArray(data.features || []) || !Array.isArray(data.spots || [])) {
     throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
@@ -3848,7 +3873,7 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
   return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces) };
 }
 
-function useHostListingEdit(user, onSaved) {
+function useHostListingEdit(user, onSaved, onUnavailable = null) {
   const accountId = user?.id || null;
   const [context, setContext] = useState(() => ({ accountId, request: null, revision: 0 }));
   let current = context;
@@ -3892,7 +3917,11 @@ function useHostListingEdit(user, onSaved) {
       replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
       return true;
     } catch (error) {
-      if (isCurrent()) throw error;
+      if (isCurrent() && error?.code === "listing_not_available" && onUnavailable) {
+        onUnavailable(request.listing.id, error.message);
+        token.active = false;
+        replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+      } else if (isCurrent()) throw error;
       return false;
     } finally {
       token.pending = false;
@@ -3902,6 +3931,10 @@ function useHostListingEdit(user, onSaved) {
 }
 
 function HostDashboard({ user, setTab }) {
+  const listingJournal = useMemo(() => createHostListingJournal(user?.id), [user?.id]);
+  const [listingNotice, setListingNotice] = useState(null);
+  const showListingNotice = (message, error = false) => setListingNotice({accountId: user?.id, message, error});
+  const listingFeedback = listingNotice?.accountId === user?.id ? listingNotice : null;
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
   const [hostLoading, setHostLoading] = useState(true);
@@ -4050,6 +4083,7 @@ function HostDashboard({ user, setTab }) {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
+    const listingReadVersion = listingJournal.version;
     setDbListings([]);
     setDbBookings([]);
     setHostReviews([]);
@@ -4072,7 +4106,7 @@ function HostDashboard({ user, setTab }) {
         if (![payload?.listings, payload?.bookings, payload?.reviews].every(Array.isArray)) throw new Error("Couldn't load your dashboard. Please try again.");
         const data = payload.listings;
         setDbListings(
-          data.map(row => ({
+          listingJournal.reconcile(data.map(row => ({
             id: "db-" + row.id,
             rawId: row.id,
             title: row.title,
@@ -4087,7 +4121,7 @@ function HostDashboard({ user, setTab }) {
             features: row.features || [],
             spaces: row.spaces || 1,
             spots: row.spots || [],
-          }))
+          })), listingReadVersion)
         );
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) {
@@ -4217,12 +4251,19 @@ function HostDashboard({ user, setTab }) {
 
   const { deletingId, confirmDeleteId, open: openListingDeletion, close: closeListingDeletion,
     confirm: deleteListing } = useHostListingDeletion(user, displayId => {
+      listingJournal.remove(displayId);
       setDbListings(prev => prev.filter(l => l.id !== displayId));
-    });
+    }, showListingNotice);
 
   const { listing: editingListing, requestKey: editingKey, open: openListingEdit, close: closeListingEdit,
     save: saveListingEdit, isCurrent: isListingEditCurrent } = useHostListingEdit(user, (displayId, saved) => {
+      listingJournal.save(displayId, saved);
       setDbListings(prev => prev.map(l => l.id === displayId ? { ...l, ...saved } : l));
+      showListingNotice("Listing changes saved.");
+    }, (displayId, message) => {
+      listingJournal.hide(displayId);
+      setDbListings(prev => prev.filter(l => l.id !== displayId));
+      showListingNotice(message);
     });
 
   const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
@@ -4364,6 +4405,7 @@ function HostDashboard({ user, setTab }) {
               <button onClick={() => setShowAllListings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllListings ? "Show less" : "Manage all"}</button>
             )}
           </div>
+          {listingFeedback && <p className="host-dashboard-listing-feedback" role={listingFeedback.error ? "alert" : "status"} style={{padding: "0 15px", color: listingFeedback.error ? C.red : C.navy, fontSize: 13}}>{listingFeedback.message}</p>}
           <div style={{ display: "flex", flexDirection: "column" }}>
             {!hostLoading && !hostError && myListings.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No listings yet.</div>
