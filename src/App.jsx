@@ -1812,6 +1812,13 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
+  const spotListingId = useRef(listing.id);
+  useEffect(() => {
+    if (spotListingId.current === listing.id) return;
+    spotListingId.current = listing.id;
+    setChosenSpot(null);
+    setShowPayment(false);
+  }, [listing.id]);
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
@@ -1924,11 +1931,14 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     bookingDate: bookingMode === "advance" ? localCalendarDate(date) : "",
     startHour,
   });
+  // A new selection window owns its response, including Now -> Later -> Now.
+  // Retain the Driver's bay choice without trusting a previous window's check.
+  const availabilityWindow = useMemo(() => ({}), [selectedWindowKey, listing.id]);
   const [availabilityResult, setAvailabilityResult] = useState(null);
   // A result for the *previous* day, mode or duration can never unlock a bay.
-  const selectedAvailability = !durationError && availabilityResult?.key === selectedWindowKey
+  const selectedAvailability = !durationError && availabilityResult?.window === availabilityWindow
     ? availabilityResult.data : null;
-  const availabilityFailed = availabilityResult?.key === selectedWindowKey
+  const availabilityFailed = availabilityResult?.window === availabilityWindow
     && availabilityResult.error;
   useEffect(() => {
     if (durationError) {
@@ -1942,7 +1952,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     let cancelled = false;
     let controller;
     let revision = 0;
-    setChosenSpot(null);
+    availabilityPaused.current = false;
     setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
     if (bookingMode === "advance") {
@@ -1962,10 +1972,10 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
         return data;
       })
       .then(data => {
-        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, data, error: false });
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, window: availabilityWindow, data, error: false });
       })
       .catch(error => {
-        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, window: availabilityWindow, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
       });
     };
     load();
@@ -1981,7 +1991,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       window.removeEventListener("parkshare:availability-changed", load);
       document.removeEventListener("visibilitychange", load);
     };
-  }, [selectedWindowKey, numericIdForAvailability]);
+  }, [availabilityWindow, numericIdForAvailability]);
   const chosenSpotAvailable = !durationError && chosenSpot !== null && canChooseListingSpot({
     isRealListing: numericIdForAvailability !== null,
     hostRentable: spotLayout[chosenSpot]?.forRent === true,
@@ -2218,6 +2228,11 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
               {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
+            {chosenSpot !== null && selectedAvailability && !chosenSpotAvailable && (
+              <div role="status" style={{ fontSize: 11, color: C.red, marginTop: 6 }}>
+                Spot {spotLabel(chosenSpot)} is unavailable for this time. Choose another spot or change the date, time or duration.
+              </div>
+            )}
           </div>
           <div className="ps-booking-reserve-row" style={{ paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>

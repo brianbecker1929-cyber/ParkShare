@@ -55,6 +55,7 @@ function detailHarness({count=4,flags,fetcher}={}){
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
   useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,update=>{const value=typeof update==='function'?update(slots[n].value):update;if(value!==slots[n].value){slots[n].value=value;dirty=true;}}];},
   useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},
+  useMemo:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((value,i)=>value!==old.deps[i]))slots[n]={deps,value:fn()};return slots[n].value;},
   useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((value,i)=>value!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();});}}};
  for(const name of ['ListingThumb','PriceTag','WalkingTimeLabel','Badge','Btn','EventDestinationSummary','SpotMapBoundary','ListingSatelliteView','RidesharePickupCard','Modal','MiniCalendar','SpotPicker','VehicleBadge','ReviewsSection','PaymentModal','BookingVehicleForm'])values[name]=function Component(){return null;};
  const Detail=new Function(...Object.keys(values),compiledDetail.code+';return ListingDetail;')(...Object.values(values));
@@ -62,6 +63,59 @@ function detailHarness({count=4,flags,fetcher}={}){
  const find=predicate=>{const hit=walk(render()).find(predicate);assert.ok(hit,'Expected live control');return hit;};render();
  return {render,find,requests,values,props,flush:async()=>{await tick();render();},stop:()=>{for(const slot of slots)slot?.cleanup?.();},later:()=>find(node=>node.props?.className==='ps-spot-schedule-later').props.onClick(),choose:index=>find(node=>node.type===values.SpotPicker).props.onChoose(index),pay:()=>find(node=>node.type===values.Btn&&node.props.children==='Reserve & pay →')};
 }
+const switchMode=(h,mode)=>h.find(node=>node.type==='button'&&node.props.children===(mode==='now'?'⚡ Book Now':'📅 Schedule for Later')).props.onClick();
+const assertBay=(h,label)=>assert.match(renderToStaticMarkup(h.render()),new RegExp('Spot '+label));
+const hasPayment=h=>walk(h.render()).some(node=>node.type===h.values.PaymentModal);
+
+test('BUG-005464 the same bay survives both booking modes and payment waits for each new window',async()=>{
+ const pending=[],h=detailHarness({fetcher:url=>new Promise(resolve=>pending.push({url,resolve}))});
+ try{
+  for(const request of pending)request.resolve({ok:true,json:async()=>open(4)});await h.flush();h.choose(1);h.render();assert.equal(h.pay().props.disabled,false);
+  switchMode(h,'advance');h.render();assertBay(h,'B');assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);
+  assert.ok(pending.at(-1).url.includes('bookingDate='));pending.at(-1).resolve({ok:true,json:async()=>open(4)});await h.flush();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();
+  let payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.chosenSpot,1);assert.equal(payment.props.selectedVehicleId,'primary');assert.equal(payment.props.startHour,9);assert.equal(payment.props.endHour,11);assert.equal(payment.props.hours,2);assert.ok(payment.props.date);
+  payment.props.onClose();h.render();switchMode(h,'now');h.render();assertBay(h,'B');assert.equal(h.pay().props.disabled,true);pending.at(-1).resolve({ok:true,json:async()=>open(4)});await h.flush();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();
+  payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.chosenSpot,1);assert.equal(payment.props.hours,1);assert.equal(payment.props.date,undefined);
+ }finally{h.stop();}
+});
+test('BUG-005464 another free bay cannot approve a retained held, booked, closed or unverified bay',async()=>{
+ for(const kind of ['held','booked','closed','unverified']){
+  const blocked={...open(4),spotStatus:{A:true,B:false,C:true,D:true},spotState:{B:kind}};
+  if(kind==='closed')Object.assign(blocked,{available:false,hostScheduleOpen:false});if(kind==='unverified')delete blocked.spotStatus.B;
+  const h=detailHarness({fetcher:async url=>({ok:true,json:async()=>url.includes('bookingDate=')?blocked:open(4)})});
+  try{
+   await h.flush();h.choose(1);h.render();switchMode(h,'advance');h.render();await h.flush();assertBay(h,'B');assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);assert.match(renderToStaticMarkup(h.render()),/Spot B is unavailable for this time/);
+   if(kind!=='closed'){h.choose(0);h.render();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();assert.equal(h.find(node=>node.type===h.values.PaymentModal).props.chosenSpot,0);}
+  }finally{h.stop();}
+ }
+});
+test('BUG-005464 failed availability checks preserve the requested bay without opening payment',async()=>{
+ for(const failure of ['network','http']){
+  const h=detailHarness({fetcher:async url=>{if(url.includes('bookingDate=')){if(failure==='network')throw Error('Synthetic offline');return {ok:false,status:503,json:async()=>({})};}return {ok:true,json:async()=>open(4)};}});
+  try{await h.flush();h.choose(1);h.render();switchMode(h,'advance');h.render();await h.flush();assertBay(h,'B');assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);assert.match(renderToStaticMarkup(h.render()),failure==='network'?/Synthetic offline/:/Unable to verify availability/);}finally{h.stop();}
+ }
+});
+test('BUG-005464 rapid Now-Later-Now cannot reuse the earlier Now result or accept the late Later response',async()=>{
+ const pending=[],h=detailHarness({fetcher:url=>new Promise(resolve=>pending.push({url,resolve}))});
+ try{
+  for(const request of pending)request.resolve({ok:true,json:async()=>open(4)});await h.flush();h.choose(1);h.render();switchMode(h,'advance');h.render();const later=pending.at(-1);switchMode(h,'now');h.render();const current=pending.at(-1);
+  assert.notEqual(current,later);assertBay(h,'B');assert.equal(h.pay().props.disabled,true,'Previously checked Now result is obsolete after revisiting that mode');later.resolve({ok:true,json:async()=>open(4)});await h.flush();assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);
+  current.resolve({ok:true,json:async()=>open(4)});await h.flush();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();assert.equal(h.find(node=>node.type===h.values.PaymentModal).props.chosenSpot,1);
+ }finally{h.stop();}
+});
+test('BUG-005464 a different listing cannot inherit the prior bay or open payment dialog',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{await h.flush();h.choose(1);h.pay().props.onClick();assert.equal(hasPayment(h),true);h.render({listing:{...h.props.listing,id:'db-8'}});assert.equal(hasPayment(h),false);assert.match(renderToStaticMarkup(h.render()),/Not selected yet/);await h.flush();assert.equal(h.pay().props.disabled,true);h.choose(2);h.pay().props.onClick();assert.equal(h.find(node=>node.type===h.values.PaymentModal).props.chosenSpot,2);}finally{h.stop();}
+});
+test('BUG-005464 valid duration, date and time edits retain the bay while revalidating the exact request',async()=>{
+ const pending=[],h=detailHarness({fetcher:url=>new Promise(resolve=>pending.push({url,resolve}))});
+ const resolveCurrent=async()=>{pending.at(-1).resolve({ok:true,json:async()=>open(4)});await h.flush();assert.equal(h.pay().props.disabled,false);assertBay(h,'C');};
+ try{
+  for(const request of pending)request.resolve({ok:true,json:async()=>open(4)});await h.flush();h.choose(2);h.render();h.find(node=>node.type==='button'&&node.props.children==='2 hr').props.onClick();h.render();assertBay(h,'C');assert.equal(h.pay().props.disabled,true);assert.ok(pending.at(-1).url.includes('hours=2'));await resolveCurrent();
+  switchMode(h,'advance');h.render();await resolveCurrent();h.find(node=>node.type==='button'&&node.props.children==='Change').props.onClick();const date=new Date(2030,10,4);h.find(node=>node.type===h.values.MiniCalendar).props.onSelect(date);h.render();assertBay(h,'C');assert.equal(h.pay().props.disabled,true);assert.ok(pending.at(-1).url.includes('bookingDate=2030-11-04'));await resolveCurrent();
+  h.find(node=>node.type==='select'&&node.props.value===9).props.onChange({target:{value:'10'}});h.render();assertBay(h,'C');assert.equal(h.pay().props.disabled,true);assert.ok(pending.at(-1).url.includes('startHour=10'));await resolveCurrent();h.pay().props.onClick();const payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.chosenSpot,2);assert.equal(localCalendarDate(payment.props.date),'2030-11-04');assert.equal(payment.props.startHour,10);assert.equal(payment.props.endHour,11);assert.equal(payment.props.hours,1);
+ }finally{h.stop();}
+});
 for(const count of [4,6,8])test(`full current ${count}-bay listing can select a future slot and open payment with the exact bay/date/vehicle`,async()=>{
  const h=detailHarness({count});await h.flush();assert.equal(h.pay().props.disabled,true);h.later();h.render();assert.equal(walk(h.render()).some(node=>node.type===h.values.Modal),false,'Picker closes so date/time controls are accessible');assert.equal(h.pay().props.disabled,true,'Stale full-now result cannot unlock the future window');
  await h.flush();assert.ok(h.requests.some(request=>request.url.includes('bookingDate=')));h.find(node=>node.type==='button'&&node.props.children==='Choose spot').props.onClick();h.choose(count-1);h.render();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();const payment=h.find(node=>node.type===h.values.PaymentModal);
