@@ -9800,3 +9800,17 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-event-form-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .ps-event-form-field.is-wide { grid-column: 1 / -1; }
 .ps-event-submission-form [aria-invalid="true"] { border-color: #C53030; }
+
+/* BUG-005493: real control boxes provide finger-sized targets without changing text. */
+.ps-tap-target,
+.ps-home-v2-path-card > button,
+.ps-home-v2-trust-copy > button {
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ps-home-v2-path-card > button,
+.ps-home-v2-trust-copy > button { padding: 8px 12px; }

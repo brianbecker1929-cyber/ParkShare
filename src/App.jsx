@@ -418,9 +418,9 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
 function Modal({ children, onClose, title, nativeModal = false, returnFocus }) {
   const panelStyle = { background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" };
   const content = <>
-        <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>{title}</div>
-          <button onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div style={{ fontWeight: 700, color: C.navy, fontSize: 16, minWidth: 0, overflowWrap: "anywhere" }}>{title}</div>
+          <button className="ps-tap-target" onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 44, height: 44, flexShrink: 0, padding: 0, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ padding: "20px 22px" }}>{children}</div>
       </>;
@@ -2198,7 +2198,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
-              <button ref={spotPickerTrigger} type="button" disabled={Boolean(durationError)} onClick={() => { if (!durationError) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
+              <button ref={spotPickerTrigger} className="ps-tap-target" type="button" disabled={Boolean(durationError)} onClick={() => { if (!durationError) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
@@ -2221,7 +2221,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {!user && (
             <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
               Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
-              <button type="button" onClick={onRequestSignIn}
+              <button className="ps-tap-target" type="button" onClick={onRequestSignIn}
                 style={{ marginLeft: 9, fontSize: 12, fontWeight: 700, color: C.navy, border: "none", background: "transparent", textDecoration: "underline", cursor: "pointer" }}>
                 Sign in
               </button>
@@ -3261,16 +3261,16 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
           <div style={{ fontSize: 11, color: C.red, marginBottom: 6 }}>⚠️ {locationError}</div>
         )}
         {/* Row 2: location button (left) and view toggles, positioned under the sort dropdown (right) */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div>
             <button onClick={getLocation} title={userLoc && !locatedSearch ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc && !locatedSearch)}>
               <span>{locating ? "⏳" : "📍"}</span>
               <span>{locating ? "Locating…" : userLoc && !locatedSearch ? "Located" : "My location"}</span>
             </button>
           </div>
-          <div style={{ display: "flex", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexShrink: 0, gap: 4 }}>
             {[["split","⊞"],["list","☰"],["map","🗺"]].map(([v,label]) => (
-              <button key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+              <button className="ps-tap-target" key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
           </div>
         </div>
