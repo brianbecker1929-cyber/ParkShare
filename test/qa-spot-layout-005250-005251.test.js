@@ -50,7 +50,7 @@ function detailHarness({count=4,flags,fetcher}={}){
  const slots=[],effects=[],requests=[],intervals=new Map();let cursor=0,dirty=false,tree,timerId=0;
  const props={listing:{id:'db-7',spaces:flags?flags.filter(Boolean).length:count,spots:flags?.map(forRent=>({forRent}))||[],title:'Synthetic layout',price:12,features:[],timeZone:'America/Toronto'},user:{id:'driver',vehicleMake:'Honda',vehicleModel:'Accord',vehicleColour:'Blue',licensePlate:'QA 250'}};
  const values={React,C,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
-  getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:[9,10,11],END_HOUR_OPTIONS:[10,11,12],
+  getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:Array.from({length:96},(_,i)=>i/4),END_HOUR_OPTIONS:Array.from({length:191},(_,i)=>(i+1)/4),
   window:{setInterval:fn=>{intervals.set(++timerId,fn);return timerId;},clearInterval:id=>intervals.delete(id),addEventListener(){},removeEventListener(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}},
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
   useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,update=>{const value=typeof update==='function'?update(slots[n].value):update;if(value!==slots[n].value){slots[n].value=value;dirty=true;}}];},
@@ -66,6 +66,37 @@ function detailHarness({count=4,flags,fetcher}={}){
 const switchMode=(h,mode)=>h.find(node=>node.type==='button'&&node.props.children===(mode==='now'?'⚡ Book Now':'📅 Schedule for Later')).props.onClick();
 const assertBay=(h,label)=>assert.match(renderToStaticMarkup(h.render()),new RegExp('Spot '+label));
 const hasPayment=h=>walk(h.render()).some(node=>node.type===h.values.PaymentModal);
+
+test('BUG-005463 the reported 12:30-13:15 window explains the one-hour minimum before availability or payment',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();switchMode(h,'advance');h.render();await h.flush();
+  h.find(node=>node.type==='select'&&node.props.value===9).props.onChange({target:{value:'12.5'}});h.render();await h.flush();h.choose(1);h.render();assert.equal(h.pay().props.disabled,false);const before=h.requests.length;
+  h.find(node=>node.type==='select'&&node.props.value===13.5).props.onChange({target:{value:'13.25'}});h.render();await h.flush();
+  const start=h.find(node=>node.type==='select'&&node.props.value===12.5),end=h.find(node=>node.type==='select'&&node.props.value===13.25);
+  for(const control of [start,end]){assert.equal(control.props['aria-invalid'],true);assert.equal(control.props['aria-describedby'],'booking-schedule-error');}
+  assert.equal(h.requests.length,before,'No availability query for an invalid window');assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);
+  const tree=h.render(),html=renderToStaticMarkup(tree);assert.match(html,/minimum booking length is 1 hour/);assert.match(html,/Adjust the start or end time/);assert.match(html,/id="booking-schedule-error" role="alert"/);assert.doesNotMatch(html,/1 hour total/);
+  const quote=walk(tree).find(node=>node.props?.className==='ps-booking-reserve-row');assert.doesNotMatch(renderToStaticMarkup(quote),/\$/);
+ }finally{h.stop();}
+});
+test('BUG-005463 correcting a short scheduled window sends exact one-hour and quarter-hour durations',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();switchMode(h,'advance');h.render();await h.flush();h.find(node=>node.type==='select'&&node.props.value===9).props.onChange({target:{value:'12.5'}});h.render();await h.flush();
+  h.find(node=>node.type==='select'&&node.props.value===13.5).props.onChange({target:{value:'13.25'}});h.render();assert.equal(h.pay().props.disabled,true);
+  h.find(node=>node.type==='select'&&node.props.value===13.25).props.onChange({target:{value:'13.5'}});h.render();assert.equal(h.pay().props.disabled,true,'Corrected window still requires a fresh check');await h.flush();h.find(node=>node.type==='button'&&node.props.children==='Choose spot').props.onClick();h.choose(1);h.pay().props.onClick();let payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.startHour,12.5);assert.equal(payment.props.endHour,13.5);assert.equal(payment.props.hours,1);
+  payment.props.onClose();h.render();h.find(node=>node.type==='select'&&node.props.value===13.5).props.onChange({target:{value:'13.75'}});h.render();await h.flush();assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.chosenSpot,1);assert.equal(payment.props.endHour,13.75);assert.equal(payment.props.hours,1.25);assert.equal(h.requests.at(-1).url.includes('hours=1.25'),true);assert.equal(h.find(node=>node.type==='select'&&node.props.value===13.75).props['aria-invalid'],false);
+ }finally{h.stop();}
+});
+test('BUG-005463 sub-hour schedules fail locally while a valid overnight window retains elapsed duration',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();switchMode(h,'advance');h.render();await h.flush();
+  for(const end of [9.25,9.5,9.75]){h.find(node=>node.type==='select'&&node.props['aria-label']==='Parking end time').props.onChange({target:{value:String(end)}});h.render();assert.equal(h.pay().props.disabled,true);assert.match(renderToStaticMarkup(h.render()),/minimum booking length is 1 hour/);}
+  h.find(node=>node.type==='select'&&node.props.value===9).props.onChange({target:{value:'23.5'}});h.render();await h.flush();h.find(node=>node.type==='button'&&node.props.children==='Choose spot').props.onClick();h.choose(0);h.pay().props.onClick();const payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.startHour,23.5);assert.equal(payment.props.endHour,24.5);assert.equal(payment.props.hours,1);
+ }finally{h.stop();}
+});
 
 test('BUG-005464 the same bay survives both booking modes and payment waits for each new window',async()=>{
  const pending=[],h=detailHarness({fetcher:url=>new Promise(resolve=>pending.push({url,resolve}))});

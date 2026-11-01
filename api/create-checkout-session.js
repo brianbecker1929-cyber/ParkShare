@@ -93,7 +93,10 @@ export default async function handler(req, res) {
     if (bookingDate) {
       if (startHour === null || endHour === null ||
           Math.abs(endHour - startHour - hours) > 1e-9) {
-        return res.status(400).json({ error: "Choose a valid scheduled parking window." });
+        return res.status(400).json({
+          error: "Your selected times do not match the booking length. Go back and choose an end time at least 1 hour after the start.",
+          code: "invalid_scheduled_window",
+        });
       }
       if (!listing.time_zone) {
         return res.status(409).json({

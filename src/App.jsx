@@ -1784,7 +1784,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // Schedule for Later — the original date + start/end hour pickers.
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(11);
-  const advanceHours = Math.max(1, endHour - startHour);
+  const advanceDurationValidation = validateBookingDuration(endHour - startHour);
+  const advanceHours = advanceDurationValidation.hours;
   const handleStartChange = (e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(v + 1); };
   const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [date, setDate] = useState(() => futureBookingDate(listing.timeZone));
@@ -1803,7 +1804,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
   const hours = bookingMode === "now" ? nowHours : advanceHours;
-  const durationError = bookingMode === "now" ? nowDurationValidation.error : "";
+  const durationError = bookingMode === "now" ? nowDurationValidation.error : advanceDurationValidation.error;
   const bookNowTimes = durationError ? null : formatBookNowTimes(listing.timeZone, hours);
 
   const [showPayment, setShowPayment] = useState(false);
@@ -2183,15 +2184,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ marginBottom: 8, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
+                  <select value={startHour} onChange={handleStartChange} aria-label="Parking start time" aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-schedule-error" : undefined} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
                     {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                   <span style={{ color: C.muted, fontSize: 13 }}>to</span>
-                  <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
+                  <select value={endHour} onChange={handleEndChange} aria-label="Parking end time" aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-schedule-error" : undefined} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
                     {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                 </div>
-                <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
+                {durationError ? (
+                  <div id="booking-schedule-error" role="alert" style={{ fontSize: 11, color: C.red, fontWeight: 700, marginTop: 6 }}>
+                    {durationError} Adjust the start or end time.
+                  </div>
+                ) : <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>}
               </div>
             </>
           )}
