@@ -1,6 +1,7 @@
 import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
 import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
 import {LISTING_FEATURE_OPTIONS,editableListingAvailability,listingScheduleError} from "./lib/listingSettings.js";
+import ListingFeatureFields from "./components/ListingFeatureFields.jsx";
 import HostOnboarding from "./components/HostOnboarding.jsx";
 import DeferredAuth from "./components/DeferredAuth.jsx";
 import HostProfileView from "./components/HostProfileView.jsx";
@@ -2580,9 +2581,9 @@ function EventSubmissionForm({ onClose }) {
         <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventUrl")}>Official event link</label><input {...fieldAttributes("eventUrl")} type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("eventUrl")}</div>
         <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("accessNotes")}>Parking, accessibility, or street-closure notes</label><textarea {...fieldAttributes("accessNotes")} value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} />{fieldError("accessNotes")}</div>
       </fieldset>
-      <div><label className="ps-event-submission-consent">
-        <input {...fieldAttributes("authorized")} type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
-        <span>I confirm that I am authorized to submit this event information and that it is accurate.</span>
+      <div><label className="ps-event-submission-consent" htmlFor={fieldId("authorized")}>
+        <input {...fieldAttributes("authorized")} aria-labelledby={`${fieldId("authorized")}-label`} type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
+        <span id={`${fieldId("authorized")}-label`}>I confirm that I am authorized to submit this event information and that it is accurate.</span>
       </label>{fieldError("authorized")}</div>
       <label className="ps-event-submission-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={event => update("website", event.target.value)} /></label>
       {error && <div className="ps-discover-error" role="alert">⚠️ {error}</div>}
@@ -5873,14 +5874,7 @@ function ListDrivewayView({ user }) {
       {/* Step 5: Details */}
       {step === 5 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div><label style={labelStyle}>Features</label>
-            {[{key:"covered",label:"Covered / garage"},{key:"cctv",label:"CCTV / security camera"},{key:"lighting",label:"Well-lit at night"},{key:"snowRemoval",label:"Snow removal in winter"},{key:"evCharging",label:"EV charging available"},{key:"gated",label:"Gated access"}].map(({key,label}) => (
-              <label key={key} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom:8 }}>
-                <input type="checkbox" checked={form[key]} onChange={e => update(key, e.target.checked)} />
-                <span style={{ fontSize:14, color:C.navy }}>{label}</span>
-              </label>
-            ))}
-          </div>
+          <ListingFeatureFields form={form} onChange={update} C={C} />
           <div><label style={labelStyle}>Description (optional)</label><textarea style={{ ...inputStyle, resize:"vertical", minHeight:80 }} placeholder="Anything useful for drivers to know…" value={form.description} onChange={e => update("description", e.target.value)} /></div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
             <Btn variant="pill" onClick={() => setStep(4)}>← Back</Btn>
