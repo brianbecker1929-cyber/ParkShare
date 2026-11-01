@@ -7,12 +7,12 @@ export async function publicListingBookability(admin, listingIds) {
   const result = new Map(ids.map(id => [id, 'unknown']));
   if (!ids.length) return result;
   try {
-    const response = await admin.from('listings').select('id,profiles(role,stripe_account_id,stripe_onboarding_complete,stripe_charges_enabled,stripe_payouts_enabled)').in('id', ids);
+    const response = await admin.from('listings').select('id,is_paused,profiles(role,stripe_account_id,stripe_onboarding_complete,stripe_charges_enabled,stripe_payouts_enabled)').in('id', ids);
     if (response.error || !Array.isArray(response.data)) return result;
     for (const row of response.data) {
       if (!result.has(Number(row.id))) continue;
       const host = Array.isArray(row.profiles) ? row.profiles.length === 1 ? row.profiles[0] : undefined : row.profiles;
-      result.set(Number(row.id), host === undefined ? 'unknown' : cachedHostBookingStatus(host));
+      result.set(Number(row.id), row.is_paused === true ? 'paused' : host === undefined ? 'unknown' : cachedHostBookingStatus(host));
     }
   } catch { /* A failed secondary read is unknown, never an invented ready flag. */ }
   return result;

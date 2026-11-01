@@ -22,7 +22,7 @@ export default async function handler(req, res) {
       process.env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app"
     ),
   };
-  const {error} = await supabaseAdmin.from("listings").select("id,time_zone", {count:"exact",head:true});
+  const {error} = await supabaseAdmin.from("listings").select("id,time_zone,is_paused", {count:"exact",head:true});
   checks.schemaReady = !error;
   const cleanupSchema = await supabaseAdmin.from("listing_photo_cleanup").select("object_path", {head:true});
   checks.photoCleanupReady = !cleanupSchema.error && Boolean(process.env.CRON_SECRET);

@@ -56,11 +56,12 @@ export default async function handler(req, res) {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, host_id, title, address, price, spaces, spots, availability, time_zone")
+      .select("id, host_id, title, address, price, spaces, spots, availability, time_zone, is_paused")
       .eq("id", listingId)
       .single();
 
     if (listingError || !listing) return res.status(404).json({ error: "Listing not found." });
+    if (listing.is_paused === true) return res.status(409).json({error:"The Host has paused this listing. It is not accepting new bookings or additional time.",code:"listing_paused"});
     // Host rates may originate from historical rows or direct Supabase
     // writes. Never trust a form's min/max or silently coerce negative
     // prices before creating holds or any Stripe Checkout Session.
@@ -170,6 +171,7 @@ export default async function handler(req, res) {
       p_ends_at: windowEnd.toISOString(),
       p_expires_at: holdExpiresAt.toISOString(),
     });
+    if (holdError?.code === "P0063") return res.status(409).json({error:"The Host has paused this listing. Please choose another parking space.",code:"listing_paused"});
     if (holdError) {
       // Database-enforced, serialized per-Driver quotas prevent repeated
       // unpaid Checkout starts, including concurrent requests to other

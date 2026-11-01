@@ -233,3 +233,5 @@ test('BUG-005490 browse marks incomplete and uncertain Hosts and opens details f
  for(const row of [near,far])assert.match(h.html(),new RegExp(`aria-describedby="listing-bookability-${row.id}"`));
  const ready=harness({listings:[{...near,bookingStatus:'ready'}]});assert.doesNotMatch(ready.html(),/Not bookable yet|Booking status needs checking/);
 });
+
+test('BUG-005445 browse clearly marks paused listings before a Driver opens them',()=>{const h=harness({listings:[{...near,bookingStatus:'paused'}]});assert.match(h.html(),/Listing paused/);assert.match(h.html(),/not accepting bookings/);assert.doesNotMatch(h.html(),/Host setup incomplete/);});

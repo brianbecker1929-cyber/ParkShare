@@ -1,6 +1,7 @@
 // Native PostgreSQL 17 runner for a fresh disposable CI service ONLY.
 // Dedicated env name prevents accidentally inheriting a hosted DATABASE_URL.
 import pg from 'pg';
+import {runListingPauseProbe} from './qa-listing-pause-probe.mjs';
 import {runInitialBookingRefundProbe} from './qa-initial-booking-refund-probe.mjs';
 import {runRefundNotificationsProbe} from './qa-refund-notifications-probe.mjs';
 import {runExtensionSettlementProbe} from './qa-extension-settlement-probe.mjs';
@@ -38,6 +39,7 @@ try {
   await runRefundNotificationsProbe(db,report);
   await runInitialBookingRefundProbe(db,report);
   await runExtensionCapacityProbe(db,report);
+  await runListingPauseProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {

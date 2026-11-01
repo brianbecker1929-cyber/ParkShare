@@ -20,7 +20,7 @@ const bookingColumns = [
   "stripe_checkout_session_id",
 ].join(",");
 
-const listingColumns = "id,host_id,title,address,price,description,features,spaces,spots,lat,lng,time_zone";
+const listingColumns = "id,host_id,title,address,price,description,features,spaces,spots,lat,lng,time_zone,availability,is_paused";
 
 function publicBookingShape(row, listing, participantName, fullLocation, historicalTitle = false) {
   const { stripe_checkout_session_id, ...safeBooking } = row;

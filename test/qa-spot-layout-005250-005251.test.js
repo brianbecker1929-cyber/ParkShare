@@ -270,7 +270,7 @@ test('an outstanding valid availability response cannot revive payment after dur
 });
 
 
-for (const status of ['checking','not_ready','unknown']) test(`BUG-005490 ${status} blocks spot selection and payment before a Driver chooses a bay`,async()=>{
+for (const status of ['checking','not_ready','unknown','paused']) test(`BUG-005490 ${status} blocks spot selection and payment before a Driver chooses a bay`,async()=>{
  const h=detailHarness({bookability:status,fetcher:async()=>({ok:true,json:async()=>open(4)})});
  try{await h.flush();const trigger=h.find(n=>n.type==='button'&&n.props.children==='Choose spot');assert.equal(trigger.props.disabled,true);trigger.props.onClick();assert.equal(walk(h.render()).some(n=>n.type===h.values.SpotPicker),false);assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);const html=renderToStaticMarkup(h.render());assert.match(html,new RegExp(bookingReadinessMessage(status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));assert.doesNotMatch(html,/free for that|spots? available now/);if(status!=='checking')assert.match(html,/Check again/);}finally{h.stop();}
 });

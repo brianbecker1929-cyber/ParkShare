@@ -1,4 +1,6 @@
-import {createHostListingJournal, listingEditMatches} from "./lib/hostListingState.js";
+import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
+import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
+import {LISTING_FEATURE_OPTIONS,editableListingAvailability,listingScheduleError} from "./lib/listingSettings.js";
 import HostOnboarding from "./components/HostOnboarding.jsx";
 import DeferredAuth from "./components/DeferredAuth.jsx";
 import HostProfileView from "./components/HostProfileView.jsx";
@@ -2010,7 +2012,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       </div>
 
       {!bookingReady && <div className="ps-listing-bookability-notice" role={bookingReadiness.status === "unknown" ? "alert" : "status"}>
-        <strong>{bookingReadiness.status === "not_ready" ? "Not bookable yet" : bookingReadiness.status === "checking" ? "Checking booking status" : "Booking status unavailable"}</strong>
+        <strong>{bookingReadiness.status === "paused" ? "Listing paused" : bookingReadiness.status === "not_ready" ? "Not bookable yet" : bookingReadiness.status === "checking" ? "Checking booking status" : "Booking status unavailable"}</strong>
         <p>{bookingReadinessMessage(bookingReadiness.status)}</p>
         {bookingReadiness.status !== "checking" && <button type="button" className="ps-tap-target" onClick={bookingReadiness.retry}>Check again</button>}
       </div>}
@@ -3359,7 +3361,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
                         ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
                         : <span>{distanceLabel(l)}</span>}
                     </div>
-                    {l.bookingStatus !== "ready" && <span id={`listing-bookability-${l.id}`} className="ps-browse-bookability-note">{l.bookingStatus === "not_ready" ? "Not bookable yet — Host setup incomplete" : "Booking status needs checking"}</span>}
+                    {l.bookingStatus !== "ready" && <span id={`listing-bookability-${l.id}`} className="ps-browse-bookability-note">{l.bookingStatus === "paused" ? "Listing paused — not accepting bookings" : l.bookingStatus === "not_ready" ? "Not bookable yet — Host setup incomplete" : "Booking status needs checking"}</span>}
                     {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
@@ -3408,7 +3410,7 @@ function ParkingSearchEmptyState({ state, onClear, overlay = false }) {
 }
 
 // ─── Host Dashboard ───────────────────────────────────────────────────────────
-const LISTING_FEATURE_OPTIONS = ["Covered", "CCTV", "Well-lit", "Gated", "24hr Access"];
+
 
 function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false }) {
   const [price, setPrice] = useState(String(listing.price));
@@ -3425,6 +3427,9 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
   const [selectedSpots, setSelectedSpots] = useState(initialSelected);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [title,setTitle] = useState(listing.title || "");
+  const [availability,setAvailability] = useState(() => editableListingAvailability(listing.availability,listing.timeZone));
+  const [paused,setPaused] = useState(listing.is_paused === true);
   const attempt = useRef(null);
   const mounted = useRef(true);
   useEffect(() => {
@@ -3455,6 +3460,8 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
     setErr("");
     const rate = validateHourlyRate(price);
     if (!rate.valid) { setErr(rate.error); return; }
+    if (!title.trim() || title.trim().length > 200) {setErr("Enter a driveway title of at most 200 characters.");return;}
+    if (availability) {const scheduleError = listingScheduleError(availability,listing.timeZone,paused); if(scheduleError){setErr(scheduleError);return;}}
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
     const work = { active: true, pending: true };
@@ -3474,6 +3481,9 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
       const ok = await onSave({
         ...listing,
         price: rate.value,
+        title: title.trim(),
+        is_paused: paused,
+        availability: availability || undefined,
         description,
         features,
         spots: newSpots,
@@ -3490,7 +3500,15 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
 
   return (
     <Modal title={"Edit — " + listing.title} onClose={close}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+        <label htmlFor={`edit-title-${listing.rawId}`} style={{fontSize:12,color:C.navy,fontWeight:600}}>Listing title
+          <input id={`edit-title-${listing.rawId}`} value={title} disabled={saving} maxLength={200} onChange={event=>setTitle(event.target.value)} style={{width:"100%",minHeight:44,boxSizing:"border-box"}} />
+        </label>
+        <label htmlFor={`edit-pause-${listing.rawId}`} className="ps-tap-target" style={{display:"flex",alignItems:"center",gap:10,color:C.navy}}>
+          <input id={`edit-pause-${listing.rawId}`} type="checkbox" checked={paused} disabled={saving} onChange={event=>setPaused(event.target.checked)} />Pause this listing
+        </label>
+        <p style={{fontSize:12,color:C.muted,margin:0}}>Pausing stops new reservations and additional time. Existing reservations and checkouts already in progress keep their booked times. Uncheck to resume using your saved schedule.</p>
+        <ListingAvailabilityEditor value={availability} onChange={setAvailability} paused={paused} disabled={saving} C={C} />
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
           <input type="number" min="1" step="0.01" value={price} onChange={e => { setPrice(e.target.value); setErr(""); }} aria-invalid={Boolean(err && !validateHourlyRate(price).valid)}
@@ -3506,10 +3524,10 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 8 }}>Features</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {LISTING_FEATURE_OPTIONS.map(f => {
+            {[...new Set([...LISTING_FEATURE_OPTIONS,...features])].map(f => {
               const on = features.includes(f);
               return (
-                <button key={f} onClick={() => toggleFeature(f)} style={{
+                <button key={f} type="button" aria-pressed={on} disabled={saving} onClick={() => toggleFeature(f)} style={{
                   background: on ? C.moss : C.warmWhite, color: on ? C.white : C.navy,
                   border: "1.5px solid " + (on ? C.moss : C.concrete), borderRadius: 20, padding: "6px 14px",
                   fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -3538,7 +3556,7 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
         {err && <div role="alert" style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
 
         <Btn variant="amber" full onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Btn>
-      </div>
+      </fieldset>
     </Modal>
   );
 }
@@ -3831,9 +3849,14 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
   if (!rate.valid) throw new Error(rate.error);
   if (!accountId || !validId(updated?.rawId)) throw new Error("Reopen this listing while signed in as its Host.");
   if (!isContextCurrent()) return null;
+  if (typeof updated.title === "string" && (!updated.title.trim() || updated.title.trim().length > 200)) throw new Error("Enter a driveway title of at most 200 characters.");
+  if (updated.availability) {const error=listingScheduleError(updated.availability,updated.timeZone,updated.is_paused === true); if(error)throw new Error(error);}
   // Capture the exact editable payload before waiting for authentication.
   const changes = structuredClone({ price: rate.value, description: updated.description,
-    features: updated.features, spots: updated.spots, spaces: updated.spaces });
+    features: updated.features, spots: updated.spots, spaces: updated.spaces,
+    ...(typeof updated.title === "string" ? {title: updated.title.trim()} : {}),
+    ...(typeof updated.is_paused === "boolean" ? {is_paused: updated.is_paused} : {}),
+    ...(updated.availability ? {availability: updated.availability} : {}) });
   const listingId = updated.rawId;
   const { data: authData, error: authError } = await supabase.auth.getSession();
   if (!isContextCurrent()) return null;
@@ -3843,14 +3866,14 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
   if (!isContextCurrent()) return null;
   const { data: updatedRow, error } = await supabase.from("listings").update(changes)
     .eq("id", listingId).eq("host_id", accountId)
-    .select("id,price,description,features,spots,spaces").maybeSingle();
+    .select("id,title,price,description,features,spots,spaces,availability,is_paused").maybeSingle();
   if (!isContextCurrent()) return null;
   if (error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
   let data = updatedRow;
   if (!data) {
     // HTTP success without a representation cannot prove whether a write
     // matched. Read once under the same owner; never replay the mutation.
-    const verified = await supabase.from("listings").select("id,price,description,features,spots,spaces")
+    const verified = await supabase.from("listings").select("id,title,price,description,features,spots,spaces,availability,is_paused")
       .eq("id", listingId).eq("host_id", accountId).maybeSingle();
     if (!isContextCurrent()) return null;
     const {data: latestAuth, error: latestAuthError} = await supabase.auth.getSession();
@@ -3866,11 +3889,15 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
     data = verified.data;
   }
   if (String(data.id) !== String(listingId)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  if (!listingSettingsMatch(data, changes)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
   const savedRate = validateHourlyRate(data.price);
   if (!savedRate.valid || !Number.isInteger(Number(data.spaces)) || Number(data.spaces) < 1 || !Array.isArray(data.features || []) || !Array.isArray(data.spots || [])) {
     throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
   }
-  return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces) };
+  return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces),
+    ...(typeof data.title === "string" ? {title:data.title} : {}),
+    ...(typeof data.is_paused === "boolean" ? {is_paused:data.is_paused,active:!data.is_paused} : {}),
+    ...(data.availability ? {availability:data.availability} : {}) };
 }
 
 function useHostListingEdit(user, onSaved, onUnavailable = null) {
@@ -3895,7 +3922,8 @@ function useHostListingEdit(user, onSaved, onUnavailable = null) {
   const open = listing => {
     if (!mounted.current || latest.current !== current || !accountId || !validId(listing?.rawId)) return;
     const snapshot = structuredClone({ id: listing.id, rawId: listing.rawId, title: listing.title, price: listing.price,
-      description: listing.description || "", features: listing.features || [], spots: listing.spots || [], spaces: listing.spaces || 1 });
+      description: listing.description || "", features: listing.features || [], spots: listing.spots || [], spaces: listing.spaces || 1,
+      availability: listing.availability, timeZone: listing.timeZone, is_paused: listing.is_paused === true });
     if (current.request) current.request.token.active = false;
     replace({ accountId, request: { listing: snapshot, token: { active: true, pending: false } }, revision: current.revision + 1 });
   };
@@ -3910,7 +3938,7 @@ function useHostListingEdit(user, onSaved, onUnavailable = null) {
     if (String(updated?.rawId) !== String(request.listing.rawId)) throw new Error("Reopen the selected listing before saving.");
     token.pending = true;
     try {
-      const saved = await persistHostListingEdit(updated, accountId, isCurrent);
+      const saved = await persistHostListingEdit({...updated, timeZone:request.listing.timeZone}, accountId, isCurrent);
       if (!isCurrent() || !saved) return false;
       onSaved(request.listing.id, saved);
       token.active = false;
@@ -4112,7 +4140,10 @@ function HostDashboard({ user, setTab }) {
             title: row.title,
             address: row.address,
             price: Number(row.price),
-            active: true,
+            active: row.is_paused !== true,
+            is_paused: row.is_paused === true,
+            availability: row.availability,
+            timeZone: row.time_zone,
             earnings: 0,
             bookings: 0,
             rating: 5,

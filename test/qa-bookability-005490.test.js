@@ -30,13 +30,13 @@ test('provider reader never caches errors or treats malformed/wrong-account resp
  let fail=true;const read=createAccountBookabilityReader({accounts:{retrieve:async()=>{if(fail)throw Error('offline');return account('A');}}});await assert.rejects(read('A'));fail=false;assert.equal(await read('A'),'ready');
 });
 const endpoint=(await readFile(new URL('../api/listing-bookability.js',import.meta.url),'utf8')).replace(/^import .*;\n/gm,'').replace('export default async function handler','return async function handler');
-function fixture({missing=false,role='host',linked=true,dbError=false,providerError=false,status='ready'}={}){
- const calls=[];const admin={from:table=>({select:fields=>({eq:(key,value)=>({maybeSingle:async()=>{calls.push({table,fields,key,value});if(dbError)return {error:{code:'PRIVATE'}};return {data:table==='listings'?(missing?null:{host_id:'private-host'}):{role,stripe_account_id:linked?'acct_private':null}};}})})})};
+function fixture({missing=false,role='host',linked=true,dbError=false,providerError=false,status='ready',paused=false}={}){
+ const calls=[];const admin={from:table=>({select:fields=>({eq:(key,value)=>({maybeSingle:async()=>{calls.push({table,fields,key,value});if(dbError)return {error:{code:'PRIVATE'}};return {data:table==='listings'?(missing?null:{host_id:'private-host',is_paused:paused}):{role,stripe_account_id:linked?'acct_private':null}};}})})})};
  const handler=new Function('jsonMethod','supabaseAdmin','stripe','createAccountBookabilityReader','console',endpoint)((req,res,method)=>{if(req.method===method)return true;res.setHeader('Allow',method);res.status(405).json({error:'Method not allowed'});return false;},admin,{},()=>async id=>{calls.push({account:id});if(providerError)throw Error('PRIVATE');return status;},{warn(){}});
  return {calls,run:async(raw='7',method='GET')=>{const res={code:200,headers:{},setHeader(k,v){this.headers[k]=v;},status(c){this.code=c;return this;},json(b){this.body=b;return this;}};await handler({method,query:{listingId:raw}},res);return res;}};
 }
 test('public detail endpoint uses server-owned Host identity and discloses only the readiness enum',async()=>{
- for(const status of ['ready','not_ready']){const f=fixture({status}),res=await f.run();assert.equal(res.code,200);assert.deepEqual(res.body,{bookingStatus:status});assert.equal(res.headers['Cache-Control'],'no-store');assert.deepEqual(f.calls,[{table:'listings',fields:'host_id',key:'id',value:7},{table:'profiles',fields:'role,stripe_account_id',key:'id',value:'private-host'},{account:'acct_private'}]);}
+ for(const status of ['ready','not_ready']){const f=fixture({status}),res=await f.run();assert.equal(res.code,200);assert.deepEqual(res.body,{bookingStatus:status});assert.equal(res.headers['Cache-Control'],'no-store');assert.deepEqual(f.calls,[{table:'listings',fields:'host_id,is_paused',key:'id',value:7},{table:'profiles',fields:'role,stripe_account_id',key:'id',value:'private-host'},{account:'acct_private'}]);}
  for(const options of [{role:'driver'},{linked:false}]){const f=fixture(options);assert.deepEqual((await f.run()).body,{bookingStatus:'not_ready'});assert.equal(f.calls.length,2);}
 });
 test('invalid, missing and unsupported requests never query Stripe; DB/provider failures fail closed',async()=>{
@@ -47,4 +47,9 @@ test('invalid, missing and unsupported requests never query Stripe; DB/provider 
 });
 test('public projection whitelists booking status without exposing Host account information',()=>{
  for(const status of ['ready','not_ready','invalid',undefined]){const row=publicDiscoveryListing({id:7,price:5,spaces:1,lat:43.6,lng:-79.4,bookingStatus:status,...host});assert.equal(row.bookingStatus,normalizeBookingStatus(status));assert.doesNotMatch(JSON.stringify(row),/acct_private|stripe_|onboarding/);}
+});
+
+test('BUG-005445 a paused detail returns its public status before private profile or Stripe reads',async()=>{
+ const f=fixture({paused:true}),res=await f.run();assert.equal(res.code,200);assert.deepEqual(res.body,{bookingStatus:'paused'});assert.equal(f.calls.length,1);assert.equal(normalizeBookingStatus('paused'),'paused');
+ const admin={from:()=>({select:()=>({in:async()=>({data:[{id:7,is_paused:true,profiles:host}]})})})};assert.equal((await publicListingBookability(admin,[7])).get(7),'paused');assert.equal(publicDiscoveryListing({id:7,bookingStatus:'paused'}).bookingStatus,'paused');
 });

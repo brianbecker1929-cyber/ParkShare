@@ -38,10 +38,11 @@ export default async function handler(req, res) {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, host_id, title, price, spaces")
+      .select("id, host_id, title, price, spaces, is_paused")
       .eq("id", booking.listing_id)
       .single();
     if (listingError || !listing) return res.status(404).json({ error: "Listing not found." });
+    if (listing.is_paused === true) return res.status(409).json({error:"The Host has paused this listing. It is not accepting new bookings or additional time.",code:"listing_paused"});
     const extendedEnd = new Date(current.end.getTime() + addedHours * 3600 * 1000);
     const capacity = await checkAvailability(listing.id, listing.spaces || 1, current.end, extendedEnd);
     if (!capacity.available) return res.status(409).json({ error: "The space is not available for that additional time." });
@@ -78,6 +79,7 @@ export default async function handler(req, res) {
       p_added_hours: addedHours,
       p_expires_at: holdExpiresAt.toISOString(),
     });
+    if (holdError?.code === "P0063") return res.status(409).json({error:"The Host has paused this listing. Please choose another parking space.",code:"listing_paused"});
     if (holdError?.code === "P0001") {
       return res.status(409).json({ error: "That additional parking time is already booked or held. Please choose another time." });
     }

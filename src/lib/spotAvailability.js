@@ -22,6 +22,7 @@ export function availabilityRequestKey({ listingId, mode, hours, bookingDate, st
 // A closed Host schedule says nothing about whether a bay is occupied.
 // Share this wording between the booking panel and the spot picker.
 export function listingAvailabilityMessage(data, mode) {
+  if (data?.reason === "listing_paused") return "The Host has paused this listing. Please choose another parking space.";
   const when = mode === "now" ? "right now" : "that time";
   if (data?.hostScheduleOpen === false || data?.reason === "host_schedule") {
     return `Outside the Host's available hours for ${when}. Choose another time or a shorter duration.`;

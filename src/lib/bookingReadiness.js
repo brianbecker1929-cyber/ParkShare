@@ -7,10 +7,11 @@ export function cachedHostBookingStatus(profile) {
 }
 
 export function normalizeBookingStatus(value) {
-  return ['ready', 'not_ready'].includes(value) ? value : 'unknown';
+  return ['ready', 'not_ready', 'paused'].includes(value) ? value : 'unknown';
 }
 
 export function bookingReadinessMessage(status) {
+  if (status === 'paused') return 'The Host has paused this listing. It is not accepting new bookings. Please choose another parking space.';
   if (status === 'not_ready') return 'This listing is not bookable yet. The Host needs to finish payment setup. Please choose another parking space.';
   if (status === 'checking') return 'Checking whether this listing can accept bookings…';
   return 'Booking status could not be confirmed. Please try again.';

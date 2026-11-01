@@ -31,11 +31,12 @@ export default async function handler(req, res) {
   try {
     const { data: listing, error } = await supabaseAdmin
       .from("listings")
-      .select("id, spaces, spots, availability, time_zone")
+      .select("id, spaces, spots, availability, time_zone, is_paused")
       .eq("id", listingId)
       .single();
     if (error || !listing) return res.status(404).json({ error: "Listing not found." });
 
+    if (listing.is_paused === true) return res.status(200).json({available:false, spacesTotal:listing.spaces || 1, spacesFree:0, hostScheduleOpen:false, reason:"listing_paused", spotStatus:Object.fromEntries(getListingSpotLayout(listing).filter(spot=>spot.forRent).map(spot=>[spot.label,false]))});
     // Availability MUST use exactly the same property-local resolver as
     // checkout; otherwise a Driver may be offered the wrong parking interval.
     let scheduledStartsAt = null;

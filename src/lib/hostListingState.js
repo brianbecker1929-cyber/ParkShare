@@ -29,7 +29,10 @@ export function createHostListingJournal(accountId, storage = browserStorage()) 
     save(value, changes) {
       const id = rowId(value); if (!key || id === null || removed.has(id)) return;
       const {price, description, features, spots, spaces} = changes;
-      saved.set(id, {version: ++version, changes: structuredClone({price, description, features, spots, spaces})});
+      const settings = {...(typeof changes.title === 'string' ? {title:changes.title} : {}),
+        ...(typeof changes.is_paused === 'boolean' ? {is_paused:changes.is_paused,active:!changes.is_paused} : {}),
+        ...(changes.availability ? {availability:changes.availability} : {})};
+      saved.set(id, {version: ++version, changes: structuredClone({price, description, features, spots, spaces,...settings})});
       if (saved.size > LIMIT) saved.delete(saved.keys().next().value);
     },
     reconcile(rows, readVersion = 0) {
@@ -42,8 +45,12 @@ export function createHostListingJournal(accountId, storage = browserStorage()) 
 }
 const sorted = value => Array.isArray(value) ? value.map(sorted) : value && typeof value === 'object'
   ? Object.fromEntries(Object.keys(value).sort().map(key => [key, sorted(value[key])])) : value;
+export function listingSettingsMatch(row, changes) {
+  if (typeof changes.title === 'string' && row.title !== changes.title || typeof changes.is_paused === 'boolean' && row.is_paused !== changes.is_paused) return false;
+  return !changes.availability || JSON.stringify(sorted(row.availability)) === JSON.stringify(sorted(changes.availability));
+}
 export function listingEditMatches(row, changes) {
   const rate = validateHourlyRate(row?.price);
   if (!rate.valid || rate.value !== changes.price || Number(row.spaces) !== changes.spaces || (row.description || '') !== changes.description) return false;
-  return ['features','spots'].every(key => JSON.stringify(sorted(row[key])) === JSON.stringify(sorted(changes[key])));
+  return listingSettingsMatch(row, changes) && ['features','spots'].every(key => JSON.stringify(sorted(row[key])) === JSON.stringify(sorted(changes[key])));
 }
