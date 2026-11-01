@@ -83,7 +83,8 @@ test('Host filtered reads stay within the selected Driver thread',async()=>{
 test('unrelated Host cannot read listing or booking conversation messages',async()=>{
   user=OTHER;
   assert.equal((await request('GET',{}, {listingId:'7'})).body.messages.length,0);
-  assert.equal((await request('GET',{}, {bookingId:'100'})).body.conversations.length,0);
+  const denied=await request('GET',{}, {bookingId:'100'});
+  assert.equal(denied.code,403);assert.equal(denied.body.conversations,undefined);
 });
 test('signed-out message read/write is rejected before data access',async()=>{
   assert.equal((await request('GET',{}, {},false)).code,401);
@@ -189,5 +190,66 @@ test('conversation lookup failure blocks Host reply and hides raw database detai
   const r=await request('POST',{listingId:7,participantId:A,text:'Blocked'});
   assert.equal(r.code,500);assert.equal(writes.length,0);
   assert.equal(JSON.stringify(r.body).includes('Sensitive database'),false);
+});
+
+test('BUG-005479 exact booking thread replay explicitly refuses non-participants before any message read',async()=>{
+  records.messages=[incoming(10,A,HOST,100),incoming(11,HOST,A,100)];
+  const query={listingId:'7',bookingId:'100',participantId:HOST};
+  const positive=await request('GET',{},query);
+  assert.equal(positive.code,200);assert.deepEqual(positive.body.messages.map(m=>m.id),[10,11]);
+  for(const outsider of [B,OTHER]){
+    user=outsider;
+    for(const target of [query,{bookingId:'100'}]){
+      calls=[];const denied=await request('GET',{},target);
+      assert.equal(denied.code,403);assert.match(denied.body.error,/not part of this booking conversation/i);
+      assert.equal(denied.body.messages,undefined);assert.equal(denied.body.conversations,undefined);
+      assert.equal(calls.some(c=>c.table==='messages'),false);
+      assert.doesNotMatch(JSON.stringify(denied.body),/Synthetic|Private Driveway/);
+    }
+  }
+  assert.equal(writes.length,0);
+});
+
+test('BUG-005479 real participants retain empty success before the first message exists',async()=>{
+  records.messages=[];
+  for(const [actor,peer] of [[A,HOST],[HOST,A]]){
+    user=actor;
+    for(const participantId of [undefined,peer]){
+      const r=await request('GET',{}, {listingId:'7',bookingId:'100',...(participantId?{participantId}:{})});
+      assert.equal(r.code,200);assert.deepEqual(r.body,{messages:[]});
+    }
+  }
+  assert.equal(writes.length,0);
+});
+
+test('BUG-005479 contradictory listing or counterparty cannot turn a booking denial into empty success',async()=>{
+  for(const [actor,peer] of [[A,HOST],[HOST,A]]){
+    user=actor;
+    for(const target of [
+      {listingId:'8',bookingId:'100',participantId:peer},
+      {listingId:'7',bookingId:'100',participantId:B},
+      {bookingId:'100',participantId:OTHER},
+    ]){
+      calls=[];const r=await request('GET',{},target);
+      assert.equal(r.code,403);assert.equal(r.body.messages,undefined);
+      assert.equal(r.body.conversations,undefined);assert.equal(calls.some(c=>c.table==='messages'),false);
+    }
+  }
+  assert.equal(writes.length,0);
+});
+
+test('BUG-005479 booking reads stay isolated and preserve participant history for every booking status',async()=>{
+  records.messages=[incoming(10,A,HOST,100),incoming(11,HOST,A,100),incoming(12,B,HOST,101),incoming(13,A,HOST)];
+  for(const status of ['confirmed','pending','cancelled','refunded']){
+    records.bookings[0].status=status;
+    for(const [actor,peer] of [[A,HOST],[HOST,A]]){
+      user=actor;
+      const r=await request('GET',{}, {listingId:'7',bookingId:'100',participantId:peer});
+      assert.equal(r.code,200);assert.deepEqual(r.body.messages.map(m=>m.id),[10,11]);
+    }
+  }
+  user=A;const missing=await request('GET',{}, {listingId:'7',bookingId:'999'});
+  assert.equal(missing.code,404);assert.deepEqual(missing.body,{error:'Conversation unavailable.'});
+  assert.equal(writes.length,0);
 });
 

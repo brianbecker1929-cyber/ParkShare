@@ -124,6 +124,21 @@ export default async function handler(req, res) {
       || (participantId && !validParticipant(participantId))) {
       return res.status(400).json({ error: "Invalid conversation." });
     }
+    if (Number.isInteger(bookingId)) {
+      const booking = await bookingFor(bookingId);
+      const listing = await listingFor(booking.listing_id);
+      const isHost = user.id === listing.host_id;
+      const isDriver = user.id === booking.renter_id;
+      const otherId = isHost ? booking.renter_id : listing.host_id;
+      // An authenticated but unrelated caller must receive an explicit denial,
+      // rather than the empty success used for a participant's new thread.
+      // Check the booking relationship before touching the messages table.
+      if ((!isHost && !isDriver)
+        || (Number.isInteger(listingId) && listingId !== booking.listing_id)
+        || (participantId && participantId !== otherId)) {
+        return res.status(403).json({ error: "You are not part of this booking conversation." });
+      }
+    }
     let query = supabaseAdmin
       .from("messages")
       .select("id, listing_id, booking_id, sender_id, recipient_id, text, created_at")
