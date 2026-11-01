@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
+import {bookingReadinessMessage} from '../src/lib/bookingReadiness.js';
 import {getListingSpotLayout} from '../src/lib/listingSpotLayout.js';
 import {canChooseListingSpot,availabilityRequestKey,listingSpotStatusText,listingAvailabilityMessage} from '../src/lib/spotAvailability.js';
 import {formatBookNowTimes} from '../src/lib/bookNowTimes.js';
@@ -46,10 +47,10 @@ test('all eight bays require verified availability; held and private bays stay b
  const data=open(8);data.spotStatus.E=false;data.spotState={E:'held'};const bays=walk(picker({availableCount:8,chosen:4,vehicle:{},isRealListing:true,availableData:data})).filter(node=>node.type==='button');assert.equal(bays[4].props.disabled,true);assert.equal(bays[7].props.disabled,false);
 });
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-function detailHarness({count=4,flags,fetcher}={}){
+function detailHarness({count=4,flags,fetcher,bookability='ready'}={}){
  const slots=[],effects=[],requests=[],intervals=new Map();let cursor=0,dirty=false,tree,timerId=0;
  const props={listing:{id:'db-7',spaces:flags?flags.filter(Boolean).length:count,spots:flags?.map(forRent=>({forRent}))||[],title:'Synthetic layout',price:12,features:[],timeZone:'America/Toronto'},user:{id:'driver',vehicleMake:'Honda',vehicleModel:'Accord',vehicleColour:'Blue',licensePlate:'QA 250'}};
- const values={React,C,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
+ const values={React,C,useListingBookability:()=>({status:bookability,retry:()=>{}}),bookingReadinessMessage,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
   getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:Array.from({length:96},(_,i)=>i/4),END_HOUR_OPTIONS:Array.from({length:191},(_,i)=>(i+1)/4),
   window:{setInterval:fn=>{intervals.set(++timerId,fn);return timerId;},clearInterval:id=>intervals.delete(id),addEventListener(){},removeEventListener(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}},
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
@@ -61,7 +62,7 @@ function detailHarness({count=4,flags,fetcher}={}){
  const Detail=new Function(...Object.keys(values),compiledDetail.code+';return ListingDetail;')(...Object.values(values));
  function render(changes={}){Object.assign(props,changes);let guard=0;do{dirty=false;cursor=0;tree=Detail(props);for(const fn of effects.splice(0))fn();assert.ok(++guard<15,'Effects settle');}while(dirty);return tree;}
  const find=predicate=>{const hit=walk(render()).find(predicate);assert.ok(hit,'Expected live control');return hit;};render();
- return {render,find,requests,values,props,flush:async()=>{await tick();render();},stop:()=>{for(const slot of slots)slot?.cleanup?.();},later:()=>find(node=>node.props?.className==='ps-spot-schedule-later').props.onClick(),choose:index=>find(node=>node.type===values.SpotPicker).props.onChoose(index),pay:()=>find(node=>node.type===values.Btn&&node.props.children==='Reserve & pay →')};
+ return {render,find,requests,values,props,setBookability:value=>{bookability=value;render();},flush:async()=>{await tick();render();},stop:()=>{for(const slot of slots)slot?.cleanup?.();},later:()=>find(node=>node.props?.className==='ps-spot-schedule-later').props.onClick(),choose:index=>find(node=>node.type===values.SpotPicker).props.onChoose(index),pay:()=>find(node=>node.type===values.Btn&&node.props.children==='Reserve & pay →')};
 }
 const switchMode=(h,mode)=>h.find(node=>node.type==='button'&&node.props.children===(mode==='now'?'⚡ Book Now':'📅 Schedule for Later')).props.onClick();
 const assertBay=(h,label)=>assert.match(renderToStaticMarkup(h.render()),new RegExp('Spot '+label));
@@ -268,3 +269,12 @@ test('an outstanding valid availability response cannot revive payment after dur
  }finally{h.stop();}
 });
 
+
+for (const status of ['checking','not_ready','unknown']) test(`BUG-005490 ${status} blocks spot selection and payment before a Driver chooses a bay`,async()=>{
+ const h=detailHarness({bookability:status,fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{await h.flush();const trigger=h.find(n=>n.type==='button'&&n.props.children==='Choose spot');assert.equal(trigger.props.disabled,true);trigger.props.onClick();assert.equal(walk(h.render()).some(n=>n.type===h.values.SpotPicker),false);assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);const html=renderToStaticMarkup(h.render());assert.match(html,new RegExp(bookingReadinessMessage(status).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));assert.doesNotMatch(html,/free for that|spots? available now/);if(status!=='checking')assert.match(html,/Check again/);}finally{h.stop();}
+});
+test('BUG-005490 readiness loss closes payment and restoring readiness preserves a valid bay',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{await h.flush();h.choose(1);h.pay().props.onClick();assert.equal(hasPayment(h),true);h.setBookability('not_ready');assert.equal(hasPayment(h),false);assert.equal(h.pay().props.disabled,true);assert.doesNotMatch(renderToStaticMarkup(h.render()),/Spot B is unavailable for this time|free for that/);h.setBookability('ready');assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();assert.equal(h.find(n=>n.type===h.values.PaymentModal).props.chosenSpot,1);}finally{h.stop();}
+});

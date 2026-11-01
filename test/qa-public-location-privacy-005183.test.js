@@ -23,7 +23,7 @@ test("public listing does not reveal street addresses, exact coordinates, or ide
     address:"Approximate location — full address after confirmed booking",
     price:12,spaces:2,features:[],description:"",img:null,photos:[],
     spots:[],lat:43.82,lng:-79.42,rating:0,reviewCount:0,
-    host:"ParkShare Host",locationPrecision:"approximate",
+    host:"ParkShare Host",bookingStatus:"unknown",locationPrecision:"approximate",
   });
   const encoded=JSON.stringify(result);
   for(const privateValue of ["123 Main St","host-uuid","reviewer-uuid","43.824194","-79.418116"]) {

@@ -1,5 +1,6 @@
 // Candidate anonymous browse contract: no raw address, Host identity,
 // free-text listing title/description, or exact driveway boundary polygon.
+import {normalizeBookingStatus} from './bookingReadiness.js';
 export const PUBLIC_DISCOVERY_COLUMNS = "id,price,spaces,lat,lng,spots,time_zone";
 
 export function approximateParkingCoordinate(value) {
@@ -32,6 +33,7 @@ export function publicDiscoveryListing(listing, reviews = []) {
     reviewCount: listing.review_count == null ? ratings.length : Number(listing.review_count),
     ...(listing.time_zone ? { timeZone: listing.time_zone } : {}),
     host: "ParkShare Host",
+    bookingStatus: normalizeBookingStatus(listing.bookingStatus),
     locationPrecision: "approximate",
   };
 }

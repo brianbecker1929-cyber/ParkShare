@@ -42,14 +42,15 @@ test('availability renders the validation response instead of a generic outage m
  assert.match(block,/res.status >= 400 && res.status < 500/);assert.match(block,/data.error/);assert.match(app,/availabilityFailed \|\| "Checking availability/);
 });
 const source=readFileSync(new URL('../api/public-parking.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export default async function handler','return async function handler');
+import {publicListingBookability} from '../api/_listing-bookability.js';
 import {publicDiscoveryListing} from '../src/lib/publicDiscovery.js';
 const method=(req,res)=>req.method==='GET';
 const response=()=>({status(code){this.code=code;return this;},json(body){this.body=body;return this;},setHeader(){}});
 test('public feed bounds pages and validates cursors before any database work',async()=>{
- let calls=0;const db={rpc:async(name,args)=>{calls++;assert.equal(name,'public_parking_page');assert.equal(args.p_before_id,null);return {data:Array.from({length:51},(_,i)=>({id:100-i,price:12,spaces:1,review_count:0,rating:0}))};}};
- const handler=new Function('supabaseAdmin','jsonMethod','publicDiscoveryListing',source)(db,method,publicDiscoveryListing);
+ let calls=0,statusIds;const db={from:()=>({select:()=>({in:async(key,ids)=>{statusIds=ids;return {data:ids.map(id=>({id,profiles:null}))};}})}),rpc:async(name,args)=>{calls++;assert.equal(name,'public_parking_page');assert.equal(args.p_before_id,null);return {data:Array.from({length:51},(_,i)=>({id:100-i,price:12,spaces:1,review_count:0,rating:0}))};}};
+ const handler=new Function('supabaseAdmin','jsonMethod','publicDiscoveryListing','publicListingBookability',source)(db,method,publicDiscoveryListing,publicListingBookability);
  for(const cursor of ['-1','1 OR true','1.5',['1'],'9007199254740992']){const r=response();await handler({method:'GET',query:{cursor}},r);assert.equal(r.code,400);}assert.equal(calls,0);
- const r=response();await handler({method:'GET',query:{}},r);assert.equal(r.code,200);assert.equal(r.body.listings.length,50);assert.equal(r.body.nextCursor,'51');
+ const r=response();await handler({method:'GET',query:{}},r);assert.equal(r.code,200);assert.equal(r.body.listings.length,50);assert.equal(r.body.nextCursor,'51');assert.equal(statusIds.length,50);assert.equal(statusIds.includes(50),false);assert.ok(r.body.listings.every(row=>row.bookingStatus==='not_ready'));
 });
 test('repeated anonymous and authenticated refreshes use only the bounded public endpoint',async()=>{
  const requests=[];const fetcher=async(url,options)=>{requests.push({url,options});return Response.json({listings:[],nextCursor:null});};

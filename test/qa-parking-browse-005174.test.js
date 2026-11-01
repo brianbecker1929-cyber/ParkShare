@@ -226,3 +226,10 @@ test('Nearest uses the panned map centre with My location inactive, without filt
  assert.deepEqual(h.map().listings.map(l=>l.id),['db-2','db-1']);assert.equal(h.map().userLoc,null);
  h.map().onSearchCenterChange(toronto);assert.deepEqual(h.map().listings.map(l=>l.id),['db-1','db-2']);
 });
+
+test('BUG-005490 browse marks incomplete and uncertain Hosts and opens details for a fresh check',()=>{
+ const h=harness({listings:[{...near,bookingStatus:'not_ready'},{...far,bookingStatus:'unknown'}]});
+ assert.match(h.html(),/Not bookable yet/);assert.match(h.html(),/Host setup incomplete/);assert.match(h.html(),/Booking status needs checking/);
+ for(const row of [near,far])assert.match(h.html(),new RegExp(`aria-describedby="listing-bookability-${row.id}"`));
+ const ready=harness({listings:[{...near,bookingStatus:'ready'}]});assert.doesNotMatch(ready.html(),/Not bookable yet|Booking status needs checking/);
+});

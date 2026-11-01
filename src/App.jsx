@@ -1,6 +1,8 @@
 import HostOnboarding from "./components/HostOnboarding.jsx";
 import DeferredAuth from "./components/DeferredAuth.jsx";
 import HostProfileView from "./components/HostProfileView.jsx";
+import {useListingBookability} from "./lib/useListingBookability.js";
+import {bookingReadinessMessage} from "./lib/bookingReadiness.js";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
@@ -1822,7 +1824,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const spotVehiclePickerRef = useRef(null);
   const spotLayout = getListingSpotLayout(listing);
   const chooseSpot = (index) => {
-    if (durationError) return;
+    if (durationError || !bookingReady) return;
     const hostRentable = spotLayout[index]?.forRent === true;
     if (!canChooseListingSpot({
       isRealListing: numericIdForAvailability !== null,
@@ -1859,6 +1861,10 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
   const numericIdForAvailability = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
+
+  const bookingReadiness = useListingBookability(numericIdForAvailability, showPayment);
+  const bookingReady = bookingReadiness.status === "ready";
+  useEffect(() => { if (!bookingReady) setShowPayment(false); }, [bookingReady]);
 
   // Glanceable "right now" badge shown near the title — always reflects this
   // instant, independent of whatever the renter has selected below.
@@ -1967,7 +1973,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       document.removeEventListener("visibilitychange", load);
     };
   }, [availabilityWindow, numericIdForAvailability]);
-  const chosenSpotAvailable = !durationError && chosenSpot !== null && canChooseListingSpot({
+  const chosenSpotAvailable = bookingReady && !durationError && chosenSpot !== null && canChooseListingSpot({
     isRealListing: numericIdForAvailability !== null,
     hostRentable: spotLayout[chosenSpot]?.forRent === true,
     availableData: selectedAvailability,
@@ -2002,7 +2008,12 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
         <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview approximate route</Btn>
       </div>
 
-      {liveAvailability && (
+      {!bookingReady && <div className="ps-listing-bookability-notice" role={bookingReadiness.status === "unknown" ? "alert" : "status"}>
+        <strong>{bookingReadiness.status === "not_ready" ? "Not bookable yet" : bookingReadiness.status === "checking" ? "Checking booking status" : "Booking status unavailable"}</strong>
+        <p>{bookingReadinessMessage(bookingReadiness.status)}</p>
+        {bookingReadiness.status !== "checking" && <button type="button" className="ps-tap-target" onClick={bookingReadiness.retry}>Check again</button>}
+      </div>}
+      {bookingReady && liveAvailability && (
         <div style={{ marginBottom: 10 }}>
           {liveAvailability.available ? (
             <Badge color={C.moss}>🟢 {liveAvailability.spacesFree} spot{liveAvailability.spacesFree === 1 ? "" : "s"} available now</Badge>
@@ -2178,7 +2189,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {/* Live check tied to exactly what's selected above — re-runs on
               every duration/date/time change, so this never lags behind
               what's actually being booked. */}
-          {!durationError && numericIdForAvailability !== null && (
+          {bookingReady && !durationError && numericIdForAvailability !== null && (
             selectedAvailability === null ? (
               <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed || "Checking availability… Spot selection is temporarily disabled."}</div>
             ) : selectedAvailability.available ? (
@@ -2201,13 +2212,13 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
-              <button ref={spotPickerTrigger} className="ps-tap-target" type="button" disabled={Boolean(durationError)} onClick={() => { if (!durationError) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
+              <button ref={spotPickerTrigger} className="ps-tap-target" type="button" disabled={Boolean(durationError) || !bookingReady} onClick={() => { if (!durationError && bookingReady) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
               {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
-            {chosenSpot !== null && selectedAvailability && !chosenSpotAvailable && (
+            {bookingReady && chosenSpot !== null && selectedAvailability && !chosenSpotAvailable && (
               <div role="status" style={{ fontSize: 11, color: C.red, marginTop: 6 }}>
                 Spot {spotLabel(chosenSpot)} is unavailable for this time. Choose another spot or change the date, time or duration.
               </div>
@@ -2238,7 +2249,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <MiniCalendar selected={date} onSelect={(d) => { setDate(d); setShowCalendar(false); }} />
         </Modal>
       )}
-      {showSpotPicker && !durationError && (
+      {showSpotPicker && bookingReady && !durationError && (
         <Modal nativeModal returnFocus={() => spotPickerTrigger.current} title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
           {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
@@ -2339,7 +2350,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
       <ReviewsSection listing={listing} user={user} />
 
-      {showPayment && !durationError && (
+      {showPayment && bookingReady && !durationError && (
       <PaymentModal
           key={bookingCheckoutKey({ listing, hours, chosenSpot, date: bookingMode === "advance" ? date : undefined,
             startHour: bookingMode === "advance" ? startHour : undefined, endHour: bookingMode === "advance" ? endHour : undefined,
@@ -3334,6 +3345,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
               >
                 <button type="button" className="ps-browse-listing-main"
                   aria-label={`Show ${l.title} on map`}
+                  aria-describedby={l.bookingStatus !== "ready" ? `listing-bookability-${l.id}` : undefined}
                   aria-pressed={activeMapListing?.id === l.id}
                   onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); }}>
                   <div className="ps-browse-listing-thumb"><ListingThumb listing={l} fontSize={30} /></div>
@@ -3346,13 +3358,14 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
                         ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
                         : <span>{distanceLabel(l)}</span>}
                     </div>
+                    {l.bookingStatus !== "ready" && <span id={`listing-bookability-${l.id}`} className="ps-browse-bookability-note">{l.bookingStatus === "not_ready" ? "Not bookable yet — Host setup incomplete" : "Booking status needs checking"}</span>}
                     {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
                 </button>
                 <div className="ps-browse-listing-actions">
                   <button type="button" onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); onPreviewRoute(l); }}>↗ Preview route</button>
-                  <button type="button" onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
+                  <button type="button" aria-describedby={l.bookingStatus !== "ready" ? `listing-bookability-${l.id}` : undefined} onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
                 </div>
               </div>
             ))}

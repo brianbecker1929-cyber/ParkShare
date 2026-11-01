@@ -9833,3 +9833,7 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-host-profile-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
 .ps-host-profile-actions button { min-height: 44px; padding: 10px 18px; border: 1px solid #E3DDC9; border-radius: 10px; background: #FFC107; color: #0E1B2E; font: inherit; font-weight: 700; cursor: pointer; }
 .ps-host-profile-actions button:disabled { opacity: .65; cursor: default; }
+
+.ps-browse-bookability-note { display: block; color: #0E1B2E; font-size: 12px; font-weight: 700; margin-top: 6px; }
+.ps-listing-bookability-notice { padding: 14px; margin-bottom: 14px; border: 1px solid #A77D00; border-radius: 10px; background: #FFF8E1; color: #0E1B2E; }
+.ps-listing-bookability-notice p { margin: 6px 0; font-size: 13px; line-height: 1.5; }
