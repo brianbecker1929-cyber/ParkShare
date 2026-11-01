@@ -3,7 +3,7 @@ import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
-import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, OverlayView, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase, updateRecoveryPasswordForAccount } from "./lib/supabaseClient";
 import { RECOVERY_SESSION_CHANGED } from "./lib/passwordRecovery";
 import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
@@ -15,6 +15,7 @@ import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { createMessageConversation, messageConversationKey } from "./lib/messageConversation";
 import { validId } from "./lib/privateListingAccess";
 import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
+import { satelliteSpotPoint, satelliteSpotBounds } from "./lib/satelliteSpotDrawing";
 import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
@@ -637,7 +638,7 @@ function milesBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const GOOGLE_MAPS_LIBRARIES = ["drawing", "places"]; // Stable reference: drawing powers the Host spot tool; places lets Drivers search destinations, landmarks, businesses, and addresses.
+const GOOGLE_MAPS_LIBRARIES = ["places"]; // Stable reference shared by every map loader; spot rectangles use the core Maps API.
 
 // Muted "curbside" map styling so Google's default map matches the app's palette.
 const MAP_STYLE = [
@@ -4899,42 +4900,69 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const [drawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [drawError, setDrawError] = useState("");
   const mapRef = useRef(null);
+  const drawingRef = useRef(null);
+  const drawToggle = useRef(null);
+  const instructionsId = useId();
+  const locationKey = `${center.lat}:${center.lng}`;
+  const latest = useRef(null);
+  latest.current = {locationKey, center, spots, maxSpots, onAddSpot};
+  // Keep the camera stable while the draft preview changes or spots are added.
+  const mapCenter = useMemo(() => ({lat: center.lat, lng: center.lng}), [center.lat, center.lng]);
+  if (drawingRef.current && (drawingRef.current.locationKey !== locationKey || spots.length >= maxSpots)) drawingRef.current = null;
+  const drawing = Boolean(draft && drawingRef.current === draft);
+  const firstCorner = drawing ? draft.first : null;
+  const preview = firstCorner ? satelliteSpotBounds(firstCorner, draft.second) : null;
+  const changeDraft = next => { drawingRef.current = next; setDraft(next); setDrawError(""); };
+  useEffect(() => { changeDraft(null); }, [locationKey, maxSpots]);
+  useEffect(() => () => { drawingRef.current = null; mapRef.current = null; }, []);
+
+  const chooseCorner = latLng => {
+    const current = drawingRef.current, context = latest.current;
+    if (!current || current.locationKey !== locationKey || current.locationKey !== context.locationKey) return;
+    if (context.spots.length >= context.maxSpots) { changeDraft(null); return; }
+    const point = satelliteSpotPoint(latLng, context.center);
+    if (!point) { setDrawError("Choose a corner close to your confirmed driveway pin."); return; }
+    if (!current.first) { changeDraft({...current, first: point, second: null}); return; }
+    const bounds = satelliteSpotBounds(current.first, point);
+    if (!bounds) { setDrawError("Choose a different opposite corner so the spot has both width and height."); return; }
+    // Invalidate synchronously: repeated/stale map clicks cannot save twice.
+    changeDraft(null);
+    context.onAddSpot(bounds);
+    drawToggle.current?.focus();
+  };
+  const previewCorner = event => {
+    const current = drawingRef.current;
+    if (!current?.first || current.locationKey !== locationKey || latest.current.locationKey !== locationKey) return;
+    const point = satelliteSpotPoint(event.latLng, latest.current.center);
+    if (point) { const next = {...current, second: point}; drawingRef.current = next; setDraft(next); }
+  };
 
   const boxStyle = { width: "100%", height: 320, borderRadius: 14, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 };
-
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) return <div style={boxStyle}>Satellite view unavailable — missing Google Maps API key</div>;
   if (loadError) return <div style={boxStyle}>Couldn't load satellite imagery</div>;
   if (!isLoaded) return <div style={boxStyle}>Loading satellite imagery…</div>;
 
-  const onRectangleComplete = (rect) => {
-    const b = rect.getBounds();
-    const ne = b.getNorthEast(), sw = b.getSouthWest();
-    onAddSpot({ north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng() });
-    rect.setMap(null); // remove the raw drawing-tool rectangle; we render our own below
-    setDrawing(false);
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }} onKeyDown={event => {
+      if (event.key === "Escape" && drawingRef.current) { event.preventDefault(); changeDraft(null); drawToggle.current?.focus(); }
+    }}>
       <div style={{ borderRadius: 14, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)" }}>
         <GoogleMap
           mapContainerStyle={{ width: "100%", height: 320 }}
-          center={center}
+          center={mapCenter}
           zoom={19}
           mapTypeId="satellite"
-          onLoad={(map) => { mapRef.current = map; }}
-          options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false }}
+          onLoad={map => { mapRef.current = map; }}
+          onUnmount={() => { drawingRef.current = null; mapRef.current = null; }}
+          onClick={event => chooseCorner(event.latLng)}
+          onMouseMove={previewCorner}
+          options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false, keyboardShortcuts: true, disableDoubleClickZoom: drawing, draggableCursor: drawing ? "crosshair" : undefined }}
         >
-          <DrawingManager
-            drawingMode={drawing ? window.google.maps.drawing.OverlayType.RECTANGLE : null}
-            onRectangleComplete={onRectangleComplete}
-            options={{
-              drawingControl: false,
-              rectangleOptions: { fillColor: SPOT_STROKE_RENT, fillOpacity: 0.35, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false, editable: false },
-            }}
-          />
+          {firstCorner && <Marker position={firstCorner} label="1" options={{clickable: false}} />}
+          {preview && <Rectangle bounds={preview} options={{fillColor: SPOT_STROKE_RENT, fillOpacity: 0.2, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false}} />}
           {spots.map((s) => (
             <Rectangle
               key={s.id}
@@ -4944,9 +4972,9 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
                 fillOpacity: 0.35,
                 strokeColor: s.forRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE,
                 strokeWeight: 2,
-                clickable: true,
+                clickable: !drawing,
               }}
-              onClick={() => onToggleSpot(s.id)}
+              onClick={() => { if (!drawingRef.current) onToggleSpot(s.id); }}
             />
           ))}
           {spots.map((s, i) => {
@@ -4957,24 +4985,32 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
                   <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
                     Spot {String.fromCharCode(65 + i)} {s.forRent ? "· FOR RENT" : "· PRIVATE"}
                   </span>
-                  <button onClick={() => onRemoveSpot(s.id)} style={{ pointerEvents: "auto", width: 18, height: 18, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
+                  <button type="button" aria-label={`Remove spot ${String.fromCharCode(65 + i)}`} disabled={drawing} onClick={() => { if (!drawingRef.current) onRemoveSpot(s.id); }} style={{ pointerEvents: "auto", width: 44, height: 44, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
                 </div>
               </OverlayView>
             );
           })}
         </GoogleMap>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 11, color: C.muted }}>Tap a drawn spot to switch it between for-rent and private.</span>
-        <button
-          onClick={() => setDrawing(d => !d)}
-          disabled={spots.length >= maxSpots}
-          style={{
-            flexShrink: 0, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none",
-            borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: spots.length >= maxSpots ? "not-allowed" : "pointer",
-            opacity: spots.length >= maxSpots ? 0.5 : 1, fontFamily: "'Poppins', sans-serif",
+      <p id={instructionsId} role="status" style={{ fontSize: 12, color: C.navy, margin: 0 }}>
+        {drawing
+          ? firstCorner ? "Choose the opposite corner to finish this spot. You can tap the photo, or move the map with its arrow keys and use the map-centre button."
+            : "Choose the first corner of this spot. You can tap the photo, or move the map with its arrow keys and use the map-centre button."
+          : "Start drawing, then tap two opposite corners of each parking space. Tap a saved spot to switch it between for-rent and private."}
+      </p>
+      {drawError && <p role="alert" style={{fontSize: 12, color: C.red, margin: 0}}>{drawError}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 10 }}>
+        {drawing && <button type="button" aria-describedby={instructionsId} onClick={() => chooseCorner(mapRef.current?.getCenter())}
+          style={{minHeight: 44, background: C.white, color: C.navy, border: "1px solid " + C.navy, borderRadius: 8, padding: "8px 14px", fontWeight: 700, cursor: "pointer"}}>
+          {firstCorner ? "Set opposite corner at map centre" : "Set first corner at map centre"}
+        </button>}
+        <button ref={drawToggle} type="button" aria-pressed={drawing} aria-describedby={instructionsId}
+          onClick={() => {
+            if (drawingRef.current) changeDraft(null);
+            else if (latest.current.locationKey === locationKey && latest.current.spots.length < latest.current.maxSpots) changeDraft({locationKey, first: null, second: null});
           }}
-        >
+          disabled={!drawing && spots.length >= maxSpots}
+          style={{ minHeight: 44, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: !drawing && spots.length >= maxSpots ? "not-allowed" : "pointer", fontFamily: "'Poppins', sans-serif" }}>
           {drawing ? "Cancel drawing" : spots.length === 0 ? "✏️ Draw your first spot" : "+ Draw another spot"}
         </button>
       </div>
@@ -5692,7 +5728,7 @@ function ListDrivewayView({ user }) {
               </>
             }>
               <label style={{ ...labelStyle, marginBottom: 0 }}>Mark your parking spots on the aerial photo</label>
-              <p style={{ fontSize: 12, color: C.muted, margin: "6px 0" }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Draw a box over each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: "6px 0" }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Choose two opposite corners to mark each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
               <DrivewaySpotSatelliteMap
                 center={{ lat: form.lat, lng: form.lng }}
                 spots={form.spots}
