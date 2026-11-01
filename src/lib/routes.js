@@ -135,8 +135,16 @@ const ROUTES = [
   },
 ];
 
+const NOT_FOUND_ROUTE = {
+  path: null,
+  screen: "not-found",
+  title: "Page not found | ParkShare",
+  description: "This address does not lead to a ParkShare page. Find parking or return to the homepage.",
+  notFound: true,
+};
+
 const ROUTE_BY_PATH = new Map(ROUTES.map(route => [route.path, route]));
-const ROUTE_ALIASES = new Map([["/discover/events", "/discover/festivals"]]);
+const ROUTE_ALIASES = new Map([["/discover/events", "/discover/festivals"], ["/index.html", "/"]]);
 const ROUTE_BY_TAB = new Map(ROUTES.filter(route => route.tab).map(route => [route.tab, route]));
 const ROUTE_BY_SCREEN = new Map(ROUTES.filter(route => !route.tab && route.screen !== "legal").map(route => [route.screen, route]));
 
@@ -147,10 +155,11 @@ export function normalizePathname(pathname = "/") {
 
 export function getRouteFromPath(pathname = "/") {
   const normalizedPath = normalizePathname(pathname);
-  return ROUTE_BY_PATH.get(ROUTE_ALIASES.get(normalizedPath) || normalizedPath) || ROUTE_BY_PATH.get("/");
+  return ROUTE_BY_PATH.get(ROUTE_ALIASES.get(normalizedPath) || normalizedPath) || NOT_FOUND_ROUTE;
 }
 
 export function getRouteForState(screen, tab = "Browse", anchor = null) {
+  if (screen === "not-found") return NOT_FOUND_ROUTE;
   if (screen === "legal") return ROUTE_BY_PATH.get(anchor === "privacy" ? "/privacy" : "/terms");
   if (screen === "app") return ROUTE_BY_TAB.get(tab) || ROUTE_BY_PATH.get("/parking");
   return ROUTE_BY_SCREEN.get(screen) || ROUTE_BY_PATH.get("/");
@@ -169,16 +178,18 @@ function ensureMeta(selector, attributes) {
 export function updateRouteMetadata(route) {
   if (typeof document === "undefined") return;
   const activeRoute = route || ROUTE_BY_PATH.get("/");
-  const canonicalUrl = `${SITE_ORIGIN}${activeRoute.path}`;
+  const canonicalUrl = activeRoute.notFound ? null : `${SITE_ORIGIN}${activeRoute.path}`;
 
   document.title = activeRoute.title;
   ensureMeta('meta[name="description"]', { name: "description" }).setAttribute("content", activeRoute.description);
-  ensureMeta('meta[name="robots"]', { name: "robots" }).setAttribute("content", activeRoute.private ? "noindex, nofollow" : "index, follow");
+  ensureMeta('meta[name="robots"]', { name: "robots" }).setAttribute("content", (activeRoute.private || activeRoute.notFound) ? "noindex, nofollow" : "index, follow");
   ensureMeta('meta[property="og:title"]', { property: "og:title" }).setAttribute("content", activeRoute.title);
   ensureMeta('meta[property="og:description"]', { property: "og:description" }).setAttribute("content", activeRoute.description);
-  ensureMeta('meta[property="og:url"]', { property: "og:url" }).setAttribute("content", canonicalUrl);
+  if (canonicalUrl) ensureMeta('meta[property="og:url"]', { property: "og:url" }).setAttribute("content", canonicalUrl);
+  else document.head.querySelector('meta[property="og:url"]')?.remove();
 
   let canonical = document.head.querySelector('link[rel="canonical"]');
+  if (!canonicalUrl) { canonical?.remove(); return; }
   if (!canonical) {
     canonical = document.createElement("link");
     canonical.setAttribute("rel", "canonical");

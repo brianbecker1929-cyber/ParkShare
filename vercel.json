@@ -21,7 +21,151 @@
       "destination": "/car-icon.png"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/parking",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/parking/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover/restaurants",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover/restaurants/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover/festivals",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/discover/festivals/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/my-bookings",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/my-bookings/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/messages",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/messages/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/profile",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/profile/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/list-your-driveway",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/list-your-driveway/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/host-dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/host-dashboard/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/transactions",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/transactions/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/drivers",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/drivers/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/hosts",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/hosts/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/about/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/trust-and-safety",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/trust-and-safety/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/help",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/help/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/contact/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/privacy/",
       "destination": "/index.html"
     }
   ],

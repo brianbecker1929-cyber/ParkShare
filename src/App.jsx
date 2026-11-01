@@ -8451,6 +8451,25 @@ function FoundingHostsCard({ onShowAuth }) {
   );
 }
 
+function NotFoundPage() {
+  return (
+    <div style={{minHeight: "100vh", background: C.warmWhite, color: C.navy, fontFamily: "'Poppins', sans-serif"}}>
+      <header style={{background: C.navy, padding: 24, textAlign: "center"}}>
+        <a href="/" aria-label="ParkShare home"><img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" style={{width: "100%", maxWidth: 300, height: "auto"}} /></a>
+      </header>
+      <main id="main-content" tabIndex={-1} style={{maxWidth: 640, margin: "0 auto", padding: "56px 24px"}}>
+        <p style={{fontWeight: 800}}>404</p>
+        <h1>Page not found</h1>
+        <p>That address does not lead to a ParkShare page. You can find parking or return to the homepage.</p>
+        <nav aria-label="Find your way" style={{display: "flex", flexWrap: "wrap", gap: 12, marginTop: 24}}>
+          <a href="/parking" style={{display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 20px", background: C.amber, color: C.navy, border: "2px solid " + C.navy, borderRadius: 10, fontWeight: 700}}>Find Parking</a>
+          <a href="/" style={{display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 20px", color: C.navy, border: "2px solid " + C.navy, borderRadius: 10, fontWeight: 700}}>Home</a>
+        </nav>
+      </main>
+    </div>
+  );
+}
+
 function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick, onHelpClick }) {
   return (
     <div className="ps-landing-page ps-home-v2">
@@ -11452,7 +11471,7 @@ export default function App() {
   const moveToRoute = (nextScreen, nextTab = tab, anchor = null, { replace = false } = {}) => {
     const route = getRouteForState(nextScreen, nextTab, anchor);
     const method = replace ? "replaceState" : "pushState";
-    if (window.location.pathname !== route.path || replace) {
+    if (route.path && (window.location.pathname !== route.path || replace)) {
       window.history[method]({ parkShareRoute: true }, "", route.path);
     }
     navigationAnchorRef.current = route.anchor || anchor;
@@ -11830,7 +11849,7 @@ export default function App() {
         </div>
       )}
       {/* End sign-out feedback */}
-      {screen === "landing" ? (
+      {screen === "not-found" ? <NotFoundPage /> : screen === "landing" ? (
         <LandingPage
           onSearchAddress={handleLandingSearch}
           onUseLocation={handleLandingLocation}
