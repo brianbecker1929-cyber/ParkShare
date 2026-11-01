@@ -2890,6 +2890,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
   const [mapSelectedId, setMapSelectedId] = useState(null);
+  const [mapScrollRequest, setMapScrollRequest] = useState(0);
   const [mapSearchCenter, setMapSearchCenter] = useState(null);
   const listingColumnRef = useRef(null);
   const listingCardsRef = useRef(new Map());
@@ -3159,14 +3160,25 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
   const selectMapListing = (listing) => {
     const id = listing ? String(listing.id) : null;
     setMapSelectedId(id);
-    const column = listingColumnRef.current;
-    const card = listingCardsRef.current.get(id);
-    // Only scroll the independently scrolling list. On mobile the map sits
-    // above the cards; keep its preview in view rather than moving the page.
-    if (card && column && column.scrollHeight > column.clientHeight) {
-      card.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
+    setMapScrollRequest(request => request + 1);
   };
+  const listingOrderKey = JSON.stringify(filtered.map(listing => String(listing.id)));
+  useLayoutEffect(() => {
+    if (!mapSelectedId || view === "map") return;
+    const column = listingColumnRef.current;
+    const card = listingCardsRef.current.get(mapSelectedId);
+    if (!column || !card || column.clientHeight <= 0 || column.scrollHeight <= column.clientHeight
+      || !["auto", "scroll"].includes(window.getComputedStyle(column).overflowY)) return;
+    // Read committed card positions after selection and map-centre re-sorts.
+    // Move this scrollport only; scrollIntoView can also move the outer page.
+    const bounds = card.getBoundingClientRect();
+    const top = column.getBoundingClientRect().top + column.clientTop;
+    const bottom = top + column.clientHeight;
+    let next = column.scrollTop;
+    if (bounds.top < top || bounds.bottom - bounds.top > column.clientHeight) next += bounds.top - top;
+    else if (bounds.bottom > bottom) next += bounds.bottom - bottom;
+    column.scrollTop = Math.max(0, Math.min(column.scrollHeight - column.clientHeight, next));
+  }, [mapSelectedId, mapScrollRequest, listingOrderKey, view, selected]);
   const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
     ? `${listing.locationPrecision === "approximate" ? "≈ " : ""}${(listing.distMiles * 1.60934).toFixed(1)} km from ${locatedSearch ? "destination" : "your location"}`
     : "Select a destination for walking time");
