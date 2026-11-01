@@ -9,6 +9,54 @@
       "source": "/discover/events/",
       "destination": "/discover/festivals",
       "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "terms"
+        }
+      ],
+      "destination": "/terms",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "privacy"
+        }
+      ],
+      "destination": "/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "payments"
+        }
+      ],
+      "destination": "/payments",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "liability"
+        }
+      ],
+      "destination": "/liability",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -26,147 +74,163 @@
     },
     {
       "source": "/parking",
-      "destination": "/index.html"
+      "destination": "/parking/index.html"
     },
     {
       "source": "/parking/",
-      "destination": "/index.html"
+      "destination": "/parking/index.html"
     },
     {
       "source": "/discover",
-      "destination": "/index.html"
+      "destination": "/discover/index.html"
     },
     {
       "source": "/discover/",
-      "destination": "/index.html"
+      "destination": "/discover/index.html"
     },
     {
       "source": "/discover/restaurants",
-      "destination": "/index.html"
+      "destination": "/discover/restaurants/index.html"
     },
     {
       "source": "/discover/restaurants/",
-      "destination": "/index.html"
+      "destination": "/discover/restaurants/index.html"
     },
     {
       "source": "/discover/festivals",
-      "destination": "/index.html"
+      "destination": "/discover/festivals/index.html"
     },
     {
       "source": "/discover/festivals/",
-      "destination": "/index.html"
+      "destination": "/discover/festivals/index.html"
     },
     {
       "source": "/my-bookings",
-      "destination": "/index.html"
+      "destination": "/my-bookings/index.html"
     },
     {
       "source": "/my-bookings/",
-      "destination": "/index.html"
+      "destination": "/my-bookings/index.html"
     },
     {
       "source": "/messages",
-      "destination": "/index.html"
+      "destination": "/messages/index.html"
     },
     {
       "source": "/messages/",
-      "destination": "/index.html"
+      "destination": "/messages/index.html"
     },
     {
       "source": "/profile",
-      "destination": "/index.html"
+      "destination": "/profile/index.html"
     },
     {
       "source": "/profile/",
-      "destination": "/index.html"
+      "destination": "/profile/index.html"
     },
     {
       "source": "/list-your-driveway",
-      "destination": "/index.html"
+      "destination": "/list-your-driveway/index.html"
     },
     {
       "source": "/list-your-driveway/",
-      "destination": "/index.html"
+      "destination": "/list-your-driveway/index.html"
     },
     {
       "source": "/host-dashboard",
-      "destination": "/index.html"
+      "destination": "/host-dashboard/index.html"
     },
     {
       "source": "/host-dashboard/",
-      "destination": "/index.html"
+      "destination": "/host-dashboard/index.html"
     },
     {
       "source": "/transactions",
-      "destination": "/index.html"
+      "destination": "/transactions/index.html"
     },
     {
       "source": "/transactions/",
-      "destination": "/index.html"
+      "destination": "/transactions/index.html"
     },
     {
       "source": "/drivers",
-      "destination": "/index.html"
+      "destination": "/drivers/index.html"
     },
     {
       "source": "/drivers/",
-      "destination": "/index.html"
+      "destination": "/drivers/index.html"
     },
     {
       "source": "/hosts",
-      "destination": "/index.html"
+      "destination": "/hosts/index.html"
     },
     {
       "source": "/hosts/",
-      "destination": "/index.html"
+      "destination": "/hosts/index.html"
     },
     {
       "source": "/about",
-      "destination": "/index.html"
+      "destination": "/about/index.html"
     },
     {
       "source": "/about/",
-      "destination": "/index.html"
+      "destination": "/about/index.html"
     },
     {
       "source": "/trust-and-safety",
-      "destination": "/index.html"
+      "destination": "/trust-and-safety/index.html"
     },
     {
       "source": "/trust-and-safety/",
-      "destination": "/index.html"
+      "destination": "/trust-and-safety/index.html"
     },
     {
       "source": "/help",
-      "destination": "/index.html"
+      "destination": "/help/index.html"
     },
     {
       "source": "/help/",
-      "destination": "/index.html"
+      "destination": "/help/index.html"
     },
     {
       "source": "/contact",
-      "destination": "/index.html"
+      "destination": "/contact/index.html"
     },
     {
       "source": "/contact/",
-      "destination": "/index.html"
+      "destination": "/contact/index.html"
     },
     {
       "source": "/terms",
-      "destination": "/index.html"
+      "destination": "/terms/index.html"
     },
     {
       "source": "/terms/",
-      "destination": "/index.html"
+      "destination": "/terms/index.html"
     },
     {
       "source": "/privacy",
-      "destination": "/index.html"
+      "destination": "/privacy/index.html"
     },
     {
       "source": "/privacy/",
-      "destination": "/index.html"
+      "destination": "/privacy/index.html"
+    },
+    {
+      "source": "/payments",
+      "destination": "/payments/index.html"
+    },
+    {
+      "source": "/payments/",
+      "destination": "/payments/index.html"
+    },
+    {
+      "source": "/liability",
+      "destination": "/liability/index.html"
+    },
+    {
+      "source": "/liability/",
+      "destination": "/liability/index.html"
     }
   ],
   "crons": [

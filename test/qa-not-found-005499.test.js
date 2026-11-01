@@ -7,7 +7,7 @@ import {transform} from 'esbuild';
 
 const root = new URL('../', import.meta.url);
 const routes = await import(process.env.QA_ROUTES_SOURCE || new URL('src/lib/routes.js', root));
-const {PARKSHARE_ROUTES, getRouteFromPath, getRouteForState, updateRouteMetadata} = routes;
+const {PARKSHARE_ROUTES, getRouteFromPath, getRouteForState, updateRouteMetadata, routeDocumentPath} = routes;
 const config = JSON.parse(readFileSync(process.env.QA_ROUTING_CONFIG || new URL('vercel.json', root), 'utf8'));
 const document404 = readFileSync(new URL('public/404.html', root), 'utf8');
 const app = readFileSync(process.env.QA_NOT_FOUND_APP || new URL('src/App.jsx', root), 'utf8');
@@ -38,9 +38,10 @@ test('all real app pages and return-link query strings retain their route; alias
 });
 
 test('Vercel serves the SPA only for known routes, including trailing slashes; unknown files/API paths cannot match it', () => {
-  const appSources = config.rewrites.filter(r => r.destination === '/index.html').map(r => r.source);
+  const appSources = config.rewrites.filter(r => r.destination.endsWith('/index.html')).map(r => r.source);
   const expected = PARKSHARE_ROUTES.flatMap(r => r.path === '/' ? ['/'] : [r.path, r.path + '/']);
   assert.deepEqual(new Set(appSources), new Set(expected));
+  for (const rule of config.rewrites.filter(r => r.destination.endsWith('/index.html'))) assert.equal(rule.destination, routeDocumentPath(getRouteFromPath(rule.source)));
   assert.equal(appSources.length, new Set(appSources).size);
   assert.ok(appSources.every(path => !/[()*?:]/.test(path)), 'no catch-all can convert unknown addresses into 200 homepage responses');
   for (const missing of ['/this-page-does-not-exist', '/llms.txt', '/assets/missing.js', '/api/qa-release-status', '/robots.txt', '/sitemap.xml']) assert.ok(!appSources.includes(missing));

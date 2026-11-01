@@ -7674,7 +7674,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                   ParkShare is not liable for damage, injury, disputes, or losses connected to a booking, to the fullest extent the law allows.
                 </p>
                 <p style={{ margin: 0 }}>
-                  This is a summary. <a href="/?legal=liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
+                  This is a summary. <a href="/liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
                 </p>
               </div>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
@@ -8679,7 +8679,8 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+function LegalPage({ section = "terms", onLegalClick, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+  const activeSection = ["terms", "privacy", "payments", "liability"].includes(section) ? section : "terms";
   const UPDATED = "August 22, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -8706,10 +8707,10 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
         <div id="legal-documents" style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32, scrollMarginTop: 90 }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>On this page</div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>Legal documents</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {nav.map(([id, label]) => (
-              <a key={id} href={"#" + id} style={{ color: C.navy, textDecoration: "none", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <a key={id} href={getRouteForState("legal", "Browse", id).path} aria-current={activeSection === id ? "page" : undefined} style={{ color: C.navy, textDecoration: "none", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.hazard, flexShrink: 0 }} />
                 {label}
               </a>
@@ -8717,7 +8718,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
 
-        <div id="terms" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "terms" && (<div id="terms" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 1 of 4" title="Terms of" accent="Service" updated={UPDATED}>
             <LegalH2>1. Agreement to Terms</LegalH2>
             <LegalP>ParkShare is a product developed and operated by ESKA Technologies Inc. ("ESKA Technologies," "we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
@@ -8795,9 +8796,9 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>16. Contact</LegalH2>
             <LegalP>Questions about these Terms: <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="privacy" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "privacy" && (<div id="privacy" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 2 of 4" title="Privacy" accent="Policy" updated={UPDATED}>
             <LegalP>This Privacy Policy explains how ESKA Technologies Inc., the developer and operator of ParkShare ("we," "us," or "our"), collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
 
@@ -8849,9 +8850,9 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>12. Contact Us</LegalH2>
             <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="payments" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "payments" && (<div id="payments" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 3 of 4" title="Payment Processing" accent="Agreement" updated={UPDATED}>
             <LegalP>This Agreement explains how payments, fees, and payouts work on the ParkShare Platform, and forms part of the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink>. By making a booking or listing a driveway on ParkShare, you agree to this Agreement.</LegalP>
 
@@ -8892,9 +8893,9 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>12. Contact</LegalH2>
             <LegalP>Payment-related questions can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="liability" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "liability" && (<div id="liability" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 4 of 4" title="Disclaimer of" accent="Liability" updated={UPDATED}>
             <LegalP>This Disclaimer of Liability supplements the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink> and applies to all use of the ParkShare Platform. By using ParkShare, you acknowledge and agree to the following.</LegalP>
 
@@ -8946,11 +8947,11 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>9. Contact</LegalH2>
             <LegalP>Questions about this Disclaimer can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
       </div>
 
       </main>
-      <HomeFooter onLegalClick={(section = "terms") => document.getElementById(section)?.scrollIntoView({ block: "start" })} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -11528,7 +11529,7 @@ export default function App() {
       setScreen("app");
       setTab("Browse");
     } else if (params.get("legal")) {
-      const section = params.get("legal") === "privacy" ? "privacy" : "terms";
+      const section = ["terms", "privacy", "payments", "liability"].includes(params.get("legal")) ? params.get("legal") : "terms";
       navigationAnchorRef.current = section;
       setLegalSection(section);
       setScreen("legal");
@@ -11869,6 +11870,8 @@ export default function App() {
         />
       ) : screen === "legal" ? (
         <LegalPage
+          section={legalSection}
+          onLegalClick={openLegal}
           tab={tab}
           onTabChange={changeTab}
           onLogoClick={goHome}

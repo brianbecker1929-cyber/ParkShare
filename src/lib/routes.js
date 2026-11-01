@@ -1,4 +1,4 @@
-const SITE_ORIGIN = "https://www.myparkshare.ca";
+export const SITE_ORIGIN = "https://www.myparkshare.ca";
 
 const ROUTES = [
   {
@@ -133,6 +133,16 @@ const ROUTES = [
     title: "Privacy Policy | ParkShare",
     description: "Read the ParkShare privacy policy and learn how personal information is handled.",
   },
+  {
+    path: "/payments", screen: "legal", anchor: "payments",
+    title: "Payment Processing Agreement | ParkShare",
+    description: "Read how ParkShare processes payments, fees, refunds and Host payouts.",
+  },
+  {
+    path: "/liability", screen: "legal", anchor: "liability",
+    title: "Liability Disclaimer | ParkShare",
+    description: "Read the ParkShare liability disclaimer for Drivers, Hosts and visitors.",
+  },
 ];
 
 const NOT_FOUND_ROUTE = {
@@ -146,6 +156,7 @@ const NOT_FOUND_ROUTE = {
 const ROUTE_BY_PATH = new Map(ROUTES.map(route => [route.path, route]));
 const ROUTE_ALIASES = new Map([["/discover/events", "/discover/festivals"], ["/index.html", "/"]]);
 const ROUTE_BY_TAB = new Map(ROUTES.filter(route => route.tab).map(route => [route.tab, route]));
+const ROUTE_BY_LEGAL_SECTION = new Map(ROUTES.filter(route => route.screen === "legal").map(route => [route.anchor, route]));
 const ROUTE_BY_SCREEN = new Map(ROUTES.filter(route => !route.tab && route.screen !== "legal").map(route => [route.screen, route]));
 
 export function normalizePathname(pathname = "/") {
@@ -155,12 +166,13 @@ export function normalizePathname(pathname = "/") {
 
 export function getRouteFromPath(pathname = "/") {
   const normalizedPath = normalizePathname(pathname);
-  return ROUTE_BY_PATH.get(ROUTE_ALIASES.get(normalizedPath) || normalizedPath) || NOT_FOUND_ROUTE;
+  const documentRoute = normalizedPath.endsWith("/index.html") ? normalizedPath.slice(0, -11) || "/" : normalizedPath;
+  return ROUTE_BY_PATH.get(ROUTE_ALIASES.get(documentRoute) || documentRoute) || NOT_FOUND_ROUTE;
 }
 
 export function getRouteForState(screen, tab = "Browse", anchor = null) {
   if (screen === "not-found") return NOT_FOUND_ROUTE;
-  if (screen === "legal") return ROUTE_BY_PATH.get(anchor === "privacy" ? "/privacy" : "/terms");
+  if (screen === "legal") return ROUTE_BY_LEGAL_SECTION.get(anchor) || ROUTE_BY_PATH.get("/terms");
   if (screen === "app") return ROUTE_BY_TAB.get(tab) || ROUTE_BY_PATH.get("/parking");
   return ROUTE_BY_SCREEN.get(screen) || ROUTE_BY_PATH.get("/");
 }
@@ -185,6 +197,8 @@ export function updateRouteMetadata(route) {
   ensureMeta('meta[name="robots"]', { name: "robots" }).setAttribute("content", (activeRoute.private || activeRoute.notFound) ? "noindex, nofollow" : "index, follow");
   ensureMeta('meta[property="og:title"]', { property: "og:title" }).setAttribute("content", activeRoute.title);
   ensureMeta('meta[property="og:description"]', { property: "og:description" }).setAttribute("content", activeRoute.description);
+  ensureMeta('meta[name="twitter:title"]', { name: "twitter:title" }).setAttribute("content", activeRoute.title);
+  ensureMeta('meta[name="twitter:description"]', { name: "twitter:description" }).setAttribute("content", activeRoute.description);
   if (canonicalUrl) ensureMeta('meta[property="og:url"]', { property: "og:url" }).setAttribute("content", canonicalUrl);
   else document.head.querySelector('meta[property="og:url"]')?.remove();
 
@@ -199,3 +213,9 @@ export function updateRouteMetadata(route) {
 }
 
 export const PARKSHARE_ROUTES = ROUTES;
+
+// Route HTML filenames are shared by the build and deployment routing checks.
+export function routeDocumentPath(route) {
+  if (!route || typeof route.path !== "string" || !/^\/(?:[a-z0-9-]+(?:\/[a-z0-9-]+)*)?$/.test(route.path)) throw new Error("Invalid static route path");
+  return route.path === "/" ? "/index.html" : route.path + "/index.html";
+}
