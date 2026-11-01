@@ -2334,6 +2334,7 @@ button, input, select, textarea { font: inherit; }
   text-transform: uppercase;
   margin-bottom: 12px;
 }
+.ps-home-v2-section-heading .ps-home-v2-eyebrow { color: #8A6100; }
 .ps-home-v2-hero {
   max-width: 1180px;
   margin: 28px auto 0;
@@ -3923,7 +3924,7 @@ button, input, select, textarea { font: inherit; }
   border: 0;
   border-radius: 999px;
   background: #E3DDC9;
-  color: #71695A;
+  color: #0E1B2E;
   font-family: 'Poppins', sans-serif;
   font-size: 10.5px;
   font-weight: 800;
