@@ -55,7 +55,7 @@ test('direct /profile separates signed-out sign-in guidance from Host role denia
    assert.equal(screen,'signin');assert.equal(shown,true);assert.equal(nav,undefined,'Sign-in keeps the current Profile destination');
   }
  }
- assert.match(app,/tab === "Profile" && requireDriver\(<DriverProfileView/);
+ assert.match(app,/tab === "Profile" && user\?\.role !== "host" && requireDriver\(<DriverProfileView/);
 });
 
 // Execute the actual JSX component with isolated hooks and synthetic Auth;

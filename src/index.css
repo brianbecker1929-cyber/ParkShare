@@ -9825,3 +9825,11 @@ div:has(> button[aria-label="ParkShare help"])
 #public-document [data-public-navigation] a { color: #0E1B2E; min-height: 44px; display: inline-flex; align-items: center; }
 #public-document [data-public-faq] details { padding: 12px 0; border-bottom: 1px solid #E3DDC9; }
 #public-document [data-public-faq] summary, #public-document [data-public-navigation] summary { cursor: pointer; font-weight: 700; }
+
+/* Private Host account editor uses the existing responsive profile shell. */
+.ps-host-profile-page .ps-driver-profile-intro,
+.ps-host-profile-page .ps-driver-profile-fields { grid-template-columns: minmax(0, 1fr); }
+.ps-host-profile-page .ps-profile-eyebrow { color: #0E1B2E; }
+.ps-host-profile-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
+.ps-host-profile-actions button { min-height: 44px; padding: 10px 18px; border: 1px solid #E3DDC9; border-radius: 10px; background: #FFC107; color: #0E1B2E; font: inherit; font-weight: 700; cursor: pointer; }
+.ps-host-profile-actions button:disabled { opacity: .65; cursor: default; }

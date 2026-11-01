@@ -56,7 +56,7 @@ const ROUTES = [
     screen: "app",
     tab: "Profile",
     title: "My Profile | ParkShare",
-    description: "Manage your ParkShare profile and vehicle details.",
+    description: "Manage your private ParkShare account profile.",
     private: true,
   },
   {

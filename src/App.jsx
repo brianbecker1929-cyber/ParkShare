@@ -1,5 +1,6 @@
 import HostOnboarding from "./components/HostOnboarding.jsx";
 import DeferredAuth from "./components/DeferredAuth.jsx";
+import HostProfileView from "./components/HostProfileView.jsx";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
@@ -7978,7 +7979,7 @@ function DiscoverNav({ tab, onTabChange, signedIn = false }) {
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
-    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
+    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions", "Profile"]
     : ["Browse", "Discover", "My Bookings", "Messages", "Transactions", "Profile"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
@@ -8318,7 +8319,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
           {tabs.map(t => t === "Discover" ? (
             <DiscoverNav key={t} tab={tab} signedIn onTabChange={nextTab => { setDashboardMenuOpen(false); onTabChange(nextTab); }} />
           ) : (
-            <button key={t} aria-label={t === "Profile" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && !user.profileComplete ? "Profile •" : t}</button>
+            <button key={t} aria-label={t === "Profile" && user.role === "driver" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && user.role === "driver" && !user.profileComplete ? "Profile •" : t}</button>
           ))}
         </div>
       )}
@@ -12001,7 +12002,8 @@ export default function App() {
             : <BrowseView onVehicleUpdated={vehicle => setUser(current => current?.id === vehicle.id ? { ...current, ...vehicle } : current)} key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
-          {tab === "Profile" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
+          {tab === "Profile" && user?.role === "host" && <HostProfileView key={user.id} user={user} client={supabase} onProfileUpdated={profile => setUser(current => current?.id === profile.id && current.role === "host" ? { ...current, ...profile } : current)} />}
+          {tab === "Profile" && user?.role !== "host" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
