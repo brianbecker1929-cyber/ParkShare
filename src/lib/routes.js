@@ -136,6 +136,7 @@ const ROUTES = [
 ];
 
 const ROUTE_BY_PATH = new Map(ROUTES.map(route => [route.path, route]));
+const ROUTE_ALIASES = new Map([["/discover/events", "/discover/festivals"]]);
 const ROUTE_BY_TAB = new Map(ROUTES.filter(route => route.tab).map(route => [route.tab, route]));
 const ROUTE_BY_SCREEN = new Map(ROUTES.filter(route => !route.tab && route.screen !== "legal").map(route => [route.screen, route]));
 
@@ -146,7 +147,7 @@ export function normalizePathname(pathname = "/") {
 
 export function getRouteFromPath(pathname = "/") {
   const normalizedPath = normalizePathname(pathname);
-  return ROUTE_BY_PATH.get(normalizedPath) || ROUTE_BY_PATH.get("/");
+  return ROUTE_BY_PATH.get(ROUTE_ALIASES.get(normalizedPath) || normalizedPath) || ROUTE_BY_PATH.get("/");
 }
 
 export function getRouteForState(screen, tab = "Browse", anchor = null) {

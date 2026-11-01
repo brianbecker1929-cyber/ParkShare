@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/discover/events",
+      "destination": "/discover/festivals",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/driveway-template.png",
