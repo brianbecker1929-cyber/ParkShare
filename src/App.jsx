@@ -3712,6 +3712,23 @@ function TransactionsView({ user }) {
   );
 }
 
+function ListingDeletionDialog({ title, busy, onClose, onConfirm }) {
+  const [acknowledged, setAcknowledged] = useState(false);
+  return <Modal nativeModal title="Delete parking listing?" onClose={onClose}>
+    <p style={{ color: C.navy, lineHeight: 1.5 }}>Delete <strong>{title}</strong> from ParkShare?</p>
+    <label style={{ display: "flex", alignItems: "center", gap: 10, color: C.navy, margin: "18px 0" }}>
+      <input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} />
+      <span>I want to delete this listing.</span>
+    </label>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+      <button type="button" onClick={onClose} disabled={busy} style={{ minHeight: 44, padding: "10px 18px", border: 0, borderRadius: 8, background: C.concrete, color: C.navy, fontWeight: 700, cursor: "pointer" }}>Keep listing</button>
+      <button type="button" disabled={!acknowledged || busy} onClick={() => {
+        if (acknowledged && !busy) onConfirm();
+      }} style={{ minHeight: 44, padding: "10px 18px", border: 0, borderRadius: 8, background: C.red, color: C.white, fontWeight: 700, opacity: !acknowledged || busy ? 0.5 : 1, cursor: !acknowledged || busy ? "default" : "pointer" }}>{busy ? "Deleting…" : "Delete listing"}</button>
+    </div>
+  </Modal>;
+}
+
 function useHostListingDeletion(user, onDeleted) {
   const accountId = user?.id || null;
   const [context, setContext] = useState(() => ({ accountId, request: null }));
@@ -4307,10 +4324,7 @@ function HostDashboard({ user, setTab }) {
                 </div>
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
-                  <div className="host-dashboard-delete-confirm" style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button onClick={deleteListing} disabled={deletingId === l.id} style={{ minHeight: 34, background: C.red, color: C.white, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Delete"}</button>
-                    <button onClick={closeListingDeletion} disabled={deletingId !== null} style={{ minHeight: 34, background: C.concrete, color: C.navy, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Keep</button>
-                  </div>
+                  <ListingDeletionDialog title={l.title} busy={deletingId !== null} onConfirm={deleteListing} onClose={closeListingDeletion} />
                 ) : (
                   <div style={{ position: "relative", flexShrink: 0 }}>
                     <button aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>

@@ -89,6 +89,30 @@ test('actual Host Dashboard wires scoped Delete/Keep actions and removes only th
  const props={deletingId:null,confirmDeleteId:'db-7',open:()=>{},close:()=>{},confirm:()=>{}};
  const rows=[{id:'db-7'},{id:'db-8'}];let remaining;
  const bindings=new Function('useHostListingDeletion','user','setDbListings',app.slice(from,to)+';return {deletingId,confirmDeleteId,openListingDeletion,closeListingDeletion,deleteListing};')((...args)=>{received=args;return props;},{id:'A'},fn=>{remaining=fn(rows);});received[1]('db-7');assert.deepEqual(remaining,[{id:'db-8'}]);assert.equal(received[0].id,'A');
- const x=app.indexOf('<div className="host-dashboard-delete-confirm"'),tag=app.slice(x,app.indexOf('</div>',x)+6),built=await transform('function Row(){return '+tag+';}',{loader:'jsx'});const values={React,C:{},l:listing(),...bindings};const Row=new Function(...Object.keys(values),built.code+';return Row;')(...Object.values(values)),buttons=React.Children.toArray(Row().props.children);assert.equal(buttons[0].props.onClick,props.confirm);assert.equal(buttons[1].props.onClick,props.close);assert.equal(buttons[1].props.disabled,false);
- const busyValues={...values,deletingId:'db-7'},Busy=new Function(...Object.keys(busyValues),built.code+';return Row;')(...Object.values(busyValues));assert.equal(React.Children.toArray(Busy().props.children)[1].props.disabled,true);assert.match(app,/openListingDeletion\(l\)/);
+ const x=app.indexOf('<ListingDeletionDialog title='),tag=app.slice(x,app.indexOf('/>',x)+2),built=await transform('function Row(){return '+tag+';}',{loader:'jsx'});const values={React,ListingDeletionDialog:()=>null,l:listing(),...bindings};const Row=new Function(...Object.keys(values),built.code+';return Row;')(...Object.values(values)),dialog=Row();assert.equal(dialog.props.onConfirm,props.confirm);assert.equal(dialog.props.onClose,props.close);assert.equal(dialog.props.busy,false);assert.equal(dialog.props.title,'PRIVATE TITLE');
+ const busyValues={...values,deletingId:'db-7'},Busy=new Function(...Object.keys(busyValues),built.code+';return Row;')(...Object.values(busyValues));assert.equal(Busy().props.busy,true);assert.match(app,/openListingDeletion\(l\)/);
+});
+
+const dialogCode=(await transform(app.slice(app.indexOf('function ListingDeletionDialog('),app.indexOf('function useHostListingDeletion(')),{loader:'jsx'})).code;
+function deletionDialog(){
+ let agreed=false,confirmations=0,cancellations=0;
+ const Modal=()=>null;
+ const View=new Function('React','C','Modal','useState',dialogCode+';return ListingDeletionDialog;')(React,{},Modal,()=>[agreed,value=>{agreed=value;}]);
+ const visit=node=>!React.isValidElement(node)?[]:[node,...React.Children.toArray(node.props.children).flatMap(visit)];
+ const render=(busy=false)=>{const root=View({title:'Synthetic listing',busy,onConfirm:()=>{confirmations++;},onClose:()=>{cancellations++;}});const nodes=visit(root);return {root,checkbox:nodes.find(n=>n.type==='input'),keep:nodes.find(n=>n.type==='button'&&n.props.children==='Keep listing'),remove:nodes.find(n=>n.type==='button'&&n.props.children!=='Keep listing')};};
+ return {render,get confirmations(){return confirmations;},get cancellations(){return cancellations;}};
+}
+test('BUG-005443 repeated clicks cannot confirm before a separate acknowledgement in the native dialog',()=>{
+ const h=deletionDialog(),first=h.render();assert.equal(first.root.props.nativeModal,true);assert.equal(first.root.props.title,'Delete parking listing?');
+ assert.equal(first.checkbox.props.checked,false);assert.equal(first.remove.props.disabled,true);
+ first.remove.props.onClick();first.remove.props.onClick();assert.equal(h.confirmations,0);
+ first.checkbox.props.onChange({target:{checked:true}});const acknowledged=h.render();assert.equal(acknowledged.remove.props.disabled,false);
+ acknowledged.remove.props.onClick();assert.equal(h.confirmations,1);
+});
+test('BUG-005443 Keep, unticking, busy state and reopening preserve deliberate deletion',()=>{
+ const h=deletionDialog();h.render().keep.props.onClick();assert.equal(h.cancellations,1);assert.equal(h.confirmations,0);
+ h.render().checkbox.props.onChange({target:{checked:true}});const busy=h.render(true);
+ assert.equal(busy.checkbox.props.disabled,true);assert.equal(busy.keep.props.disabled,true);assert.equal(busy.remove.props.disabled,true);busy.remove.props.onClick();assert.equal(h.confirmations,0);
+ h.render().checkbox.props.onChange({target:{checked:false}});const unchecked=h.render();assert.equal(unchecked.remove.props.disabled,true);unchecked.remove.props.onClick();assert.equal(h.confirmations,0);
+ assert.equal(deletionDialog().render().checkbox.props.checked,false,'Each newly mounted confirmation starts unacknowledged');
 });
