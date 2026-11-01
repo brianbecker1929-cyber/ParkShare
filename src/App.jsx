@@ -5062,15 +5062,21 @@ function ListDrivewayView({ user }) {
         if (!res.ok) throw new Error("Address search unavailable");
         const data = await res.json();
         if (requestId !== addressRequest.current || controller.signal.aborted) return;
+        const seenAddresses = new Set();
         setSuggestions(data.filter(d => Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lon))).map(d => ({
-          label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb, d.address.state].filter(Boolean).join(", "),
+          label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb || d.address.village, d.address.state || d.address.state_district].filter(Boolean).join(", "),
           street: [d.address.house_number, d.address.road].filter(Boolean).join(" "),
           city: d.address.city || d.address.town || d.address.suburb || d.address.village || "",
           region: d.address.state || d.address.state_district || "",
           postal: d.address.postcode || "",
           lat: parseFloat(d.lat),
           lng: parseFloat(d.lon),
-        })));
+        })).filter(suggestion => {
+          const address = suggestion.label.normalize("NFKC").trim().replace(/\s+/g, " ").replace(/\s*,\s*/g, ",").toLowerCase();
+          if (!address || seenAddresses.has(address)) return false;
+          seenAddresses.add(address);
+          return true;
+        }));
       } catch { if (requestId === addressRequest.current) setSuggestions([]); }
       if (requestId === addressRequest.current) setLoadingSug(false);
     }, 350);
