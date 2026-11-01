@@ -6,12 +6,14 @@ import { privateBookingListing, canReadPreciseLocation, canReadCancelledBookingT
 import { withBookingChargeTotals } from "./_booking-display-total.js";
 import { bookingDisplayTimeZone } from "./_booking-display-time-zone.js";
 
+import {normaliseVehicleType} from "../src/lib/vehicleTypes.js";
+
 const bookingColumns = [
   "id","listing_id","renter_id","hours","total","status","paid_at","application_state",
   // Keep the canonical instant/zone through the privacy-safe projection:
   // omitting them makes both dashboards reinterpret Toronto local time as UTC.
   "booking_date","start_hour","scheduled_starts_at","property_time_zone",
-  "spot_label","vehicle_make","vehicle_model",
+  "spot_label","vehicle_type","vehicle_make","vehicle_model",
   "vehicle_colour","license_plate","refund_status","created_at",
   "cancellation_requested_at","refund_total_amount","refund_pending_amount",
   "event_id","event_name","event_category","event_venue_name","event_address",
@@ -26,6 +28,7 @@ function publicBookingShape(row, listing, participantName, fullLocation, histori
   const { stripe_checkout_session_id, ...safeBooking } = row;
   return {
     ...safeBooking,
+    vehicle_type: normaliseVehicleType(row.vehicle_type) || null,
     property_time_zone: bookingDisplayTimeZone(row, listing),
     listings: privateBookingListing({ ...listing, profiles: { name: participantName } }, fullLocation, historicalTitle),
     profiles: { name: participantName || "Driver" },

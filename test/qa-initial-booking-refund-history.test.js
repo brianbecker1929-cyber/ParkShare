@@ -1,3 +1,4 @@
+import {normaliseVehicleType} from '../src/lib/vehicleTypes.js';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -50,7 +51,7 @@ function harness({conflict=true,refundStatus='succeeded',history=[],rpcError=nul
    return {data:{applied:true}};
   }throw new Error(name);
  }};
- const deps={stripe,supabaseAdmin:db,CheckoutIntegrityError,verifyBookingHoldSnapshot,requirePaidCheckoutReference,translatePaidBookingInsertError,paidCheckoutReferenceLog,
+ const deps={normaliseVehicleType,stripe,supabaseAdmin:db,CheckoutIntegrityError,verifyBookingHoldSnapshot,requirePaidCheckoutReference,translatePaidBookingInsertError,paidCheckoutReferenceLog,
  readCheckoutDb:f=>f(),hostAccountForListing:async()=>({hostId:'host',connectedAccountId:'acct_owner'}),
  validatedIntent:async(s,a,e,h,total,fee)=>verifyPaidCheckout({session:s,eventAccount:a,expectedSessionId:'cs_initial',expectedConnectedAccountId:e,actualHostAccountId:h,expectedTotalCents:total,expectedApplicationFeeCents:fee,paymentIntent:intent()}),
  settleInitialBooking,finishRejectedInitialBooking,reconcilePaymentRefund,
@@ -125,5 +126,12 @@ test('Transactions includes owned failed-booking charge and actual refund state 
   const code=txSource.slice(txSource.indexOf('function spendingRefundAmounts'),txSource.indexOf('// Money the user has EARNED'));
   const get=new Function('supabaseAdmin','canReadPreciseLocation','fetchExtensionsForBookings','bookingDisplayTimeZone',code+';return getSpentTransactions;')(db,()=>false,async ids=>{assert.deepEqual(ids,[71]);return []},bookingDisplayTimeZone);
   const [transaction]=await get('driver');assert.equal(transaction.description,'Booking not confirmed');assert.equal(transaction.amount,11.5);assert.equal(transaction.status,status);assert.equal(transaction.refundedAmount,settled);assert.equal(transaction.refundPendingAmount,pending);assert.deepEqual(calls,[['renter_id','driver']]);
+ }
+});
+
+test('BUG-005157 paid settlement keeps selected body class and vehicle ID; legacy role metadata becomes unspecified',async()=>{
+ for(const [input,expected] of [['suv','suv'],['primary',null],['guest',null],['hovercraft',null]]){
+  const h=harness({conflict:false});Object.assign(h.state.hold.checkout_metadata,{vehicle_id:'guest-body',vehicle_type:input});
+  assert.equal((await h.deliver()).code,200);assert.equal(h.state.booking.vehicle_type,expected);assert.equal(h.state.booking.vehicle_profile_id,'guest-body');assert.equal(h.state.booking.status,'confirmed');
  }
 });

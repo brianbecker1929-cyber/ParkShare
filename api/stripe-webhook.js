@@ -18,6 +18,9 @@ import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image
 import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
 
+import {normaliseVehicleType} from "../src/lib/vehicleTypes.js";
+import {sendDriverBookingConfirmation} from "./_booking-confirmation-delivery.js";
+
 export const config = { api: { bodyParser: false } };
 
 function readRawBody(req) {
@@ -194,7 +197,7 @@ async function confirmBooking(session, connectedAccountId, hold, event) {
     start_hour: metadata.booking_date && metadata.start_hour != null && metadata.start_hour !== "" ? Number(metadata.start_hour) : null,
     end_hour: metadata.booking_date && metadata.end_hour != null && metadata.end_hour !== "" ? Number(metadata.end_hour) : null,
     vehicle_profile_id: metadata.vehicle_id || null,
-    vehicle_type: metadata.vehicle_type || null,
+    vehicle_type: normaliseVehicleType(metadata.vehicle_type) || null,
     vehicle_make: metadata.vehicle_make || null,
     vehicle_model: metadata.vehicle_model || null,
     vehicle_colour: metadata.vehicle_colour || null,
@@ -524,7 +527,7 @@ async function sendBookingConfirmationEmail(booking) {
   // Separate host notification prevents exposing renter email and unrelated
   // confirmation content through CC.
   const notifications = [];
-  if (renter?.email) notifications.push(sendEmail({
+  if (renter?.email) notifications.push(sendDriverBookingConfirmation(supabaseAdmin, booking, {
     to: renter.email,
     subject: isAdvance ? "Booking confirmed — " + (listing?.title || "ParkShare") : "Parking authorized — " + (listing?.title || "ParkShare"),
     html: confirmationEmailHtml({

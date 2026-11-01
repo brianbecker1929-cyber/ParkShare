@@ -35,3 +35,10 @@ test('anonymous and role lookup errors never mutate; failed or unconfirmed Auth 
   }
 });
 test('non-PATCH calls are rejected before authentication or writes',async()=>{const f=fixture();await f.handler({method:'GET'},f.res);assert.equal(f.res.code,405);assert.equal(f.writes.length,0);assert.equal(f.reads.length,0);});
+
+test('BUG-005157 booking-only vehicle saves preserve explicit body class for either account role',async()=>{
+ for(const role of ['host','driver'])for(const type of ['sedan','suv','coupe','hatchback','pickup','van']){
+  const f=fixture({role});await f.run({...input,vehicleType:type});assert.equal(f.res.code,200);assert.equal(f.metadata.vehicle_type,type);assert.equal(f.res.body.vehicle.vehicleType,type);assert.equal(getBookableVehicles(f.metadata)[0].vehicleType,type);
+ }
+ const f=fixture();await f.run({...input,vehicleType:'primary'});assert.equal(f.res.code,400);assert.ok(f.res.body.errors.vehicleType);assert.equal(f.writes.length,0);
+});

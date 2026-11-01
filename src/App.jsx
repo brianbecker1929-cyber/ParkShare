@@ -7,6 +7,7 @@ import DeferredAuth from "./components/DeferredAuth.jsx";
 import HostProfileView from "./components/HostProfileView.jsx";
 import {useListingBookability} from "./lib/useListingBookability.js";
 import {bookingReadinessMessage} from "./lib/bookingReadiness.js";
+import {VEHICLE_TYPES} from "./lib/vehicleTypes.js";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
@@ -237,6 +238,7 @@ function buildAppUser(profile, authUser) {
     name: profile?.name || metadata.name || "ParkShare Driver",
     phone: metadata.phone || "",
     vehicleDetails: metadata.vehicle_details || "",
+    vehicleType: metadata.vehicle_type || "",
     vehicleMake: metadata.vehicle_make || "",
     vehicleModel: metadata.vehicle_model || "",
     vehicleColour: metadata.vehicle_colour || "",
@@ -251,6 +253,7 @@ function buildAppUser(profile, authUser) {
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
+    vehicleType: driverProfile.vehicleType,
     vehicleMake: driverProfile.vehicleMake,
     vehicleModel: driverProfile.vehicleModel,
     vehicleColour: driverProfile.vehicleColour,
@@ -1038,7 +1041,7 @@ function bookingCheckoutKey({ listing, hours, chosenSpot, date, startHour, endHo
   const vehicle = getBookableVehicles(user || {}).find(item => item.id === selectedVehicleId);
   return JSON.stringify([user?.id || null, listing.id, listing.title, listing.price, hours, chosenSpot ?? null,
     date instanceof Date ? localCalendarDate(date) : null, startHour ?? null, endHour ?? null,
-    selectedVehicleId || null, vehicle ? [vehicle.vehicleMake, vehicle.vehicleModel, vehicle.vehicleColour, vehicle.licensePlate] : null,
+    selectedVehicleId || null, vehicle ? [vehicle.vehicleType, vehicle.vehicleMake, vehicle.vehicleModel, vehicle.vehicleColour, vehicle.licensePlate] : null,
     selectedEvent?.id ?? null]);
 }
 
@@ -4208,6 +4211,7 @@ function HostDashboard({ user, setTab }) {
                   spotLabel: row.spot_label || "",
                   driver: row.profiles?.name || "Renter",
                   vehicle: {
+                    vehicleType: row.vehicle_type || "",
                     vehicleMake: row.vehicle_make || "",
                     vehicleModel: row.vehicle_model || "",
                     vehicleColour: row.vehicle_colour || "",
@@ -6450,6 +6454,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             spotLabel: row.spot_label || "",
             total: row.charged_total ?? row.total,
             vehicle: {
+              vehicleType: row.vehicle_type || "",
               vehicleMake: row.vehicle_make || "",
               vehicleModel: row.vehicle_model || "",
               vehicleColour: row.vehicle_colour || "",
@@ -6733,7 +6738,7 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 // Booking-only vehicle editor is shared by Hosts and Drivers.
 function BookingVehicleForm({ user, onSaved, onCancel }) {
   const accountId = user?.id || null;
-  const [form, setForm] = useState(() => Object.fromEntries(["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].map(key => [key, user?.[key] || ""])));
+  const [form, setForm] = useState(() => Object.fromEntries(["vehicleType", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].map(key => [key, user?.[key] || ""])));
   const [errors, setErrors] = useState({});
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -6806,6 +6811,16 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
 
   return (
     <div className="ps-profile-vehicle-fields">
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-type`}>Vehicle type <span>Optional</span></label>
+        <select id={`${idPrefix}-type`} value={vehicle.vehicleType || ""} disabled={disabled}
+          onChange={event => onUpdate("vehicleType", event.target.value)}
+          aria-invalid={Boolean(errorFor("vehicleType"))} aria-describedby={describedBy("vehicleType")}>
+          <option value="">Not specified</option>
+          {Object.entries(VEHICLE_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        {errorFor("vehicleType") && <small id={errorId("vehicleType")} role="alert">{errorFor("vehicleType")}</small>}
+      </div>
       <div className="ps-profile-field">
         <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>{required ? "Required" : "Recommended"}</span></label>
         <select required={required}
@@ -6926,6 +6941,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   const [form, setForm] = useState({
     name: user?.name || "",
     phone: user?.phone || "",
+    vehicleType: user?.vehicleType || "",
     vehicleMake: user?.vehicleMake || "",
     vehicleModel: user?.vehicleModel || "",
     vehicleColour: user?.vehicleColour || "",
@@ -6964,13 +6980,14 @@ function DriverProfileView({ user, onProfileUpdated }) {
     setForm({
       name: user?.name || "",
       phone: user?.phone || "",
+      vehicleType: user?.vehicleType || "",
       vehicleMake: user?.vehicleMake || "",
       vehicleModel: user?.vehicleModel || "",
       vehicleColour: user?.vehicleColour || "",
       licensePlate: user?.licensePlate || "",
       guestVehicles: Array.isArray(user?.guestVehicles) ? user.guestVehicles : [],
     });
-  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
+  }, [user?.id, user?.name, user?.phone, user?.vehicleType, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
 
   const update = (field, value) => {
     if (!canAct() || attempt.current?.pending) return;
@@ -7020,7 +7037,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
     const id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setForm(current => ({
       ...current,
-      guestVehicles: [...current.guestVehicles, { id, vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
+      guestVehicles: [...current.guestVehicles, { id, vehicleType: "", vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
     }));
     setOpenGuestIds(current => ({ ...current, [id]: true }));
     setErrors(current => ({ ...current, guestVehicles: "" }));
@@ -7041,7 +7058,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
     setSaveError("");
     setSaved(false);
     if (!validation.valid) {
-      if (["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
+      if (["vehicleType", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
         setPrimaryOpen(true);
       }
       const guestIndexes = Object.keys(validation.errors)

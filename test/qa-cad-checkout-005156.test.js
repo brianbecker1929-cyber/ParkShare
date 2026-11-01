@@ -8,12 +8,12 @@ import {getBookableVehicles} from '../src/lib/driverProfile.js';
 import {validateHourlyRate} from '../src/lib/listingPrice.js';
 import {validExtensionHours} from '../api/_extension-safety.js';
 
-const sources=await Promise.all(['create-checkout-session','create-extend-session'].map(n=>readFile(new URL('../api/'+n+'.js',import.meta.url),'utf8')));
-function fixture(kind,{badSession,providerFailure=false,registrationFailure=false,eventTitle}={}){
+const sources=await Promise.all(['create-checkout-session','create-extend-session'].map(n=>readFile(n==='create-checkout-session' && process.env.QA_BOOKING_FIELDS_CHECKOUT || new URL('../api/'+n+'.js',import.meta.url),'utf8')));
+function fixture(kind,{badSession,providerFailure=false,registrationFailure=false,eventTitle,vehicleMetadata={},vehicleId='primary'}={}){
   const events=[],listing={id:7,host_id:'host',title:'Driveway at 123 Private Fixture Lane',address:'123 Private Fixture Lane',price:15,spaces:1,spots:[{forRent:true}],availability:null,time_zone:'Europe/Bucharest'};
   const booking={id:42,listing_id:7,renter_id:'driver',hours:2,status:'confirmed',paid_at:new Date(Date.now()-600000).toISOString(),spot_label:'A'};
-  const user={id:'driver',email:'qa+location_RO@example.invalid',user_metadata:{vehicle_make:'Honda',vehicle_model:'Civic',vehicle_colour:'Blue',license_plate:'TEST 123'}};
-  const db={from(table){let action='read';const chain={select(){return chain;},eq(){return chain;},is(){return chain;},update(){action='write';return chain;},insert(){action='write';return chain;},delete(){events.push(['delete',table]);return chain;},then(resolve){resolve({data:null,error:null});},single:async()=>({data:table==='listings'?listing:table==='bookings'?booking:table==='events'?{id:9,name:eventTitle,source:'ParkShare',status:'published',lat:43,lng:-79}:{stripe_account_id:'acct_host'}}),maybeSingle:async()=>{if(action==='write')events.push(['register',table]);return registrationFailure&&action==='write'?{error:Error('registration failed')}:{data:{id:'hold'}};}};return chain;},rpc:async name=>{events.push(['hold',name]);return {data:name==='create_booking_hold'?'hold':[{hold_id:'hold',starts_at:new Date().toISOString(),ends_at:new Date(Date.now()+3600000).toISOString()}]};}};
+  const user={id:'driver',email:'qa+location_RO@example.invalid',user_metadata:{vehicle_make:'Honda',vehicle_model:'Civic',vehicle_colour:'Blue',license_plate:'TEST 123',...vehicleMetadata}};
+  const db={from(table){let action='read';const chain={select(){return chain;},eq(){return chain;},is(){return chain;},update(value){events.push(['write',table,value]);action='write';return chain;},insert(){action='write';return chain;},delete(){events.push(['delete',table]);return chain;},then(resolve){resolve({data:null,error:null});},single:async()=>({data:table==='listings'?listing:table==='bookings'?booking:table==='events'?{id:9,name:eventTitle,source:'ParkShare',status:'published',lat:43,lng:-79}:{stripe_account_id:'acct_host'}}),maybeSingle:async()=>{if(action==='write')events.push(['register',table]);return registrationFailure&&action==='write'?{error:Error('registration failed')}:{data:{id:'hold'}};}};return chain;},rpc:async name=>{events.push(['hold',name]);return {data:name==='create_booking_hold'?'hold':[{hold_id:'hold',starts_at:new Date().toISOString(),ends_at:new Date(Date.now()+3600000).toISOString()}]};}};
   const stripe={accounts:{retrieve:async()=>({charges_enabled:true,payouts_enabled:true,details_submitted:true})},checkout:{sessions:{create:async(params,options)=>{
     events.push(['create',params,options]);if(providerFailure)throw Error('unsupported parameter');
     return {id:'cs_fixture',url:'https://checkout.stripe.com/test',currency:'cad',amount_total:1725,adaptive_pricing:{enabled:false},...badSession};
@@ -26,7 +26,7 @@ function fixture(kind,{badSession,providerFailure=false,registrationFailure=fals
   const src=sources[kind==='booking'?0:1].replace(/^import .*\n/gm,'').replace('export default async function handler','return async function handler');
   const handler=new Function(...Object.keys(values),src)(...Object.values(values));
   const run=async()=>{const res={status(n){this.code=n;return this;},json(v){this.body=v;return this;}};
-    await handler({method:'POST',body:kind==='booking'?{listingId:7,hours:1,spotLabel:'A',vehicleId:'primary',eventId:eventTitle?9:undefined,currency:'ron',adaptive_pricing:{enabled:true}}:{bookingId:42,addedHours:1,currency:'ron',adaptive_pricing:{enabled:true}}},res);return res;};
+    await handler({method:'POST',body:kind==='booking'?{listingId:7,hours:1,spotLabel:'A',vehicleId,vehicleType:'pickup',eventId:eventTitle?9:undefined,currency:'ron',adaptive_pricing:{enabled:true}}:{bookingId:42,addedHours:1,currency:'ron',adaptive_pricing:{enabled:true}}},res);return res;};
   return{run,events};
 }
 for(const kind of ['booking','extension']){
@@ -71,3 +71,10 @@ test('installed Stripe SDK sends version override, connected account and false b
   assert.equal(new URLSearchParams(wire.body).get('adaptive_pricing[enabled]'),'false');
 });
 
+
+for(const [id,type] of [['primary','sedan'],['guest-body','suv'],['primary','']])test(`BUG-005157 actual Checkout snapshots saved ${id}/${type || 'unspecified'} independently of a forged requested body class`,async()=>{
+  const f=fixture('booking',{vehicleId:id,vehicleMetadata:{vehicle_type:type,guest_vehicles:[{id:'guest-body',vehicleType:'suv',vehicleMake:'Honda',vehicleModel:'Civic',vehicleColour:'Red',licensePlate:'GUEST 157'}]}});
+  assert.equal((await f.run()).code,200);const [,params]=f.events.find(e=>e[0]==='create');
+  assert.equal(params.metadata.vehicle_id,id);assert.equal(params.metadata.vehicle_type,type);assert.equal(params.payment_intent_data.metadata.vehicle_type,type);
+  const hold=f.events.find(e=>e[0]==='write'&&e[1]==='booking_holds')[2];assert.equal(hold.checkout_metadata.vehicle_type,type);assert.equal(hold.checkout_metadata.vehicle_id,id);
+});

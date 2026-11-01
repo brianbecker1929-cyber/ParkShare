@@ -44,6 +44,7 @@ export default async function handler(req, res) {
 
     const userMetadata = user.user_metadata || {};
     const bookingVehicle = getBookableVehicles({
+      vehicle_type: userMetadata.vehicle_type,
       vehicle_make: userMetadata.vehicle_make,
       vehicle_model: userMetadata.vehicle_model,
       vehicle_colour: userMetadata.vehicle_colour,
@@ -206,7 +207,7 @@ export default async function handler(req, res) {
       end_hour: endHour === null ? "" : String(endHour),
       hold_id: String(holdId),
       vehicle_id: bookingVehicle.id,
-      vehicle_type: bookingVehicle.type,
+      vehicle_type: bookingVehicle.vehicleType,
       vehicle_make: bookingVehicle.vehicleMake,
       vehicle_model: bookingVehicle.vehicleModel,
       vehicle_colour: bookingVehicle.vehicleColour,

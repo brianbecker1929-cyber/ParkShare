@@ -1,3 +1,4 @@
+import {runBookingFieldsProbe} from './qa-booking-fields-probe.mjs';
 // Native PostgreSQL 17 runner for a fresh disposable CI service ONLY.
 // Dedicated env name prevents accidentally inheriting a hosted DATABASE_URL.
 import pg from 'pg';
@@ -40,6 +41,7 @@ try {
   await runInitialBookingRefundProbe(db,report);
   await runExtensionCapacityProbe(db,report);
   await runListingPauseProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
+  await runBookingFieldsProbe(db,report);
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {

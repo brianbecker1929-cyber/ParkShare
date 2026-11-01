@@ -40,8 +40,8 @@ export function buildEmailPayload({ to, cc, subject, html, attachments, replyTo 
   };
 }
 
-export async function sendEmail({ to, cc, subject, html, attachments, replyTo }) {
-  return sendEmailPayload(buildEmailPayload({ to, cc, subject, html, attachments, replyTo }));
+export async function sendEmail({ to, cc, subject, html, attachments, replyTo }, options) {
+  return sendEmailPayload(buildEmailPayload({ to, cc, subject, html, attachments, replyTo }), options);
 }
 
 // The reminder worker persists this exact payload before its first attempt.

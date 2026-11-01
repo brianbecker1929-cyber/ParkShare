@@ -1,3 +1,4 @@
+import {normaliseVehicleType} from '../src/lib/vehicleTypes.js';
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
@@ -45,7 +46,7 @@ function fixture(rows = [booking], userId = "A") {
     res.status(405).json({ error: "Method not allowed" }); return false;
   };
   const values = { jsonMethod, requireUser, supabaseAdmin: db, privateBookingListing, canReadPreciseLocation,
-    canReadCancelledBookingTitle, withBookingChargeTotals, bookingDisplayTimeZone };
+    canReadCancelledBookingTitle, withBookingChargeTotals, bookingDisplayTimeZone, normaliseVehicleType };
   const handler = new Function(...Object.keys(values), source + ";return handler;")(...Object.values(values));
   return { calls, async get(query = {}) {
     const res = { headers: {}, status(n) { this.code = n; return this; }, json(body) { this.body = body; return this; },
@@ -134,4 +135,14 @@ test("BUG-005446 own legacy booking gets the listing zone without changing its s
   assert.deepEqual(legacy,before);
   const snapshot=await fixture([{...legacy,property_time_zone:'America/Vancouver'}]).get();
   assert.equal(snapshot.body.bookings[0].property_time_zone,'America/Vancouver');
+});
+
+test('BUG-005157 five bookings keep a small private projection with body types and no embedded images or email internals',async()=>{
+  const original=listing.img;listing.img='data:image/png;base64,'+'A'.repeat(2_000_000);
+  try{
+    const rows=Array.from({length:5},(_,i)=>({...booking,id:157+i,vehicle_type:i===0?'primary':'suv',confirmation_email_sent_at:'2026-11-01T15:00:00Z'}));
+    const res=await fixture(rows).get();assert.equal(res.code,200);assert.equal(res.body.bookings.length,5);
+    assert.equal(res.body.bookings[0].vehicle_type,null);assert.equal(res.body.bookings[1].vehicle_type,'suv');
+    const body=JSON.stringify(res.body);assert.ok(Buffer.byteLength(body)<15_000);assert.doesNotMatch(body,/data:image|PRIVATE PHOTO|confirmation_email_sent_at|stripe_checkout_session_id/);assert.equal(res.headers['Cache-Control'],'private, no-store');
+  }finally{listing.img=original;}
 });
