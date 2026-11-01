@@ -31,10 +31,17 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// The public document is separate from React's empty root. Keep it until a
+// successful app commit, so no-JS visitors and boot failures retain readable content.
+function PublicDocumentHandoff({children}) {
+  React.useLayoutEffect(() => { document.getElementById("public-document")?.remove(); }, []);
+  return children;
+}
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ErrorBoundary>
-      <App />
+      <PublicDocumentHandoff><App /></PublicDocumentHandoff>
     </ErrorBoundary>
   </React.StrictMode>
 );

@@ -9814,3 +9814,14 @@ div:has(> button[aria-label="ParkShare help"])
 }
 .ps-home-v2-path-card > button,
 .ps-home-v2-trust-copy > button { padding: 8px 12px; }
+
+/* Public read-only document shown until the interactive app commits. */
+#public-document [data-public-action] { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; box-sizing: border-box; border-radius: 10px; font-weight: 700; text-decoration: none; }
+#public-document [data-public-header] { background: #0E1B2E; padding: 24px; text-align: center; }
+#public-document [data-public-header] img { max-width: 100%; height: auto; }
+#public-document > main { padding: 24px; font-family: 'Poppins', sans-serif; background: #FAF7F0; color: #0E1B2E; }
+#public-document [data-public-overview], #public-document [data-public-faq] { max-width: 1000px; margin: 0 auto; padding: 24px; color: #0E1B2E; background: #FAF7F0; font: 14px/1.65 'Poppins', sans-serif; }
+#public-document [data-public-navigation] nav { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px 0; }
+#public-document [data-public-navigation] a { color: #0E1B2E; min-height: 44px; display: inline-flex; align-items: center; }
+#public-document [data-public-faq] details { padding: 12px 0; border-bottom: 1px solid #E3DDC9; }
+#public-document [data-public-faq] summary, #public-document [data-public-navigation] summary { cursor: pointer; font-weight: 700; }

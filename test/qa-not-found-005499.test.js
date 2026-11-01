@@ -21,7 +21,7 @@ function fakeDocument() {
 }
 
 test('BUG-005499 unknown page, missing file and nested lookalike URLs resolve to Not Found rather than landing', () => {
-  for (const path of ['/this-page-does-not-exist', '/llms.txt', '/parking/not-a-page', '/privacy/anything', '/missing.js', '/api/not-an-endpoint']) {
+  for (const path of ['/this-page-does-not-exist', '/missing-ai-file.txt', '/parking/not-a-page', '/privacy/anything', '/missing.js', '/api/not-an-endpoint']) {
     const route = getRouteFromPath(path); assert.equal(route.screen, 'not-found', path); assert.equal(route.notFound, true); assert.equal(route.path, null);
   }
   assert.equal(getRouteForState('not-found').notFound, true);
