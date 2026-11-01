@@ -67,6 +67,18 @@ const switchMode=(h,mode)=>h.find(node=>node.type==='button'&&node.props.childre
 const assertBay=(h,label)=>assert.match(renderToStaticMarkup(h.render()),new RegExp('Spot '+label));
 const hasPayment=h=>walk(h.render()).some(node=>node.type===h.values.PaymentModal);
 
+test('BUG-005450 automatic and reopened spot pickers use the native modal and return to Choose spot',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();let picker=h.find(node=>node.type===h.values.Modal&&node.props.title.startsWith('Choose your spot'));
+  assert.equal(picker.props.nativeModal,true);assert.equal(typeof picker.props.returnFocus,'function');
+  picker.props.onClose();assert.equal(walk(h.render()).some(node=>node.type===h.values.Modal),false);
+  const trigger=h.find(node=>node.type==='button'&&node.props.children==='Choose spot');const ref=Number(React.version.split('.')[0])>=19?trigger.props.ref:trigger.ref;
+  const target={isConnected:true};ref.current=target;trigger.props.onClick();picker=h.find(node=>node.type===h.values.Modal&&node.props.title.startsWith('Choose your spot'));assert.equal(picker.props.nativeModal,true);assert.equal(picker.props.returnFocus(),target);
+  h.choose(1);h.render();h.find(node=>node.type===h.values.Btn&&node.props.children==='Confirm Spot B').props.onClick();assert.equal(walk(h.render()).some(node=>node.type===h.values.Modal),false);assert.equal(h.pay().props.disabled,false);
+ }finally{h.stop();}
+});
+
 test('BUG-005463 the reported 12:30-13:15 window explains the one-hour minimum before availability or payment',async()=>{
  const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
  try{

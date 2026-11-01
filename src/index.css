@@ -9789,3 +9789,6 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-navigation-modal::backdrop {
   background: rgba(27, 42, 59, 0.55);
 }
+.ps-auth-dialog::backdrop {
+  background: rgba(26, 42, 107, 0.55);
+}

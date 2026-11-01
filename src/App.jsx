@@ -1,7 +1,7 @@
 import HostOnboarding from "./components/HostOnboarding.jsx";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
-import { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
 import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase, updateRecoveryPasswordForAccount } from "./lib/supabaseClient";
@@ -413,20 +413,7 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
   return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
 }
 
-function Modal({ children, onClose, title, nativeModal = false }) {
-  const dialogRef = useRef(null);
-  useLayoutEffect(() => {
-    if (!nativeModal) return;
-    const dialog = dialogRef.current;
-    const opener = dialog.ownerDocument.activeElement;
-    // showModal places the chooser in the top layer, makes the background
-    // inert, and moves focus to its first enabled control (the close button).
-    dialog.showModal();
-    return () => {
-      dialog.close();
-      if (opener?.isConnected) opener.focus({ preventScroll: true });
-    };
-  }, [nativeModal]);
+function Modal({ children, onClose, title, nativeModal = false, returnFocus }) {
   const panelStyle = { background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" };
   const content = <>
         <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -435,29 +422,10 @@ function Modal({ children, onClose, title, nativeModal = false }) {
         </div>
         <div style={{ padding: "20px 22px" }}>{children}</div>
       </>;
-  if (nativeModal) return <dialog ref={dialogRef} className="ps-navigation-modal" aria-label={title}
-    style={{ ...panelStyle, position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", border: 0, padding: 0 }}
-    onCancel={event => {
-      event.preventDefault();
-      // Close through the scoped React handler so a queued provider choice
-      // cannot launch a destination after Escape has dismissed this request.
-      onClose();
-    }}
-    onKeyDown={event => {
-      if (event.key !== "Tab") return;
-      const dialog = event.currentTarget;
-      const controls = [...dialog.querySelectorAll("button:not(:disabled)")];
-      const first = controls[0], last = controls.at(-1);
-      const active = dialog.ownerDocument.activeElement;
-      if (!first) { event.preventDefault(); return; }
-      if (event.shiftKey && (active === first || active === dialog)) {
-        event.preventDefault(); last.focus();
-      } else if (!event.shiftKey && (active === last || active === dialog)) {
-        event.preventDefault(); first.focus();
-      }
-    }}>
+  if (nativeModal) return <NativeDialog title={title} onClose={onClose} returnFocus={returnFocus} className="ps-navigation-modal"
+    style={{ ...panelStyle, position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", border: 0, padding: 0 }}>
     {content}
-  </dialog>;
+  </NativeDialog>;
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
       <div role="dialog" aria-modal="true" aria-label={title} style={panelStyle}>
@@ -1821,6 +1789,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     setShowPayment(false);
   }, [listing.id]);
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
+  const spotPickerTrigger = useRef(null);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [vehicleEditorOpen, setVehicleEditorOpen] = useState(() => getBookableVehicles(user || {}).length === 0);
@@ -2227,7 +2196,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
-              <button type="button" disabled={Boolean(durationError)} onClick={() => { if (!durationError) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
+              <button ref={spotPickerTrigger} type="button" disabled={Boolean(durationError)} onClick={() => { if (!durationError) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
@@ -2265,7 +2234,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
         </Modal>
       )}
       {showSpotPicker && !durationError && (
-        <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
+        <Modal nativeModal returnFocus={() => spotPickerTrigger.current} title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
           {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
               <ListingThumb listing={listing} size="100%" />
@@ -7468,8 +7437,9 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(26,42,107,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, fontFamily: "'Poppins', sans-serif" }}>
-      <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+    <NativeDialog onClose={closeDialog} title={{ landing: "Sign in or create a ParkShare account", signin: "Sign in to ParkShare", signup: "Create a ParkShare account", role: "Choose your ParkShare role", disclaimer: "ParkShare terms and privacy", verify: "Confirm your ParkShare email", recovery: "Reset your ParkShare password", recoverySuccess: "ParkShare password updated" }[screen] || "ParkShare account"}
+      className="ps-auth-dialog" style={{ position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", maxWidth: 400, maxHeight: "calc(100dvh - 40px)", overflowY: "auto", border: 0, padding: 0, background: C.white, borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", fontFamily: "'Poppins', sans-serif" }}>
+      <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, overflow: "hidden" }}>
 
         {/* Modal header */}
         <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "24px 24px 18px", textAlign: "center", position: "relative" }}>
@@ -7680,8 +7650,47 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
         </div>
       </div>
-    </div>
+    </NativeDialog>
   );
+}
+
+function NativeDialog({ children, onClose, title, className, style, returnFocus }) {
+  const dialogRef = React.useRef(null);
+  const useDialogLayoutEffect = typeof document === "undefined" ? React.useEffect : React.useLayoutEffect;
+  const controlsFor = dialog => [...dialog.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")]
+    .filter(control => control.tabIndex >= 0 && !control.matches(":disabled")
+      && !control.closest("[hidden], [inert]") && control.getClientRects().length > 0);
+  const keepFocusInside = dialog => {
+    if (!dialog.contains(dialog.ownerDocument.activeElement)) controlsFor(dialog)[0]?.focus({ preventScroll: true });
+  };
+  useDialogLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = dialog.ownerDocument.activeElement;
+    // Native modality places the panel in the top layer and makes the page inert.
+    dialog.showModal();
+    keepFocusInside(dialog);
+    return () => {
+      dialog.close();
+      const requested = returnFocus?.();
+      const target = requested?.isConnected ? requested : opener;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    };
+  }, []);
+  // Screen/form changes can remove the focused control; preserve valid input focus.
+  useDialogLayoutEffect(() => { keepFocusInside(dialogRef.current); });
+  return <dialog ref={dialogRef} className={className} style={style} aria-label={title} aria-modal="true"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const dialog = event.currentTarget, controls = controlsFor(dialog);
+      const first = controls[0], last = controls.at(-1), active = dialog.ownerDocument.activeElement;
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog || !dialog.contains(active))) {
+        event.preventDefault(); first.focus();
+      }
+    }}>{children}</dialog>;
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────

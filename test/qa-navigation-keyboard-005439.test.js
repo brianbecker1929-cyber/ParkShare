@@ -5,27 +5,31 @@ import React from 'react';
 import {transform} from 'esbuild';
 import {hasNavigationDestination} from '../src/lib/navigation.js';
 
-const source = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-const built = await transform(source.slice(source.indexOf('function Modal('), source.indexOf('function RidesharePickupCard(')), {loader: 'jsx'});
+const source = readFileSync(process.env.QA_DIALOG_SOURCE || new URL('../src/App.jsx', import.meta.url), 'utf8');
+const nativeStart = source.indexOf('function NativeDialog(');
+const nativeSource = nativeStart < 0 ? '' : source.slice(nativeStart, source.indexOf('\n}\n', nativeStart) + 3);
+const built = await transform(nativeSource + source.slice(source.indexOf('function Modal('), source.indexOf('function RidesharePickupCard(')), {loader: 'jsx'});
 
-function harness({nativeModal = true, connected = true} = {}) {
+function harness({nativeModal = true, connected = true, returnFocus} = {}) {
   const effects = [], restores = [];
-  const opener = {isConnected: connected, focus: options => restores.push(options)};
+  const opener = {isConnected: connected, focus: options => { restores.push(options); document.activeElement = opener; }};
   const document = {activeElement: opener};
   const panel = {ownerDocument: document, shows: 0, closes: 0,
     showModal() { this.shows++; }, close() { this.closes++; },
     querySelectorAll(selector) {
-      assert.equal(selector, 'button:not(:disabled)');
-      return this.controls.filter(button => !button.disabled);
-    }, controls: []};
-  const values = {React, C: {}, useRef: () => ({current: panel}), useLayoutEffect: effect => effects.push(effect),
+      assert.ok(['button:not(:disabled)', 'button, a[href], input, select, textarea, [tabindex]'].includes(selector));
+      return selector === 'button:not(:disabled)' ? this.controls.filter(button => !button.disabled) : this.controls;
+    }, contains(node) { return node === this || this.controls.includes(node); }, controls: []};
+  const values = {React: {...React, useRef: () => ({current: panel}), useLayoutEffect: effect => effects.push(effect)}, document, C: {}, useRef: () => ({current: panel}), useLayoutEffect: effect => effects.push(effect),
     getAvailableNavigationProviders: () => [{id: 'waze', label: 'Waze'}, {id: 'google', label: 'Google Maps'}], hasNavigationDestination};
   const {Modal, NavigationChooser} = new Function(...Object.keys(values), built.code + ';return {Modal, NavigationChooser};')(...Object.values(values));
   let dismissed = 0;
   const onClose = () => dismissed++;
-  const node = Modal({nativeModal, title: 'Preview route to parking', onClose, children: 'Route content'});
+  const element = Modal({nativeModal, title: 'Preview route to parking', onClose, returnFocus, children: 'Route content'});
+  const node = typeof element.type === 'function' ? element.type(element.props) : element;
   function button(name, disabled = false) {
-    const item = {name, disabled, focus() { document.activeElement = item; }};
+    const item = {name, disabled, tabIndex: 0, matches: () => item.disabled, closest: () => item.hidden || item.inert ? {} : null,
+      getClientRects: () => item.invisible ? [] : [{}], focus() { document.activeElement = item; }};
     return item;
   }
   panel.controls = [button('Close'), button('Waze'), button('Google'), button('Cancel')];
@@ -35,7 +39,7 @@ function harness({nativeModal = true, connected = true} = {}) {
     node.props.onKeyDown(event);
     return event;
   }
-  return {node, panel, document, opener, restores, effects, key, NavigationChooser, Modal, onClose, get dismissed() { return dismissed; }};
+  return {node, panel, document, opener, restores, effects, key, control: button, NavigationChooser, Modal, onClose, get dismissed() { return dismissed; }};
 }
 
 function elements(node, predicate) {
@@ -119,7 +123,43 @@ test('other shared modal callers retain their existing rendering and do not acti
   const h = harness({nativeModal: false});
   assert.equal(h.node.type, 'div');
   assert.equal(elements(h.node, n => n.props.role === 'dialog').length, 1);
-  assert.equal(h.effects[0](), undefined);
+  assert.equal(h.effects.length, 0);
   assert.equal(h.panel.shows, 0);
   assert.equal(h.panel.closes, 0);
+});
+
+test('BUG-005450 mixed inputs, selects, checkboxes and links remain in the dialog keyboard cycle', () => {
+  const h = harness(), close = h.control('Close'), email = h.control('Email'), select = h.control('Vehicle select'), consent = h.control('Consent checkbox'), link = h.control('Policy link'), textarea = h.control('Notes');
+  const disabled = h.control('Disabled', true), hidden = h.control('Hidden'), invisible = h.control('CSS hidden'), inert = h.control('Inert'), programmatic = h.control('Not tabbable');
+  hidden.hidden = true; invisible.invisible = true; inert.inert = true; programmatic.tabIndex = -1;
+  h.panel.controls = [close, email, select, consent, link, textarea, disabled, hidden, invisible, inert, programmatic];
+  assert.equal(h.key(textarea).prevented, true); assert.equal(h.document.activeElement, close);
+  assert.equal(h.key(close, {shiftKey: true}).prevented, true); assert.equal(h.document.activeElement, textarea);
+  for (const control of [email, select, consent, link]) {
+    assert.equal(h.key(control).prevented, false); assert.equal(h.document.activeElement, control);
+  }
+});
+
+test('BUG-005450 focus enters before paint and recovers only when a form/screen removes its focused control', () => {
+  const h = harness(), close = h.panel.controls[0], email = h.control('Email');
+  h.panel.controls.push(email); const cleanup = h.effects[0]();
+  assert.equal(h.document.activeElement, close); assert.equal(h.panel.shows, 1);
+  h.document.activeElement = email; h.effects[1](); assert.equal(h.document.activeElement, email, 'Typing/validation keeps valid input focus');
+  h.panel.controls = [close]; h.effects[1](); assert.equal(h.document.activeElement, close, 'Removed field moves focus inside');
+  cleanup(); assert.equal(h.document.activeElement, h.opener);
+});
+
+test('BUG-005450 an automatic picker can return to its logical trigger; removed targets are never focused', () => {
+  const returned = [], trigger = {isConnected: true, focus: options => returned.push(options)};
+  const h = harness({connected: false, returnFocus: () => trigger}); h.effects[0]()();
+  assert.deepEqual(returned, [{preventScroll: true}]); assert.equal(h.restores.length, 0);
+  trigger.isConnected = false; h.effects[0]()(); assert.equal(returned.length, 1);
+  const fallback = harness({returnFocus: () => trigger}); fallback.effects[0]()(); assert.equal(fallback.restores.length, 1);
+});
+
+test('BUG-005450 Tab from a displaced focus and an empty dialog never proceeds to the background', () => {
+  const h = harness(), first = h.panel.controls[0], last = h.panel.controls.at(-1);
+  assert.equal(h.key(h.opener).prevented, true); assert.equal(h.document.activeElement, first);
+  assert.equal(h.key(h.opener, {shiftKey: true}).prevented, true); assert.equal(h.document.activeElement, last);
+  h.panel.controls = []; assert.equal(h.key(h.panel).prevented, true);
 });
