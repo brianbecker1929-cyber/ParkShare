@@ -1,4 +1,5 @@
 import HostOnboarding from "./components/HostOnboarding.jsx";
+import DeferredAuth from "./components/DeferredAuth.jsx";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
@@ -29,7 +30,8 @@ import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
-import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm, validateNewPassword } from "./lib/authForm";
+import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome } from "./lib/authFormBasics.js";
+import { validateAuthForm, validateNewPassword } from "./lib/authValidation.js";
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
@@ -12013,8 +12015,8 @@ export default function App() {
         </div>
       )}
       {screen === "host" && hostOnboardingAccount && <HostOnboarding key={hostOnboardingAccount.id} accountId={hostOnboardingAccount.id} auth={supabase.auth} onClose={() => setHostOnboardingAccount(null)} onReady={openHostAuth} />}
-      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} recoveryAccountId={authRecoveryAccountId} onRecoveryComplete={() => setAuthRecoveryCompletedRevision(revision => revision + 1)} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setAuthRecoveryAccountId(null); setHostAuthIntent(false); }} onAuth={handleAuth} />}
-      {!showAuth && messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
+      {showAuth && <DeferredAuth key={authRecoveryRevision} Dialog={NativeDialog}><SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} recoveryAccountId={authRecoveryAccountId} onRecoveryComplete={() => setAuthRecoveryCompletedRevision(revision => revision + 1)} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setAuthRecoveryAccountId(null); setHostAuthIntent(false); }} onAuth={handleAuth} /></DeferredAuth>}
+      {!showAuth && messageBookingId && !user && <DeferredAuth Dialog={NativeDialog}><SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} /></DeferredAuth>}
       {navigationRequest && (
         <NavigationChooser
           key={navigationRequestKey}
@@ -12031,7 +12033,7 @@ export default function App() {
           // Arrived from an email link while signed out — ask them to sign
           // in first, then hand straight back to the extend modal rather
           // than losing which booking they clicked through for.
-          <SignInModal initialScreen="signin" closeOnAuth={false} onClose={() => setExtendBookingId(null)} onAuth={handleAuth} />
+          <DeferredAuth Dialog={NativeDialog}><SignInModal initialScreen="signin" closeOnAuth={false} onClose={() => setExtendBookingId(null)} onAuth={handleAuth} /></DeferredAuth>
         )
       )}
     </>
