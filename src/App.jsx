@@ -16,6 +16,7 @@ import { createMessageConversation, messageConversationKey } from "./lib/message
 import { validId } from "./lib/privateListingAccess";
 import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
 import { satelliteSpotPoint, satelliteSpotBounds } from "./lib/satelliteSpotDrawing";
+import { validateEventSubmissionForm } from "./lib/eventSubmissionValidation";
 import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
@@ -2460,6 +2461,18 @@ function EventSubmissionForm({ onClose }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const formId = useId();
+  const formElement = useRef(null);
+  const validationFocus = useRef(null);
+  useEffect(() => {
+    const shouldFocus = validationFocus.current;
+    validationFocus.current = null;
+    if (shouldFocus) formElement.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [fieldErrors]);
+  const fieldId = field => `${formId}-${field}`;
+  const fieldAttributes = field => ({id: fieldId(field), name: field, "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": [(["startTime", "endTime"].includes(field) ? `${formId}-timezone` : ""), fieldErrors[field] ? `${fieldId(field)}-error` : ""].filter(Boolean).join(" ") || undefined});
+  const fieldError = field => fieldErrors[field] && <p id={`${fieldId(field)}-error`} className="ps-form-field-error">{fieldErrors[field]}</p>;
   const [reference, setReference] = useState("");
   const submissionContext = useRef(null);
   useEffect(() => {
@@ -2476,6 +2489,8 @@ function EventSubmissionForm({ onClose }) {
     const context = submissionContext.current;
     if (!context?.active || context.busy || context.complete) return;
     setForm(current => ({ ...current, [field]: value }));
+    setFieldErrors(current => ({...current, [field]: ""}));
+    setError("");
   };
 
   const submit = async submitEvent => {
@@ -2483,6 +2498,9 @@ function EventSubmissionForm({ onClose }) {
     const context = submissionContext.current;
     const current = () => Boolean(context?.active && submissionContext.current === context);
     if (!current() || context.busy || context.complete) return;
+    const errors = validateEventSubmissionForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) { validationFocus.current = true; return; }
     context.busy = true;
     setSubmitting(true);
     setError("");
@@ -2519,37 +2537,36 @@ function EventSubmissionForm({ onClose }) {
   );
 
   return (
-    <form className="ps-event-submission-form" onSubmit={submit}>
+    <form ref={formElement} className="ps-event-submission-form" onSubmit={submit} noValidate>
+      {Object.values(fieldErrors).some(Boolean) && <div className="ps-form-error-summary" role="alert"><strong>Please correct the following:</strong><ul>{Object.entries(fieldErrors).filter(([, message]) => message).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
       <p className="ps-event-submission-intro">Tell us about your upcoming event. Submissions are reviewed before appearing on ParkShare.</p>
       <fieldset disabled={submitting}>
         <legend>Organizer contact</legend>
-        <label>Organizer or organization name *<input value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required /></label>
-        <label>Email address *<input type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required /></label>
-        <label>Phone number<input type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} /></label>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerName")}>Organizer or organization name *</label><input {...fieldAttributes("organizerName")} value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required />{fieldError("organizerName")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerEmail")}>Email address *</label><input {...fieldAttributes("organizerEmail")} type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required />{fieldError("organizerEmail")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerPhone")}>Phone number</label><input {...fieldAttributes("organizerPhone")} type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} />{fieldError("organizerPhone")}</div>
       </fieldset>
       <fieldset disabled={submitting}>
         <legend>Event details</legend>
-        <label className="is-wide">Event name *<input value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required /></label>
-        <label>Category *
-          <select value={form.category} onChange={event => update("category", event.target.value)} required>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventName")}>Event name *</label><input {...fieldAttributes("eventName")} value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required />{fieldError("eventName")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("category")}>Category *</label><select {...fieldAttributes("category")} value={form.category} onChange={event => update("category", event.target.value)} required>
             {EVENT_CATEGORIES.filter(option => option.value).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-        <label>Venue name *<input value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required /></label>
-        <label className="is-wide">Full event address *<input value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required /></label>
-        <label>Date *<input type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required /></label>
-        <label>Start time *<input type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required /></label>
-        <label>End time<input type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} /></label>
-        <div className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
-        <label className="is-wide">Description *<textarea value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required /></label>
-        <label className="is-wide">Ticket purchase link<input type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
-        <label className="is-wide">Official event link<input type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
-        <label className="is-wide">Parking, accessibility, or street-closure notes<textarea value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} /></label>
+          </select>{fieldError("category")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("venueName")}>Venue name *</label><input {...fieldAttributes("venueName")} value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required />{fieldError("venueName")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("address")}>Full event address *</label><input {...fieldAttributes("address")} value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required />{fieldError("address")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("eventDate")}>Date *</label><input {...fieldAttributes("eventDate")} type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required />{fieldError("eventDate")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("startTime")}>Start time *</label><input {...fieldAttributes("startTime")} type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required />{fieldError("startTime")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("endTime")}>End time</label><input {...fieldAttributes("endTime")} type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} />{fieldError("endTime")}</div>
+        <div id={`${formId}-timezone`} className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("description")}>Description *</label><textarea {...fieldAttributes("description")} value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required />{fieldError("description")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("ticketUrl")}>Ticket purchase link</label><input {...fieldAttributes("ticketUrl")} type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("ticketUrl")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventUrl")}>Official event link</label><input {...fieldAttributes("eventUrl")} type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("eventUrl")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("accessNotes")}>Parking, accessibility, or street-closure notes</label><textarea {...fieldAttributes("accessNotes")} value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} />{fieldError("accessNotes")}</div>
       </fieldset>
-      <label className="ps-event-submission-consent">
-        <input type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
+      <div><label className="ps-event-submission-consent">
+        <input {...fieldAttributes("authorized")} type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
         <span>I confirm that I am authorized to submit this event information and that it is accurate.</span>
-      </label>
+      </label>{fieldError("authorized")}</div>
       <label className="ps-event-submission-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={event => update("website", event.target.value)} /></label>
       {error && <div className="ps-discover-error" role="alert">⚠️ {error}</div>}
       <div className="ps-event-submission-actions">
@@ -8923,26 +8940,29 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // Legal page, with a simple form. Reached via the footer's "Contact Us"
 // button. Form has no backend wired up yet — see the TODO on handleSubmit.
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled }) {
+function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled, required = false }) {
+  const fieldId = useId();
+  const errorId = `${fieldId}-error`;
+  const accessibility = {id: fieldId, required, "aria-invalid": Boolean(error), "aria-describedby": error ? errorId : undefined};
   const fieldStyle = {
     width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14,
-    border: "2px solid " + (error ? C.hazard : C.concrete), fontFamily: "'Poppins', sans-serif",
+    border: "2px solid " + (error ? C.red : C.concrete), fontFamily: "'Poppins', sans-serif",
     color: C.navy, background: C.white, outline: "none", boxSizing: "border-box",
   };
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
+      <label htmlFor={fieldId} style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
       {options ? (
-        <select name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
+        <select {...accessibility} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
           <option value="">Select a topic</option>
           {options.map(option => <option key={option} value={option}>{option}</option>)}
         </select>
       ) : textarea ? (
-        <textarea name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
+        <textarea {...accessibility} name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
       ) : (
-        <input type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
+        <input {...accessibility} type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
       )}
-      {error && <div style={{ color: C.hazard, fontSize: 12, marginTop: 4, fontWeight: 600 }}>{error}</div>}
+      {error && <div id={errorId} className="ps-form-field-error">{error}</div>}
     </div>
   );
 }
@@ -10892,6 +10912,13 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
 
+  const formElement = useRef(null);
+  const validationFocus = useRef(null);
+  useEffect(() => {
+    const shouldFocus = validationFocus.current;
+    validationFocus.current = null;
+    if (shouldFocus) formElement.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [errors]);
   const submissionContext = useRef(null);
   useEffect(() => {
     const context = { active: true, busy: false, complete: false };
@@ -10921,7 +10948,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
     if (!form.helpType) errs.helpType = "Please select what you need help with.";
     if (!form.message.trim()) errs.message = "Please enter a message.";
     setErrors(errs);
-    if (Object.keys(errs).length) return;
+    if (Object.keys(errs).length) { validationFocus.current = true; return; }
 
     context.busy = true;
     setIsSubmitting(true);
@@ -11037,13 +11064,14 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
               <strong>Thanks, {form.name}.</strong><br />Your message has been sent to ParkShare Support. We’ll get back to you as soon as we can.
             </div>
           ) : (
-            <form onSubmit={handleSubmit} noValidate>
+            <form ref={formElement} onSubmit={handleSubmit} noValidate>
+              {Object.values(errors).some(Boolean) && <div className="ps-form-error-summary" role="alert"><strong>Please correct the following:</strong><ul>{Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
               {submissionError && <div className="ps-contact-status error" role="alert">{submissionError}</div>}
-              <ContactField label="Name" name="name" value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
-              <ContactField label="Email" name="email" type="email" value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
-              <ContactField label="What can we help with?" name="helpType" value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
+              <ContactField label="Name" name="name" required value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
+              <ContactField label="Email" name="email" type="email" required value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
+              <ContactField label="What can we help with?" name="helpType" required value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
               <ContactField label="Reservation number — optional" name="reservationNumber" value={form.reservationNumber} onChange={handleChange} disabled={isSubmitting} />
-              <ContactField label="Message" name="message" value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
+              <ContactField label="Message" name="message" required value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
               <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
                 <label>Website<input name="website" value={form.website} onChange={handleChange} tabIndex={-1} autoComplete="off" /></label>
               </div>
