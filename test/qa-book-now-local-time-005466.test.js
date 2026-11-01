@@ -60,3 +60,24 @@ test("the booking panel wires both labels to the property-zone preview", async (
   assert.match(panel, /Ends around \$\{bookNowTimes\.end\}/);
   assert.doesNotMatch(panel, /toLocaleTimeString\(undefined/);
 });
+
+for (const [hours,clock,date,time,offset] of [
+  [48,'2026-10-30T16:15:00Z','Nov 1, 2026','11:15','EST'],
+  [48.25,'2026-10-30T16:15:00Z','Nov 1, 2026','11:30','EST'],
+  [744,'2026-10-30T16:15:00Z','Nov 30, 2026','11:15','EST'],
+  [744,'2026-12-31T23:00:00Z','Jan 31, 2027','6:00','EST'],
+  [48,'2028-02-28T15:00:00Z','Mar 1, 2028','10:00','EST'],
+]) test(`BUG-005486 ${hours} elapsed hours from ${clock} show the true end date`,()=>{
+  const result=formatBookNowTimes('America/Toronto',hours,clock);
+  assert.ok(result);assert.ok(result.end.includes(date),result.end);assert.ok(result.end.includes(time),result.end);
+  assert.match(result.end,new RegExp(offset+'.*America/Toronto'));assert.doesNotMatch(result.end,/today|Invalid Date/);
+});
+test('BUG-005486 31-day previews stay property-local across device time zones',()=>{
+  const script=`import {formatBookNowTimes} from './src/lib/bookNowTimes.js';process.stdout.write(JSON.stringify(formatBookNowTimes('America/Toronto',744,'2026-10-30T16:15:00Z')));`;
+  for(const TZ of ['Europe/Athens','America/Vancouver','Pacific/Auckland','UTC']){
+    const result=JSON.parse(execFileSync(process.execPath,['--input-type=module','-e',script],{cwd:new URL('..',import.meta.url),encoding:'utf8',env:{PATH:process.env.PATH,TZ}}));
+    assert.match(result.start,/Oct 30, 2026.*12:15.*EDT/);assert.match(result.end,/Nov 30, 2026.*11:15.*EST.*America\/Toronto/);
+  }
+  // B.C. adopted permanent UTC-7 in 2026; this property does not follow Toronto's fallback.
+  assert.match(formatBookNowTimes('America/Vancouver',744,'2026-10-30T16:15:00Z').end,/Nov 30, 2026.*9:15.*America\/Vancouver/);
+});

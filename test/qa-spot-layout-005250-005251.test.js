@@ -47,10 +47,10 @@ test('all eight bays require verified availability; held and private bays stay b
  const data=open(8);data.spotStatus.E=false;data.spotState={E:'held'};const bays=walk(picker({availableCount:8,chosen:4,vehicle:{},isRealListing:true,availableData:data})).filter(node=>node.type==='button');assert.equal(bays[4].props.disabled,true);assert.equal(bays[7].props.disabled,false);
 });
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
-function detailHarness({count=4,flags,fetcher,bookability='ready'}={}){
+function detailHarness({count=4,flags,fetcher,bookability='ready',clock}={}){
  const slots=[],effects=[],requests=[],intervals=new Map();let cursor=0,dirty=false,tree,timerId=0;
  const props={listing:{id:'db-7',spaces:flags?flags.filter(Boolean).length:count,spots:flags?.map(forRent=>({forRent}))||[],title:'Synthetic layout',price:12,features:[],timeZone:'America/Toronto'},user:{id:'driver',vehicleMake:'Honda',vehicleModel:'Accord',vehicleColour:'Blue',licensePlate:'QA 250'}};
- const values={React,C,useListingBookability:()=>({status:bookability,retry:()=>{}}),bookingReadinessMessage,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes,getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
+ const values={React,C,useListingBookability:()=>({status:bookability,retry:()=>{}}),bookingReadinessMessage,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes:(zone,hours)=>formatBookNowTimes(zone,hours,clock===undefined?Date.now():clock),getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
   getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:Array.from({length:96},(_,i)=>i/4),END_HOUR_OPTIONS:Array.from({length:191},(_,i)=>(i+1)/4),
   window:{setInterval:fn=>{intervals.set(++timerId,fn);return timerId;},clearInterval:id=>intervals.delete(id),addEventListener(){},removeEventListener(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}},
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
@@ -277,4 +277,22 @@ for (const status of ['checking','not_ready','unknown','paused']) test(`BUG-0054
 test('BUG-005490 readiness loss closes payment and restoring readiness preserves a valid bay',async()=>{
  const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
  try{await h.flush();h.choose(1);h.pay().props.onClick();assert.equal(hasPayment(h),true);h.setBookability('not_ready');assert.equal(hasPayment(h),false);assert.equal(h.pay().props.disabled,true);assert.doesNotMatch(renderToStaticMarkup(h.render()),/Spot B is unavailable for this time|free for that/);h.setBookability('ready');assert.equal(h.pay().props.disabled,false);h.pay().props.onClick();assert.equal(h.find(n=>n.type===h.values.PaymentModal).props.chosenSpot,1);}finally{h.stop();}
+});
+
+for(const [hours,date,total] of [[48,'Nov 1, 2026','$551.45'],[744,'Nov 30, 2026','$8547.44']])test(`BUG-005486 rendered Custom ${hours} hours shows its real end date and exact quoted total`,async()=>{
+ const h=detailHarness({clock:'2026-10-30T16:15:00Z',fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  h.render({listing:{...h.props.listing,price:9.99}});await h.flush();
+  h.find(node=>node.type==='button'&&node.props.children==='Custom').props.onClick();h.render();
+  h.find(node=>node.type==='input'&&node.props.id==='booking-custom-hours').props.onChange({target:{value:String(hours)}});h.render();await h.flush();
+  const control=h.find(node=>node.type==='input'&&node.props.id==='booking-custom-hours');assert.equal(control.props['aria-invalid'],false);assert.equal(control.props.max,744);
+  const html=renderToStaticMarkup(h.render());assert.match(html,new RegExp('Ends around '+date+'.*11:15.*EST.*America/Toronto'));assert.doesNotMatch(html,/Ends around[^<]*today/);
+  const quote=h.find(node=>node.props.className==='ps-booking-reserve-row');assert.ok(renderToStaticMarkup(quote).includes(total),renderToStaticMarkup(quote));assert.ok(h.requests.some(request=>request.url.includes('hours='+hours)));
+ }finally{h.stop();}
+});
+test('BUG-005486 exceeding 744 hours removes the date/quote and cannot start another availability request or payment',async()=>{
+ const h=detailHarness({clock:'2026-10-30T16:15:00Z',fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{await h.flush();h.find(node=>node.type==='button'&&node.props.children==='Custom').props.onClick();h.render();h.find(node=>node.type==='input'&&node.props.id==='booking-custom-hours').props.onChange({target:{value:'744'}});h.render();await h.flush();const before=h.requests.length;
+  h.find(node=>node.type==='input'&&node.props.id==='booking-custom-hours').props.onChange({target:{value:'744.25'}});h.render();await h.flush();assert.equal(h.requests.length,before);assert.equal(h.pay().props.disabled,true);h.pay().props.onClick();assert.equal(hasPayment(h),false);const html=renderToStaticMarkup(h.render());assert.doesNotMatch(html,/Ends around/);assert.match(html,/Enter a valid duration to see the total/);
+ }finally{h.stop();}
 });
