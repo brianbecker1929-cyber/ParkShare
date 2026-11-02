@@ -228,7 +228,7 @@ test('BUG-005466 rendered Book Now shows property-local dates and timezone on bo
 });
 
 test('BUG-005467 rendered panel and picker explain closed Host hours without claiming occupancy',async()=>{
- const closed={...open(4),available:false,hostScheduleOpen:false,reason:'host_schedule',spacesFree:0,spotStatus:{A:false,B:false,C:false,D:false}};
+ const closed={...open(4),available:false,hostScheduleOpen:false,reason:'host_schedule',spacesFree:0,hostScheduleLabel:'Host hours on Oct 21, 2030: 5pm–11pm (America/Toronto local time).',spotStatus:{A:false,B:false,C:false,D:false}};
  const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>closed})});
  try{
   await h.flush();
@@ -236,6 +236,9 @@ test('BUG-005467 rendered panel and picker explain closed Host hours without cla
   assert.match(html,/Outside the Host&#x27;s available hours/);
   const pickerMessage=walk(tree).find(node=>node.type==='p'&&typeof node.props.children==='string'&&node.props.children.includes('available hours'));
   assert.ok(pickerMessage,'Spot picker also explains the schedule');
+  assert.match(pickerMessage.props.children,/5pm–11pm.*America\/Toronto/);
+  assert.match(pickerMessage.props.children,/Schedule for Later/);
+  assert.match(html,/5pm–11pm.*America\/Toronto/,'The booking warning also shows the server schedule hint');
   assert.doesNotMatch(pickerMessage.props.children,/All spots are taken/);
   assert.equal(h.pay().props.disabled,true);
   h.choose(0);h.render();assert.equal(h.pay().props.disabled,true);

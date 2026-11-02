@@ -25,7 +25,10 @@ export function listingAvailabilityMessage(data, mode) {
   if (data?.reason === "listing_paused") return "The Host has paused this listing. Please choose another parking space.";
   const when = mode === "now" ? "right now" : "that time";
   if (data?.hostScheduleOpen === false || data?.reason === "host_schedule") {
-    return `Outside the Host's available hours for ${when}. Choose another time or a shorter duration.`;
+    const schedule = typeof data?.hostScheduleLabel === "string" && data.hostScheduleLabel.trim()
+      ? ` ${data.hostScheduleLabel.trim()}` : "";
+    const nextStep = mode === "now" ? "Choose Schedule for Later or a shorter duration." : "Choose another time or a shorter duration.";
+    return `Outside the Host's available hours for ${when}.${schedule} ${nextStep}`;
   }
   if (data?.available === true) {
     return `${data.spacesFree} of ${data.spacesTotal} spot${data.spacesTotal === 1 ? "" : "s"} free for ${when}. Tap the one you'd like to park in.`;

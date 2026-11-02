@@ -5,7 +5,7 @@
 // overlapping confirmed bookings/holds for the requested time window.
 
 import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
-import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
+import { isListingAvailableForWindow, formatAvailabilityForDate } from "../src/lib/listingAvailability.js";
 import { resolveLocalBookingStart } from "./_booking-local-time.js";
 import { isValidBookingDuration } from "./_booking-rules.js";
 import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
@@ -76,6 +76,7 @@ export default async function handler(req, res) {
         spacesFree: 0,
         hostScheduleOpen: false,
         reason: "host_schedule",
+        hostScheduleLabel: formatAvailabilityForDate(listing.availability, start, listing.time_zone),
         spotStatus,
       });
     }
