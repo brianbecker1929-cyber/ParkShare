@@ -1,7 +1,7 @@
 // GET /api/send-reminders — authenticated Vercel Cron, once per minute.
 // Halfway and 15-minute ending reminders use canonical session times.
 // Delivery snapshots, leases and provider idempotency live in
-// _reminder-delivery.js. Messages go to the Driver, CC'd to the Host.
+// _reminder-delivery.js. These session reminders go only to the Driver.
 
 import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
 async function sendReminder(booking, kind) {
   const { data: listing, error: listingError } = await supabaseAdmin
     .from("listings")
-    .select("title, address, spaces, spots, host_id")
+    .select("title, address, spaces, spots")
     .eq("id", booking.listing_id)
     .single();
   if (listingError || !listing) throw new Error("Reminder listing could not be loaded");
@@ -111,15 +111,6 @@ async function sendReminder(booking, kind) {
     .eq("id", booking.renter_id)
     .single();
   if (renterError || !renter?.email) throw new Error("Reminder Driver email is missing");
-
-  let hostEmail = null;
-  let hostName = "your host";
-  if (listing?.host_id) {
-    const { data: host, error: hostError } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
-    if (hostError || !host?.email) throw new Error("Reminder Host email is missing");
-    hostEmail = host.email;
-    hostName = host?.name || hostName;
-  }
 
   const nowDate = new Date();
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
@@ -172,7 +163,6 @@ async function sendReminder(booking, kind) {
     portraitCid,
     bookingId: booking.id,
     renterName,
-    hostName,
     address,
     locationId: booking.listing_id,
     spotLabel: booking.spot_label,
@@ -199,5 +189,5 @@ async function sendReminder(booking, kind) {
     : "Your parking session ends soon";
   const html = isHalfway ? halfwayReminderHtml(commonFields) : endingReminderHtml(commonFields);
   return deliverReminder(supabaseAdmin, booking, kind,
-    { to: renter.email, cc: hostEmail || undefined, subject, html, attachments });
+    { to: renter.email, subject, html, attachments });
 }

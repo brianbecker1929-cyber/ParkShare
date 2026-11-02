@@ -13,11 +13,23 @@ export async function deliverReminder(db, booking, kind, message, now = new Date
     return result.data;
   };
   check(await table().upsert({ id, booking_id: booking.id, kind,
-    session_ends_at: new Date(booking.end).toISOString(), payload: buildEmailPayload(message),
+    session_ends_at: new Date(booking.end).toISOString(),
+    // This worker is Driver-only even if a caller supplies extra addressing.
+    payload: buildEmailPayload({ to: message.to, subject: message.subject,
+      html: message.html, attachments: message.attachments }),
   }, { onConflict: "id", ignoreDuplicates: true }), "snapshot");
   let delivery = check(await table().select("id, payload, session_ends_at, created_at, sent_at, provider_id")
     .eq("id", id).single(), "lookup");
   if (!delivery.sent_at) {
+    const payload = delivery.payload;
+    const hasRecipients = value => Array.isArray(value) ? value.length > 0 : Boolean(value);
+    if (typeof message.to !== "string" || /[,;\r\n]/.test(message.to)
+        || !Array.isArray(payload?.to) || payload.to.length !== 1 || payload.to[0] !== message.to
+        || hasRecipients(payload.cc) || hasRecipients(payload.bcc) || hasRecipients(payload.reply_to)) {
+      // A legacy snapshot may already have reached Resend despite a lost
+      // response. Do not change its payload/key or replay its Host CC.
+      throw new Error("Reminder recipient snapshot requires reconciliation; unsafe email suppressed");
+    }
     if (now.getTime() - Date.parse(delivery.created_at) >= 23 * 3600_000) {
       throw new Error("Reminder delivery requires reconciliation after retry deadline");
     }

@@ -32,6 +32,7 @@ test(`all six delivered emails retain the vehicle and Spot ${chosenLabel} in a $
   const sent = [];
   const deliveries = new Map();
   let missingRecipient = false;
+  let hostProfileLookups = 0;
   let booking = {
     id: 42, listing_id: 7, renter_id: "sample-renter", hours: 1,
     paid_at: new Date(Date.now() - 35 * 60_000).toISOString(),
@@ -111,6 +112,7 @@ test(`all six delivered emails retain the vehicle and Spot ${chosenLabel} in a $
     }
     else if (table === "profiles") {
       const isHost = url.searchParams.get("id") === "eq.sample-host";
+      if (isHost) hostProfileLookups++;
       result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: missingRecipient && !isHost ? null : isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
     } else if (table === "settle_initial_booking_checkout") {
       const request=JSON.parse(init.body);
@@ -174,6 +176,12 @@ test(`all six delivered emails retain the vehicle and Spot ${chosenLabel} in a $
     res = response();
     await reminders({ method: "GET", headers: { authorization: "Bearer sample-cron" } }, res);
     assert.deepEqual(res.body, { halfwaySent: 0, endingSent: 0, failed: 0 });
+    assert.equal(hostProfileLookups, 0, 'Driver reminders do not fetch or depend on Host contact details');
+    for (const email of sent) {
+      assert.deepEqual(email.to, ['driver@example.invalid']);
+      for (const header of ['cc','bcc','reply_to']) assert.equal(email[header], undefined);
+      assert.doesNotMatch(email.html, /driver@example.invalid|host@example.invalid/);
+    }
     async function deliver(metadata, sessionId, amountCents, paymentIntentId) {
       const payload = JSON.stringify({ id:"evt_sample",created:1792000000,livemode:false,type: "checkout.session.completed", account: "acct_sample", data: { object: {
         id: sessionId, livemode:false,created:1792000000,mode: "payment", payment_status: "paid", amount_total: amountCents,
