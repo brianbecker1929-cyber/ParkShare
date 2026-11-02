@@ -68,6 +68,16 @@ const switchMode=(h,mode)=>h.find(node=>node.type==='button'&&node.props.childre
 const assertBay=(h,label)=>assert.match(renderToStaticMarkup(h.render()),new RegExp('Spot '+label));
 const hasPayment=h=>walk(h.render()).some(node=>node.type===h.values.PaymentModal);
 
+test('BUG-005466 scheduled booking controls identify the driveway time zone',async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();h.props.listing.timeZone='America/Vancouver';switchMode(h,'advance');
+  assert.match(renderToStaticMarkup(h.render()),/Times use America\/Vancouver local time\./);
+  h.props.listing.timeZone=null;
+  assert.match(renderToStaticMarkup(h.render()),/Listing time zone unavailable\./);
+ }finally{h.stop();}
+});
+
 test('BUG-005450 automatic and reopened spot pickers use the native modal and return to Choose spot',async()=>{
  const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
  try{

@@ -81,6 +81,21 @@ test('same-account profile rerenders with unchanged selection do not discard a v
 test('Book Now sends no scheduled date/time and retains the selected spot',async()=>{
  const h=harness();h.render({date:undefined,startHour:undefined,endHour:undefined,selectedEvent:null});await h.pay();const body=h.requests[0].body;assert.equal(body.spotLabel,'B');assert.equal(body.hours,2);assert.equal('bookingDate' in body,false);assert.equal('startHour' in body,false);assert.equal('endHour' in body,false);assert.equal('eventId' in body,false);h.stop();
 });
+test('BUG-005466 Review & pay names the property zone for scheduled and immediate bookings',async()=>{
+ for(const now of [false,true]){
+  const h=harness();
+  try{
+   h.render({listing:{...h.props.listing,timeZone:'America/Vancouver'},...(now?{date:undefined,startHour:undefined,endHour:undefined}:{})});
+   assert.match(h.text,/Times use America\/Vancouver local time\./);
+   await h.pay();const body=h.requests[0].body;
+   if(now){assert.equal('startHour' in body,false);assert.equal('bookingDate' in body,false);}
+   else{assert.equal(body.startHour,9);assert.equal(body.endHour,11);assert.equal(body.bookingDate,'2030-10-20');}
+  }finally{h.stop();}
+ }
+});
+test('BUG-005466 Review & pay identifies missing property metadata without claiming browser-local time',()=>{
+ const h=harness();try{assert.match(h.text,/Listing time zone unavailable\./);assert.doesNotMatch(h.text,/Times use .*local time/);}finally{h.stop();}
+});
 test('unsigned/missing vehicle/invalid real listing cannot submit; demo keeps its separate flow',async()=>{
  for(const changed of [{user:null},{selectedVehicleId:'missing'},{listing:{id:'db-invalid',price:12,title:'Invalid'}},{listing:{id:'demo',price:12,title:'Demo'}}]){const h=harness();h.render(changed);if(changed.listing?.id==='demo'){assert.equal(h.find(n=>n.props?.children==='Continue to payment →').props.disabled,false);}else await h.pay();assert.equal(h.requests.length,0);assert.equal(h.redirects.length,0);h.stop();}
 });

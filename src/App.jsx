@@ -1097,6 +1097,9 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const total = totalCents / 100;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
+  const propertyTimeZoneLabel = listing.timeZone
+    ? `Times use ${listing.timeZone} local time.`
+    : "Listing time zone unavailable.";
 
   const payWithStripe = async () => {
     if (!checkoutModalActive.current) return;
@@ -1253,6 +1256,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
                 {timeLabel && <div style={{ marginTop: 2 }}>🕐 {timeLabel} ({hours} hr{hours > 1 ? "s" : ""})</div>}
               </div>
             )}
+            <p role="note" style={{ fontSize: 12, color: C.navy, margin: "0 0 14px" }}>{propertyTimeZoneLabel}</p>
             {selectedEvent && <EventDestinationSummary event={selectedEvent} booking />}
             {[
               [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
@@ -2184,6 +2188,9 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
                     {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                 </div>
+                <p role="note" style={{ fontSize: 12, color: C.navy, margin: "8px 0" }}>
+                  {listing.timeZone ? `Times use ${listing.timeZone} local time.` : "Listing time zone unavailable."}
+                </p>
                 {durationError ? (
                   <div id="booking-schedule-error" role="alert" style={{ fontSize: 11, color: C.red, fontWeight: 700, marginTop: 6 }}>
                     {durationError} Adjust the start or end time.
