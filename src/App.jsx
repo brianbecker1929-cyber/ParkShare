@@ -8111,7 +8111,8 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
         content.focus({ preventScroll: true });
         content.scrollIntoView({ block: "start", behavior: "instant" });
       }}>Skip to main content</a>
-      <style>{`
+      {/* Authored static CSS: preserve raw selectors/quotes across SSR hydration. */}
+      <style dangerouslySetInnerHTML={{__html: `
         /* One header system for every public ParkShare page. */
         .ps-mobile-header-row { display: none !important; }
         .ps-dashboard-mobile-header-row { display: none !important; }
@@ -8218,7 +8219,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             margin-bottom: 2px;
           }
         }
-      `}</style>
+      `}} />
       {dashboardMobileHeader && (
         <div className="ps-dashboard-mobile-header-row">
           <button onClick={onLogoClick} aria-label="ParkShare home" style={{ width: 190, maxWidth: "62vw", minHeight: 44, padding: 0, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "flex-start" }}>
@@ -11531,12 +11532,13 @@ function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const initialRouteRef = useRef(getRouteFromPath(window.location.pathname));
+  const entryLocation = typeof window === "undefined" ? {pathname: "/", search: ""} : window.location;
+  const initialRouteRef = useRef(getRouteFromPath(entryLocation.pathname));
   const [screen, setScreen] = useState(initialRouteRef.current.screen);
   const [tab, setTab] = useState(initialRouteRef.current.tab || "Browse");
   const [legalSection, setLegalSection] = useState(initialRouteRef.current.anchor || "terms");
   const [messageThreadState, setMessageThreadState] = useState(null);
-  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(window.location.search));
+  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(entryLocation.search));
   const [user, setUser] = useState(null);
   const [signOutNotice, setSignOutNotice] = useState(null);
   const signOutAttempt = useRef(null);
@@ -11572,8 +11574,8 @@ export default function App() {
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
   // Capture before the navigation-only return handler removes query flags.
-  const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(window.location.search));
-  const [extensionHoldToCancel] = useState(() => cancelledExtensionCheckoutHold(window.location.search));
+  const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(entryLocation.search));
+  const [extensionHoldToCancel] = useState(() => cancelledExtensionCheckoutHold(entryLocation.search));
   const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
   const { bookingId: extendBookingId, select: setExtendBookingId, isCurrent: isExtensionContextCurrent } = useExtensionRequest(user);
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link

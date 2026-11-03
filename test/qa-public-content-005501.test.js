@@ -74,7 +74,7 @@ test('read-only document links work while interactive controls/forms stay disabl
 test('successful React commit removes the separate public document; render/boot failure retains it', async () => {
   const source = await readFile(new URL('src/main.jsx', root), 'utf8'), start = source.indexOf('function PublicDocumentHandoff(');
   assert.ok(start > 0);
-  const built = await transform(source.slice(start, source.indexOf('ReactDOM.createRoot(', start)), {loader: 'jsx'});
+  const built = await transform(source.slice(start, source.indexOf('\n}\n', start) + 3), {loader: 'jsx'});
   const effects = []; let removed = 0;
   const doc = {getElementById(id) { assert.equal(id, 'public-document'); return removed ? null : {remove() { removed++; }}; }};
   const Handoff = new Function('React', 'document', built.code + ';return PublicDocumentHandoff;')({...React, useLayoutEffect: fn => effects.push(fn)}, doc);
@@ -83,7 +83,7 @@ test('successful React commit removes the separate public document; render/boot 
   assert.match(source, /<ErrorBoundary>\s*<PublicDocumentHandoff><App \/><\/PublicDocumentHandoff>/);
 });
 
-test('rebuilding replaces existing public markup/JSON-LD and preserves the empty client root and 404 page', async t => {
+test('rebuilding replaces public markup/JSON-LD and preserves the hydrated home, private empty root and 404 page', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'parkshare-public-doc-'));
   t.after(() => rm(directory, {recursive: true, force: true}));
   await writeFile(join(directory, 'index.html'), await readFile(new URL('index.html', root), 'utf8'));
@@ -92,9 +92,11 @@ test('rebuilding replaces existing public markup/JSON-LD and preserves the empty
   const html = await readFile(join(directory, 'index.html'), 'utf8');
   assert.equal([...html.matchAll(/id="public-document"/g)].length, 1);
   assert.equal([...html.matchAll(/id="parkshare-structured-data"/g)].length, 1);
-  assert.match(html, /<div id="root"><\/div>/);
+  assert.match(html, /<div id="root" data-home-hydration="v1">/);
+  assert.match(html, /<noscript><style>#root\[data-home-hydration\]/);
   assert.equal(await readFile(join(directory, '404.html'), 'utf8'), 'existing 404');
   const privateHtml = await readFile(join(directory, 'profile/index.html'), 'utf8');
+  assert.match(privateHtml, /<div id="root"><\/div>/);
   assert.ok(!privateHtml.includes('id="public-document"')); assert.ok(!privateHtml.includes('application/ld+json'));
 });
 

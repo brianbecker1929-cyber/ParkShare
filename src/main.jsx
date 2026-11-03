@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import "./index.css";
+import {shouldHydrateHomepage} from './lib/homeBootstrap.js';
 
 // Catches crashes that happen after React has mounted (the inline script in
 // index.html only catches crashes before mount). Without this, a render-time
@@ -38,11 +39,19 @@ function PublicDocumentHandoff({children}) {
   return children;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const container = document.getElementById("root");
+const application = (
   <React.StrictMode>
     <ErrorBoundary>
       <PublicDocumentHandoff><App /></PublicDocumentHandoff>
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+const hydrate = shouldHydrateHomepage({hasServerMarkup: container.dataset.homeHydration === 'v1',
+  pathname: window.location.pathname, search: window.location.search, hash: window.location.hash});
+// Reuse the first visible hero and navigation nodes instead of replacing them
+// with a second client render after the main JavaScript finishes loading.
+export const applicationRoot = hydrate ? ReactDOM.hydrateRoot(container, application) : ReactDOM.createRoot(container);
+if (!hydrate) applicationRoot.render(application);
 

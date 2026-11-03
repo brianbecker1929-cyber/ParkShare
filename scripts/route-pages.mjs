@@ -39,8 +39,26 @@ export function renderSitemap() {
     + '\n</urlset>\n';
 }
 
+export async function inlineHomepageStyles(html, outputDirectory) {
+  // Use the exact compiled stylesheet, including SPA/account styles. This
+  // removes one blocking request without a fragile hand-maintained CSS subset.
+  const links = [...html.matchAll(/<link\b[^>]*\brel=["']stylesheet["'][^>]*>/gi)];
+  for (const [tag] of links) {
+    const href = tag.match(/\bhref=["']([^"']+)["']/i)?.[1];
+    if (!/^\/assets\/[a-zA-Z0-9_.-]+\.css$/.test(href || '')) continue;
+    const css = await readFile(join(outputDirectory, href.slice(1)), 'utf8');
+    const style = `<style data-home-stylesheet="${escapeHtml(href)}">${css.replace(/<\/style/gi, '<\\/style')}</style>`;
+    // Keep the responsive hero preload ahead of the stylesheet bytes.
+    html = html.replace(tag, '').replace('</head>', () => style + '\n</head>');
+  }
+  return html;
+}
+
 export async function writeRoutePages(outputDirectory) {
   const template = (await readFile(join(outputDirectory, 'index.html'), 'utf8'))
+    .replace(/<style\b[^>]*data-home-stylesheet="([^"]+)"[^>]*>[\s\S]*?<\/style>/gi,
+      (_, href) => `<link rel="stylesheet" crossorigin href="${escapeHtml(href)}">`)
+    .replace(/<!--parkshare-home-root:start-->[\s\S]*?<!--parkshare-home-root:end-->/g, '<div id="root"></div>')
     .replace(/<!--parkshare-public-document:start-->[\s\S]*?<!--parkshare-public-document:end-->/g, '')
     .replace(/<script\b[^>]*id="parkshare-structured-data"[^>]*>[\s\S]*?<\/script>/gi, '');
   const renderer = await createPublicRenderer();
@@ -51,8 +69,11 @@ export async function writeRoutePages(outputDirectory) {
       let html = renderRouteDocument(template, route);
       if (content.html) {
         if (!html.includes('<div id="root"></div>')) throw new Error('Public content requires an empty client root');
-        html = html.replace('<div id="root"></div>', () => content.html + '<div id="root"></div>');
+        html = html.replace('<div id="root"></div>', () => content.appHtml
+          ? `<!--parkshare-home-root:start--><div id="root" data-home-hydration="v1">${content.appHtml}</div><noscript><style>#root[data-home-hydration]{display:none!important}</style>${content.html}</noscript><!--parkshare-home-root:end-->`
+          : content.html + '<div id="root"></div>');
       }
+      if (content.appHtml) html = await inlineHomepageStyles(html, outputDirectory);
       if (content.jsonLd) html = html.replace('</head>', () => content.jsonLd + '\n</head>');
       await mkdir(dirname(file), {recursive: true});
       await writeFile(file, html);

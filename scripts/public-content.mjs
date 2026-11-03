@@ -1,5 +1,5 @@
 import React from 'react';
-import {renderToStaticMarkup} from 'react-dom/server';
+import {renderToStaticMarkup, renderToString} from 'react-dom/server';
 import {build} from 'esbuild';
 import {readFile, writeFile, mkdtemp, mkdir, rm} from 'node:fs/promises';
 import {fileURLToPath, pathToFileURL} from 'node:url';
@@ -49,9 +49,10 @@ export function readOnlyMarkup(html) {
 export async function createPublicRenderer() {
   let source = await readFile(join(root, 'src/App.jsx'), 'utf8');
   if (!source.includes('export default function App(')) throw new Error('Public rendering entry could not be identified');
-  // Build-only entry: reuse actual page components without constructing App/auth state.
+  // Build-only entry: reuse authored pages and the anonymous homepage App tree.
+  // Effects do not run here; service/network access remains forbidden.
   source = 'const useLayoutEffect = React.useEffect;\n' + source.replace('export default function App(', 'function App(').replace('useEffect, useLayoutEffect,', 'useEffect,').replaceAll('fetchPriority=', 'fetchpriority=')
-    + '\nexport {LandingPage,HostPage,DriverPage,AboutPage,TrustPage,HelpPage,ContactPage,LegalPage,BrowseView,DiscoverView,HELP_DATA};';
+    + '\nexport {App,LandingPage,HostPage,DriverPage,AboutPage,TrustPage,HelpPage,ContactPage,LegalPage,BrowseView,DiscoverView,HELP_DATA};';
   const result = await build({stdin: {contents: source, resolveDir: join(root, 'src'), sourcefile: 'App.jsx', loader: 'jsx'}, bundle: true, platform: 'node', format: 'esm', packages: 'external', write: false, define: {'import.meta.env': '{}'},
     plugins: [{name: 'public-render-no-services', setup(b) {
       b.onResolve({filter: /supabaseClient(?:\.js)?$/}, () => ({path: 'services', namespace: 'public-only'}));
@@ -73,12 +74,12 @@ export async function createPublicRenderer() {
       render(route) {
         if (route.private) return {html: '', jsonLd: ''};
         const components = {landing: 'LandingPage', host: 'HostPage', driver: 'DriverPage', about: 'AboutPage', trust: 'TrustPage', help: 'HelpPage', contact: 'ContactPage', legal: 'LegalPage'};
-        const Component = route.screen === 'app' ? pages[route.tab === 'Browse' ? 'BrowseView' : 'DiscoverView'] : pages[components[route.screen]];
+        const Component = route.path === '/' ? pages.App : route.screen === 'app' ? pages[route.tab === 'Browse' ? 'BrowseView' : 'DiscoverView'] : pages[components[route.screen]];
         if (!Component) throw new Error('Missing public page renderer: ' + route.path);
         const props = {user: null, tab: route.tab || 'Browse', section: route.anchor || 'terms', mode: route.tab === 'Restaurants' ? 'restaurants' : route.tab === 'Events & Festivals' ? 'events' : null};
         const oldFetch = globalThis.fetch;
         let html;
-        try { globalThis.fetch = () => {throw new Error('Network access is unavailable during public rendering');}; html = renderToStaticMarkup(React.createElement(Component, props)); }
+        try { globalThis.fetch = () => {throw new Error('Network access is unavailable during public rendering');}; html = (route.path === '/' ? renderToString : renderToStaticMarkup)(React.createElement(Component, props)); }
         finally { globalThis.fetch = oldFetch; }
         if (route.screen === 'app') {
           const guide = questions.slice(0, 4).map(({q,a}) => `<h2>${escapeHtml(q)}</h2><p>${escapeHtml(a)}</p>`).join('');
@@ -88,7 +89,9 @@ export async function createPublicRenderer() {
           const answers = '<section data-public-faq=""><h2>Questions and answers</h2>' + questions.map(({q,a}) => `<details><summary>${escapeHtml(q)}</summary><p>${escapeHtml(a)}</p></details>`).join('') + '</section>';
           html = html.replace('</main>', () => answers + '</main>');
         }
-        return {html: `<!--parkshare-public-document:start--><div id="public-document">${readOnlyMarkup(html)}${overview}</div><!--parkshare-public-document:end-->`, jsonLd: `<script id="parkshare-structured-data" type="application/ld+json">${jsonScript(structuredData(route, questions))}</script>`};
+        return {html: `<!--parkshare-public-document:start--><div id="public-document">${readOnlyMarkup(html)}${overview}</div><!--parkshare-public-document:end-->`,
+          ...(route.path === '/' ? {appHtml: html} : {}),
+          jsonLd: `<script id="parkshare-structured-data" type="application/ld+json">${jsonScript(structuredData(route, questions))}</script>`};
       },
       close: () => rm(directory, {recursive: true, force: true}),
     };
