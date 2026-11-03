@@ -1326,7 +1326,7 @@ button, input, select, textarea { font: inherit; }
 /* Shared behavior: preserve the official logo's natural aspect ratio. */
 .ps-header .ps-desktop-logo,
 .ps-header .ps-mobile-header-row > button:nth-child(2) {
-  background-image: url("/brand/parkshare-william-parker-logo.webp") !important;
+  background-image: url("/brand/parkshare-footer-960.webp") !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   background-size: contain !important;

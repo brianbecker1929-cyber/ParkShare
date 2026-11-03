@@ -58,3 +58,11 @@ test('BUG-005495 optimized hero variants retain dimensions and transparency with
     if (width === 768 && format === 'avif') assert.ok((await stat(file)).size < 55_000);
   }
 });
+
+test('BUG-005495 the CSS-backed navigation logo also uses the optimized asset',async()=>{
+ const css=await readFile(new URL('../src/index.css',import.meta.url),'utf8');
+ assert.ok(!css.includes('/brand/parkshare-william-parker-logo.webp'));
+ const block=css.slice(css.indexOf('.ps-header .ps-desktop-logo,',css.indexOf('ParkShare official global navbar logo')));
+ assert.match(block.slice(0,block.indexOf('}')),/background-image: url\("\/brand\/parkshare-footer-960.webp"\)/);
+ assert.ok((await stat(new URL('../public/brand/parkshare-footer-960.webp',import.meta.url))).size<50_000);
+});
