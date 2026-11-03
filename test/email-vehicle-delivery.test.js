@@ -81,6 +81,7 @@ test(`all six delivered emails retain the vehicle and Spot ${chosenLabel} in a $
     }
     assert.equal(url.hostname, "sample.invalid", "No real network access in delivery test");
     const table = url.pathname.split("/").at(-1);
+    if (table === "message_email_deliveries") return Response.json([]);
     let result;
     if (table === "booking_reminder_deliveries") {
       const body = init.body ? JSON.parse(init.body) : null;
@@ -295,3 +296,4 @@ test(`all six delivered emails retain the vehicle and Spot ${chosenLabel} in a $
 });
 
 }
+

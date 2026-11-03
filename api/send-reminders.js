@@ -13,6 +13,7 @@ import { formatBookingEmailTimes } from "./_booking-email-times.js";
 import { timingSafeEqual } from "node:crypto";
 import { deliverReminder } from "./_reminder-delivery.js";
 import { dueReminder } from "./_reminder-window.js";
+import { processMessageNotifications } from "./_message-email-delivery.js";
 
 export default async function handler(req, res) {
   res.setHeader?.("Cache-Control", "private, no-store");
@@ -94,6 +95,14 @@ export default async function handler(req, res) {
     }
   }
 
+  try {
+    const messages = await processMessageNotifications(supabaseAdmin, {now, deadline});
+    console.info("message-notifications: completed", JSON.stringify(messages));
+    if (messages.accepted || messages.failed || messages.blocked) results.messages = messages;
+  } catch {
+    console.error("send-reminders: message notification queue lookup failed");
+    results.messages = {accepted: 0, failed: 1, blocked: 0};
+  }
   console.info("send-reminders: completed", JSON.stringify(results));
   return res.status(200).json(results);
 }
@@ -191,3 +200,4 @@ async function sendReminder(booking, kind) {
   return deliverReminder(supabaseAdmin, booking, kind,
     { to: renter.email, subject, html, attachments });
 }
+
