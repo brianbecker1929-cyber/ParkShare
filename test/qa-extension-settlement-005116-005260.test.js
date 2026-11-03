@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {readExtensionPayment,rejectExtensionPayment,recoverRejectedExtensionRefund} from '../api/_extension-payment.js';
 import {CheckoutIntegrityError,verifyPaidCheckout} from '../api/_checkout-integrity.js';
 import {requirePaidCheckoutReference} from '../api/_paid-checkout-reference.js';
+import {bookingDisplayTimeZone} from '../api/_booking-display-time-zone.js';
 import {isExpectedCheckoutTermination,matchesRegisteredCheckoutAccount,canFailUnpaidBooking} from '../api/_checkout-terminal-safety.js';
 const source=await readFile(process.env.QA_EXTENSION_WEBHOOK_SOURCE||new URL('../api/stripe-webhook.js',import.meta.url),'utf8');
 const section=(start,end)=>source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));
@@ -112,7 +113,7 @@ function spentHistory({refundTotal=1.15,refundPending=0}={}){
  const db={from(table){let fields;const q={select(value){fields=value;return this;},eq(k,v){calls.push([table,k,v]);return this;},not(){return this;},order(){return Promise.resolve({data:[{id:7,listing_id:3,renter_id:'driver',hours:1,total:10,status:'confirmed',paid_at:'2026-10-20T11:00Z'}]});},in(k,ids){calls.push([table,k,ids]);return this;},then(resolve){return Promise.resolve({data:[Object.fromEntries(fields.split(',').map(k=>[k.trim(),ext[k.trim()]]))]}).then(resolve);}};return q;}};
  const code=transactionSource.slice(transactionSource.indexOf('function spendingRefundAmounts'),transactionSource.indexOf('// Money the user has EARNED'))
   +transactionSource.slice(transactionSource.indexOf('async function fetchExtensionsForBookings'),transactionSource.indexOf('// Real Stripe payout history'));
- return {calls,run:new Function('supabaseAdmin','canReadPreciseLocation',code+';return getSpentTransactions;')(db,()=>false)};
+ return {calls,run:new Function('supabaseAdmin','canReadPreciseLocation','bookingDisplayTimeZone',code+';return getSpentTransactions;')(db,()=>false,bookingDisplayTimeZone)};
 }
 test('Transactions reads only the Driver booking IDs and labels rejected charge/refund without claiming added time',async()=>{
  const h=spentHistory();const rows=await h.run('driver');const ext=rows.find(r=>r.type==='extension');

@@ -6,6 +6,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 import {matchesBookingDateRange} from '../src/lib/bookingDateFilter.js';
 import {getBookingDisplayStatus,cancellationDeadlineError} from '../src/lib/bookingTime.js';
+import {canReadCancelledBookingTitle,privateBookingListing} from '../src/lib/privateListingAccess.js';
 
 // Run the real component, including its action and load effect. External
 // services and visual children are replaced; no live bookings are changed.
@@ -54,6 +55,24 @@ test('Refresh picks up Host cancellation and retains the selected date range',as
   h.click('Refresh bookings');assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);await tick();h.render();
   assert.match(h.html(),/Cancelled/);assert.equal(h.state.fromDate,'2050-10-20');assert.equal(h.state.toDate,'2050-10-20');assert.equal(h.state.dbBookings[0].canCancel,false);h.stop();
 });
+test('BUG-005485 past cancelled booking retains its title when collapsed, expanded and refreshed',async()=>{
+  const original={id:7,title:'Driveway at 123 Fixture Lane',address:'SEPARATE PRIVATE ADDRESS',lat:43.123456,lng:-79.123456,
+    spots:[{lat:43.123456}],description:'PRIVATE ACCESS CODE',profiles:{name:'PRIVATE HOST NAME'}};
+  const b={...row('refunded'),renter_id:'A',application_state:'applied',paid_at:'2020-10-01T00:00Z',
+    booking_date:'2020-10-20',scheduled_starts_at:'2020-10-20T13:00Z',stripe_checkout_session_id:'cs_fixture_paid'};
+  b.listings=privateBookingListing(original,false,canReadCancelledBookingTitle({userId:'A',listingId:7,booking:b}));
+  const h=harness({fetcher:async()=>success([b])});
+  try{
+    h.commit();await tick();h.render();
+    for(const action of [null,'View details+','Hide details−','Refresh bookings']) {
+      if(action){h.click(action);await tick();h.render();}
+      const html=h.html();assert.match(html,/Driveway at 123 Fixture Lane/);assert.match(html,/Cancelled/);
+      assert.doesNotMatch(html,/Private parking|SEPARATE PRIVATE ADDRESS|PRIVATE ACCESS CODE|PRIVATE HOST NAME|43\.123456/);
+    }
+    assert.equal(h.state.dbBookings[0].canCancel,false);assert.equal(h.state.dbBookings[0].canReview,false);
+    assert.equal(h.photos.length,0,'Cancelled history never requests private photos');
+  }finally{h.stop();}
+});
 test('refreshed empty history is a successful read, distinct from loading or failure',async()=>{
   const h=harness();h.commit();assert.ok(h.button('Loading bookings…').props.disabled);assert.match(h.html(),/role="status"/);assert.doesNotMatch(h.html(),/don't have any bookings/);
   await tick();h.render();assert.match(h.html(),/don&#x27;t have any bookings/);h.click('Refresh bookings');await tick();h.render();assert.ok(h.button('Refresh bookings'));assert.equal(h.requests.length,2);h.stop();
@@ -75,8 +94,35 @@ test('actual booking load retains the property zone so the displayed date and fi
   const b={...row(),booking_date:'2050-10-20',start_hour:21,scheduled_starts_at:'2050-10-21T01:00Z'};
   const h=harness({fetcher:async()=>success([b])});h.commit();await tick();h.render();
   assert.match(h.state.dbBookings[0].date,/Oct 20, 2050/);
+  assert.equal(h.state.dbBookings[0].timeZoneLabel,'America/Toronto local time');
   h.state.fromDate='2050-10-20';h.state.toDate='2050-10-20';h.render();assert.match(h.html(),/Fixture driveway/);assert.match(h.html(),/Showing 1 of 1 bookings/);
   h.state.fromDate='2050-10-21';h.state.toDate='2050-10-21';h.render();assert.doesNotMatch(h.html(),/Fixture driveway/);assert.match(h.html(),/No bookings found for these dates/);h.stop();
+});
+
+test('BUG-005465 reservation references use each saved booking ID, independent of listing and list order',async()=>{
+  let rows=[{...row(),id:82},{...row(),id:81}];
+  const h=harness({fetcher:async()=>success(rows)});
+  try{
+    h.commit();await tick();h.render();
+    let html=h.html();assert.match(html,/Reservation #PK-82/);assert.match(html,/Reservation #PK-81/);
+    assert.doesNotMatch(html,/Reservation #PK-db-|Reservation #PK-7\b/);
+    rows=[rows[1],rows[0]];h.click('Refresh bookings');await tick();h.render();html=h.html();
+    assert.ok(html.indexOf('Reservation #PK-81')<html.indexOf('Reservation #PK-82'));
+    h.state.fromDate='2050-10-21';h.render();assert.doesNotMatch(h.html(),/Reservation #PK-/);
+  }finally{h.stop();}
+});
+
+test('BUG-005465 a historical reservation number remains visible while collapsed, expanded and email-highlighted',async()=>{
+  for(const status of ['completed','refunded']){
+    const h=harness({fetcher:async()=>success([{...row(status),id:81}]),highlightBookingId:'81'});
+    try{
+      h.commit();await tick();h.render();
+      for(const action of [null,'Hide details−','View details+','Refresh bookings']){
+        if(action){h.click(action);await tick();h.render();}
+        assert.equal((h.html().match(/Reservation #PK-81/g)||[]).length,1);
+      }
+    }finally{h.stop();}
+  }
 });
 
 test('immediate booking date stays aligned with the property display after refreshing',async()=>{
@@ -97,6 +143,7 @@ for (const status of ['completed','refunded']) {
     const h=harness({fetcher:async()=>success([row(status)]),highlightBookingId:'42'});
     h.commit();await tick();h.render();
     assert.match(h.html(),/PRIVATE ADDRESS/);
+    assert.match(h.html(),/America\/Toronto local time/);
     assert.match(h.html(),/aria-expanded="true"/);
     h.click('Hide details−');
     assert.doesNotMatch(h.html(),/PRIVATE ADDRESS/);
@@ -118,3 +165,4 @@ test('unhighlighted past bookings stay collapsed and upcoming bookings stay expa
     h.stop();
   }
 });
+

@@ -25,6 +25,7 @@ import { hostEarningsForRecord, mapHostEarnings } from "./_host-earnings.js";
 import { loadTransactionHistory } from "./_transaction-history.js";
 import { canReadPreciseLocation } from "../src/lib/privateListingAccess.js";
 import { getSessionWindow } from "./_booking-rules.js";
+import { bookingDisplayTimeZone } from "./_booking-display-time-zone.js";
 
 export default async function handler(req, res) {
   if (!jsonMethod(req, res, "GET")) return;
@@ -67,7 +68,7 @@ function spendingRefundStatus(row, gross) {
 async function getSpentTransactions(userId) {
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, application_state, status, paid_at, scheduled_starts_at, booking_date, start_hour, property_time_zone, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address)")
+    .select("id, listing_id, renter_id, hours, total, subtotal, service_fee, application_state, status, paid_at, scheduled_starts_at, booking_date, start_hour, property_time_zone, spot_label, refund_total_amount, refund_pending_amount, stripe_checkout_session_id, listings(host_id, title, address, time_zone)")
     .eq("renter_id", userId)
     .not("paid_at", "is", null)
     .order("paid_at", { ascending: false });
@@ -99,7 +100,7 @@ async function getSpentTransactions(userId) {
       ...spendingRefundAmounts(b),
       date: b.paid_at,
       bookingStart,
-      propertyTimeZone: b.property_time_zone || null,
+      propertyTimeZone: bookingDisplayTimeZone(b, b.listings),
       spotLabel: b.spot_label,
     });
   }
@@ -114,7 +115,7 @@ async function getSpentTransactions(userId) {
       status: spendingRefundStatus(ext, ext.added_amount),
       ...spendingRefundAmounts(ext),
       date: ext.paid_at,
-      propertyTimeZone: parent?.property_time_zone || null,
+      propertyTimeZone: bookingDisplayTimeZone(parent, parent?.listings),
     });
   }
 

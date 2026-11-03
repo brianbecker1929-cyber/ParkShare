@@ -1,6 +1,8 @@
+import {runBookingFieldsProbe} from './qa-booking-fields-probe.mjs';
 // Native PostgreSQL 17 runner for a fresh disposable CI service ONLY.
 // Dedicated env name prevents accidentally inheriting a hosted DATABASE_URL.
 import pg from 'pg';
+import {runListingPauseProbe} from './qa-listing-pause-probe.mjs';
 import {runInitialBookingRefundProbe} from './qa-initial-booking-refund-probe.mjs';
 import {runRefundNotificationsProbe} from './qa-refund-notifications-probe.mjs';
 import {runExtensionSettlementProbe} from './qa-extension-settlement-probe.mjs';
@@ -16,6 +18,7 @@ import {runListingTimezoneProbe} from './qa-listing-timezone-probe.mjs';
 import {runPublicParkingProbe} from './qa-public-parking-probe.mjs';
 import { runRefundLedgerProbe } from './qa-refund-ledger-probe.mjs';
 import {runExtensionCapacityProbe} from './qa-extension-capacity-probe.mjs';
+import {runMessageNotificationProbe} from './qa-message-notification-probe.mjs';
 
 const raw=process.env.QA_SCHEMA_REHEARSAL_DATABASE_URL;
 assert.ok(raw,'Set QA_SCHEMA_REHEARSAL_DATABASE_URL to LOCAL disposable PostgreSQL 17 /parkshare_test');
@@ -38,6 +41,9 @@ try {
   await runRefundNotificationsProbe(db,report);
   await runInitialBookingRefundProbe(db,report);
   await runExtensionCapacityProbe(db,report);
+  await runListingPauseProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
+  await runBookingFieldsProbe(db,report);
+  await runMessageNotificationProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {

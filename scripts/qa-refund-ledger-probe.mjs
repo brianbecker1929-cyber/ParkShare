@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 export const refundLedgerMigration=new URL('../supabase/migrations/20261019182335_multiple_refund_ledger_005188.sql',import.meta.url);
 export async function runRefundLedgerProbe(db,report={checks:[]}){
  await db.exec(await readFile(refundLedgerMigration,'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20261031185643_webhook_refund_conflict_005158.sql',import.meta.url),'utf8'));
  const check=name=>report.checks.push({name:'refund ledger: '+name,status:'passed'});
  await db.exec('BEGIN;');
  try{
@@ -33,7 +34,7 @@ export async function runRefundLedgerProbe(db,report={checks:[]}){
   b=await row();assert.equal(Number(b.refund_pending_amount),0);assert.equal(Number(b.refund_total_amount),50);check('failed pending refund leaves settled total unchanged');
   const revision=Number(b.refund_ledger_revision);
   await call({refunds:[first,second,failed],reported:5000});
-  await denied(()=>call({revision,refunds:[first],reported:2000}),'40001');check('older concurrent snapshot is rejected under lock');
+  await denied(()=>call({revision,refunds:[first],reported:2000}),'PT409');check('older concurrent snapshot is rejected under lock without PostgREST transaction retry');
   for(const options of [
    {refunds:[first],reported:2000},
    {refunds:[{...first,amount_cents:1000},second,failed],reported:4000},
@@ -43,7 +44,7 @@ export async function runRefundLedgerProbe(db,report={checks:[]}){
   ])await denied(()=>call(options));
   assert.equal(Number((await row()).refund_total_amount),50);check('incomplete, duplicate, over-refunded, immutable identity, wrong account/charge/mode snapshots roll back');
   await db.query("UPDATE public.bookings SET refund_status='pending' WHERE id=$1",[id]);
-  await denied(()=>call({revision:revision+1,refunds:[first,second,failed],reported:5000}),'40001');check('legacy/cancellation financial write invalidates in-flight snapshot');
+  await denied(()=>call({revision:revision+1,refunds:[first,second,failed],reported:5000}),'PT409');check('legacy/cancellation financial write invalidates in-flight snapshot');
   await db.query("UPDATE public.bookings SET status='disputed' WHERE id=$1",[id]);
   const rest=refund('re_rest',5000);await call({refunds:[first,second,failed,rest],reported:10000});
   assert.equal((await row()).status,'disputed');check('full refund evidence preserves dispute status');

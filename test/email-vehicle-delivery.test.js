@@ -17,7 +17,7 @@ function response() {
 // Query projections are honoured: forgetting to SELECT the vehicle or spots
 // reproduces the original bug instead of silently returning extra fixture data.
 for (const [count, chosenLabel] of [[1, "A"], [4, "B"], [8, "H"]]) {
-test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a ${count}-bay layout`, async () => {
+test(`all six delivered emails retain the vehicle and Spot ${chosenLabel} in a ${count}-bay layout`, async () => {
   const chosenIndex = chosenLabel.charCodeAt(0) - 65;
   const spotStates = Array.from({length: count}, (_, i) => i === chosenIndex);
   const env = {
@@ -32,6 +32,7 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
   const sent = [];
   const deliveries = new Map();
   let missingRecipient = false;
+  let hostProfileLookups = 0;
   let booking = {
     id: 42, listing_id: 7, renter_id: "sample-renter", hours: 1,
     paid_at: new Date(Date.now() - 35 * 60_000).toISOString(),
@@ -80,6 +81,7 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
     }
     assert.equal(url.hostname, "sample.invalid", "No real network access in delivery test");
     const table = url.pathname.split("/").at(-1);
+    if (table === "message_email_deliveries") return Response.json([]);
     let result;
     if (table === "booking_reminder_deliveries") {
       const body = init.body ? JSON.parse(init.body) : null;
@@ -111,6 +113,7 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
     }
     else if (table === "profiles") {
       const isHost = url.searchParams.get("id") === "eq.sample-host";
+      if (isHost) hostProfileLookups++;
       result = project({ name: isHost ? "Sample Host" : "Sample Driver", email: missingRecipient && !isHost ? null : isHost ? "host@example.invalid" : "driver@example.invalid", stripe_account_id: "acct_sample" }, url);
     } else if (table === "settle_initial_booking_checkout") {
       const request=JSON.parse(init.body);
@@ -174,6 +177,12 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
     res = response();
     await reminders({ method: "GET", headers: { authorization: "Bearer sample-cron" } }, res);
     assert.deepEqual(res.body, { halfwaySent: 0, endingSent: 0, failed: 0 });
+    assert.equal(hostProfileLookups, 0, 'Driver reminders do not fetch or depend on Host contact details');
+    for (const email of sent) {
+      assert.deepEqual(email.to, ['driver@example.invalid']);
+      for (const header of ['cc','bcc','reply_to']) assert.equal(email[header], undefined);
+      assert.doesNotMatch(email.html, /driver@example.invalid|host@example.invalid/);
+    }
     async function deliver(metadata, sessionId, amountCents, paymentIntentId) {
       const payload = JSON.stringify({ id:"evt_sample",created:1792000000,livemode:false,type: "checkout.session.completed", account: "acct_sample", data: { object: {
         id: sessionId, livemode:false,created:1792000000,mode: "payment", payment_status: "paid", amount_total: amountCents,
@@ -190,25 +199,29 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
     const extensionMetadata = { type: "extension", booking_id: "42", added_hours: "1", total_cents: "500", host_email: "untrusted@example.invalid" };
     await deliver(extensionMetadata, "cs_ext_sample", 500, "pi_ext_sample");
     assert.deepEqual(sent[2].to, ["driver@example.invalid"]);
-    assert.deepEqual(sent[2].cc, ["host@example.invalid"], "Copy the actual listing Host on the paid extension confirmation");
+    assert.equal(sent[2].cc, undefined);
+    assert.deepEqual(sent[3].to, ["host@example.invalid"], "Notify the authoritative Host separately");
+    assert.equal(sent[3].cc, undefined);
+    assert.match(sent[3].html, /Hi <strong>Sample Host<\/strong>/);
+    for (const email of sent.slice(2,4)) assert.doesNotMatch(email.html, /driver@example.invalid|host@example.invalid|untrusted@example.invalid/);
     assert.equal(booking.hours, 2);
     await deliver(extensionMetadata, "cs_ext_sample", 500, "pi_ext_sample");
-    assert.equal(sent.length, 3, "A replay cannot send another Driver/Host extension email");
+    assert.equal(sent.length, 4, "A replay cannot send another Driver or Host extension email");
     assert.equal(booking.hours, 2, "A replay cannot apply the extension twice");
     await deliver({ listing_id: "7", renter_id: "sample-renter", hours: "1", total_cents: "1235",
       subtotal_cents: "1000", service_fee_cents: "235",
       spot_label: chosenLabel, vehicle_type: "primary", vehicle_make: "INFINITI", vehicle_model: "Q30",
       vehicle_colour: "Yellow", license_plate: "DEMO 123", start_hour: "", end_hour: "",
     }, "cs_booking_sample", 1235, "pi_booking_sample");
-    assert.equal(sent.length, 5, "Halfway, ending, extension, Driver and Host confirmations");
+    assert.equal(sent.length, 6, "Halfway, ending, two extension and two booking confirmations");
     for (const [index, email] of sent.entries()) {
       assert.match(email.html, /href="https:\/\/www\.myparkshare\.ca\/parking\?message_booking=42"/,
         "Every delivered email opens its booked listing conversation");
-      const label = index === 4 ? "Message Driver" : index < 2 ? "Message" : "Message Host";
+      const label = [3, 5].includes(index) ? "Message Driver" : index < 2 ? "Message" : "Message Host";
       assert.ok(email.html.includes(`>${label}</a>`));
       assert.doesNotMatch(email.html, /\[MESSAGE_URL\]/);
     }
-    for (const [index, label, amount] of [[2, "Amount charged", "5.00"], [3, "Total charged", "12.35"], [4, "Total charged to Driver", "12.35"]]) {
+    for (const [index, label, amount] of [[2, "Amount charged", "5.00"], [3, "Extension charged to Driver", "5.00"], [4, "Total charged", "12.35"], [5, "Total charged to Driver", "12.35"]]) {
       const html = sent[index].html;
       const charge = `${label}: <strong style="color:#0e1b2e;">$${amount} CAD</strong>`;
       assert.ok(html.includes(charge), "Display the full checkout total, not the parking subtotal or payout");
@@ -236,7 +249,7 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
     const expectedHostPortrait = await renderHostPortraitPng();
     const expectedDriverPortrait = await renderDriverPortraitPng();
     for (const email of sent) {
-      const isHost = email.subject.startsWith("New driveway reservation");
+      const isHost = email.subject.startsWith("New driveway reservation") || email.subject.startsWith("Parking extended");
       const portrait = email.attachments.find(a => a.filename === `parkshare-${isHost ? "william" : "parker"}-portrait.png`);
       assert.ok(portrait, email.subject + " must embed the correct mascot");
       assert.deepEqual(Buffer.from(portrait.content, "base64"), isHost ? expectedHostPortrait : expectedDriverPortrait);
@@ -283,3 +296,4 @@ test(`all five delivered emails retain the vehicle and Spot ${chosenLabel} in a 
 });
 
 }
+

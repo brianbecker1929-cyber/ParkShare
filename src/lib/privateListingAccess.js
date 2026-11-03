@@ -19,10 +19,24 @@ export function canReadPreciseLocation({ userId, hostId, booking, listingId }) {
     && booking.stripe_checkout_session_id);
 }
 
-export function privateBookingListing(row, allowPrecise) {
+// A Driver's own paid cancellation history may identify the reservation,
+// matching Transactions. This does not restore precise-location entitlement.
+export function canReadCancelledBookingTitle({ userId, booking, listingId }) {
+  return Boolean(userId && booking
+    && String(booking.renter_id) === String(userId)
+    && Number(booking.listing_id) === Number(listingId)
+    && ["cancelled", "canceled", "refunded"].includes(booking.status)
+    && booking.application_state !== "rejected"
+    && booking.paid_at && Number.isFinite(new Date(booking.paid_at).getTime())
+    && typeof booking.stripe_checkout_session_id === "string"
+    && booking.stripe_checkout_session_id.trim());
+}
+
+export function privateBookingListing(row, allowPrecise, retainHistoricalTitle = false) {
   if (!row) return null;
   if (!allowPrecise) return {
-    id: row.id, title: "Private parking", address: "Address available with a confirmed booking",
+    id: row.id, title: retainHistoricalTitle ? row.title || "Private parking" : "Private parking",
+    address: "Address available with a confirmed booking",
     lat: null, lng: null, spaces: row.spaces, spots: [],
     description: "", profiles: { name: "Host" },
   };
@@ -33,3 +47,4 @@ export function privateBookingListing(row, allowPrecise) {
     profiles: { name: row.profiles?.name || "Host" },
   };
 }
+

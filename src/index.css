@@ -1,5 +1,26 @@
 * { box-sizing: border-box; }
 
+.ps-skip-link {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  z-index: 200;
+  max-width: calc(100% - 24px);
+  padding: 12px 16px;
+  border: 2px solid #0E1B2E;
+  border-radius: 8px;
+  background: #fff;
+  color: #0E1B2E;
+  font-weight: 700;
+  text-decoration: underline;
+  transform: translateY(calc(-100% - 12px));
+}
+.ps-skip-link:focus {
+  transform: translateY(0);
+  outline: 3px solid #FFC107;
+  outline-offset: 2px;
+}
+
 /* Discover disclosure: the panel is portaled beyond horizontal nav clipping. */
 .ps-header .ps-discover-nav-trigger {
   display: inline-flex;
@@ -1305,7 +1326,7 @@ button, input, select, textarea { font: inherit; }
 /* Shared behavior: preserve the official logo's natural aspect ratio. */
 .ps-header .ps-desktop-logo,
 .ps-header .ps-mobile-header-row > button:nth-child(2) {
-  background-image: url("/brand/parkshare-william-parker-logo.webp") !important;
+  background-image: url("/brand/parkshare-footer-960.webp") !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   background-size: contain !important;
@@ -2313,6 +2334,7 @@ button, input, select, textarea { font: inherit; }
   text-transform: uppercase;
   margin-bottom: 12px;
 }
+.ps-home-v2-section-heading .ps-home-v2-eyebrow { color: #8A6100; }
 .ps-home-v2-hero {
   max-width: 1180px;
   margin: 28px auto 0;
@@ -3871,6 +3893,11 @@ button, input, select, textarea { font: inherit; }
   gap: 1px;
 }
 
+.ps-parking-search-input:focus-visible {
+  outline: 3px solid #0E1B2E;
+  outline-offset: 3px;
+}
+
 .ps-browse-listing-heading {
   padding: 16px 14px 6px;
   color: #0E1B2E;
@@ -3897,7 +3924,7 @@ button, input, select, textarea { font: inherit; }
   border: 0;
   border-radius: 999px;
   background: #E3DDC9;
-  color: #71695A;
+  color: #0E1B2E;
   font-family: 'Poppins', sans-serif;
   font-size: 10.5px;
   font-weight: 800;
@@ -9759,3 +9786,54 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-booking-reserve-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
 .ps-booking-reserve-row > button { flex-shrink: 0; white-space: nowrap; }
 @media (max-width: 420px) { .ps-booking-vehicle-form .ps-profile-vehicle-fields { grid-template-columns: minmax(0,1fr); } }
+.ps-navigation-modal::backdrop {
+  background: rgba(27, 42, 59, 0.55);
+}
+.ps-auth-dialog::backdrop {
+  background: rgba(26, 42, 107, 0.55);
+}
+
+/* BUG-005441: consistent field errors for support and event submissions. */
+.ps-form-field-error { color: #C53030; font-size: 12px; line-height: 1.5; margin: 4px 0 0; font-weight: 600; }
+.ps-form-error-summary { color: #C53030; background: #FFF5F5; border: 2px solid #C53030; border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; font-size: 12px; line-height: 1.5; }
+.ps-form-error-summary ul { margin: 6px 0 0; padding-left: 20px; }
+.ps-event-form-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ps-event-form-field.is-wide { grid-column: 1 / -1; }
+.ps-event-submission-form [aria-invalid="true"] { border-color: #C53030; }
+
+/* BUG-005493: real control boxes provide finger-sized targets without changing text. */
+.ps-tap-target,
+.ps-home-v2-path-card > button,
+.ps-home-v2-trust-copy > button {
+  min-width: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ps-home-v2-path-card > button,
+.ps-home-v2-trust-copy > button { padding: 8px 12px; }
+
+/* Public read-only document shown until the interactive app commits. */
+#public-document [data-public-action] { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; box-sizing: border-box; border-radius: 10px; font-weight: 700; text-decoration: none; }
+#public-document [data-public-header] { background: #0E1B2E; padding: 24px; text-align: center; }
+#public-document [data-public-header] img { max-width: 100%; height: auto; }
+#public-document > main { padding: 24px; font-family: 'Poppins', sans-serif; background: #FAF7F0; color: #0E1B2E; }
+#public-document [data-public-overview], #public-document [data-public-faq] { max-width: 1000px; margin: 0 auto; padding: 24px; color: #0E1B2E; background: #FAF7F0; font: 14px/1.65 'Poppins', sans-serif; }
+#public-document [data-public-navigation] nav { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px 0; }
+#public-document [data-public-navigation] a { color: #0E1B2E; min-height: 44px; display: inline-flex; align-items: center; }
+#public-document [data-public-faq] details { padding: 12px 0; border-bottom: 1px solid #E3DDC9; }
+#public-document [data-public-faq] summary, #public-document [data-public-navigation] summary { cursor: pointer; font-weight: 700; }
+
+/* Private Host account editor uses the existing responsive profile shell. */
+.ps-host-profile-page .ps-driver-profile-intro,
+.ps-host-profile-page .ps-driver-profile-fields { grid-template-columns: minmax(0, 1fr); }
+.ps-host-profile-page .ps-profile-eyebrow { color: #0E1B2E; }
+.ps-host-profile-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0; }
+.ps-host-profile-actions button { min-height: 44px; padding: 10px 18px; border: 1px solid #E3DDC9; border-radius: 10px; background: #FFC107; color: #0E1B2E; font: inherit; font-weight: 700; cursor: pointer; }
+.ps-host-profile-actions button:disabled { opacity: .65; cursor: default; }
+
+.ps-browse-bookability-note { display: block; color: #0E1B2E; font-size: 12px; font-weight: 700; margin-top: 6px; }
+.ps-listing-bookability-notice { padding: 14px; margin-bottom: 14px; border: 1px solid #A77D00; border-radius: 10px; background: #FFF8E1; color: #0E1B2E; }
+.ps-listing-bookability-notice p { margin: 6px 0; font-size: 13px; line-height: 1.5; }

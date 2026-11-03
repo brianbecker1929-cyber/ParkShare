@@ -68,7 +68,9 @@ test('overlapping invocations accept one delivery and persist provider receipt',
   assert.equal(state.calls.length,1);
   assert.match(state.calls[0].key,/^parkshare-[a-f0-9]{16}-booking-42-halfway$/);
   assert.deepEqual(state.calls[0].payload.to,[message.to]);
-  assert.deepEqual(state.calls[0].payload.cc,[message.cc]);
+  assert.equal(state.calls[0].payload.cc,undefined);
+  assert.equal(state.calls[0].payload.bcc,undefined);
+  assert.equal(state.calls[0].payload.reply_to,undefined);
   assert.equal(state.row.provider_id,'email-accepted');
   await deliverReminder(db,booking,'halfway',message);
   assert.equal(state.calls.length,1);
@@ -81,6 +83,40 @@ test('failed booking marker is repaired without another email',async()=>{
   await deliverReminder(db,booking,'halfway',message);
   assert.equal(state.calls.length,1);
   assert.ok(state.marker.reminder_halfway_sent_at);
+});
+for (const kind of ['halfway','ending']) {
+  test(`${kind} ignores extra addressing supplied by a caller`, async()=>{
+    const {db,state} = fixture();
+    await deliverReminder(db,booking,kind,{...message,bcc:'host@example.invalid',replyTo:'host@example.invalid'});
+    const payload = state.calls[0].payload;
+    assert.deepEqual(payload.to,[message.to]);
+    for (const field of ['cc','bcc','reply_to']) assert.equal(payload[field],undefined);
+  });
+  for (const extra of [{cc:['host@example.invalid']},{bcc:['host@example.invalid']},
+    {to:['driver@example.invalid','host@example.invalid']},{to:['old-driver@example.invalid']},
+    {reply_to:'host@example.invalid'}]) {
+    test(`${kind} blocks unsafe frozen recipients ${JSON.stringify(extra)}`,async()=>{
+      const {db,state} = fixture();
+      state.row = {id:`booking-42-${kind}`, session_ends_at:new Date(booking.end).toISOString(),
+        created_at:new Date(now).toISOString(),sent_at:null,provider_id:null,lease_until:new Date(0).toISOString(),
+        payload:{from:'test@example.invalid',to:[message.to],subject:message.subject,html:message.html,...extra}};
+      const original = structuredClone(state.row);
+      await assert.rejects(deliverReminder(db,booking,kind,message),/recipient.*reconciliation/i);
+      assert.equal(state.calls.length,0);
+      assert.equal(state.marker,null);
+      assert.deepEqual(state.row,original,'Never rewrite a possibly accepted provider request under its existing key');
+    });
+  }
+}
+test('accepted legacy Host-CC reminder repairs its marker without sending again',async()=>{
+  const {db,state} = fixture();
+  const sentAt = new Date(now).toISOString();
+  state.row = {id:'booking-42-halfway',session_ends_at:new Date(booking.end).toISOString(),
+    created_at:sentAt,sent_at:sentAt,provider_id:'legacy-accepted',
+    payload:{to:[message.to],cc:[message.cc]}};
+  await deliverReminder(db,booking,'halfway',message);
+  assert.equal(state.calls.length,0);
+  assert.equal(state.marker.reminder_halfway_sent_at,sentAt);
 });
 test('uncertain acceptance retries the identical payload and key after lease expires',async()=>{
   const {db,state} = fixture(); state.acceptanceError = true;

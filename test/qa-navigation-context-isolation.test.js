@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
-import {buildNavigationUrl} from '../src/lib/navigation.js';
+import {buildNavigationUrl,hasNavigationDestination} from '../src/lib/navigation.js';
 const source=await readFile(process.env.QA_NAVIGATION_CONTEXT_SOURCE_FILE||new URL('../src/App.jsx',import.meta.url),'utf8');
 const destination=id=>({id,title:id+' PRIVATE TITLE',address:id+' PRIVATE ADDRESS',lat:43.7,lng:-79.4,photos:['PRIVATE PHOTO'],vehicle:{plate:'PRIVATE PLATE'}});
 const currentStart=source.indexOf('function navigationDestination(');
@@ -20,14 +20,15 @@ function harness({preferred=null,apple=false}={}){
  const depsChanged=(a,b)=>!a||a.length!==b.length||a.some((v,i)=>!Object.is(v,b[i]));
  const setPreferred=value=>{preferred=value;preferences.push(value);};
  const providers=()=>[{id:'waze'},{id:'google'},...(apple?[{id:'apple'}]:[])];
- const values={useState:initial=>{const n=cursor++;if(!slots[n])slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;changed=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useCallback:(fn,deps)=>{const n=cursor++;if(!slots[n]||depsChanged(slots[n].deps,deps))slots[n]={value:fn,deps};return slots[n].value;},getAvailableNavigationProviders:providers,savePreferredNavigationProvider:id=>{saved.push(id);return true;},openNavigation:(listing,provider)=>{launches.push({listing,provider,url:buildNavigationUrl(listing.address,listing.lat,listing.lng,apple?'iPhone':'Android',provider)});return true;}};
+ const values={useState:initial=>{const n=cursor++;if(!slots[n])slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;changed=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useCallback:(fn,deps)=>{const n=cursor++;if(!slots[n]||depsChanged(slots[n].deps,deps))slots[n]={value:fn,deps};return slots[n].value;},getAvailableNavigationProviders:providers,savePreferredNavigationProvider:id=>{saved.push(id);return true;},openNavigation:(listing,provider)=>{launches.push({listing,provider,url:buildNavigationUrl(listing.address,listing.lat,listing.lng,apple?'iPhone':'Android',provider,listing.locationPrecision)});return true;}};
+ values.hasNavigationDestination=hasNavigationDestination;
  const hook=new Function(...Object.keys(values),code+';return useParkingNavigation;')(...Object.values(values));
  function render(id=owner){owner=id;let turns=0;do{cursor=0;changed=false;result=hook(id?{id}:null,preferred,setPreferred);assert.ok(++turns<5,'Render adjustment must converge');}while(changed);return result;}
  return {render,get result(){return result;},launches,saved,preferences};
 }
 const chooserSource=source.slice(source.indexOf('function NavigationChooser('),source.indexOf('function RidesharePickupCard('));
 const chooserBuilt=await transform(chooserSource,{loader:'jsx'});
-const Chooser=new Function('React','C','Modal','getAvailableNavigationProviders',chooserBuilt.code+';return NavigationChooser;')(React,{},({children})=>React.createElement('div',null,children),()=>[{id:'waze',label:'Waze'},{id:'google',label:'Google Maps'}]);
+const Chooser=new Function('React','C','Modal','getAvailableNavigationProviders','hasNavigationDestination',chooserBuilt.code+';return NavigationChooser;')(React,{},({children})=>React.createElement('div',null,children),()=>[{id:'waze',label:'Waze'},{id:'google',label:'Google Maps'}],hasNavigationDestination);
 const markup=request=>renderToStaticMarkup(React.createElement(Chooser,{request,onChoose:()=>{},onClose:()=>{}}));
 
 test('account change immediately removes the previous private navigation address from rendered chooser',()=>{
@@ -87,4 +88,24 @@ test('actual initial browser history listener calls a stable global clear',()=>{
  const a=source.indexOf('  useEffect(() => {\n    const handlePopState =',source.indexOf('export default function App(')),b=source.indexOf('  // Keep titles',a),code=source.slice(a,b);let run,listener,removed,clears=0;
  const values={useEffect:fn=>{run=fn;},window:{location:{pathname:'/parking',search:''},addEventListener:(name,fn)=>{assert.equal(name,'popstate');listener=fn;},removeEventListener:(name,fn)=>{assert.equal(name,'popstate');removed=fn;}},getRouteFromPath:()=>({screen:'app',tab:'Browse'}),navigationAnchorRef:{current:null},setScreen:()=>{},setTab:()=>{},setLegalSection:()=>{},setMessageThread:()=>{},setMessageBookingId:()=>{},parseMessageBookingId:()=>null,clearNavigationRequest:()=>{clears++;},setNavigationRequest:()=>{throw Error('History must not capture the initial scoped request setter');}};
  new Function(...Object.keys(values),code)(...Object.values(values));const stop=run();listener();assert.equal(clears,1);stop();assert.equal(removed,listener);
+});
+
+test('BUG-005447 missing public coordinates show an explanation and disable all map apps without changing preferences',()=>{
+ const listing={id:'db-16',title:'Private parking available',address:'Approximate location — full address after confirmed booking',lat:null,lng:null,locationPrecision:'approximate'};
+ const h=harness({preferred:'google'});h.render(null).preview(listing);let current=h.render(null);
+ const html=markup(current.request);assert.match(html,/role="alert"/);assert.match(html,/map location is missing/);
+ assert.equal((html.match(/disabled=""/g)||[]).length,2);
+ current.choose('google');current.choose('waze');assert.equal(h.launches.length,0);assert.equal(h.saved.length,0);assert.equal(h.preferences.length,0);
+ current.close();assert.equal(h.render(null).request,null);
+ h.result.navigate(listing);current=h.render(null);assert.ok(current.request,'Saved provider cannot bypass unavailable-location explanation');current.choose('google');assert.equal(h.launches.length,0);
+});
+test('BUG-005447 approximate precision survives the immutable chooser snapshot and is used for every provider',()=>{
+ for(const provider of ['google','waze','apple']){
+  const h=harness({apple:true}),listing={id:7,title:'Public parking',address:'PRIVATE STREET ADDRESS',lat:43.789012,lng:-79.456789,locationPrecision:'approximate'};
+  h.render().preview(listing);listing.locationPrecision='exact';
+  const current=h.render();assert.equal(current.request.listing.locationPrecision,'approximate');
+  assert.match(markup(current.request),/approximate route/);current.choose(provider);
+  const url=new URL(h.launches[0].url),destination=url.searchParams.get(provider==='google'?'destination':provider==='apple'?'daddr':'ll');
+  assert.equal(destination,'43.79,-79.46');assert.equal(url.searchParams.has('q'),false);assert.doesNotMatch(url.href,/PRIVATE|789012|456789/);
+ }
 });

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {saveBookingVehicle} from '../src/lib/saveBookingVehicle.js';
 import {bookingVehicleMetadata} from '../src/lib/bookingVehicle.js';
-const vehicle={vehicleMake:'Honda',vehicleModel:'Civic',vehicleColour:'Blue',licensePlate:'HOST 123'};
+const vehicle={vehicleType:'',vehicleMake:'Honda',vehicleModel:'Civic',vehicleColour:'Blue',licensePlate:'HOST 123'};
 const session=(id='self')=>({data:{session:{user:{id,user_metadata:bookingVehicleMetadata(vehicle)},access_token:`${id}-token`}}});
 const later=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));

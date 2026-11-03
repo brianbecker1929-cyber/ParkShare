@@ -1,3 +1,4 @@
+import {VEHICLE_TYPES} from '../src/lib/vehicleTypes.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -8,15 +9,15 @@ import {saveBookingVehicle} from '../src/lib/saveBookingVehicle.js';
 import {VEHICLE_MAKES,VEHICLE_MODELS,VEHICLE_COLOURS} from '../src/lib/vehicleOptions.js';
 const app=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
 const code=(await transform(app.slice(app.indexOf('function BookingVehicleForm('),app.indexOf('async function persistDriverProfile(')),{loader:'jsx'})).code;
-const vehicle={vehicleMake:'Honda',vehicleModel:'Civic',vehicleColour:'Blue',licensePlate:'HOST 123'};
+const vehicle={vehicleType:'',vehicleMake:'Honda',vehicleModel:'Civic',vehicleColour:'Blue',licensePlate:'HOST 123'};
 const session=()=>({data:{session:{user:{id:'host',user_metadata:bookingVehicleMetadata(vehicle)},access_token:'host-token'}}});
 const later=()=>{let resolve;const promise=new Promise(r=>resolve=r);return{promise,resolve};};
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function walk(n,out=[]){if(!n||typeof n!=='object')return out;out.push(n);for(const c of React.Children.toArray(n.props?.children))walk(c,out);return out;}
-function harness({empty=false,auth=async()=>session(),patch=async()=>({ok:true,json:async()=>({vehicle})})}={}) {
+function harness({empty=false,auth=async()=>session(),refresh=async()=>session(),patch=async()=>({ok:true,json:async()=>({vehicle})})}={}) {
   const slots=[],effects=[],writes=[],requests=[],updates=[],refreshes=[];let cursor=0,dirty=false,tree,props={user:{id:'host',role:'host',...(empty?{}:vehicle)}};
-  const values={React,validateBookingVehicle,saveBookingVehicle,VEHICLE_MAKES,VEHICLE_MODELS,VEHICLE_COLOURS,
-    supabase:{auth:{getSession:auth,refreshSession:async()=>{refreshes.push(true);return session();}}},
+  const values={React,validateBookingVehicle,saveBookingVehicle,VEHICLE_MAKES,VEHICLE_MODELS,VEHICLE_COLOURS,VEHICLE_TYPES,
+    supabase:{auth:{getSession:auth,refreshSession:async()=>{refreshes.push(true);return refresh();}}},
     useState(initial){const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return[slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},
     useRef(initial){const n=cursor++;return slots[n]||(slots[n]={current:initial});},
     useEffect(fn,deps){const n=cursor++,old=slots[n];if(!old||deps.some((v,i)=>v!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();});}},
@@ -35,7 +36,7 @@ function harness({empty=false,auth=async()=>session(),patch=async()=>({ok:true,j
 test('empty Host form exposes four labeled required fields and refuses incomplete submission',async()=>{
   const h=harness({empty:true});try{
     const markup=h.c.Fields(h.fields().props),controls=walk(markup).filter(n=>n.type==='input'||n.type==='select');
-    assert.equal(controls.length,4);assert.ok(controls.every(n=>n.props.required));assert.equal(walk(markup).filter(n=>n.type==='label').length,4);
+    assert.equal(controls.length,5);assert.equal(controls.filter(n=>n.props.required).length,4);assert.equal(walk(markup).filter(n=>n.type==='label').length,5);
     await h.save();assert.equal(h.requests.length,0);assert.equal(Object.keys(h.fields().props.errors).length,4);
     for(const [key,value]of Object.entries(vehicle))h.edit(key,value);
     await h.save();assert.equal(h.requests.length,1);assert.deepEqual(h.updates,[vehicle]);
@@ -63,4 +64,11 @@ test('make change clears model; server field errors remain visible and allow an 
     h.fields().props.onMakeChange('Honda');h.edit('vehicleModel','Civic');await h.save();assert.equal(h.updates.length,0);assert.equal(h.fields().props.errors.licensePlate,'Invalid plate');
     assert.equal(h.find(n=>n.type==='button'&&n.props.type==='submit').props.disabled,false);await h.save();assert.deepEqual(h.updates,[vehicle]);
   }finally{h.stop();}
+});
+
+test('BUG-005157 booking-only editor sends and confirms the selected body class through Auth refresh',async()=>{
+ const typed={...vehicle,vehicleType:'sedan'};
+ const typedSession=async()=>({data:{session:{user:{id:'host',user_metadata:bookingVehicleMetadata(typed)},access_token:'host-token'}}});
+ const h=harness({auth:typedSession,refresh:typedSession,patch:async()=>({ok:true,json:async()=>({vehicle:typed})})});
+ try{h.edit('vehicleType','sedan');await h.save();assert.equal(h.requests[0].body.vehicleType,'sedan');assert.deepEqual(h.updates,[typed]);assert.equal(h.refreshes.length,1);}finally{h.stop();}
 });

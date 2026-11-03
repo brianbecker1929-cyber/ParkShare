@@ -1,4 +1,64 @@
 {
+  "redirects": [
+    {
+      "source": "/discover/events",
+      "destination": "/discover/festivals",
+      "permanent": true
+    },
+    {
+      "source": "/discover/events/",
+      "destination": "/discover/festivals",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "terms"
+        }
+      ],
+      "destination": "/terms",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "privacy"
+        }
+      ],
+      "destination": "/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "payments"
+        }
+      ],
+      "destination": "/payments",
+      "permanent": true
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "legal",
+          "value": "liability"
+        }
+      ],
+      "destination": "/liability",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/driveway-template.png",
@@ -9,8 +69,168 @@
       "destination": "/car-icon.png"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/parking",
+      "destination": "/parking/index.html"
+    },
+    {
+      "source": "/parking/",
+      "destination": "/parking/index.html"
+    },
+    {
+      "source": "/discover",
+      "destination": "/discover/index.html"
+    },
+    {
+      "source": "/discover/",
+      "destination": "/discover/index.html"
+    },
+    {
+      "source": "/discover/restaurants",
+      "destination": "/discover/restaurants/index.html"
+    },
+    {
+      "source": "/discover/restaurants/",
+      "destination": "/discover/restaurants/index.html"
+    },
+    {
+      "source": "/discover/festivals",
+      "destination": "/discover/festivals/index.html"
+    },
+    {
+      "source": "/discover/festivals/",
+      "destination": "/discover/festivals/index.html"
+    },
+    {
+      "source": "/my-bookings",
+      "destination": "/my-bookings/index.html"
+    },
+    {
+      "source": "/my-bookings/",
+      "destination": "/my-bookings/index.html"
+    },
+    {
+      "source": "/messages",
+      "destination": "/messages/index.html"
+    },
+    {
+      "source": "/messages/",
+      "destination": "/messages/index.html"
+    },
+    {
+      "source": "/profile",
+      "destination": "/profile/index.html"
+    },
+    {
+      "source": "/profile/",
+      "destination": "/profile/index.html"
+    },
+    {
+      "source": "/list-your-driveway",
+      "destination": "/list-your-driveway/index.html"
+    },
+    {
+      "source": "/list-your-driveway/",
+      "destination": "/list-your-driveway/index.html"
+    },
+    {
+      "source": "/host-dashboard",
+      "destination": "/host-dashboard/index.html"
+    },
+    {
+      "source": "/host-dashboard/",
+      "destination": "/host-dashboard/index.html"
+    },
+    {
+      "source": "/transactions",
+      "destination": "/transactions/index.html"
+    },
+    {
+      "source": "/transactions/",
+      "destination": "/transactions/index.html"
+    },
+    {
+      "source": "/drivers",
+      "destination": "/drivers/index.html"
+    },
+    {
+      "source": "/drivers/",
+      "destination": "/drivers/index.html"
+    },
+    {
+      "source": "/hosts",
+      "destination": "/hosts/index.html"
+    },
+    {
+      "source": "/hosts/",
+      "destination": "/hosts/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about/index.html"
+    },
+    {
+      "source": "/about/",
+      "destination": "/about/index.html"
+    },
+    {
+      "source": "/trust-and-safety",
+      "destination": "/trust-and-safety/index.html"
+    },
+    {
+      "source": "/trust-and-safety/",
+      "destination": "/trust-and-safety/index.html"
+    },
+    {
+      "source": "/help",
+      "destination": "/help/index.html"
+    },
+    {
+      "source": "/help/",
+      "destination": "/help/index.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact/index.html"
+    },
+    {
+      "source": "/contact/",
+      "destination": "/contact/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/terms/index.html"
+    },
+    {
+      "source": "/terms/",
+      "destination": "/terms/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy/index.html"
+    },
+    {
+      "source": "/privacy/",
+      "destination": "/privacy/index.html"
+    },
+    {
+      "source": "/payments",
+      "destination": "/payments/index.html"
+    },
+    {
+      "source": "/payments/",
+      "destination": "/payments/index.html"
+    },
+    {
+      "source": "/liability",
+      "destination": "/liability/index.html"
+    },
+    {
+      "source": "/liability/",
+      "destination": "/liability/index.html"
     }
   ],
   "crons": [
@@ -40,5 +260,36 @@
     "api/send-refund-notifications.js": {
       "maxDuration": 300
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+        },
+        {
+          "key": "Content-Security-Policy-Report-Only",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'sha256-fqAE9mh7Qg+cXFXbmDwWaWiyLQP4v+maeLhI7UIeiqY=' 'unsafe-eval' https://maps.googleapis.com https://maps.gstatic.com https://js.stripe.com https://checkout.stripe.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.googleapis.com https://*.gstatic.com https://*.google.com https://nominatim.openstreetmap.org https://api.stripe.com https://checkout.stripe.com; frame-src https://*.google.com https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://www.youtube-nocookie.com; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'; form-action 'self' https://checkout.stripe.com https://connect.stripe.com;"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(self), camera=(), microphone=()"
+        }
+      ]
+    }
+  ]
 }

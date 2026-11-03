@@ -44,6 +44,19 @@ test('rejected profile lookups are caught and do not leave sign-in stuck',async(
 test('Close invalidates pending profile results and queued old submits immediately',async()=>{
  const pending=later(),h=harness({readProfile:()=>pending.promise}),old=h.find(n=>n.type==='form').props.onSubmit,work=old({preventDefault(){}});await tick();h.close();const n=h.writes.length;pending.resolve(profile());await work;await old({preventDefault(){}});assert.equal(h.published.length,0);assert.equal(h.closed,1);assert.equal(h.logins.length,1);assert.equal(h.writes.length,n);h.stop();
 });
+test('BUG-005450 native-dialog Escape uses the scoped auth dismissal during SDK and profile requests',async()=>{
+ for(const phase of ['sdk','profile']){
+  const pending=later(),h=harness(phase==='sdk'?{signIn:()=>pending.promise}:{readProfile:()=>pending.promise}),work=h.submit();await tick();
+  const shell=h.render();assert.equal(shell.type.name,'NativeDialog');assert.equal(shell.props.title,'Sign in to ParkShare');
+  const close=nodes(shell,n=>n.props?.['aria-label']==='Close sign-in dialog')[0];assert.equal(shell.props.onClose,close.props.onClick);
+  shell.props.onClose();const n=h.writes.length;pending.resolve(phase==='sdk'?signed():profile());await work;
+  assert.equal(h.closed,1);assert.equal(h.published.length,0);assert.equal(h.writes.length,n);h.stop();
+ }
+});
+test('BUG-005450 Sign in and Join free share the named native shell as the auth screen changes',()=>{
+ const h=harness();let shell=h.render();assert.equal(shell.type.name,'NativeDialog');assert.equal(shell.props.title,'Sign in to ParkShare');
+ h.switchToSignup();shell=h.render();assert.equal(shell.type.name,'NativeDialog');assert.equal(shell.props.title,'Create a ParkShare account');assert.equal(shell.props.className,'ps-auth-dialog');h.stop();
+});
 test('dismissal or disposal during SDK authentication suppresses modal callbacks and reads',async()=>{
  for(const how of ['close','unmount']){const pending=later(),h=harness({signIn:()=>pending.promise}),work=h.submit();if(how==='close')h.close();else h.stop();const n=h.writes.length;pending.resolve(signed());await work;assert.equal(h.published.length,0);assert.equal(h.profiles.length,0);assert.equal(h.sessionReads.length,0);assert.equal(h.writes.length,n);h.stop();}
 });

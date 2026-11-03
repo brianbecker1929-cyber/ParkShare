@@ -24,7 +24,7 @@ test("checkout responds 429 before any Stripe Session is created on limit errors
   const code=await readFile(new URL("../api/create-checkout-session.js", import.meta.url),"utf8");
   assert.match(code, /if \(holdError\.code === "P0058"\)/);
   assert.match(code, /res\.status\(429\)/);
-  assert.match(code, /checkout_rate_limited/);
+  assert.match(code, /checkoutRateLimit\(holdError\)/);
   const tooMany=code.indexOf('if (holdError.code === "P0058")');
   const stripe=code.indexOf("stripe.checkout.sessions.create");
   assert.ok(tooMany>-1 && tooMany<stripe);

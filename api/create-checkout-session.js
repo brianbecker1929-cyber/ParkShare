@@ -1,4 +1,5 @@
 import {CAD_CHECKOUT_API_VERSION, requireCadCheckout} from "./_checkout-currency.js";
+import { checkoutRateLimit } from "./_checkout-rate-limit.js";
 // POST /api/create-checkout-session
 // Creates a direct charge on the Host's connected Stripe account. ParkShare's
 // service fee is collected as an application fee.
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
 
     const userMetadata = user.user_metadata || {};
     const bookingVehicle = getBookableVehicles({
+      vehicle_type: userMetadata.vehicle_type,
       vehicle_make: userMetadata.vehicle_make,
       vehicle_model: userMetadata.vehicle_model,
       vehicle_colour: userMetadata.vehicle_colour,
@@ -55,11 +57,12 @@ export default async function handler(req, res) {
 
     const { data: listing, error: listingError } = await supabaseAdmin
       .from("listings")
-      .select("id, host_id, title, address, price, spaces, spots, availability, time_zone")
+      .select("id, host_id, title, address, price, spaces, spots, availability, time_zone, is_paused")
       .eq("id", listingId)
       .single();
 
     if (listingError || !listing) return res.status(404).json({ error: "Listing not found." });
+    if (listing.is_paused === true) return res.status(409).json({error:"The Host has paused this listing. It is not accepting new bookings or additional time.",code:"listing_paused"});
     // Host rates may originate from historical rows or direct Supabase
     // writes. Never trust a form's min/max or silently coerce negative
     // prices before creating holds or any Stripe Checkout Session.
@@ -92,7 +95,10 @@ export default async function handler(req, res) {
     if (bookingDate) {
       if (startHour === null || endHour === null ||
           Math.abs(endHour - startHour - hours) > 1e-9) {
-        return res.status(400).json({ error: "Choose a valid scheduled parking window." });
+        return res.status(400).json({
+          error: "Your selected times do not match the booking length. Go back and choose an end time at least 1 hour after the start.",
+          code: "invalid_scheduled_window",
+        });
       }
       if (!listing.time_zone) {
         return res.status(409).json({
@@ -138,8 +144,13 @@ export default async function handler(req, res) {
     if (!stripeAccountId) return res.status(409).json({ error: "This Host has not finished setting up payouts yet." });
 
     const account = await stripe.accounts.retrieve(stripeAccountId);
-    if (!account.charges_enabled) {
-      return res.status(409).json({ error: "This Host's Stripe account isn't ready to accept payments yet." });
+    // Match the Host dashboard's completed-onboarding rule using Stripe's
+    // current state. Cached profile flags and charges alone are insufficient.
+    if (account.details_submitted !== true || account.charges_enabled !== true || account.payouts_enabled !== true) {
+      return res.status(409).json({
+        error: "This Host has not finished Stripe verification and payouts setup. Please choose another parking space.",
+        code: "host_payouts_not_ready",
+      });
     }
 
     const { hourlyCents, subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(
@@ -161,15 +172,15 @@ export default async function handler(req, res) {
       p_ends_at: windowEnd.toISOString(),
       p_expires_at: holdExpiresAt.toISOString(),
     });
+    if (holdError?.code === "P0063") return res.status(409).json({error:"The Host has paused this listing. Please choose another parking space.",code:"listing_paused"});
     if (holdError) {
       // Database-enforced, serialized per-Driver quotas prevent repeated
       // unpaid Checkout starts, including concurrent requests to other
       // listings. Do not create any Stripe Session when over the limit.
       if (holdError.code === "P0058") {
-        return res.status(429).json({
-          error: "You've started several parking checkouts recently. Please try again later or contact ParkShare support.",
-          code: "checkout_rate_limited",
-        });
+        const limit = checkoutRateLimit(holdError);
+        if (limit.retryAfterSeconds) res.setHeader("Retry-After", String(limit.retryAfterSeconds));
+        return res.status(429).json(limit);
       }
       if (holdError.code === "P0001") {
         return res.status(409).json({ error: "This spot is currently booked or being held by another driver. Please choose a different spot or time." });
@@ -196,7 +207,7 @@ export default async function handler(req, res) {
       end_hour: endHour === null ? "" : String(endHour),
       hold_id: String(holdId),
       vehicle_id: bookingVehicle.id,
-      vehicle_type: bookingVehicle.type,
+      vehicle_type: bookingVehicle.vehicleType,
       vehicle_make: bookingVehicle.vehicleMake,
       vehicle_model: bookingVehicle.vehicleModel,
       vehicle_colour: bookingVehicle.vehicleColour,
@@ -233,8 +244,10 @@ export default async function handler(req, res) {
               currency: "cad",
               unit_amount: subtotalCents,
               product_data: {
-                name: listing.title || "ParkShare parking booking",
-                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}${bookingEvent ? ` · ${bookingEvent.name}` : ""}`.slice(0, 500),
+                // Host titles can contain the exact street address. Keep all
+                // customer-visible pre-payment copy independent of free text.
+                name: "ParkShare parking booking",
+                description: `${hours} hour${hours === 1 ? "" : "s"}${spotLabel ? ` · Spot ${spotLabel}` : ""}`,
               },
             },
             quantity: 1,
@@ -289,3 +302,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message || "Unable to start checkout." });
   }
 }
+

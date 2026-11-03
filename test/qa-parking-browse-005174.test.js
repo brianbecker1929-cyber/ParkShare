@@ -13,7 +13,7 @@ before(async()=>{
     .replaceAll('import.meta.env.VITE_GOOGLE_MAPS_API_KEY','"synthetic"');
   const compiled=await transform(code,{loader:'jsx',jsx:'transform'});
   factory=new Function('deps',`const {${[
-    'React','useState','useRef','useEffect','useJsApiLoader','GOOGLE_MAPS_LIBRARIES','useAllListings',
+    'React','useState','useRef','useEffect','useLayoutEffect','useJsApiLoader','GOOGLE_MAPS_LIBRARIES','useAllListings',
     'computeWalkingRoutes','buildWalkingLabel','estimateWalkingMinutes',...Object.keys(search),
     'milesBetween','C','ListingsMap','ListingThumb','PriceTag','WalkingTimeLabel','ListingDetail','Btn','normalizeEventRow',
     'supabase','window','google','navigator','setTimeout','clearTimeout',
@@ -30,7 +30,7 @@ const treeNodes=root=>{
 };
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 function harness({listings=[near,far],props={},route=async()=>({}),place=null,autocomplete=null,loaded=true,listingError=null,listingLoading=false}={}){
-  const state=[],refs=[],effects=[],timers=new Map();let si=0,ri=0,ei=0,id=0,dirty=false,root,mapProps,positionSuccess,positionError;
+  const state=[],refs=[],effects=[],layouts=[],timers=new Map();let si=0,ri=0,ei=0,li=0,id=0,dirty=false,root,mapProps,positionSuccess,positionError;
   const routesCalled=[];
   const Stub=({children})=>React.createElement('span',null,children);
   const Maps=props=>{mapProps=props;return React.createElement('div',{'data-testid':'map','data-ids':props.listings.map(l=>l.id).join(',')});};
@@ -39,6 +39,7 @@ function harness({listings=[near,far],props={},route=async()=>({}),place=null,au
     useState(initial){const index=si++;if(!(index in state))state[index]=initial;return [state[index],value=>{state[index]=typeof value==='function'?value(state[index]):value;dirty=true;}];},
     useRef(initial){const index=ri++;if(!(index in refs))refs[index]={current:initial};return refs[index];},
     useEffect(fn,dependencies){const index=ei++;const old=effects[index];if(!old||dependencies.some((d,i)=>!Object.is(d,old.dependencies[i])))effects[index]={fn,dependencies,pending:true,cleanup:old?.cleanup};},
+    useLayoutEffect(fn,dependencies){const index=li++;const old=layouts[index];if(!old||dependencies.some((d,i)=>!Object.is(d,old.dependencies[i])))layouts[index]={fn,dependencies,pending:true};},
     useJsApiLoader:()=>({isLoaded:loaded}),GOOGLE_MAPS_LIBRARIES:[],
     useAllListings:()=>({listings,loading:listingLoading,error:listingError,refresh:()=>{}}),
     computeWalkingRoutes:async(items,destination)=>{routesCalled.push({items,destination});return route(items,destination);},
@@ -47,12 +48,12 @@ function harness({listings=[near,far],props={},route=async()=>({}),place=null,au
     ListingsMap:Maps,ListingThumb:Stub,PriceTag:Stub,WalkingTimeLabel:({label})=>React.createElement('span',null,label),ListingDetail:Stub,Btn:Stub,
     normalizeEventRow:x=>x,
     supabase:{from:()=>({select:()=>({eq:async()=>({data:[]})})})},
-    window:{google},google,navigator:{geolocation:{getCurrentPosition:(ok,fail)=>{positionSuccess=ok;positionError=fail;}}},
+    window:{google,getComputedStyle:column=>({overflowY:column.overflowY||'auto'})},google,navigator:{geolocation:{getCurrentPosition:(ok,fail)=>{positionSuccess=ok;positionError=fail;}}},
     setTimeout:fn=>{timers.set(++id,fn);return id;},clearTimeout:key=>timers.delete(key),
   };
   const {BrowseView,ParkingSearchEmptyState}=factory(deps);
-  function render(){si=ri=ei=0;dirty=false;root=BrowseView(props);return root;}
-  function settle(){for(let pass=0;pass<20;pass++){render();for(const effect of effects){if(effect.pending){effect.cleanup?.();effect.pending=false;effect.cleanup=effect.fn();}}if(!dirty)return;}throw Error('Unstable component effects');}
+  function render(){si=ri=ei=li=0;dirty=false;root=BrowseView(props);return root;}
+  function settle(){for(let pass=0;pass<20;pass++){render();for(const effect of layouts){if(effect.pending){effect.pending=false;effect.fn();}}for(const effect of effects){if(effect.pending){effect.cleanup?.();effect.pending=false;effect.cleanup=effect.fn();}}if(!dirty)return;}throw Error('Unstable component effects');}
   settle();
   return {
     render:()=>{settle();return root;},
@@ -188,12 +189,35 @@ test('map selection survives sorting and view toggles and clears on search/dismi
   h.chooseView('Split map and list view');assert.deepEqual(selectedCards(h),[]);
   h.map().onSelect(far);h.render();h.input('zz-no-match');assert.equal(h.map().selected,null);
 });
-test('pin selection scrolls the matching offscreen card inside the desktop list only',()=>{
-  const h=harness();const column=h.nodes().find(n=>n.props?.className==='ps-browse-listing-column');
-  column.ref.current={scrollHeight:1000,clientHeight:300};const calls=[];
-  cards(h)[1].ref({scrollIntoView:options=>calls.push(options)});
-  h.map().onSelect(far);h.render();assert.deepEqual(calls,[{block:'nearest',inline:'nearest'}]);
-  column.ref.current={scrollHeight:1000,clientHeight:1000};h.map().onSelect(far);h.render();assert.equal(calls.length,1);
+function scrollFixture(h,{scrollTop=0,height=100,offset=500,overflowY='auto'}={}){
+ const column={scrollHeight:2000,clientHeight:300,clientTop:2,scrollTop,overflowY,getBoundingClientRect:()=>({top:100})};
+ let position=offset;
+ const card={getBoundingClientRect:()=>({top:102+position-column.scrollTop,bottom:102+position-column.scrollTop+height}),scrollIntoView:()=>assert.fail('Must not scroll outer ancestors')};
+ h.nodes().find(n=>n.props?.className==='ps-browse-listing-column').ref.current=column;cards(h)[1].ref(card);
+ return {column,setOffset:value=>{position=value;}};
+}
+test('BUG-005437 pin reveal uses committed layout and only the desktop list scrollport',()=>{
+ const h=harness(),f=scrollFixture(h,{scrollTop:1297,offset:1400});
+ h.map().onSelect(far);assert.equal(f.column.scrollTop,1297,'Selection handler must not scroll stale DOM');
+ f.setOffset(0);h.render();assert.equal(f.column.scrollTop,0,'Read the new card position after commit');
+});
+test('BUG-005437 map-centre re-sort reveals the selected card again after it moves to first place',()=>{
+ const h=harness(),f=scrollFixture(h,{offset:800});h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,600);
+ f.setOffset(0);h.map().onSearchCenterChange({lat:far.lat,lng:far.lng});h.render();
+ assert.equal(cards(h)[0].props['data-listing-id'],'db-2');assert.equal(f.column.scrollTop,0);assert.deepEqual(selectedCards(h),['db-2']);
+});
+test('BUG-005437 reselecting the same pin reveals it after manual scrolling and leaves visible cards still',()=>{
+ const h=harness(),f=scrollFixture(h,{offset:500});h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,300);
+ f.column.scrollTop=1000;h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,500);
+ h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,500,'Already-visible cards should not jump');
+ f.setOffset(-50);h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,0,'Clamp at scrollport start');
+ f.setOffset(2500);h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,1700,'Clamp at scrollport end');
+});
+test('BUG-005437 mobile flowing lists and map-only view never move the document',()=>{
+ const h=harness(),f=scrollFixture(h,{scrollTop:900,offset:0,overflowY:'visible'});
+ h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,900);
+ f.column.overflowY='auto';h.chooseView('Map view');h.map().onSelect(far);h.render();assert.equal(f.column.scrollTop,900);
+ h.chooseView('Split map and list view');assert.equal(f.column.scrollTop,0);
 });
 
 test('Nearest uses the panned map centre with My location inactive, without filtering to that point',()=>{
@@ -202,3 +226,12 @@ test('Nearest uses the panned map centre with My location inactive, without filt
  assert.deepEqual(h.map().listings.map(l=>l.id),['db-2','db-1']);assert.equal(h.map().userLoc,null);
  h.map().onSearchCenterChange(toronto);assert.deepEqual(h.map().listings.map(l=>l.id),['db-1','db-2']);
 });
+
+test('BUG-005490 browse marks incomplete and uncertain Hosts and opens details for a fresh check',()=>{
+ const h=harness({listings:[{...near,bookingStatus:'not_ready'},{...far,bookingStatus:'unknown'}]});
+ assert.match(h.html(),/Not bookable yet/);assert.match(h.html(),/Host setup incomplete/);assert.match(h.html(),/Booking status needs checking/);
+ for(const row of [near,far])assert.match(h.html(),new RegExp(`aria-describedby="listing-bookability-${row.id}"`));
+ const ready=harness({listings:[{...near,bookingStatus:'ready'}]});assert.doesNotMatch(ready.html(),/Not bookable yet|Booking status needs checking/);
+});
+
+test('BUG-005445 browse clearly marks paused listings before a Driver opens them',()=>{const h=harness({listings:[{...near,bookingStatus:'paused'}]});assert.match(h.html(),/Listing paused/);assert.match(h.html(),/not accepting bookings/);assert.doesNotMatch(h.html(),/Host setup incomplete/);});

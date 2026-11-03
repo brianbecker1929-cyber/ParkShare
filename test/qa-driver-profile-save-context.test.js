@@ -1,3 +1,4 @@
+import {VEHICLE_TYPES} from '../src/lib/vehicleTypes.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -16,7 +17,7 @@ const response=(profile=normaliseDriverProfile(user()))=>({ok:true,json:async()=
 function nodes(node,predicate,out=[]){if(!node||typeof node!=='object')return out;if(predicate(node))out.push(node);for(const child of React.Children.toArray(node.props?.children))nodes(child,predicate,out);return out;}
 function harness({auth=async()=>session('A'),refresh=async()=>session('A'),patch=async()=>response()}={}){
  const slots=[],effects=[],setups=[],writes=[],requests=[],updates=[],authReads=[],refreshes=[];let cursor=0,dirty=false,props={user:user()},tree;
- const values={React,C:{},MAX_GUEST_VEHICLES,VEHICLE_MAKES,VEHICLE_MODELS,VEHICLE_COLOURS,validateDriverProfile,getDriverProfileCompletion,VehicleBadge:()=>null,formatVehicleVisualSummary:()=>'',supabase:{auth:{getSession:()=>{authReads.push(true);return auth(authReads.length);},refreshSession:()=>{refreshes.push(true);return refresh(refreshes.length);}}},fetch:async(url,options)=>{requests.push({url,options,body:JSON.parse(options.body)});return patch(url,options);},console:{warn:()=>{}},useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();setups[n]=fn;});}}};
+ const values={React,C:{},MAX_GUEST_VEHICLES,VEHICLE_MAKES,VEHICLE_MODELS,VEHICLE_COLOURS,VEHICLE_TYPES,validateDriverProfile,getDriverProfileCompletion,VehicleBadge:()=>null,formatVehicleVisualSummary:()=>'',supabase:{auth:{getSession:()=>{authReads.push(true);return auth(authReads.length);},refreshSession:()=>{refreshes.push(true);return refresh(refreshes.length);}}},fetch:async(url,options)=>{requests.push({url,options,body:JSON.parse(options.body)});return patch(url,options);},console:{warn:()=>{}},useState:initial=>{const n=cursor++;if(!(n in slots))slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;dirty=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((x,i)=>x!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();setups[n]=fn;});}}};
  const Components=new Function(...Object.keys(values),compiled.code+';return {View:DriverProfileView,VehicleProfileFields};')(...Object.values(values));
  function render(changes={}){props={...props,...changes};let count=0;do{dirty=false;cursor=0;tree=Components.View({...props,onProfileUpdated:profile=>updates.push(profile)});for(const fn of effects.splice(0))fn();assert.ok(++count<8);}while(dirty);return tree;}
  const find=(predicate)=>{const result=nodes(render(),predicate)[0];assert.ok(result,'control exists');return result;};
@@ -81,4 +82,16 @@ test('root profile key isolates account drafts and functional update cannot rest
 
 test('invalid guest vehicle validation opens its section and sends no request',async()=>{
  const h=harness();h.render({user:{...user(),guestVehicles:[{id:'invalid-guest',vehicleMake:'Honda',vehicleModel:'',vehicleColour:'',licensePlate:''}]}});await h.save();assert.equal(h.requests.length,0);assert.equal(h.authReads.length,0);const guest=h.find(n=>n.type===h.Components.VehicleProfileFields&&n.props.errorPrefix==='guestVehicles.0');assert.ok(guest.props.errors['guestVehicles.0.vehicleModel']);h.stop();
+});
+
+test('BUG-005157 actual Driver editor saves and restores distinct primary and guest body classes',async()=>{
+ const guest={id:'typed-guest',vehicleType:'suv',vehicleMake:'Toyota',vehicleModel:'RAV4',vehicleColour:'Red',licensePlate:'GUEST 157'};
+ const saved={...user(),vehicleType:'sedan',guestVehicles:[guest]};
+ const h=harness({patch:async()=>response(normaliseDriverProfile(saved))});try{
+  h.render({user:{...user(),vehicleType:'coupe',guestVehicles:[{...guest,vehicleType:'van'}]}});
+  const primary=h.find(n=>n.type===h.Components.VehicleProfileFields&&!n.props.errorPrefix);primary.props.onUpdate('vehicleType','sedan');h.render();
+  h.find(n=>n.props?.className==='ps-guest-vehicle-toggle').props.onClick();h.render();
+  const friend=h.find(n=>n.type===h.Components.VehicleProfileFields&&n.props.errorPrefix==='guestVehicles.0');friend.props.onUpdate('vehicleType','suv');h.render();
+  await h.save();assert.equal(h.requests[0].body.vehicleType,'sedan');assert.equal(h.requests[0].body.guestVehicles[0].vehicleType,'suv');assert.equal(h.updates[0].vehicleType,'sedan');assert.equal(h.updates[0].guestVehicles[0].vehicleType,'suv');
+ }finally{h.stop();}
 });

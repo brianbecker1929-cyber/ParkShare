@@ -35,6 +35,26 @@ test('only the latest typed address response can provide selectable suggestions'
  h.requests[1].resolve(Response.json([{...oldResult[0],address:{...oldResult[0].address,road:'New Road'}}]));await current;
  h.requests[0].resolve(Response.json(oldResult));await old;assert.equal(h.suggestions[0].street,'1 New Road');
 });
+test('BUG-005438 repeated Toronto address results appear once while St. Marys stays selectable',async()=>{
+ const toronto={address:{house_number:'100',road:'Queen Street West',city:'Toronto',state:'Ontario',postcode:'M5H 2N2'},lat:'43.6534',lon:'-79.3841'};
+ const stMarys={address:{...toronto.address,city:'St. Marys',postcode:'N4X 1A1'},lat:'43.259',lon:'-81.142'};
+ const h=harness();h.searchAddress('100 Queen St W');const running=h.fire();
+ h.requests[0].resolve(Response.json([toronto,{...toronto,lat:'43.6535'},{...toronto,lon:'-79.3842'},toronto,stMarys]));await running;
+ assert.equal(h.suggestions.length,2);assert.equal(h.suggestions[0].label,'100, Queen Street West, Toronto, Ontario');
+ assert.equal(h.suggestions[0].lat,43.6534);assert.equal(h.suggestions[0].lng,-79.3841,'Keep the first result rather than mixing duplicate coordinates');
+ assert.match(h.suggestions[1].label,/St\. Marys/);h.chooseSuggestion(h.suggestions[1]);
+ assert.equal(h.form.city,'St. Marys');assert.equal(h.form.lat,43.259);assert.equal(h.form.lng,-81.142);assert.equal(h.form.postal,'N4X 1A1');assert.deepEqual(h.form.spots,[]);
+});
+test('BUG-005438 spacing/case duplicates collapse without merging distinct village addresses or searches',async()=>{
+ const row={address:{house_number:'100',road:'Queen Street West',village:'Village A',state_district:'Ontario'},lat:'43.65',lon:'-79.38'};
+ const h=harness();h.searchAddress('100 Queen');let running=h.fire();
+ h.requests[0].resolve(Response.json([row,{...row,address:{...row.address,road:' QUEEN  STREET WEST '},lat:'43.66'},
+   {...row,address:{...row.address,village:'Village B'}},{...row,address:{...row.address,house_number:'101'}}]));await running;
+ assert.equal(h.suggestions.length,3);assert.match(h.suggestions[0].label,/Village A, Ontario/);assert.match(h.suggestions[1].label,/Village B, Ontario/);
+ assert.equal(h.suggestions[2].street,'101 Queen Street West');
+ h.searchAddress('100 Queen again');running=h.fire();h.requests[1].resolve(Response.json([row]));await running;
+ assert.equal(h.suggestions.length,1,'Deduplication is scoped to each response, not a previous search');
+});
 test('an old timezone response cannot overwrite the current pin or property-local schedule',async()=>{
  const start=app.indexOf('  const locationKey = ',root),end=app.indexOf('  const [suggestions,',start),snippet=app.slice(start,end);
  let effect,zoneResult=null,form={lat:43.65,lng:-79.38,availability:createAvailabilityPreset('anytime','Pacific/Auckland')};

@@ -84,6 +84,16 @@ test('authenticated Host sees remaining earnings for own listings, with no priva
   assert.equal(JSON.stringify(r.body.earned).includes('pi_one'),false);
   assert.equal(r.body.earned.some(t=>t.bookingId===3),false);
 });
+
+test('BUG-005446 legacy spending and extension rows use the same verified listing fallback zone without writes',async()=>{
+  actor=DRIVER;db.listings[0].time_zone='America/Toronto';
+  Object.assign(db.bookings[0],{hours:1,paid_at:'2026-10-19T18:06:55.806Z',property_time_zone:null});
+  db.booking_extensions.push({id:99,booking_id:1,added_amount:11.5,status:'paid',paid_at:'2026-10-19T18:20:00Z'});
+  const r=await get(),b=r.body.spent.find(row=>row.type==='booking'&&row.bookingId===1),ext=r.body.spent.find(row=>row.type==='extension');
+  assert.equal(b.propertyTimeZone,'America/Toronto');assert.equal(ext.propertyTimeZone,'America/Toronto');
+  assert.equal(b.date,'2026-10-19T18:06:55.806Z');assert.equal(b.bookingStart,'2026-10-19T18:06:55.806Z');
+  assert.equal(db.bookings[0].property_time_zone,null,'Presentation fallback never persists a replacement snapshot');
+});
 test('customer refund with no application fee returned keeps $77, not zero or original $100',async()=>{
   fees.fee_ch_one.amount_refunded=0;
   const r=await get();assert.equal(r.body.earned.find(t=>t.bookingId===1).net,77);

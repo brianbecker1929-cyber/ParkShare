@@ -1,7 +1,7 @@
 // GET /api/send-reminders — authenticated Vercel Cron, once per minute.
 // Halfway and 15-minute ending reminders use canonical session times.
 // Delivery snapshots, leases and provider idempotency live in
-// _reminder-delivery.js. Messages go to the Driver, CC'd to the Host.
+// _reminder-delivery.js. These session reminders go only to the Driver.
 
 import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 import { supabaseAdmin, getSessionWindow } from "./_lib.js";
@@ -13,6 +13,7 @@ import { formatBookingEmailTimes } from "./_booking-email-times.js";
 import { timingSafeEqual } from "node:crypto";
 import { deliverReminder } from "./_reminder-delivery.js";
 import { dueReminder } from "./_reminder-window.js";
+import { processMessageNotifications } from "./_message-email-delivery.js";
 
 export default async function handler(req, res) {
   res.setHeader?.("Cache-Control", "private, no-store");
@@ -94,6 +95,14 @@ export default async function handler(req, res) {
     }
   }
 
+  try {
+    const messages = await processMessageNotifications(supabaseAdmin, {now, deadline});
+    console.info("message-notifications: completed", JSON.stringify(messages));
+    if (messages.accepted || messages.failed || messages.blocked) results.messages = messages;
+  } catch {
+    console.error("send-reminders: message notification queue lookup failed");
+    results.messages = {accepted: 0, failed: 1, blocked: 0};
+  }
   console.info("send-reminders: completed", JSON.stringify(results));
   return res.status(200).json(results);
 }
@@ -101,7 +110,7 @@ export default async function handler(req, res) {
 async function sendReminder(booking, kind) {
   const { data: listing, error: listingError } = await supabaseAdmin
     .from("listings")
-    .select("title, address, spaces, spots, host_id")
+    .select("title, address, spaces, spots")
     .eq("id", booking.listing_id)
     .single();
   if (listingError || !listing) throw new Error("Reminder listing could not be loaded");
@@ -111,15 +120,6 @@ async function sendReminder(booking, kind) {
     .eq("id", booking.renter_id)
     .single();
   if (renterError || !renter?.email) throw new Error("Reminder Driver email is missing");
-
-  let hostEmail = null;
-  let hostName = "your host";
-  if (listing?.host_id) {
-    const { data: host, error: hostError } = await supabaseAdmin.from("profiles").select("name, email").eq("id", listing.host_id).single();
-    if (hostError || !host?.email) throw new Error("Reminder Host email is missing");
-    hostEmail = host.email;
-    hostName = host?.name || hostName;
-  }
 
   const nowDate = new Date();
   const minutesLeft = Math.max(0, Math.round((booking.end - Date.now()) / 60000));
@@ -172,7 +172,6 @@ async function sendReminder(booking, kind) {
     portraitCid,
     bookingId: booking.id,
     renterName,
-    hostName,
     address,
     locationId: booking.listing_id,
     spotLabel: booking.spot_label,
@@ -199,5 +198,6 @@ async function sendReminder(booking, kind) {
     : "Your parking session ends soon";
   const html = isHalfway ? halfwayReminderHtml(commonFields) : endingReminderHtml(commonFields);
   return deliverReminder(supabaseAdmin, booking, kind,
-    { to: renter.email, cc: hostEmail || undefined, subject, html, attachments });
+    { to: renter.email, subject, html, attachments });
 }
+
