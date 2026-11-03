@@ -2,6 +2,7 @@ import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {dirname, join} from 'node:path';
 import {PARKSHARE_ROUTES, SITE_ORIGIN, routeDocumentPath} from '../src/lib/routes.js';
 import {createPublicRenderer} from './public-content.mjs';
+import {HOME_HERO_IMAGE, HOME_HERO_AVIF_SRC_SET} from '../src/lib/homeHeroImage.js';
 
 // Date of this metadata/canonical revision; rebuilding alone must not freshen it.
 export const SITE_METADATA_UPDATED = '2026-11-01';
@@ -14,7 +15,10 @@ export function renderRouteDocument(template, route) {
   const head = match[1]
     .replace(/<title\b[^>]*>[\s\S]*?<\/title>/gi, '')
     .replace(/<meta\b[^>]*>/gi, tag => /(?:name|property)\s*=\s*["'](?:description|robots|og:title|og:description|og:url|twitter:title|twitter:description)["']/i.test(tag) ? '' : tag)
-    .replace(/<link\b[^>]*\brel\s*=\s*["']canonical["'][^>]*>/gi, '');
+    .replace(/<link\b[^>]*\brel\s*=\s*["']canonical["'][^>]*>/gi, '')
+    .replace(/<link\b[^>]*\bdata-home-hero-preload(?:="[^"]*")?[^>]*>/gi, '');
+  // Preload one supported format only: preloading both would download twice.
+  const heroPreload = route.path === '/' ? `\n    <link data-home-hero-preload="" rel="preload" as="image" type="image/avif" href="/home-hero/welcome-768.avif" imagesrcset="${HOME_HERO_AVIF_SRC_SET}" imagesizes="${HOME_HERO_IMAGE.sizes}" fetchpriority="high">\n` : '';
   const title = escapeHtml(route.title), description = escapeHtml(route.description), canonical = escapeHtml(SITE_ORIGIN + route.path);
   const metadata = `\n    <title>${title}</title>
     <meta name="description" content="${description}">
@@ -25,7 +29,7 @@ export function renderRouteDocument(template, route) {
     <meta property="og:url" content="${canonical}">
     <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="${description}">\n`;
-  const replacement = match[0].replace(match[1], () => head + metadata);
+  const replacement = match[0].replace(match[1], () => head + heroPreload + metadata);
   return template.slice(0, match.index) + replacement + template.slice(match.index + match[0].length);
 }
 

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import React from 'react';
+import {GoogleMap as ProviderGoogleMap} from '@react-google-maps/api';
 import {transform} from 'esbuild';
 import {satelliteSpotPoint, satelliteSpotBounds} from '../src/lib/satelliteSpotDrawing.js';
 import {getListingSpotLayout} from '../src/lib/listingSpotLayout.js';
@@ -23,7 +24,8 @@ function text(node) {
 }
 function harness({spots = [], loaded = true, loadError = null, key = 'synthetic-map-key'} = {}) {
   const slots = [], effects = [], saved = [], toggled = [], removed = [], loader = [];
-  let cursor = 0, tree, dirty, focused = 0, currentCenter = center;
+  let cursor = 0, tree, dirty, focused = 0, currentCenter = center, stateWrites = 0, previewAttached = false;
+  const previewOverlay = {bounds: null, setBounds(bounds) { this.bounds = bounds; }};
   const trigger = {focus() { focused++; }};
   function GoogleMap() {} function Rectangle() {} function Marker() {} function OverlayView() {}
   OverlayView.OVERLAY_MOUSE_TARGET = 'synthetic-pane';
@@ -32,7 +34,7 @@ function harness({spots = [], loaded = true, loadError = null, key = 'synthetic-
   const values = {React, GoogleMap, Rectangle, Marker, OverlayView, DrawingManager, window: {google: {maps: {}}},
     C: {}, SPOT_STROKE_RENT: '#3F7A5E', SPOT_STROKE_PRIVATE: '#0E1B2E', satelliteSpotPoint, satelliteSpotBounds,
     MAP_KEY: key, GOOGLE_MAPS_LIBRARIES: ['places'], useJsApiLoader(opts) { loader.push(opts); return {isLoaded: loaded, loadError}; },
-    useState(initial) { const i = cursor++; slots[i] ??= {value: initial}; return [slots[i].value, value => { const next = typeof value === 'function' ? value(slots[i].value) : value; if (next !== slots[i].value) { slots[i].value = next; dirty = true; } }]; },
+    useState(initial) { const i = cursor++; slots[i] ??= {value: initial}; return [slots[i].value, value => { const next = typeof value === 'function' ? value(slots[i].value) : value; if (next !== slots[i].value) { slots[i].value = next; dirty = true; stateWrites++; } }]; },
     useRef(initial) { const i = cursor++; return slots[i] ??= {current: initial}; },
     useId() { cursor++; return 'synthetic-drawing-instructions'; },
     useMemo(fn, deps) { const i = cursor++, old = slots[i]; if (!old || deps.some((v, j) => v !== old.deps[j])) slots[i] = {value: fn(), deps}; return slots[i].value; },
@@ -45,6 +47,9 @@ function harness({spots = [], loaded = true, loadError = null, key = 'synthetic-
       dirty = false; cursor = 0; tree = Component(props);
       for (const node of nodes(tree, n => n.type === DrawingManager)) node.type(node.props);
       for (const node of nodes(tree, n => n.type === 'button' && n.ref)) node.ref.current = trigger;
+      const preview = nodes(tree, n => n.type === Rectangle && n.props.onLoad)[0];
+      if (preview && !previewAttached) { previewOverlay.bounds = preview.props.bounds; preview.props.onLoad(previewOverlay); }
+      previewAttached = Boolean(preview);
       for (const effect of effects.splice(0)) effect();
       assert.ok(++count < 6, 'finite render cycle');
     } while (dirty);
@@ -58,7 +63,8 @@ function harness({spots = [], loaded = true, loadError = null, key = 'synthetic-
   render();
   if (nodes(tree, n => n.type === GoogleMap).length) map().props.onLoad({getCenter: () => latLng(currentCenter)});
   return {render, find, map, button, startDrawing, click, saved, toggled, removed, props, loader, Rectangle, Marker,
-    move(point) { map().props.onMouseMove({latLng: latLng(point)}); render(); },
+    move(point) { map().props.onMouseMove({latLng: latLng(point)}); },
+    get previewBounds() { return previewOverlay.bounds; }, get stateWrites() { return stateWrites; },
     mapCenter(point) { currentCenter = point; }, get focused() { return focused; },
     stop() { for (const slot of slots) slot?.cleanup?.(); }};
 }
@@ -66,6 +72,7 @@ function harness({spots = [], loaded = true, loadError = null, key = 'synthetic-
 test('BUG-005451 satellite map mounts without the removed Google drawing namespace', () => {
   const h = harness();
   assert.equal(h.map().props.mapTypeId, 'satellite');
+  assert.equal(h.map().props.options.mapTypeId, 'satellite');
   assert.equal(h.map().props.options.zoomControl, true);
   assert.equal(h.loader[0].libraries.includes('drawing'), false);
   assert.doesNotMatch(source, /\bDrawingManager\b|google\.maps\.drawing/);
@@ -78,7 +85,7 @@ test('two map taps and the draft preview produce one persisted rectangle in the 
   h.startDrawing(); h.click(first);
   assert.equal(h.saved.length, 0); assert.equal(h.find(n => n.type === h.Marker).props.position.lat, first.lat);
   h.move(second); assert.equal(h.saved.length, 0, 'hovering is only a preview');
-  assert.deepEqual(h.find(n => n.type === h.Rectangle).props.bounds, {north: second.lat, south: first.lat, east: second.lng, west: first.lng});
+  assert.deepEqual(h.previewBounds, {north: second.lat, south: first.lat, east: second.lng, west: first.lng});
   assert.equal(h.map().props.center, camera, 'draft renders do not recenter the map');
   const oldClick = h.map().props.onClick;
   oldClick({latLng: latLng(second)}); oldClick({latLng: latLng(second)}); h.render();
@@ -87,6 +94,47 @@ test('two map taps and the draft preview produce one persisted rectangle in the 
   const layout = getListingSpotLayout({spots: h.props.spots, totalSpots: 1});
   assert.deepEqual(layout, [{index: 0, label: 'A', forRent: true}]);
   assert.deepEqual(h.props.spots[0].bounds, h.saved[0]);
+});
+
+test('the installed Maps wrapper constructs its first map with satellite options', () => {
+  const h = harness(), oldGoogle = globalThis.google;
+  let constructed;
+  globalThis.google = {maps: {Map: function(host, options) { constructed = options; }}};
+  try {
+    const provider = new ProviderGoogleMap(h.map().props);
+    provider.getRef({}); provider.getInstance();
+    assert.equal(constructed.mapTypeId, 'satellite', 'the provider must not start with default roadmap tiles');
+  } finally { if (oldGoogle === undefined) delete globalThis.google; else globalThis.google = oldGoogle; }
+});
+
+test('mouse preview moves do not schedule React map updates before the finishing click', () => {
+  const h = harness(); h.startDrawing(); h.click(first);
+  const writes = h.stateWrites;
+  for (let i=0;i<5;i++) h.move(second);
+  assert.equal(h.stateWrites, writes);
+  h.click(second);
+  assert.equal(h.saved.length, 1, 'one finishing click after desktop hover saves once');
+});
+
+test('saved map labels stay on one line and disabled remove controls let drawing clicks through', () => {
+  const h = harness({spots:[{id:'a',forRent:true,bounds:satelliteSpotBounds(first,second)}]});
+  assert.equal(h.find(n=>n.type==='span' && text(n).startsWith('Spot A')).props.style.whiteSpace,'nowrap');
+  h.startDrawing();
+  assert.equal(h.button('Remove spot A').props.style.pointerEvents,'none');
+});
+
+test('actual wizard counter uses marked spots instead of stale fallback selections', async () => {
+  const anchor = source.indexOf('maxSpots={8}', source.indexOf('/* Step 4: Spot template */'));
+  const from = source.indexOf('<div',anchor), to = source.indexOf('</div>',from)+6;
+  const counter = await transform('const counter = form => ('+source.slice(from,to)+');',{loader:'jsx'});
+  const View = new Function('React','C',counter.code+';return counter;')(React,{});
+  const texts = spots => text(View({spots,selectedSpots:[true,true]}));
+  assert.equal(texts([]),'No spots marked yet');
+  assert.equal(texts([{forRent:true},{forRent:false}]),'1 of 2 marked spots available for rent');
+  const sync = source.match(/const syncSpots = ([^\n]+);/)[1];
+  const synced = new Function('return ('+sync+');')()({selectedSpots:[true],totalSpots:1},[]);
+  assert.equal(text(View(synced)),'No spots marked yet');
+  assert.deepEqual(synced.selectedSpots,[true], 'Skip for now keeps the established manual-layout fallback');
 });
 
 test('corners normalize in either direction and invalid, repeated or zero-area corners never save', () => {

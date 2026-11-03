@@ -1,5 +1,6 @@
 import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
 import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
+import {HOME_HERO_IMAGE, HOME_HERO_AVIF_SRC_SET} from "./lib/homeHeroImage.js";
 import {LISTING_FEATURE_OPTIONS,editableListingAvailability,listingScheduleError} from "./lib/listingSettings.js";
 import ListingFeatureFields from "./components/ListingFeatureFields.jsx";
 import HostOnboarding from "./components/HostOnboarding.jsx";
@@ -3423,7 +3424,7 @@ function ParkingSearchEmptyState({ state, onClear, overlay = false }) {
 // ─── Host Dashboard ───────────────────────────────────────────────────────────
 
 
-function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false }) {
+function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false, returnFocus }) {
   const [price, setPrice] = useState(String(listing.price));
   const [description, setDescription] = useState(listing.description || "");
   const [features, setFeatures] = useState(listing.features || []);
@@ -3510,7 +3511,7 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
   };
 
   return (
-    <Modal title={"Edit — " + listing.title} onClose={close}>
+    <Modal nativeModal title={"Edit — " + listing.title} onClose={close} returnFocus={returnFocus}>
       <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
         <label htmlFor={`edit-title-${listing.rawId}`} style={{fontSize:12,color:C.navy,fontWeight:600}}>Listing title
           <input id={`edit-title-${listing.rawId}`} value={title} disabled={saving} maxLength={200} onChange={event=>setTitle(event.target.value)} style={{width:"100%",minHeight:44,boxSizing:"border-box"}} />
@@ -4290,6 +4291,7 @@ function HostDashboard({ user, setTab }) {
   const [showAllBookings, setShowAllBookings] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [listingActionId, setListingActionId] = useState(null);
+  const listingActionButtons = useRef(new Map());
   const [bookingActionId, setBookingActionId] = useState(null);
 
   const { deletingId, confirmDeleteId, open: openListingDeletion, close: closeListingDeletion,
@@ -4465,7 +4467,7 @@ function HostDashboard({ user, setTab }) {
                   <ListingDeletionDialog title={l.title} busy={deletingId !== null} onConfirm={deleteListing} onClose={closeListingDeletion} />
                 ) : (
                   <div style={{ position: "relative", flexShrink: 0 }}>
-                    <button aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
+                    <button ref={node => { if (node) listingActionButtons.current.set(l.rawId, node); else listingActionButtons.current.delete(l.rawId); }} aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
                     {listingActionId === l.id && (
                       <div className="host-dashboard-action-menu">
                         <button onClick={() => { setListingActionId(null); openListingEdit(l); }}>Edit listing</button>
@@ -4600,6 +4602,7 @@ function HostDashboard({ user, setTab }) {
           onClose={closeListingEdit}
           onSave={saveListingEdit}
           isContextCurrent={isListingEditCurrent}
+          returnFocus={() => listingActionButtons.current.get(editingListing.rawId)}
         />
       )}
       {cancelTarget && (
@@ -5022,6 +5025,7 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
   const [drawError, setDrawError] = useState("");
   const mapRef = useRef(null);
   const drawingRef = useRef(null);
+  const previewRef = useRef(null);
   const drawToggle = useRef(null);
   const instructionsId = useId();
   const locationKey = `${center.lat}:${center.lng}`;
@@ -5032,7 +5036,7 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
   if (drawingRef.current && (drawingRef.current.locationKey !== locationKey || spots.length >= maxSpots)) drawingRef.current = null;
   const drawing = Boolean(draft && drawingRef.current === draft);
   const firstCorner = drawing ? draft.first : null;
-  const preview = firstCorner ? satelliteSpotBounds(firstCorner, draft.second) : null;
+  const preview = firstCorner ? {north: firstCorner.lat, south: firstCorner.lat, east: firstCorner.lng, west: firstCorner.lng} : null;
   const changeDraft = next => { drawingRef.current = next; setDraft(next); setDrawError(""); };
   useEffect(() => { changeDraft(null); }, [locationKey, maxSpots]);
   useEffect(() => () => { drawingRef.current = null; mapRef.current = null; }, []);
@@ -5055,7 +5059,10 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
     const current = drawingRef.current;
     if (!current?.first || current.locationKey !== locationKey || latest.current.locationKey !== locationKey) return;
     const point = satelliteSpotPoint(event.latLng, latest.current.center);
-    if (point) { const next = {...current, second: point}; drawingRef.current = next; setDraft(next); }
+    const bounds = point && satelliteSpotBounds(current.first, point);
+    // Keep hover out of React updates that replace the map's event listeners
+    // between mouse-down and mouse-up and can lose the finishing click.
+    if (bounds) previewRef.current?.setBounds(bounds);
   };
 
   const boxStyle = { width: "100%", height: 320, borderRadius: 14, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 };
@@ -5077,10 +5084,10 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
           onUnmount={() => { drawingRef.current = null; mapRef.current = null; }}
           onClick={event => chooseCorner(event.latLng)}
           onMouseMove={previewCorner}
-          options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false, keyboardShortcuts: true, disableDoubleClickZoom: drawing, draggableCursor: drawing ? "crosshair" : undefined }}
+          options={{ mapTypeId: "satellite", disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false, keyboardShortcuts: true, disableDoubleClickZoom: drawing, draggableCursor: drawing ? "crosshair" : undefined }}
         >
           {firstCorner && <Marker position={firstCorner} label="1" options={{clickable: false}} />}
-          {preview && <Rectangle bounds={preview} options={{fillColor: SPOT_STROKE_RENT, fillOpacity: 0.2, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false}} />}
+          {preview && <Rectangle bounds={preview} onLoad={rectangle => { previewRef.current = rectangle; }} onUnmount={() => { previewRef.current = null; }} options={{fillColor: SPOT_STROKE_RENT, fillOpacity: 0.2, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false}} />}
           {spots.map((s) => (
             <Rectangle
               key={s.id}
@@ -5100,10 +5107,10 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
             return (
               <OverlayView key={"lbl-" + s.id} position={{ lat: cLat, lng: cLng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
                 <div style={{ transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, pointerEvents: "none" }}>
-                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
+                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, whiteSpace: "nowrap", color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
                     Spot {String.fromCharCode(65 + i)} {s.forRent ? "· FOR RENT" : "· PRIVATE"}
                   </span>
-                  <button type="button" aria-label={`Remove spot ${String.fromCharCode(65 + i)}`} disabled={drawing} onClick={() => { if (!drawingRef.current) onRemoveSpot(s.id); }} style={{ pointerEvents: "auto", width: 44, height: 44, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
+                  <button type="button" aria-label={`Remove spot ${String.fromCharCode(65 + i)}`} disabled={drawing} onClick={() => { if (!drawingRef.current) onRemoveSpot(s.id); }} style={{ pointerEvents: drawing ? "none" : "auto", width: 44, height: 44, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
                 </div>
               </OverlayView>
             );
@@ -5855,7 +5862,7 @@ function ListDrivewayView({ user }) {
                 onRemoveSpot={removeSatelliteSpot}
                 maxSpots={8}
               />
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.selectedSpots.filter(Boolean).length} of {form.spots.length || 0} marked spot{form.spots.length !== 1 ? "s" : ""} available for rent</div>
+              <div role="status" style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.spots.length ? `${form.spots.filter(spot => spot.forRent).length} of ${form.spots.length} marked spot${form.spots.length !== 1 ? "s" : ""} available for rent` : "No spots marked yet"}</div>
             </SpotMapBoundary>
           ) : (
             <>
@@ -5876,7 +5883,7 @@ function ListDrivewayView({ user }) {
             <Btn variant="pill" onClick={() => setStep(3)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <button onClick={() => setStep(5)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-              <Btn onClick={() => setStep(5)} disabled={form.selectedSpots.filter(Boolean).length === 0}>Continue →</Btn>
+              <Btn onClick={() => setStep(5)} disabled={(hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? form.spots.filter(spot => spot.forRent) : form.selectedSpots.filter(Boolean)).length === 0}>Continue →</Btn>
             </div>
           </div>
         </div>
@@ -7958,7 +7965,7 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
       <div className="ps-footer-v2-inner">
         <div className="ps-footer-v2-brand">
           <button className="ps-footer-v2-logo" onClick={onAboutClick} aria-label="About ParkShare">
-            <img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" />
+            <img src="/brand/parkshare-footer-480.webp" srcSet="/brand/parkshare-footer-480.webp 480w, /brand/parkshare-footer-960.webp 960w" sizes="(max-width: 820px) 180px, 220px" width="1440" height="615" alt="ParkShare" loading="lazy" decoding="async" />
           </button>
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
@@ -8003,7 +8010,7 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
         <div className="ps-footer-v2-powered" aria-label="Powered by ESKA Technologies">
           <span>Powered by</span>
           <span className="ps-footer-v2-powered-logo">
-            <img src="/parker/parker-eska-logo.png" alt="ESKA Technologies" />
+            <img src="/brand/eska-footer.webp" width="400" height="76" alt="ESKA Technologies" loading="lazy" decoding="async" />
           </span>
         </div>
       </div>
@@ -8608,14 +8615,18 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-hero-art">
           <div className="ps-home-v2-parker-card">
-            <ResponsiveMascot
-              family="william-parker-v2"
-              name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
-              alt="William and Parker welcoming ParkShare Drivers and Hosts"
-              className="ps-mascot-home-hero"
-              hero
-              sizes="(max-width: 600px) 82vw, 340px"
-            />
+            <picture style={{display: "contents"}}>
+              <source type="image/avif" srcSet={HOME_HERO_AVIF_SRC_SET} sizes={HOME_HERO_IMAGE.sizes} />
+              <img
+                {...HOME_HERO_IMAGE}
+                alt="William and Parker welcoming ParkShare Drivers and Hosts"
+                className="ps-responsive-mascot ps-mascot-home-hero"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
           </div>
         </div>
       </section>
