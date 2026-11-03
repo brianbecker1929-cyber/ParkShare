@@ -92,6 +92,15 @@ function emailOrigin() {
   return url.origin;
 }
 
+// Deliberately omit message content, names, addresses and contact details.
+// The recipient signs in to the existing participant-scoped conversation.
+export function messageNotificationHtml({bookingId} = {}) {
+  const path = Number.isSafeInteger(bookingId) && bookingId > 0
+    ? `/parking?message_booking=${bookingId}` : '/messages';
+  const href = escapeBookingHtml(emailOrigin() + path);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>New ParkShare message</title></head><body style="font-family:Arial,sans-serif;color:#0E1B2E;background:#FAF7F0;padding:24px"><main style="max-width:560px;margin:auto;background:#fff;padding:24px"><h1 style="font-size:24px">New ParkShare message</h1><p>You have a new message on ParkShare.</p><p><a href="${href}" style="color:#0E1B2E;font-weight:bold">Open your messages</a></p><p>Sign in to read and reply securely. The message is available in your ParkShare account.</p><p style="font-size:12px">This is an automatic notification. Replies to this email are not monitored.</p></main></body></html>`;
+}
+
 function renderEnvironmentEmail(template, variables) {
   const html = fillTemplate(template, variables);
   const origin = emailOrigin();
