@@ -48,6 +48,7 @@ jobs:
         run: node scripts/run-production-schema-rehearsal.mjs
         env:
           PRODUCTION_SCHEMA_REHEARSAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/parkshare_production_rehearsal
+          PRODUCTION_REHEARSAL_CI_SERVICE: postgres:17.6-bookworm
       - name: Preserve rehearsal evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -11,7 +11,7 @@ The package was rehearsed on native PostgreSQL **17.6**, matching production's m
 
 - **73 production migration checks passed**, including actual competing database connections for job claims.
 - **144 existing QA schema checks passed**, after preserving the QA probes' default install behaviour.
-- **40 focused cancellation, financial retry and target-guard tests passed**. Provider responses in these unit tests are mocks; no payment or email was sent.
+- **42 focused cancellation, financial retry and target-guard tests passed**. Provider responses in these unit tests are mocks; no payment or email was sent.
 - All 31 source SQL components install in one transaction. Failure of a late unique-index check rolls back all earlier schema and bucket changes. An injected historical-field change is also detected and rolled back.
 - All original columns/rows in the synthetic legacy application tables survive. This includes 29 paid bookings, two extensions, sent-reminder markers, a legacy partial refund, seven messages without recipients and a retained expired Checkout hold.
 
@@ -32,7 +32,7 @@ The builder ports the prerequisite registered-Checkout schema, financial retenti
 
 ## Controls and preservation
 
-1. Without an explicit migration scope, the SQL refuses before creating anything. The included runner accepts only a loopback URL, a dedicated disposable database name, no URL override options, the expected actual server address, and PostgreSQL 17. Never use a tunnel or port-forward to a hosted database.
+1. Without an explicit migration scope, the SQL refuses before creating anything. The runner accepts only a loopback URL, a dedicated disposable database name, no URL override options and PostgreSQL 17. The actual server must be loopback, or the explicitly configured GitHub Actions disposable Docker bridge. On entry it requires zero application/Auth/Storage tables before any restore. Never use a tunnel or port-forward to a hosted database.
 2. Before schema changes, acquire the migration advisory lock and bounded table locks. Recheck the captured application fingerprint and Storage baseline. A changed baseline requires recapture, review and a new rehearsal.
 3. Active Checkout holds block cutover. Retained Checkout evidence requires a documented Stripe reconciliation and explicit operator acknowledgement; an expired hold alone is not proof its payment is terminal.
 4. Capture internal digests and the original column list for **every existing public table**. Recheck row counts and every original value before commit, including session ranges, amounts, legacy refund fields and notification timestamps. New audit/default columns are the only excluded fields. Digests stay inside the database; no private rows are logged or exported.

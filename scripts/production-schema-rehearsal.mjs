@@ -14,6 +14,15 @@ export function assertProductionRehearsalUrl(raw) {
   return {host:u.hostname==='[::1]'?'::1':u.hostname,port:Number(u.port||5432),database:'parkshare_production_rehearsal',user:'postgres',password:decodeURIComponent(u.password),ssl:false,options:'',connectionTimeoutMillis:5000};
 }
 
+export function assertProductionRehearsalServer({db,engine,address,existingTables},env={}) {
+  assert.equal(db,'parkshare_production_rehearsal');assert.match(engine,/^PostgreSQL 17\./);
+  const ciBridge=env.GITHUB_ACTIONS==='true' && env.CI==='true'
+    && env.PRODUCTION_REHEARSAL_CI_SERVICE==='postgres:17.6-bookworm'
+    && /^172\.(?:1[6-9]|2\d|3[01])\./.test(address);
+  assert.ok(['127.0.0.1','::1'].includes(address)||ciBridge,'Unexpected rehearsal server address');
+  assert.equal(existingTables,0,'Start with a NEW EMPTY isolated database; existing application/Auth/Storage tables are never reset on entry');
+}
+
 export const productionFixtureUrl=new URL('../test/database/fixtures/production-schema-nov11.json',import.meta.url);
 export async function restoreProductionSnapshot(db) {
   const snapshot=JSON.parse(await readFile(productionFixtureUrl,'utf8'));

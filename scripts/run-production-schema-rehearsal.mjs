@@ -9,14 +9,18 @@ import {seedMessagePrivacyRows,messagePrivacyChecks} from './qa-message-privacy-
 import {runInitialBookingRefundProbe} from './qa-initial-booking-refund-probe.mjs';
 import {runExtensionSettlementProbe} from './qa-extension-settlement-probe.mjs';
 import {runProductionDeliveryProbes} from './production-delivery-probes.mjs';
-import {assertProductionRehearsalUrl,restoreProductionSnapshot,seedProductionShape} from './production-schema-rehearsal.mjs';
+import {assertProductionRehearsalUrl,assertProductionRehearsalServer,restoreProductionSnapshot,seedProductionShape} from './production-schema-rehearsal.mjs';
 const config=assertProductionRehearsalUrl(process.env.PRODUCTION_SCHEMA_REHEARSAL_DATABASE_URL);
 const c=new pg.Client(config);
 const report={checks:[],status:'running',productionWrites:0,providerCalls:0};
 try {
  await c.connect();
  const env=(await c.query('SELECT current_database() db,version() engine,host(inet_server_addr()) address')).rows[0];
- assert.equal(env.db,'parkshare_production_rehearsal');assert.match(env.engine,/^PostgreSQL 17\./);assert.ok(['127.0.0.1','::1'].includes(env.address));report.engine=env.engine;
+ // GitHub's loopback-published service reaches PostgreSQL on its disposable
+ // Docker bridge address. No hosted URL is accepted, even in that CI case.
+ const existing=(await c.query("SELECT count(*)::int n FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','auth','storage','parkshare_private') AND c.relkind IN ('r','p')")).rows[0].n;
+ assertProductionRehearsalServer({...env,existingTables:existing},process.env);
+ report.engine=env.engine;
  const db={query:(sql,args)=>c.query(sql,args),exec:sql=>c.query(sql)};
  const s=await restoreProductionSnapshot(db);
  await db.exec('SET search_path=public,extensions');
