@@ -5,7 +5,7 @@
 // overlapping confirmed bookings/holds for the requested time window.
 
 import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
-import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
+import { isListingAvailableForWindow, formatAvailabilityForDate } from "../src/lib/listingAvailability.js";
 import { resolveLocalBookingStart } from "./_booking-local-time.js";
 import { isValidBookingDuration } from "./_booking-rules.js";
 import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
@@ -21,18 +21,22 @@ export default async function handler(req, res) {
     ? Number(req.query.startHour)
     : null;
 
-  if (!Number.isSafeInteger(listingId) || listingId <= 0 || !isValidBookingDuration(hours, { scheduled: !!bookingDate })) {
+  if (!Number.isSafeInteger(listingId) || listingId <= 0) {
     return res.status(400).json({ error: "Missing or invalid listingId." });
+  }
+  if (!isValidBookingDuration(hours, { scheduled: !!bookingDate })) {
+    return res.status(400).json({ code: "invalid_booking_duration", error: "Choose a booking length from 1 to 744 hours (31 days), in 15-minute increments." });
   }
 
   try {
     const { data: listing, error } = await supabaseAdmin
       .from("listings")
-      .select("id, spaces, spots, availability, time_zone")
+      .select("id, spaces, spots, availability, time_zone, is_paused")
       .eq("id", listingId)
       .single();
     if (error || !listing) return res.status(404).json({ error: "Listing not found." });
 
+    if (listing.is_paused === true) return res.status(200).json({available:false, spacesTotal:listing.spaces || 1, spacesFree:0, hostScheduleOpen:false, reason:"listing_paused", spotStatus:Object.fromEntries(getListingSpotLayout(listing).filter(spot=>spot.forRent).map(spot=>[spot.label,false]))});
     // Availability MUST use exactly the same property-local resolver as
     // checkout; otherwise a Driver may be offered the wrong parking interval.
     let scheduledStartsAt = null;
@@ -72,6 +76,7 @@ export default async function handler(req, res) {
         spacesFree: 0,
         hostScheduleOpen: false,
         reason: "host_schedule",
+        hostScheduleLabel: formatAvailabilityForDate(listing.availability, start, listing.time_zone),
         spotStatus,
       });
     }

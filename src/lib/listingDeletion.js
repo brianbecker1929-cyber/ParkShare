@@ -24,7 +24,8 @@ export async function deleteHostListing(supabase, { listingId, hostId, isContext
     });
     const result = await response.json();
     if (!isContextCurrent()) return obsolete();
-    if (!response.ok || !result.deleted) return { ok: false, message: result.error || 'The listing was not deleted. Please try again.' };
+    if (response.status === 404) return { ok: false, unavailable: true, message: 'This listing is no longer available. It may already have been deleted.' };
+    if (!response.ok || result.deleted !== true) return { ok: false, message: result.error || 'The listing was not deleted. Please try again.' };
     return { ok: true, photoCleanupPending: Boolean(result.photoCleanupPending) };
   } catch {
     if (!isContextCurrent()) return obsolete();

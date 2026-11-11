@@ -1,0 +1,34 @@
+# ParkShare
+
+> ParkShare is a Canadian private-parking marketplace operated by ESKA Technologies Inc. Drivers find parking near their destination; Hosts offer eligible private driveways and parking spaces.
+
+## Drivers
+
+Review the listing, vehicle suitability, available times, Host instructions and the price before booking. Maps, current availability, payment and account features require JavaScript. Exact private parking details are provided through the authorized booking flow.
+
+## Hosts
+
+Hosts describe their parking space, set availability and hourly rates, and manage reservations through their account. Offering a space does not guarantee bookings or income.
+
+## Pricing and coverage
+
+Availability depends on the listings offered by Hosts in Canada. Review the final price and applicable charges at checkout; this document does not quote live inventory or prices.
+
+## Public pages
+
+- [Find Parking](https://www.myparkshare.ca/parking)
+- [For Drivers](https://www.myparkshare.ca/drivers)
+- [For Hosts](https://www.myparkshare.ca/hosts)
+- [Discover](https://www.myparkshare.ca/discover)
+- [Restaurants](https://www.myparkshare.ca/discover/restaurants)
+- [Events and Festivals](https://www.myparkshare.ca/discover/festivals)
+- [About](https://www.myparkshare.ca/about)
+- [Trust and Safety](https://www.myparkshare.ca/trust-and-safety)
+- [Help and FAQ](https://www.myparkshare.ca/help)
+- [Contact](https://www.myparkshare.ca/contact)
+- [Terms](https://www.myparkshare.ca/terms)
+- [Privacy](https://www.myparkshare.ca/privacy)
+- [Payments](https://www.myparkshare.ca/payments)
+- [Liability](https://www.myparkshare.ca/liability)
+
+Support: info@myparkshare.ca

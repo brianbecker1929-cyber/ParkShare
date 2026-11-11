@@ -37,11 +37,27 @@ export function savePreferredNavigationProvider(provider, storage) {
   }
 }
 
-export function buildNavigationUrl(address, lat, lng, userAgent = globalThis.navigator?.userAgent || "", provider) {
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+const validCoordinates = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng)
+  && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+const placeholderAddress = address => /^(?:approximate(?: parking)? (?:location|area)\b|address available with a confirmed booking$|exact parking location$)/i.test(String(address || "").trim());
+
+export function hasNavigationDestination(listing) {
+  if (!listing || typeof listing !== "object") return false;
+  if (listing.locationPrecision === "approximate" || placeholderAddress(listing.address)) return validCoordinates(listing.lat, listing.lng);
+  return validCoordinates(listing.lat, listing.lng) || Boolean(String(listing.address || "").trim());
+}
+
+export function buildNavigationUrl(address, lat, lng, userAgent = globalThis.navigator?.userAgent || "", provider, locationPrecision) {
+  const hasCoords = validCoordinates(lat, lng);
   const cleanAddress = String(address || "").trim();
-  const hasAddress = cleanAddress.length > 0;
-  const destination = hasCoords ? `${lat},${lng}` : cleanAddress;
+  const approximate = locationPrecision === "approximate" || placeholderAddress(cleanAddress);
+  const hasAddress = !approximate && cleanAddress.length > 0;
+  if (!hasCoords && !hasAddress) return null;
+  // Public previews use only the same two-decimal area already in discovery.
+  // Privacy labels must never become a map search or override a Waze pin.
+  const routeLat = approximate ? Math.round(lat * 100) / 100 : lat;
+  const routeLng = approximate ? Math.round(lng * 100) / 100 : lng;
+  const destination = hasCoords ? `${routeLat},${routeLng}` : cleanAddress;
   const encodedDestination = encodeURIComponent(destination);
   const selectedProvider = provider || (isAppleMapsSupported(userAgent) ? "apple" : "google");
 
@@ -63,8 +79,10 @@ export function buildNavigationUrl(address, lat, lng, userAgent = globalThis.nav
 
 export function openNavigation(listing, provider) {
   if (typeof window === "undefined" || !listing) return false;
+  const url = buildNavigationUrl(listing.address, listing.lat, listing.lng, window.navigator?.userAgent || "", provider, listing.locationPrecision);
+  if (!url) return false;
   window.open(
-    buildNavigationUrl(listing.address, listing.lat, listing.lng, window.navigator?.userAgent || "", provider),
+    url,
     "_blank",
     "noopener,noreferrer",
   );

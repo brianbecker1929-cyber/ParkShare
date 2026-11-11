@@ -19,12 +19,16 @@ const fixture = () => ({
   booking_date: "2026-10-20", start_hour: 14, hours: 1, total: 13.8,
   paid_at: "2026-10-18T10:00:00Z", created_at: "2026-10-18T10:00:00Z",
   scheduled_starts_at: "2026-10-20T18:00:00Z", property_time_zone: "America/Toronto",
-  stripe_checkout_session_id: "cs_fixture", stripe_payment_intent_id: "pi_fixture",
+  stripe_charge_id: "ch_fixture", stripe_checkout_session_id: "cs_fixture", stripe_payment_intent_id: "pi_fixture",
   stripe_connected_account_id: "acct_fixture", refund_status: null, refund_ledger_revision: 0,
+});
+const refundFixture = (change = {}) => ({
+  object: 'refund', id: 're_fixture', status: 'succeeded', amount: 1380,
+  payment_intent: 'pi_fixture', charge: 'ch_fixture', currency: 'cad', ...change,
 });
 
 let accountBookings, cancelBooking, clientWindow, clientDisplay;
-let rows, actor, requests, refunds, stripeRefundMock;
+let rows, actor, requests, refunds, stripeRefundMock, operation;
 
 function project(row, columns) {
   return Object.fromEntries(columns.split(",").map(key => [key.trim(), row[key.trim()] ?? null]));
@@ -48,7 +52,7 @@ async function list(view) {
 
 async function cancel() {
   const res = response();
-  await cancelBooking({ method: "POST", body: { bookingId: 166 }, headers: { authorization: "Bearer fixture" } }, res);
+  await cancelBooking({ method: "POST", body: { bookingId: 166,reasonCode:actor===HOST?"host_unavailable":"driver_plans" }, headers: { authorization: "Bearer fixture" } }, res);
   return res;
 }
 
@@ -60,13 +64,19 @@ before(async () => {
       return Response.json({ id: actor, aud: "authenticated", app_metadata: {}, user_metadata: {} });
     }
     const table = url.pathname.split("/").pop();
+    if (url.pathname.includes('/rpc/')) {
+      const args=JSON.parse(options.body);
+      if(table==='reserve_booking_refund') {operation ||= {...args.p_operation,id:'00000000-0000-4000-8000-000000000166',currency:'cad',state:'queued',refund_attempt_at:new Date(NOW).toISOString()};return Response.json(operation);}
+      if(table==='claim_booking_refund') {if(operation.claimed)return Response.json(null);operation.claimed=true;operation.lease_token=args.p_token;return Response.json(operation);}
+      throw Error('Unexpected RPC '+table);
+    }
     const method = options.method || "GET";
     requests.push({ table, method, query: url.searchParams });
     const tables = {
       bookings: rows,
       listings: [{ id: 11, host_id: HOST, title: "Test driveway", address: "Fixture address", spaces: 1 }],
       profiles: [{ id: HOST, name: "Host" }, { id: DRIVER, name: "Driver" }],
-      reviews: [], booking_extensions: [],
+      reviews: [], booking_extensions: [], payment_refunds: [], booking_refund_operations: operation?[operation]:[],
     };
     assert.ok(Object.hasOwn(tables, table), `Unexpected table ${table}`);
     let data = tables[table].filter(row => [...url.searchParams].every(([key, value]) => {
@@ -77,6 +87,7 @@ before(async () => {
     if (method === "PATCH") {
       const update = JSON.parse(options.body);
       for (const row of data) Object.assign(row, update);
+      return Response.json(null);
     } else assert.equal(method, "GET");
     data = data.map(row => project(row, url.searchParams.get("select")));
     const accept = new Headers(options.headers).get("accept") || "";
@@ -85,8 +96,9 @@ before(async () => {
   const lib = await import("../api/_lib.js");
   stripeRefundMock = mock.method(lib.stripe.refunds, "create", async (...args) => {
     refunds.push(args);
-    return { id: "re_fixture", status: "succeeded", amount: 1380 };
+    return refundFixture();
   });
+  mock.method(lib.stripe.charges, "retrieve", async()=>({object:'charge',id:'ch_fixture',payment_intent:'pi_fixture',amount:1380,amount_refunded:0,livemode:false,currency:'cad',paid:true,captured:true,status:'succeeded',disputed:false,balance_transaction:{source:'ch_fixture',currency:'cad',fee_details:[{type:'stripe_fee',amount:70,currency:'cad'}]}}));
   ({ default: accountBookings } = await import("../api/account-bookings.js"));
   ({ default: cancelBooking } = await import("../api/cancel-booking.js"));
   // Execute the real browser date/window functions without mounting React or
@@ -101,7 +113,7 @@ before(async () => {
 });
 
 beforeEach(() => {
-  actor = DRIVER; rows = [fixture()]; requests = []; refunds = [];
+  actor = DRIVER; rows = [fixture()]; requests = []; refunds = []; operation=null;
   mock.timers.reset();
   mock.timers.enable({ apis: ["Date"], now: NOW });
   stripeRefundMock.mock.resetCalls();
@@ -128,12 +140,12 @@ for (const view of ["driver", "host"]) {
 
 test("Driver with two hours of notice can cancel using the canonical UTC start", async () => {
   const res = await cancel();
-  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
-  assert.equal(res.body.bookingStatus, "refunded");
+  assert.equal(res.statusCode, 202, JSON.stringify(res.body));
+  assert.equal(res.body.bookingStatus, "confirmed");
   assert.equal(refunds.length, 1);
   assert.equal(refunds[0][0].payment_intent, "pi_fixture");
   assert.equal(refunds[0][1].stripeAccount, "acct_fixture");
-  assert.equal(refunds[0][1].idempotencyKey, "booking-cancel-166");
+  assert.equal(refunds[0][1].idempotencyKey, "parkshare-refund-00000000-0000-4000-8000-000000000166");
 });
 
 for (const view of ['driver','host']) test(`${view} reservations exclude rejected financial audits while Transactions retains their separate history`,async()=>{
@@ -146,10 +158,10 @@ for (const view of ['driver','host']) test(`${view} reservations exclude rejecte
 
 test("exactly one hour notice remains eligible; repeat cancellation does not issue another refund", async () => {
   mock.timers.setTime(Date.parse("2026-10-20T17:00:00Z"));
-  assert.equal((await cancel()).statusCode, 200);
+  assert.equal((await cancel()).statusCode, 202);
   const repeat = await cancel();
-  assert.equal(repeat.statusCode, 200);
-  assert.equal(repeat.body.alreadyProcessed, true);
+  assert.equal(repeat.statusCode, 202);
+  assert.equal(repeat.body.operationId, operation.id);
   assert.equal(refunds.length, 1);
 });
 
@@ -166,8 +178,10 @@ for (const [time, code] of [["17:00:01", "late"], ["18:00:00", "started"], ["19:
 test("Host can cancel before canonical start even inside the Driver notice cutoff", async () => {
   actor = HOST;
   mock.timers.setTime(Date.parse("2026-10-20T17:30:00Z"));
-  assert.equal((await cancel()).statusCode, 200);
-  assert.equal(refunds[0][0].metadata.cancelled_by, "host");
+  assert.equal((await cancel()).statusCode, 202);
+  assert.equal(operation.actor, "host");
+  assert.equal(refunds.length, 1);
+  assert.equal(operation.refund_id, 're_fixture');
 });
 
 test("unrelated user cannot list or cancel this booking", async () => {
@@ -200,17 +214,16 @@ test("Book Now remains ineligible for automatic Driver cancellation", async () =
 
 test("invalid canonical instant fails closed without refunding the legacy fallback time", async () => {
   rows[0].scheduled_starts_at = "invalid";
-  assert.equal((await cancel()).statusCode, 500);
+  assert.equal((await cancel()).statusCode, 503);
   assert.equal(refunds.length, 0);
 });
 
-test('refunding only a remaining balance waits for cumulative reconciliation instead of falsely claiming a full refund',async()=>{
- stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);return {id:'re_remaining',status:'succeeded',amount:690};});
- const res=await cancel();assert.equal(res.statusCode,202);assert.equal(res.body.bookingStatus,'confirmed');assert.match(res.body.message,/cumulative refund status is being reconciled/);
- assert.equal(rows[0].cancelled_at,null);
- const again=await cancel();assert.equal(again.statusCode,200);assert.equal(again.body.alreadyProcessed,true);assert.equal(refunds.length,1);
+test('a provider amount mismatch requires review without falsely marking the booking refunded',async()=>{
+ stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);return refundFixture({id:'re_mismatch',amount:690});});
+ const res=await cancel();assert.equal(res.statusCode,202);assert.equal(res.body.bookingStatus,'confirmed');assert.equal(res.body.reviewRequired,true);
+ assert.equal(operation.review_code,'refund_identity_mismatch');assert.equal(rows[0].cancelled_at,undefined);
 });
 test('a webhook revision change while Stripe responds cannot be overwritten by the cancellation response',async()=>{
- stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);rows[0].refund_ledger_revision++;rows[0].stripe_refund_id='re_webhook_first';rows[0].refund_total_amount=6.9;return {id:'re_remaining',status:'succeeded',amount:690};});
- const res=await cancel();assert.equal(res.statusCode,202);assert.equal(rows[0].stripe_refund_id,'re_webhook_first');assert.equal(rows[0].refund_total_amount,6.9);assert.match(res.body.message,/being reconciled/);
+ stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);rows[0].refund_ledger_revision++;rows[0].stripe_refund_id='re_webhook_first';rows[0].refund_total_amount=6.9;return refundFixture();});
+ const res=await cancel();assert.equal(res.statusCode,202);assert.equal(rows[0].stripe_refund_id,'re_webhook_first');assert.equal(rows[0].refund_total_amount,6.9);
 });

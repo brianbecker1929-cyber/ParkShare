@@ -1,3 +1,5 @@
+import {normaliseVehicleType} from "./vehicleTypes.js";
+
 const BODY_MODEL_GROUPS = {
   pickup: [
     "Avalanche", "Colorado", "Silverado 1500", "Silverado 2500HD", "Silverado 3500HD",
@@ -68,6 +70,8 @@ const VEHICLE_ASSET_ROOT = "/vehicles";
 const DEDICATED_COLOUR_ASSETS = new Set(["White", "Silver", "Gold", "Yellow"]);
 
 export function getVehicleBodyType(vehicle = {}) {
+  const savedType = normaliseVehicleType(vehicle.vehicleType ?? vehicle.vehicle_type);
+  if (savedType) return savedType;
   // Booking snapshots use snake_case; editable profile vehicles use camelCase.
   // Case-insensitive matching avoids changing body shape after checkout.
   const model = String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim().toLowerCase();

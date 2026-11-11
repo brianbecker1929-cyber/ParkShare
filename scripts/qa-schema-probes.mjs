@@ -66,6 +66,9 @@ export async function runSchemaProbes(db, report={checks:[],migrations:[]}) {
     await applyProposals(db,report.migrations);
     assert.equal(report.migrations.length,10);
   });
+  await check('timed checkout-limit migration preserves the captured schema capacity/locking function',async()=>{
+    await db.exec(await readFile(new URL('../supabase/migrations/20261031191201_checkout_rate_limit_recovery_005462.sql',import.meta.url),'utf8'));
+  });
   for(const [name,run] of profilePrivacyChecks(db,{host:HOST,driver:DRIVER,other:OTHER})) {
     await check(name,run);
   }

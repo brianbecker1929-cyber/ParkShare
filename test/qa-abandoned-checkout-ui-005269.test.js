@@ -19,7 +19,7 @@ function refreshHarness(mode = "selected") {
   let setup, timer, stopped = false;
   const events = new Map(), requests = [], results = [], paused = { current: false }, doc = { visibilityState: "visible" };
   const add = (name, fn) => events.set(name, fn), remove = name => events.delete(name);
-  const values = { useEffect: fn => { setup = fn; }, numericIdForAvailability: 7, selectedWindowKey: "7:now:1", hours: 1,
+  const values = { useEffect: fn => { setup = fn; }, numericIdForAvailability: 7, selectedWindowKey: "7:now:1", availabilityWindow: {}, hours: 1, durationError: "",
     bookingMode: "now", date: new Date(), startHour: 9, localCalendarDate: () => "2030-10-21", availabilityPaused: paused,
     setChosenSpot: () => {}, setShowPayment: () => {}, setAvailabilityResult: value => results.push(value), setLiveAvailability: data => results.push({ data }),
     window: { setInterval: (fn, ms) => { assert.equal(ms, 15000); timer = fn; return 1; }, clearInterval: () => { stopped = true; }, addEventListener: add, removeEventListener: remove },

@@ -20,6 +20,7 @@ import hostBookingTemplate from "./emails/templates/_host-booking.template.js";
 import endingReminderTemplate from "./emails/templates/_reminder-ending.template.js";
 import halfwayReminderTemplate from "./emails/templates/_reminder-halfway.template.js";
 import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.template.js";
+import hostExtensionConfirmedTemplate from "./emails/templates/_host-extension-confirmed.template.js";
 import refundConfirmedTemplate from "./emails/templates/_refund-confirmed.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -39,8 +40,8 @@ export function buildEmailPayload({ to, cc, subject, html, attachments, replyTo 
   };
 }
 
-export async function sendEmail({ to, cc, subject, html, attachments, replyTo }) {
-  return sendEmailPayload(buildEmailPayload({ to, cc, subject, html, attachments, replyTo }));
+export async function sendEmail({ to, cc, subject, html, attachments, replyTo }, options) {
+  return sendEmailPayload(buildEmailPayload({ to, cc, subject, html, attachments, replyTo }), options);
 }
 
 // The reminder worker persists this exact payload before its first attempt.
@@ -89,6 +90,15 @@ function emailOrigin() {
     throw new Error("APP_URL must be an HTTPS origin without credentials, paths or query parameters");
   }
   return url.origin;
+}
+
+// Deliberately omit message content, names, addresses and contact details.
+// The recipient signs in to the existing participant-scoped conversation.
+export function messageNotificationHtml({bookingId} = {}) {
+  const path = Number.isSafeInteger(bookingId) && bookingId > 0
+    ? `/parking?message_booking=${bookingId}` : '/messages';
+  const href = escapeBookingHtml(emailOrigin() + path);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>New ParkShare message</title></head><body style="font-family:Arial,sans-serif;color:#0E1B2E;background:#FAF7F0;padding:24px"><main style="max-width:560px;margin:auto;background:#fff;padding:24px"><h1 style="font-size:24px">New ParkShare message</h1><p>You have a new message on ParkShare.</p><p><a href="${href}" style="color:#0E1B2E;font-weight:bold">Open your messages</a></p><p>Sign in to read and reply securely. The message is available in your ParkShare account.</p><p style="font-size:12px">This is an automatic notification. Replies to this email are not monitored.</p></main></body></html>`;
 }
 
 function renderEnvironmentEmail(template, variables) {
@@ -215,6 +225,16 @@ export function endingReminderHtml(args) {
 }
 export function extensionConfirmedHtml(args) {
   return renderEnvironmentEmail(extensionConfirmedTemplate, driverTicketFields(args));
+}
+
+export function hostExtensionConfirmedHtml(args) {
+  return renderEnvironmentEmail(hostExtensionConfirmedTemplate, {
+    ...driverTicketFields(args),
+    HOST_NAME: escapeBookingHtml(args.hostName || "Host"),
+    DRIVER_NAME: escapeBookingHtml(args.driverName || "ParkShare Driver"),
+    HOST_PORTRAIT_URL: escapeBookingHtml(portraitUrl(args, true)),
+    HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
+  });
 }
 
 export function refundConfirmedHtml(args) {

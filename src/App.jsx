@@ -1,9 +1,21 @@
+import {CANCELLATION_REASONS} from "./lib/cancellationReasons.js";
+import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
+import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
+import {HOME_HERO_IMAGE, HOME_HERO_AVIF_SRC_SET} from "./lib/homeHeroImage.js";
+import {LISTING_FEATURE_OPTIONS,editableListingAvailability,listingScheduleError} from "./lib/listingSettings.js";
+import ListingFeatureFields from "./components/ListingFeatureFields.jsx";
 import HostOnboarding from "./components/HostOnboarding.jsx";
+import DeferredAuth from "./components/DeferredAuth.jsx";
+import HostProfileView from "./components/HostProfileView.jsx";
+import {useListingBookability} from "./lib/useListingBookability.js";
+import {bookingReadinessMessage} from "./lib/bookingReadiness.js";
+import {VEHICLE_TYPES} from "./lib/vehicleTypes.js";
 import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
-import { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
-import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
+const RefundManager = React.lazy(() => import("./components/RefundManager.jsx"));
+import { GoogleMap, useJsApiLoader, OverlayView, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase, updateRecoveryPasswordForAccount } from "./lib/supabaseClient";
 import { RECOVERY_SESSION_CHANGED } from "./lib/passwordRecovery";
 import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
@@ -15,20 +27,26 @@ import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
 import { createMessageConversation, messageConversationKey } from "./lib/messageConversation";
 import { validId } from "./lib/privateListingAccess";
 import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
+import { satelliteSpotPoint, satelliteSpotBounds } from "./lib/satelliteSpotDrawing";
+import { validateEventSubmissionForm } from "./lib/eventSubmissionValidation";
 import { requestPropertyTimeZone } from "./lib/hostListingPublish";
 import { createListingPublication } from "./lib/listingPublicationAttempt";
 import { deleteHostListing } from "./lib/listingDeletion";
 import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
 import { transactionDateDetails } from "./lib/transactionDetails";
-import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
+import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, listingAvailabilityMessage, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
+import { formatBookNowTimes } from "./lib/bookNowTimes";
+import { validateBookingDuration, MAX_BOOKING_HOURS } from "./lib/bookingDuration";
 import { getListingSpotLayout } from "./lib/listingSpotLayout";
 import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
 import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
 import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
-import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome, validateAuthForm, validateNewPassword } from "./lib/authForm";
+import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome } from "./lib/authFormBasics.js";
+import { validateAuthForm, validateNewPassword } from "./lib/authValidation.js";
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
+  hasNavigationDestination,
   openNavigation,
   savePreferredNavigationProvider,
 } from "./lib/navigation";
@@ -156,10 +174,10 @@ function BookingVehicleVisual({ vehicle }) {
   );
 }
 
-function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime }) {
+function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime, timeZoneLabel }) {
   const timeRemaining = isActive ? formatBookingTimeRemaining(bookingEnd, currentTime) : "";
   return (
-    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
+    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${timeZoneLabel ? `, ${timeZoneLabel}` : ""}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
       <div className="ps-booking-schedule-cell is-date">
         <span>Date</span>
         <strong>{date}</strong>
@@ -182,6 +200,7 @@ function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isAct
           <strong role="timer">{timeRemaining}</strong>
         </div>
       )}
+      {timeZoneLabel && <div style={{ gridColumn: "1 / -1", padding: "5px 10px", fontSize: 11, color: C.white, borderTop: "1px solid rgba(255,255,255,.16)" }}>{timeZoneLabel}</div>}
     </div>
   );
 }
@@ -222,6 +241,7 @@ function buildAppUser(profile, authUser) {
     name: profile?.name || metadata.name || "ParkShare Driver",
     phone: metadata.phone || "",
     vehicleDetails: metadata.vehicle_details || "",
+    vehicleType: metadata.vehicle_type || "",
     vehicleMake: metadata.vehicle_make || "",
     vehicleModel: metadata.vehicle_model || "",
     vehicleColour: metadata.vehicle_colour || "",
@@ -233,9 +253,11 @@ function buildAppUser(profile, authUser) {
     name: driverProfile.name,
     email: authUser?.email || "",
     createdAt: authUser?.created_at || null,
+    isParkShareStaff: authUser?.app_metadata?.parkshare_staff === true,
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
+    vehicleType: driverProfile.vehicleType,
     vehicleMake: driverProfile.vehicleMake,
     vehicleModel: driverProfile.vehicleModel,
     vehicleColour: driverProfile.vehicleColour,
@@ -409,15 +431,23 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
   return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
 }
 
-function Modal({ children, onClose, title }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-      <div role="dialog" aria-modal="true" aria-label={title} style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-        <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>{title}</div>
-          <button onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
+function Modal({ children, onClose, title, nativeModal = false, returnFocus }) {
+  const panelStyle = { background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" };
+  const content = <>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div style={{ fontWeight: 700, color: C.navy, fontSize: 16, minWidth: 0, overflowWrap: "anywhere" }}>{title}</div>
+          <button className="ps-tap-target" onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 44, height: 44, flexShrink: 0, padding: 0, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ padding: "20px 22px" }}>{children}</div>
+      </>;
+  if (nativeModal) return <NativeDialog title={title} onClose={onClose} returnFocus={returnFocus} className="ps-navigation-modal"
+    style={{ ...panelStyle, position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", border: 0, padding: 0 }}>
+    {content}
+  </NativeDialog>;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={panelStyle}>
+        {content}
       </div>
     </div>
   );
@@ -428,6 +458,7 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
 
   const providers = getAvailableNavigationProviders();
   const isPreview = request.mode === "preview";
+  const destinationAvailable = hasNavigationDestination(request.listing);
   const descriptions = {
     waze: "Live traffic, road reports, and driving guidance",
     google: "Driving directions in Google Maps",
@@ -435,13 +466,16 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
   };
 
   return (
-    <Modal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
+    <Modal nativeModal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
       <div className="ps-navigation-chooser">
-        <p>
+        {destinationAvailable ? <p>
           {isPreview
-            ? `Choose an app to preview driving directions to ${request.listing.title || "this parking space"}.`
+            ? "Choose an app to preview the parking area. For public listings this is an approximate route; exact directions are available from your confirmed booking."
             : "Choose your preferred navigation app. Your parking location is ready to open."}
-        </p>
+        </p> : <p id="navigation-location-error" role="alert">
+          {isPreview ? "An approximate route preview is unavailable for this listing because its map location is missing. Choose another listing, or use exact directions from a confirmed booking."
+            : "Directions are unavailable because this reservation's location is missing. Please contact ParkShare support."}
+        </p>}
         <div className="ps-navigation-destination">
           <span aria-hidden="true">📍</span>
           <div>
@@ -455,6 +489,9 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
               key={provider.id}
               type="button"
               className={`ps-navigation-provider is-${provider.id}`}
+              disabled={!destinationAvailable}
+              aria-describedby={!destinationAvailable ? "navigation-location-error" : undefined}
+              style={!destinationAvailable ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
               onClick={() => onChoose(provider.id)}
             >
               <span className="ps-navigation-provider-icon" aria-hidden="true">
@@ -473,9 +510,9 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
             </button>
           ))}
         </div>
-        <p className="ps-navigation-remember-note">
+        {destinationAvailable && <p className="ps-navigation-remember-note">
           ParkShare remembers your selection for future <strong>Navigate to parking</strong> buttons. You can change it anytime.
-        </p>
+        </p>}
         <button type="button" className="ps-navigation-cancel" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
@@ -618,7 +655,7 @@ function milesBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const GOOGLE_MAPS_LIBRARIES = ["drawing", "places"]; // Stable reference: drawing powers the Host spot tool; places lets Drivers search destinations, landmarks, businesses, and addresses.
+const GOOGLE_MAPS_LIBRARIES = ["places"]; // Stable reference shared by every map loader; spot rectangles use the core Maps API.
 
 // Muted "curbside" map styling so Google's default map matches the app's palette.
 const MAP_STYLE = [
@@ -1008,7 +1045,7 @@ function bookingCheckoutKey({ listing, hours, chosenSpot, date, startHour, endHo
   const vehicle = getBookableVehicles(user || {}).find(item => item.id === selectedVehicleId);
   return JSON.stringify([user?.id || null, listing.id, listing.title, listing.price, hours, chosenSpot ?? null,
     date instanceof Date ? localCalendarDate(date) : null, startHour ?? null, endHour ?? null,
-    selectedVehicleId || null, vehicle ? [vehicle.vehicleMake, vehicle.vehicleModel, vehicle.vehicleColour, vehicle.licensePlate] : null,
+    selectedVehicleId || null, vehicle ? [vehicle.vehicleType, vehicle.vehicleMake, vehicle.vehicleModel, vehicle.vehicleColour, vehicle.licensePlate] : null,
     selectedEvent?.id ?? null]);
 }
 
@@ -1064,6 +1101,9 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const total = totalCents / 100;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
+  const propertyTimeZoneLabel = listing.timeZone
+    ? `Times use ${listing.timeZone} local time.`
+    : "Listing time zone unavailable.";
 
   const payWithStripe = async () => {
     if (!checkoutModalActive.current) return;
@@ -1220,6 +1260,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
                 {timeLabel && <div style={{ marginTop: 2 }}>🕐 {timeLabel} ({hours} hr{hours > 1 ? "s" : ""})</div>}
               </div>
             )}
+            <p role="note" style={{ fontSize: 12, color: C.navy, margin: "0 0 14px" }}>{propertyTimeZoneLabel}</p>
             {selectedEvent && <EventDestinationSummary event={selectedEvent} booking />}
             {[
               [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
@@ -1727,12 +1768,14 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [nowDuration, setNowDuration] = useState(1);
   const [nowCustomHours, setNowCustomHours] = useState("3");
   const isCustomDuration = !NOW_DURATIONS.includes(nowDuration);
-  const nowHours = isCustomDuration ? Math.max(1, Number(nowCustomHours) || 1) : nowDuration;
+  const nowDurationValidation = validateBookingDuration(isCustomDuration ? nowCustomHours : nowDuration);
+  const nowHours = nowDurationValidation.hours;
 
   // Schedule for Later — the original date + start/end hour pickers.
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(11);
-  const advanceHours = Math.max(1, endHour - startHour);
+  const advanceDurationValidation = validateBookingDuration(endHour - startHour);
+  const advanceHours = advanceDurationValidation.hours;
   const handleStartChange = (e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(v + 1); };
   const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
   const [date, setDate] = useState(() => futureBookingDate(listing.timeZone));
@@ -1751,6 +1794,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
   const hours = bookingMode === "now" ? nowHours : advanceHours;
+  const durationError = bookingMode === "now" ? nowDurationValidation.error : advanceDurationValidation.error;
+  const bookNowTimes = durationError ? null : formatBookNowTimes(listing.timeZone, hours);
 
   const [showPayment, setShowPayment] = useState(false);
   const availabilityPaused = useRef(false);
@@ -1758,7 +1803,15 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
+  const spotListingId = useRef(listing.id);
+  useEffect(() => {
+    if (spotListingId.current === listing.id) return;
+    spotListingId.current = listing.id;
+    setChosenSpot(null);
+    setShowPayment(false);
+  }, [listing.id]);
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
+  const spotPickerTrigger = useRef(null);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [vehicleEditorOpen, setVehicleEditorOpen] = useState(() => getBookableVehicles(user || {}).length === 0);
@@ -1786,6 +1839,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const spotVehiclePickerRef = useRef(null);
   const spotLayout = getListingSpotLayout(listing);
   const chooseSpot = (index) => {
+    if (durationError || !bookingReady) return;
     const hostRentable = spotLayout[index]?.forRent === true;
     if (!canChooseListingSpot({
       isRealListing: numericIdForAvailability !== null,
@@ -1822,6 +1876,10 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
   const numericIdForAvailability = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
+
+  const bookingReadiness = useListingBookability(numericIdForAvailability, showPayment);
+  const bookingReady = bookingReadiness.status === "ready";
+  useEffect(() => { if (!bookingReady) setShowPayment(false); }, [bookingReady]);
 
   // Glanceable "right now" badge shown near the title — always reflects this
   // instant, independent of whatever the renter has selected below.
@@ -1869,18 +1927,28 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     bookingDate: bookingMode === "advance" ? localCalendarDate(date) : "",
     startHour,
   });
+  // A new selection window owns its response, including Now -> Later -> Now.
+  // Retain the Driver's bay choice without trusting a previous window's check.
+  const availabilityWindow = useMemo(() => ({}), [selectedWindowKey, listing.id]);
   const [availabilityResult, setAvailabilityResult] = useState(null);
   // A result for the *previous* day, mode or duration can never unlock a bay.
-  const selectedAvailability = availabilityResult?.key === selectedWindowKey
+  const selectedAvailability = !durationError && availabilityResult?.window === availabilityWindow
     ? availabilityResult.data : null;
-  const availabilityFailed = availabilityResult?.key === selectedWindowKey
+  const availabilityFailed = availabilityResult?.window === availabilityWindow
     && availabilityResult.error;
   useEffect(() => {
+    if (durationError) {
+      setAvailabilityResult(null);
+      setChosenSpot(null);
+      setShowPayment(false);
+      setShowSpotPicker(false);
+      return;
+    }
     if (numericIdForAvailability === null) return;
     let cancelled = false;
     let controller;
     let revision = 0;
-    setChosenSpot(null);
+    availabilityPaused.current = false;
     setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
     if (bookingMode === "advance") {
@@ -1900,10 +1968,10 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
         return data;
       })
       .then(data => {
-        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, data, error: false });
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, window: availabilityWindow, data, error: false });
       })
       .catch(error => {
-        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, window: availabilityWindow, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
       });
     };
     load();
@@ -1919,8 +1987,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       window.removeEventListener("parkshare:availability-changed", load);
       document.removeEventListener("visibilitychange", load);
     };
-  }, [selectedWindowKey, numericIdForAvailability]);
-  const chosenSpotAvailable = chosenSpot !== null && canChooseListingSpot({
+  }, [availabilityWindow, numericIdForAvailability]);
+  const chosenSpotAvailable = bookingReady && !durationError && chosenSpot !== null && canChooseListingSpot({
     isRealListing: numericIdForAvailability !== null,
     hostRentable: spotLayout[chosenSpot]?.forRent === true,
     availableData: selectedAvailability,
@@ -1955,7 +2023,12 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
         <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview approximate route</Btn>
       </div>
 
-      {liveAvailability && (
+      {!bookingReady && <div className="ps-listing-bookability-notice" role={bookingReadiness.status === "unknown" ? "alert" : "status"}>
+        <strong>{bookingReadiness.status === "paused" ? "Listing paused" : bookingReadiness.status === "not_ready" ? "Not bookable yet" : bookingReadiness.status === "checking" ? "Checking booking status" : "Booking status unavailable"}</strong>
+        <p>{bookingReadinessMessage(bookingReadiness.status)}</p>
+        {bookingReadiness.status !== "checking" && <button type="button" className="ps-tap-target" onClick={bookingReadiness.retry}>Check again</button>}
+      </div>}
+      {bookingReady && liveAvailability && (
         <div style={{ marginBottom: 10 }}>
           {liveAvailability.available ? (
             <Badge color={C.moss}>🟢 {liveAvailability.spacesFree} spot{liveAvailability.spacesFree === 1 ? "" : "s"} available now</Badge>
@@ -2061,7 +2134,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {bookingMode === "now" ? (
             <>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
-                Starts the moment you pay · {new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
+                Starts the moment you pay · {bookNowTimes?.start || (durationError ? "Enter a valid duration" : "Listing local time unavailable")}
               </div>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>How long do you need?</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -2084,14 +2157,17 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               </div>
               {isCustomDuration && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <input type="number" min="1" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                  <input id="booking-custom-hours" type="number" min="1" max={MAX_BOOKING_HOURS} step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                    aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-duration-help booking-duration-error" : "booking-duration-help"}
                     style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif" }} />
-                  <span style={{ fontSize: 12, color: C.muted }}>hours</span>
+                  <label htmlFor="booking-custom-hours" style={{ fontSize: 12, color: C.muted }}>hours</label>
                 </div>
               )}
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
-                Ends around {new Date(Date.now() + hours * 3600 * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
-              </div>
+              {isCustomDuration && <p id="booking-duration-help" style={{ fontSize: 11, color: C.muted, marginTop: 0 }}>1–744 hours (31 days), in 15-minute increments.</p>}
+              {durationError && <p id="booking-duration-error" role="alert" style={{ fontSize: 12, color: C.red }}>{durationError}</p>}
+              {!durationError && <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
+                {bookNowTimes ? `Ends around ${bookNowTimes.end}` : "Estimated departure unavailable until the listing's time zone is verified."}
+              </div>}
             </>
           ) : (
             <>
@@ -2108,15 +2184,22 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ marginBottom: 8, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
+                  <select value={startHour} onChange={handleStartChange} aria-label="Parking start time" aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-schedule-error" : undefined} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
                     {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                   <span style={{ color: C.muted, fontSize: 13 }}>to</span>
-                  <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
+                  <select value={endHour} onChange={handleEndChange} aria-label="Parking end time" aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-schedule-error" : undefined} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
                     {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
                   </select>
                 </div>
-                <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
+                <p role="note" style={{ fontSize: 12, color: C.navy, margin: "8px 0" }}>
+                  {listing.timeZone ? `Times use ${listing.timeZone} local time.` : "Listing time zone unavailable."}
+                </p>
+                {durationError ? (
+                  <div id="booking-schedule-error" role="alert" style={{ fontSize: 11, color: C.red, fontWeight: 700, marginTop: 6 }}>
+                    {durationError} Adjust the start or end time.
+                  </div>
+                ) : <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>}
               </div>
             </>
           )}
@@ -2124,7 +2207,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {/* Live check tied to exactly what's selected above — re-runs on
               every duration/date/time change, so this never lags behind
               what's actually being booked. */}
-          {numericIdForAvailability !== null && (
+          {bookingReady && !durationError && numericIdForAvailability !== null && (
             selectedAvailability === null ? (
               <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed || "Checking availability… Spot selection is temporarily disabled."}</div>
             ) : selectedAvailability.available ? (
@@ -2138,9 +2221,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🔴</span>
                 <span style={{ fontSize: 10, color: C.navy, fontWeight: 700 }}>
-                  {selectedAvailability.reason === "host_schedule"
-                    ? `Host is not accepting bookings for that ${bookingMode === "now" ? "time" : "slot"} — choose another time`
-                    : `Full for that ${bookingMode === "now" ? "time" : "slot"} — try a different ${bookingMode === "now" ? "duration" : "time"}`}
+                  {listingAvailabilityMessage(selectedAvailability, bookingMode)}
                 </span>
               </div>
             )
@@ -2149,24 +2230,30 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
-              <button onClick={() => setShowSpotPicker(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
+              <button ref={spotPickerTrigger} className="ps-tap-target" type="button" disabled={Boolean(durationError) || !bookingReady} onClick={() => { if (!durationError && bookingReady) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
               {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
+            {bookingReady && chosenSpot !== null && selectedAvailability && !chosenSpotAvailable && (
+              <div role="status" style={{ fontSize: 11, color: C.red, marginTop: 6 }}>
+                Spot {spotLabel(chosenSpot)} is unavailable for this time. Choose another spot or change the date, time or duration.
+              </div>
+            )}
           </div>
           <div className="ps-booking-reserve-row" style={{ paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>
+              {durationError ? <div style={{ fontSize: 12, color: C.muted }}>Enter a valid duration to see the total.</div>
+                : <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>}
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={!chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => { if (!durationError && chosenSpotAvailable && selectedVehicle && !vehicleEditorOpen) setShowPayment(true); }} disabled={Boolean(durationError) || !chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
           </div>
           {!user && (
             <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
               Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
-              <button type="button" onClick={onRequestSignIn}
+              <button className="ps-tap-target" type="button" onClick={onRequestSignIn}
                 style={{ marginLeft: 9, fontSize: 12, fontWeight: 700, color: C.navy, border: "none", background: "transparent", textDecoration: "underline", cursor: "pointer" }}>
                 Sign in
               </button>
@@ -2180,8 +2267,8 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <MiniCalendar selected={date} onSelect={(d) => { setDate(d); setShowCalendar(false); }} />
         </Modal>
       )}
-      {showSpotPicker && (
-        <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
+      {showSpotPicker && bookingReady && !durationError && (
+        <Modal nativeModal returnFocus={() => spotPickerTrigger.current} title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
           {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
               <ListingThumb listing={listing} size="100%" />
@@ -2189,9 +2276,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           )}
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>
             {selectedAvailability
-              ? (selectedAvailability.available
-                  ? `${selectedAvailability.spacesFree} of ${selectedAvailability.spacesTotal} spot${selectedAvailability.spacesTotal === 1 ? "" : "s"} free for ${bookingMode === "now" ? "right now" : "that time"}. Tap the one you'd like to park in.`
-                  : `All spots are taken for ${bookingMode === "now" ? "right now" : "that time"} — try a different ${bookingMode === "now" ? "duration" : "time"}, or pick a different listing.`)
+              ? listingAvailabilityMessage(selectedAvailability, bookingMode)
               : numericIdForAvailability !== null
                 ? (availabilityFailed ? "Availability could not be checked. Please retry later." : "Checking this time slot. Spot selection will unlock when availability is confirmed.")
                 : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`}
@@ -2283,7 +2368,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
       <ReviewsSection listing={listing} user={user} />
 
-      {showPayment && (
+      {showPayment && bookingReady && !durationError && (
       <PaymentModal
           key={bookingCheckoutKey({ listing, hours, chosenSpot, date: bookingMode === "advance" ? date : undefined,
             startHour: bookingMode === "advance" ? startHour : undefined, endHour: bookingMode === "advance" ? endHour : undefined,
@@ -2408,6 +2493,18 @@ function EventSubmissionForm({ onClose }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const formId = useId();
+  const formElement = useRef(null);
+  const validationFocus = useRef(null);
+  useEffect(() => {
+    const shouldFocus = validationFocus.current;
+    validationFocus.current = null;
+    if (shouldFocus) formElement.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [fieldErrors]);
+  const fieldId = field => `${formId}-${field}`;
+  const fieldAttributes = field => ({id: fieldId(field), name: field, "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": [(["startTime", "endTime"].includes(field) ? `${formId}-timezone` : ""), fieldErrors[field] ? `${fieldId(field)}-error` : ""].filter(Boolean).join(" ") || undefined});
+  const fieldError = field => fieldErrors[field] && <p id={`${fieldId(field)}-error`} className="ps-form-field-error">{fieldErrors[field]}</p>;
   const [reference, setReference] = useState("");
   const submissionContext = useRef(null);
   useEffect(() => {
@@ -2424,6 +2521,8 @@ function EventSubmissionForm({ onClose }) {
     const context = submissionContext.current;
     if (!context?.active || context.busy || context.complete) return;
     setForm(current => ({ ...current, [field]: value }));
+    setFieldErrors(current => ({...current, [field]: ""}));
+    setError("");
   };
 
   const submit = async submitEvent => {
@@ -2431,6 +2530,9 @@ function EventSubmissionForm({ onClose }) {
     const context = submissionContext.current;
     const current = () => Boolean(context?.active && submissionContext.current === context);
     if (!current() || context.busy || context.complete) return;
+    const errors = validateEventSubmissionForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) { validationFocus.current = true; return; }
     context.busy = true;
     setSubmitting(true);
     setError("");
@@ -2467,37 +2569,36 @@ function EventSubmissionForm({ onClose }) {
   );
 
   return (
-    <form className="ps-event-submission-form" onSubmit={submit}>
+    <form ref={formElement} className="ps-event-submission-form" onSubmit={submit} noValidate>
+      {Object.values(fieldErrors).some(Boolean) && <div className="ps-form-error-summary" role="alert"><strong>Please correct the following:</strong><ul>{Object.entries(fieldErrors).filter(([, message]) => message).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
       <p className="ps-event-submission-intro">Tell us about your upcoming event. Submissions are reviewed before appearing on ParkShare.</p>
       <fieldset disabled={submitting}>
         <legend>Organizer contact</legend>
-        <label>Organizer or organization name *<input value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required /></label>
-        <label>Email address *<input type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required /></label>
-        <label>Phone number<input type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} /></label>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerName")}>Organizer or organization name *</label><input {...fieldAttributes("organizerName")} value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required />{fieldError("organizerName")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerEmail")}>Email address *</label><input {...fieldAttributes("organizerEmail")} type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required />{fieldError("organizerEmail")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerPhone")}>Phone number</label><input {...fieldAttributes("organizerPhone")} type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} />{fieldError("organizerPhone")}</div>
       </fieldset>
       <fieldset disabled={submitting}>
         <legend>Event details</legend>
-        <label className="is-wide">Event name *<input value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required /></label>
-        <label>Category *
-          <select value={form.category} onChange={event => update("category", event.target.value)} required>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventName")}>Event name *</label><input {...fieldAttributes("eventName")} value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required />{fieldError("eventName")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("category")}>Category *</label><select {...fieldAttributes("category")} value={form.category} onChange={event => update("category", event.target.value)} required>
             {EVENT_CATEGORIES.filter(option => option.value).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-        <label>Venue name *<input value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required /></label>
-        <label className="is-wide">Full event address *<input value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required /></label>
-        <label>Date *<input type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required /></label>
-        <label>Start time *<input type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required /></label>
-        <label>End time<input type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} /></label>
-        <div className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
-        <label className="is-wide">Description *<textarea value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required /></label>
-        <label className="is-wide">Ticket purchase link<input type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
-        <label className="is-wide">Official event link<input type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
-        <label className="is-wide">Parking, accessibility, or street-closure notes<textarea value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} /></label>
+          </select>{fieldError("category")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("venueName")}>Venue name *</label><input {...fieldAttributes("venueName")} value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required />{fieldError("venueName")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("address")}>Full event address *</label><input {...fieldAttributes("address")} value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required />{fieldError("address")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("eventDate")}>Date *</label><input {...fieldAttributes("eventDate")} type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required />{fieldError("eventDate")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("startTime")}>Start time *</label><input {...fieldAttributes("startTime")} type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required />{fieldError("startTime")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("endTime")}>End time</label><input {...fieldAttributes("endTime")} type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} />{fieldError("endTime")}</div>
+        <div id={`${formId}-timezone`} className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("description")}>Description *</label><textarea {...fieldAttributes("description")} value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required />{fieldError("description")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("ticketUrl")}>Ticket purchase link</label><input {...fieldAttributes("ticketUrl")} type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("ticketUrl")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventUrl")}>Official event link</label><input {...fieldAttributes("eventUrl")} type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("eventUrl")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("accessNotes")}>Parking, accessibility, or street-closure notes</label><textarea {...fieldAttributes("accessNotes")} value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} />{fieldError("accessNotes")}</div>
       </fieldset>
-      <label className="ps-event-submission-consent">
-        <input type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
-        <span>I confirm that I am authorized to submit this event information and that it is accurate.</span>
-      </label>
+      <div><label className="ps-event-submission-consent" htmlFor={fieldId("authorized")}>
+        <input {...fieldAttributes("authorized")} aria-labelledby={`${fieldId("authorized")}-label`} type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
+        <span id={`${fieldId("authorized")}-label`}>I confirm that I am authorized to submit this event information and that it is accurate.</span>
+      </label>{fieldError("authorized")}</div>
       <label className="ps-event-submission-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={event => update("website", event.target.value)} /></label>
       {error && <div className="ps-discover-error" role="alert">⚠️ {error}</div>}
       <div className="ps-event-submission-actions">
@@ -2677,7 +2778,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
   };
 
   return (
-    <main className="ps-discover-view">
+    <div className="ps-discover-view">
       <section className="ps-discover-hero">
         <span className="ps-discover-kicker">DISCOVER YOUR DESTINATION</span>
         <h1>Choose where you're going.<br />We'll help you park nearby.</h1>
@@ -2809,7 +2910,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           <EventSubmissionForm onClose={() => setEventSubmissionOpen(false)} />
         </Modal>
       )}
-    </main>
+    </div>
   );
 }
 
@@ -2828,6 +2929,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
   const [mapSelectedId, setMapSelectedId] = useState(null);
+  const [mapScrollRequest, setMapScrollRequest] = useState(0);
   const [mapSearchCenter, setMapSearchCenter] = useState(null);
   const listingColumnRef = useRef(null);
   const listingCardsRef = useRef(new Map());
@@ -3097,14 +3199,25 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
   const selectMapListing = (listing) => {
     const id = listing ? String(listing.id) : null;
     setMapSelectedId(id);
-    const column = listingColumnRef.current;
-    const card = listingCardsRef.current.get(id);
-    // Only scroll the independently scrolling list. On mobile the map sits
-    // above the cards; keep its preview in view rather than moving the page.
-    if (card && column && column.scrollHeight > column.clientHeight) {
-      card.scrollIntoView({ block: "nearest", inline: "nearest" });
-    }
+    setMapScrollRequest(request => request + 1);
   };
+  const listingOrderKey = JSON.stringify(filtered.map(listing => String(listing.id)));
+  useLayoutEffect(() => {
+    if (!mapSelectedId || view === "map") return;
+    const column = listingColumnRef.current;
+    const card = listingCardsRef.current.get(mapSelectedId);
+    if (!column || !card || column.clientHeight <= 0 || column.scrollHeight <= column.clientHeight
+      || !["auto", "scroll"].includes(window.getComputedStyle(column).overflowY)) return;
+    // Read committed card positions after selection and map-centre re-sorts.
+    // Move this scrollport only; scrollIntoView can also move the outer page.
+    const bounds = card.getBoundingClientRect();
+    const top = column.getBoundingClientRect().top + column.clientTop;
+    const bottom = top + column.clientHeight;
+    let next = column.scrollTop;
+    if (bounds.top < top || bounds.bottom - bounds.top > column.clientHeight) next += bounds.top - top;
+    else if (bounds.bottom > bottom) next += bounds.bottom - bottom;
+    column.scrollTop = Math.max(0, Math.min(column.scrollHeight - column.clientHeight, next));
+  }, [mapSelectedId, mapScrollRequest, listingOrderKey, view, selected]);
   const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
     ? `${listing.locationPrecision === "approximate" ? "≈ " : ""}${(listing.distMiles * 1.60934).toFixed(1)} km from ${locatedSearch ? "destination" : "your location"}`
     : "Select a destination for walking time");
@@ -3140,8 +3253,8 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
           <div style={{ flex: 1, position: "relative" }}>
-            <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
-              style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
+            <input className="ps-parking-search-input" ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
+              style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
             {loadingSug && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11 }}>⏳</span>}
             {/* Autocomplete dropdown */}
             {suggestions.length === 0 && sugError && !loadingSug && query.length >= 2 && (
@@ -3169,7 +3282,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
               </div>
             )}
           </div>
-          <select value={sort} onChange={e => setSort(e.target.value)}
+          <select aria-label="Sort parking results" value={sort} onChange={e => setSort(e.target.value)}
             style={{ flexShrink: 0, border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 8px", fontSize: 11, color: C.navy, cursor: "pointer", background: C.warmWhite }}>
             <option value="distance">Nearest</option>
             <option value="price">Price</option>
@@ -3180,16 +3293,16 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
           <div style={{ fontSize: 11, color: C.red, marginBottom: 6 }}>⚠️ {locationError}</div>
         )}
         {/* Row 2: location button (left) and view toggles, positioned under the sort dropdown (right) */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div>
             <button onClick={getLocation} title={userLoc && !locatedSearch ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc && !locatedSearch)}>
               <span>{locating ? "⏳" : "📍"}</span>
               <span>{locating ? "Locating…" : userLoc && !locatedSearch ? "Located" : "My location"}</span>
             </button>
           </div>
-          <div style={{ display: "flex", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexShrink: 0, gap: 4 }}>
             {[["split","⊞"],["list","☰"],["map","🗺"]].map(([v,label]) => (
-              <button key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+              <button className="ps-tap-target" key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
           </div>
         </div>
@@ -3250,6 +3363,7 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
               >
                 <button type="button" className="ps-browse-listing-main"
                   aria-label={`Show ${l.title} on map`}
+                  aria-describedby={l.bookingStatus !== "ready" ? `listing-bookability-${l.id}` : undefined}
                   aria-pressed={activeMapListing?.id === l.id}
                   onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); }}>
                   <div className="ps-browse-listing-thumb"><ListingThumb listing={l} fontSize={30} /></div>
@@ -3262,13 +3376,14 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
                         ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
                         : <span>{distanceLabel(l)}</span>}
                     </div>
+                    {l.bookingStatus !== "ready" && <span id={`listing-bookability-${l.id}`} className="ps-browse-bookability-note">{l.bookingStatus === "paused" ? "Listing paused — not accepting bookings" : l.bookingStatus === "not_ready" ? "Not bookable yet — Host setup incomplete" : "Booking status needs checking"}</span>}
                     {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
                 </button>
                 <div className="ps-browse-listing-actions">
                   <button type="button" onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); onPreviewRoute(l); }}>↗ Preview route</button>
-                  <button type="button" onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
+                  <button type="button" aria-describedby={l.bookingStatus !== "ready" ? `listing-bookability-${l.id}` : undefined} onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
                 </div>
               </div>
             ))}
@@ -3310,9 +3425,9 @@ function ParkingSearchEmptyState({ state, onClear, overlay = false }) {
 }
 
 // ─── Host Dashboard ───────────────────────────────────────────────────────────
-const LISTING_FEATURE_OPTIONS = ["Covered", "CCTV", "Well-lit", "Gated", "24hr Access"];
 
-function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false }) {
+
+function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false, returnFocus }) {
   const [price, setPrice] = useState(String(listing.price));
   const [description, setDescription] = useState(listing.description || "");
   const [features, setFeatures] = useState(listing.features || []);
@@ -3327,6 +3442,9 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
   const [selectedSpots, setSelectedSpots] = useState(initialSelected);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [title,setTitle] = useState(listing.title || "");
+  const [availability,setAvailability] = useState(() => editableListingAvailability(listing.availability,listing.timeZone));
+  const [paused,setPaused] = useState(listing.is_paused === true);
   const attempt = useRef(null);
   const mounted = useRef(true);
   useEffect(() => {
@@ -3357,6 +3475,8 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
     setErr("");
     const rate = validateHourlyRate(price);
     if (!rate.valid) { setErr(rate.error); return; }
+    if (!title.trim() || title.trim().length > 200) {setErr("Enter a driveway title of at most 200 characters.");return;}
+    if (availability) {const scheduleError = listingScheduleError(availability,listing.timeZone,paused); if(scheduleError){setErr(scheduleError);return;}}
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
     const work = { active: true, pending: true };
@@ -3376,6 +3496,9 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
       const ok = await onSave({
         ...listing,
         price: rate.value,
+        title: title.trim(),
+        is_paused: paused,
+        availability: availability || undefined,
         description,
         features,
         spots: newSpots,
@@ -3391,8 +3514,16 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
   };
 
   return (
-    <Modal title={"Edit — " + listing.title} onClose={close}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <Modal nativeModal title={"Edit — " + listing.title} onClose={close} returnFocus={returnFocus}>
+      <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+        <label htmlFor={`edit-title-${listing.rawId}`} style={{fontSize:12,color:C.navy,fontWeight:600}}>Listing title
+          <input id={`edit-title-${listing.rawId}`} value={title} disabled={saving} maxLength={200} onChange={event=>setTitle(event.target.value)} style={{width:"100%",minHeight:44,boxSizing:"border-box"}} />
+        </label>
+        <label htmlFor={`edit-pause-${listing.rawId}`} className="ps-tap-target" style={{display:"flex",alignItems:"center",gap:10,color:C.navy}}>
+          <input id={`edit-pause-${listing.rawId}`} type="checkbox" checked={paused} disabled={saving} onChange={event=>setPaused(event.target.checked)} />Pause this listing
+        </label>
+        <p style={{fontSize:12,color:C.muted,margin:0}}>Pausing stops new reservations and additional time. Existing reservations and checkouts already in progress keep their booked times. Uncheck to resume using your saved schedule.</p>
+        <ListingAvailabilityEditor value={availability} onChange={setAvailability} paused={paused} disabled={saving} C={C} />
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
           <input type="number" min="1" step="0.01" value={price} onChange={e => { setPrice(e.target.value); setErr(""); }} aria-invalid={Boolean(err && !validateHourlyRate(price).valid)}
@@ -3408,10 +3539,10 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 8 }}>Features</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {LISTING_FEATURE_OPTIONS.map(f => {
+            {[...new Set([...LISTING_FEATURE_OPTIONS,...features])].map(f => {
               const on = features.includes(f);
               return (
-                <button key={f} onClick={() => toggleFeature(f)} style={{
+                <button key={f} type="button" aria-pressed={on} disabled={saving} onClick={() => toggleFeature(f)} style={{
                   background: on ? C.moss : C.warmWhite, color: on ? C.white : C.navy,
                   border: "1.5px solid " + (on ? C.moss : C.concrete), borderRadius: 20, padding: "6px 14px",
                   fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -3440,7 +3571,7 @@ function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => f
         {err && <div role="alert" style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
 
         <Btn variant="amber" full onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Btn>
-      </div>
+      </fieldset>
     </Modal>
   );
 }
@@ -3650,7 +3781,24 @@ function TransactionsView({ user }) {
   );
 }
 
-function useHostListingDeletion(user, onDeleted) {
+function ListingDeletionDialog({ title, busy, onClose, onConfirm }) {
+  const [acknowledged, setAcknowledged] = useState(false);
+  return <Modal nativeModal title="Delete parking listing?" onClose={onClose}>
+    <p style={{ color: C.navy, lineHeight: 1.5 }}>Delete <strong>{title}</strong> from ParkShare?</p>
+    <label style={{ display: "flex", alignItems: "center", gap: 10, color: C.navy, margin: "18px 0" }}>
+      <input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} />
+      <span>I want to delete this listing.</span>
+    </label>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+      <button type="button" onClick={onClose} disabled={busy} style={{ minHeight: 44, padding: "10px 18px", border: 0, borderRadius: 8, background: C.concrete, color: C.navy, fontWeight: 700, cursor: "pointer" }}>Keep listing</button>
+      <button type="button" disabled={!acknowledged || busy} onClick={() => {
+        if (acknowledged && !busy) onConfirm();
+      }} style={{ minHeight: 44, padding: "10px 18px", border: 0, borderRadius: 8, background: C.red, color: C.white, fontWeight: 700, opacity: !acknowledged || busy ? 0.5 : 1, cursor: !acknowledged || busy ? "default" : "pointer" }}>{busy ? "Deleting…" : "Delete listing"}</button>
+    </div>
+  </Modal>;
+}
+
+function useHostListingDeletion(user, onDeleted, onNotice = null) {
   const accountId = user?.id || null;
   const [context, setContext] = useState(() => ({ accountId, request: null }));
   let current = context;
@@ -3691,9 +3839,14 @@ function useHostListingDeletion(user, onDeleted) {
     try {
       const result = await deleteHostListing(supabase, { listingId: request.rawId, hostId: accountId, isContextCurrent: () => isCurrent(token) });
       if (!isCurrent(token) || result.obsolete) return;
-      if (!result.ok) { alert(result.message); return; }
+      if (!result.ok) {
+        if (result.unavailable) onDeleted(request.displayId);
+        if (onNotice) onNotice(result.message, !result.unavailable); else alert(result.message);
+        return;
+      }
       onDeleted(request.displayId);
-      if (result.photoCleanupPending) alert("Listing deleted. Photo cleanup is queued and will retry automatically.");
+      const message = result.photoCleanupPending ? "Listing deleted. Photo cleanup is queued and will retry automatically." : "Listing deleted.";
+      if (onNotice) onNotice(message, false); else if (result.photoCleanupPending) alert(message);
     } finally {
       token.pending = false;
       if (isCurrent(token)) {
@@ -3711,9 +3864,14 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
   if (!rate.valid) throw new Error(rate.error);
   if (!accountId || !validId(updated?.rawId)) throw new Error("Reopen this listing while signed in as its Host.");
   if (!isContextCurrent()) return null;
+  if (typeof updated.title === "string" && (!updated.title.trim() || updated.title.trim().length > 200)) throw new Error("Enter a driveway title of at most 200 characters.");
+  if (updated.availability) {const error=listingScheduleError(updated.availability,updated.timeZone,updated.is_paused === true); if(error)throw new Error(error);}
   // Capture the exact editable payload before waiting for authentication.
   const changes = structuredClone({ price: rate.value, description: updated.description,
-    features: updated.features, spots: updated.spots, spaces: updated.spaces });
+    features: updated.features, spots: updated.spots, spaces: updated.spaces,
+    ...(typeof updated.title === "string" ? {title: updated.title.trim()} : {}),
+    ...(typeof updated.is_paused === "boolean" ? {is_paused: updated.is_paused} : {}),
+    ...(updated.availability ? {availability: updated.availability} : {}) });
   const listingId = updated.rawId;
   const { data: authData, error: authError } = await supabase.auth.getSession();
   if (!isContextCurrent()) return null;
@@ -3721,20 +3879,43 @@ async function persistHostListingEdit(updated, accountId, isContextCurrent = () 
     throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
   }
   if (!isContextCurrent()) return null;
-  const { data, error } = await supabase.from("listings").update(changes)
+  const { data: updatedRow, error } = await supabase.from("listings").update(changes)
     .eq("id", listingId).eq("host_id", accountId)
-    .select("id,price,description,features,spots,spaces").maybeSingle();
+    .select("id,title,price,description,features,spots,spaces,availability,is_paused").maybeSingle();
   if (!isContextCurrent()) return null;
   if (error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
-  if (!data || String(data.id) !== String(listingId)) throw new Error("This listing wasn't updated. Refresh your listings and reopen the editor.");
+  let data = updatedRow;
+  if (!data) {
+    // HTTP success without a representation cannot prove whether a write
+    // matched. Read once under the same owner; never replay the mutation.
+    const verified = await supabase.from("listings").select("id,title,price,description,features,spots,spaces,availability,is_paused")
+      .eq("id", listingId).eq("host_id", accountId).maybeSingle();
+    if (!isContextCurrent()) return null;
+    const {data: latestAuth, error: latestAuthError} = await supabase.auth.getSession();
+    if (!isContextCurrent()) return null;
+    if (latestAuthError || !latestAuth?.session?.access_token || latestAuth.session.user?.id !== accountId) throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
+    if (verified.error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+    if (!verified.data) {
+      const missing = new Error("This listing is no longer available. It may already have been deleted.");
+      missing.code = "listing_not_available";
+      throw missing;
+    }
+    if (!listingEditMatches(verified.data, changes)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+    data = verified.data;
+  }
+  if (String(data.id) !== String(listingId)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  if (!listingSettingsMatch(data, changes)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
   const savedRate = validateHourlyRate(data.price);
   if (!savedRate.valid || !Number.isInteger(Number(data.spaces)) || Number(data.spaces) < 1 || !Array.isArray(data.features || []) || !Array.isArray(data.spots || [])) {
     throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
   }
-  return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces) };
+  return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces),
+    ...(typeof data.title === "string" ? {title:data.title} : {}),
+    ...(typeof data.is_paused === "boolean" ? {is_paused:data.is_paused,active:!data.is_paused} : {}),
+    ...(data.availability ? {availability:data.availability} : {}) };
 }
 
-function useHostListingEdit(user, onSaved) {
+function useHostListingEdit(user, onSaved, onUnavailable = null) {
   const accountId = user?.id || null;
   const [context, setContext] = useState(() => ({ accountId, request: null, revision: 0 }));
   let current = context;
@@ -3756,7 +3937,8 @@ function useHostListingEdit(user, onSaved) {
   const open = listing => {
     if (!mounted.current || latest.current !== current || !accountId || !validId(listing?.rawId)) return;
     const snapshot = structuredClone({ id: listing.id, rawId: listing.rawId, title: listing.title, price: listing.price,
-      description: listing.description || "", features: listing.features || [], spots: listing.spots || [], spaces: listing.spaces || 1 });
+      description: listing.description || "", features: listing.features || [], spots: listing.spots || [], spaces: listing.spaces || 1,
+      availability: listing.availability, timeZone: listing.timeZone, is_paused: listing.is_paused === true });
     if (current.request) current.request.token.active = false;
     replace({ accountId, request: { listing: snapshot, token: { active: true, pending: false } }, revision: current.revision + 1 });
   };
@@ -3771,14 +3953,18 @@ function useHostListingEdit(user, onSaved) {
     if (String(updated?.rawId) !== String(request.listing.rawId)) throw new Error("Reopen the selected listing before saving.");
     token.pending = true;
     try {
-      const saved = await persistHostListingEdit(updated, accountId, isCurrent);
+      const saved = await persistHostListingEdit({...updated, timeZone:request.listing.timeZone}, accountId, isCurrent);
       if (!isCurrent() || !saved) return false;
       onSaved(request.listing.id, saved);
       token.active = false;
       replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
       return true;
     } catch (error) {
-      if (isCurrent()) throw error;
+      if (isCurrent() && error?.code === "listing_not_available" && onUnavailable) {
+        onUnavailable(request.listing.id, error.message);
+        token.active = false;
+        replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+      } else if (isCurrent()) throw error;
       return false;
     } finally {
       token.pending = false;
@@ -3788,6 +3974,10 @@ function useHostListingEdit(user, onSaved) {
 }
 
 function HostDashboard({ user, setTab }) {
+  const listingJournal = useMemo(() => createHostListingJournal(user?.id), [user?.id]);
+  const [listingNotice, setListingNotice] = useState(null);
+  const showListingNotice = (message, error = false) => setListingNotice({accountId: user?.id, message, error});
+  const listingFeedback = listingNotice?.accountId === user?.id ? listingNotice : null;
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
   const [hostLoading, setHostLoading] = useState(true);
@@ -3803,9 +3993,27 @@ function HostDashboard({ user, setTab }) {
   const [connecting, setConnecting] = useState(false);
   const onboardingAttempt = useRef(null);
 
-  useEffect(() => () => {
-    if (onboardingAttempt.current) onboardingAttempt.current.active = false;
-    onboardingAttempt.current = null;
+  useEffect(() => {
+    const invalidateAttempt = () => {
+      if (onboardingAttempt.current) onboardingAttempt.current.active = false;
+      onboardingAttempt.current = null;
+    };
+    const restoreDashboard = event => {
+      if (!event.persisted) return;
+      // Back from Stripe can restore this component without remounting it.
+      // Discard the old link request and recheck status before another attempt.
+      invalidateAttempt();
+      setConnecting(false);
+      setConnectError("");
+      setDashboardReload(value => value + 1);
+    };
+    window.addEventListener("pagehide", invalidateAttempt);
+    window.addEventListener("pageshow", restoreDashboard);
+    return () => {
+      window.removeEventListener("pagehide", invalidateAttempt);
+      window.removeEventListener("pageshow", restoreDashboard);
+      invalidateAttempt();
+    };
   }, [user?.id]);
 
   useEffect(() => {
@@ -3918,6 +4126,7 @@ function HostDashboard({ user, setTab }) {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
+    const listingReadVersion = listingJournal.version;
     setDbListings([]);
     setDbBookings([]);
     setHostReviews([]);
@@ -3940,13 +4149,16 @@ function HostDashboard({ user, setTab }) {
         if (![payload?.listings, payload?.bookings, payload?.reviews].every(Array.isArray)) throw new Error("Couldn't load your dashboard. Please try again.");
         const data = payload.listings;
         setDbListings(
-          data.map(row => ({
+          listingJournal.reconcile(data.map(row => ({
             id: "db-" + row.id,
             rawId: row.id,
             title: row.title,
             address: row.address,
             price: Number(row.price),
-            active: true,
+            active: row.is_paused !== true,
+            is_paused: row.is_paused === true,
+            availability: row.availability,
+            timeZone: row.time_zone,
             earnings: 0,
             bookings: 0,
             rating: 5,
@@ -3955,7 +4167,7 @@ function HostDashboard({ user, setTab }) {
             features: row.features || [],
             spaces: row.spaces || 1,
             spots: row.spots || [],
-          }))
+          })), listingReadVersion)
         );
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) {
@@ -4010,6 +4222,7 @@ function HostDashboard({ user, setTab }) {
                   spotLabel: row.spot_label || "",
                   driver: row.profiles?.name || "Renter",
                   vehicle: {
+                    vehicleType: row.vehicle_type || "",
                     vehicleMake: row.vehicle_make || "",
                     vehicleModel: row.vehicle_model || "",
                     vehicleColour: row.vehicle_colour || "",
@@ -4019,6 +4232,7 @@ function HostDashboard({ user, setTab }) {
                   date: display.date,
                   startTime: display.startTime,
                   endTime: display.endTime,
+                  timeZoneLabel: display.timeZoneLabel,
                   duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   bookingStart: window.start.toISOString(),
                   bookingEnd: window.end.toISOString(),
@@ -4080,23 +4294,32 @@ function HostDashboard({ user, setTab }) {
   const [showAllBookings, setShowAllBookings] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [listingActionId, setListingActionId] = useState(null);
+  const listingActionButtons = useRef(new Map());
   const [bookingActionId, setBookingActionId] = useState(null);
 
   const { deletingId, confirmDeleteId, open: openListingDeletion, close: closeListingDeletion,
     confirm: deleteListing } = useHostListingDeletion(user, displayId => {
+      listingJournal.remove(displayId);
       setDbListings(prev => prev.filter(l => l.id !== displayId));
-    });
+    }, showListingNotice);
 
   const { listing: editingListing, requestKey: editingKey, open: openListingEdit, close: closeListingEdit,
     save: saveListingEdit, isCurrent: isListingEditCurrent } = useHostListingEdit(user, (displayId, saved) => {
+      listingJournal.save(displayId, saved);
       setDbListings(prev => prev.map(l => l.id === displayId ? { ...l, ...saved } : l));
+      showListingNotice("Listing changes saved.");
+    }, (displayId, message) => {
+      listingJournal.hide(displayId);
+      setDbListings(prev => prev.filter(l => l.id !== displayId));
+      showListingNotice(message);
     });
 
   const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
     requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
     confirm: cancelHostBooking } = useBookingCancellation(user, "Cancelled by Host", (bookingId, result) => {
+      if (result.reviewRequired) return;
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: result.reviewRequired ? b.canCancel : false } : b));
     });
   const { data: txData, loading: txLoading, error: txError, retry: retryTransactions } = useTransactions(user);
 
@@ -4211,6 +4434,7 @@ function HostDashboard({ user, setTab }) {
                   date={b.date}
                   startTime={b.startTime}
                   endTime={b.endTime}
+                  timeZoneLabel={b.timeZoneLabel}
                   duration={b.duration}
                   bookingEnd={b.bookingEnd}
                   isActive={b.displayStatus === "Active"}
@@ -4230,6 +4454,7 @@ function HostDashboard({ user, setTab }) {
               <button onClick={() => setShowAllListings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllListings ? "Show less" : "Manage all"}</button>
             )}
           </div>
+          {listingFeedback && <p className="host-dashboard-listing-feedback" role={listingFeedback.error ? "alert" : "status"} style={{padding: "0 15px", color: listingFeedback.error ? C.red : C.navy, fontSize: 13}}>{listingFeedback.message}</p>}
           <div style={{ display: "flex", flexDirection: "column" }}>
             {!hostLoading && !hostError && myListings.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No listings yet.</div>
@@ -4243,13 +4468,10 @@ function HostDashboard({ user, setTab }) {
                 </div>
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
-                  <div className="host-dashboard-delete-confirm" style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button onClick={deleteListing} disabled={deletingId === l.id} style={{ minHeight: 34, background: C.red, color: C.white, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Delete"}</button>
-                    <button onClick={closeListingDeletion} disabled={deletingId !== null} style={{ minHeight: 34, background: C.concrete, color: C.navy, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Keep</button>
-                  </div>
+                  <ListingDeletionDialog title={l.title} busy={deletingId !== null} onConfirm={deleteListing} onClose={closeListingDeletion} />
                 ) : (
                   <div style={{ position: "relative", flexShrink: 0 }}>
-                    <button aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
+                    <button ref={node => { if (node) listingActionButtons.current.set(l.rawId, node); else listingActionButtons.current.delete(l.rawId); }} aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
                     {listingActionId === l.id && (
                       <div className="host-dashboard-action-menu">
                         <button onClick={() => { setListingActionId(null); openListingEdit(l); }}>Edit listing</button>
@@ -4384,6 +4606,7 @@ function HostDashboard({ user, setTab }) {
           onClose={closeListingEdit}
           onSave={saveListingEdit}
           isContextCurrent={isListingEditCurrent}
+          returnFocus={() => listingActionButtons.current.get(editingListing.rawId)}
         />
       )}
       {cancelTarget && (
@@ -4434,6 +4657,7 @@ function MessagesView({ onOpenThread, user }) {
           participantId: c.participantId,
           title: c.title,
           host: c.otherParty,
+          partyRole: c.partyRole,
           hostImg: "🧑",
           preview: c.preview,
         })));
@@ -4801,42 +5025,73 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const [drawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [drawError, setDrawError] = useState("");
   const mapRef = useRef(null);
+  const drawingRef = useRef(null);
+  const previewRef = useRef(null);
+  const drawToggle = useRef(null);
+  const instructionsId = useId();
+  const locationKey = `${center.lat}:${center.lng}`;
+  const latest = useRef(null);
+  latest.current = {locationKey, center, spots, maxSpots, onAddSpot};
+  // Keep the camera stable while the draft preview changes or spots are added.
+  const mapCenter = useMemo(() => ({lat: center.lat, lng: center.lng}), [center.lat, center.lng]);
+  if (drawingRef.current && (drawingRef.current.locationKey !== locationKey || spots.length >= maxSpots)) drawingRef.current = null;
+  const drawing = Boolean(draft && drawingRef.current === draft);
+  const firstCorner = drawing ? draft.first : null;
+  const preview = firstCorner ? {north: firstCorner.lat, south: firstCorner.lat, east: firstCorner.lng, west: firstCorner.lng} : null;
+  const changeDraft = next => { drawingRef.current = next; setDraft(next); setDrawError(""); };
+  useEffect(() => { changeDraft(null); }, [locationKey, maxSpots]);
+  useEffect(() => () => { drawingRef.current = null; mapRef.current = null; }, []);
+
+  const chooseCorner = latLng => {
+    const current = drawingRef.current, context = latest.current;
+    if (!current || current.locationKey !== locationKey || current.locationKey !== context.locationKey) return;
+    if (context.spots.length >= context.maxSpots) { changeDraft(null); return; }
+    const point = satelliteSpotPoint(latLng, context.center);
+    if (!point) { setDrawError("Choose a corner close to your confirmed driveway pin."); return; }
+    if (!current.first) { changeDraft({...current, first: point, second: null}); return; }
+    const bounds = satelliteSpotBounds(current.first, point);
+    if (!bounds) { setDrawError("Choose a different opposite corner so the spot has both width and height."); return; }
+    // Invalidate synchronously: repeated/stale map clicks cannot save twice.
+    changeDraft(null);
+    context.onAddSpot(bounds);
+    drawToggle.current?.focus();
+  };
+  const previewCorner = event => {
+    const current = drawingRef.current;
+    if (!current?.first || current.locationKey !== locationKey || latest.current.locationKey !== locationKey) return;
+    const point = satelliteSpotPoint(event.latLng, latest.current.center);
+    const bounds = point && satelliteSpotBounds(current.first, point);
+    // Keep hover out of React updates that replace the map's event listeners
+    // between mouse-down and mouse-up and can lose the finishing click.
+    if (bounds) previewRef.current?.setBounds(bounds);
+  };
 
   const boxStyle = { width: "100%", height: 320, borderRadius: 14, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 };
-
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) return <div style={boxStyle}>Satellite view unavailable — missing Google Maps API key</div>;
   if (loadError) return <div style={boxStyle}>Couldn't load satellite imagery</div>;
   if (!isLoaded) return <div style={boxStyle}>Loading satellite imagery…</div>;
 
-  const onRectangleComplete = (rect) => {
-    const b = rect.getBounds();
-    const ne = b.getNorthEast(), sw = b.getSouthWest();
-    onAddSpot({ north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng() });
-    rect.setMap(null); // remove the raw drawing-tool rectangle; we render our own below
-    setDrawing(false);
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }} onKeyDown={event => {
+      if (event.key === "Escape" && drawingRef.current) { event.preventDefault(); changeDraft(null); drawToggle.current?.focus(); }
+    }}>
       <div style={{ borderRadius: 14, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)" }}>
         <GoogleMap
           mapContainerStyle={{ width: "100%", height: 320 }}
-          center={center}
+          center={mapCenter}
           zoom={19}
           mapTypeId="satellite"
-          onLoad={(map) => { mapRef.current = map; }}
-          options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false }}
+          onLoad={map => { mapRef.current = map; }}
+          onUnmount={() => { drawingRef.current = null; mapRef.current = null; }}
+          onClick={event => chooseCorner(event.latLng)}
+          onMouseMove={previewCorner}
+          options={{ mapTypeId: "satellite", disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false, keyboardShortcuts: true, disableDoubleClickZoom: drawing, draggableCursor: drawing ? "crosshair" : undefined }}
         >
-          <DrawingManager
-            drawingMode={drawing ? window.google.maps.drawing.OverlayType.RECTANGLE : null}
-            onRectangleComplete={onRectangleComplete}
-            options={{
-              drawingControl: false,
-              rectangleOptions: { fillColor: SPOT_STROKE_RENT, fillOpacity: 0.35, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false, editable: false },
-            }}
-          />
+          {firstCorner && <Marker position={firstCorner} label="1" options={{clickable: false}} />}
+          {preview && <Rectangle bounds={preview} onLoad={rectangle => { previewRef.current = rectangle; }} onUnmount={() => { previewRef.current = null; }} options={{fillColor: SPOT_STROKE_RENT, fillOpacity: 0.2, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false}} />}
           {spots.map((s) => (
             <Rectangle
               key={s.id}
@@ -4846,9 +5101,9 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
                 fillOpacity: 0.35,
                 strokeColor: s.forRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE,
                 strokeWeight: 2,
-                clickable: true,
+                clickable: !drawing,
               }}
-              onClick={() => onToggleSpot(s.id)}
+              onClick={() => { if (!drawingRef.current) onToggleSpot(s.id); }}
             />
           ))}
           {spots.map((s, i) => {
@@ -4856,27 +5111,35 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
             return (
               <OverlayView key={"lbl-" + s.id} position={{ lat: cLat, lng: cLng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
                 <div style={{ transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, pointerEvents: "none" }}>
-                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
+                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, whiteSpace: "nowrap", color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
                     Spot {String.fromCharCode(65 + i)} {s.forRent ? "· FOR RENT" : "· PRIVATE"}
                   </span>
-                  <button onClick={() => onRemoveSpot(s.id)} style={{ pointerEvents: "auto", width: 18, height: 18, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
+                  <button type="button" aria-label={`Remove spot ${String.fromCharCode(65 + i)}`} disabled={drawing} onClick={() => { if (!drawingRef.current) onRemoveSpot(s.id); }} style={{ pointerEvents: drawing ? "none" : "auto", width: 44, height: 44, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
                 </div>
               </OverlayView>
             );
           })}
         </GoogleMap>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 11, color: C.muted }}>Tap a drawn spot to switch it between for-rent and private.</span>
-        <button
-          onClick={() => setDrawing(d => !d)}
-          disabled={spots.length >= maxSpots}
-          style={{
-            flexShrink: 0, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none",
-            borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: spots.length >= maxSpots ? "not-allowed" : "pointer",
-            opacity: spots.length >= maxSpots ? 0.5 : 1, fontFamily: "'Poppins', sans-serif",
+      <p id={instructionsId} role="status" style={{ fontSize: 12, color: C.navy, margin: 0 }}>
+        {drawing
+          ? firstCorner ? "Choose the opposite corner to finish this spot. You can tap the photo, or move the map with its arrow keys and use the map-centre button."
+            : "Choose the first corner of this spot. You can tap the photo, or move the map with its arrow keys and use the map-centre button."
+          : "Start drawing, then tap two opposite corners of each parking space. Tap a saved spot to switch it between for-rent and private."}
+      </p>
+      {drawError && <p role="alert" style={{fontSize: 12, color: C.red, margin: 0}}>{drawError}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 10 }}>
+        {drawing && <button type="button" aria-describedby={instructionsId} onClick={() => chooseCorner(mapRef.current?.getCenter())}
+          style={{minHeight: 44, background: C.white, color: C.navy, border: "1px solid " + C.navy, borderRadius: 8, padding: "8px 14px", fontWeight: 700, cursor: "pointer"}}>
+          {firstCorner ? "Set opposite corner at map centre" : "Set first corner at map centre"}
+        </button>}
+        <button ref={drawToggle} type="button" aria-pressed={drawing} aria-describedby={instructionsId}
+          onClick={() => {
+            if (drawingRef.current) changeDraft(null);
+            else if (latest.current.locationKey === locationKey && latest.current.spots.length < latest.current.maxSpots) changeDraft({locationKey, first: null, second: null});
           }}
-        >
+          disabled={!drawing && spots.length >= maxSpots}
+          style={{ minHeight: 44, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: !drawing && spots.length >= maxSpots ? "not-allowed" : "pointer", fontFamily: "'Poppins', sans-serif" }}>
           {drawing ? "Cancel drawing" : spots.length === 0 ? "✏️ Draw your first spot" : "+ Draw another spot"}
         </button>
       </div>
@@ -4983,15 +5246,21 @@ function ListDrivewayView({ user }) {
         if (!res.ok) throw new Error("Address search unavailable");
         const data = await res.json();
         if (requestId !== addressRequest.current || controller.signal.aborted) return;
+        const seenAddresses = new Set();
         setSuggestions(data.filter(d => Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lon))).map(d => ({
-          label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb, d.address.state].filter(Boolean).join(", "),
+          label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb || d.address.village, d.address.state || d.address.state_district].filter(Boolean).join(", "),
           street: [d.address.house_number, d.address.road].filter(Boolean).join(" "),
           city: d.address.city || d.address.town || d.address.suburb || d.address.village || "",
           region: d.address.state || d.address.state_district || "",
           postal: d.address.postcode || "",
           lat: parseFloat(d.lat),
           lng: parseFloat(d.lon),
-        })));
+        })).filter(suggestion => {
+          const address = suggestion.label.normalize("NFKC").trim().replace(/\s+/g, " ").replace(/\s*,\s*/g, ",").toLowerCase();
+          if (!address || seenAddresses.has(address)) return false;
+          seenAddresses.add(address);
+          return true;
+        }));
       } catch { if (requestId === addressRequest.current) setSuggestions([]); }
       if (requestId === addressRequest.current) setLoadingSug(false);
     }, 350);
@@ -5588,7 +5857,7 @@ function ListDrivewayView({ user }) {
               </>
             }>
               <label style={{ ...labelStyle, marginBottom: 0 }}>Mark your parking spots on the aerial photo</label>
-              <p style={{ fontSize: 12, color: C.muted, margin: "6px 0" }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Draw a box over each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: "6px 0" }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Choose two opposite corners to mark each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
               <DrivewaySpotSatelliteMap
                 center={{ lat: form.lat, lng: form.lng }}
                 spots={form.spots}
@@ -5597,7 +5866,7 @@ function ListDrivewayView({ user }) {
                 onRemoveSpot={removeSatelliteSpot}
                 maxSpots={8}
               />
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.selectedSpots.filter(Boolean).length} of {form.spots.length || 0} marked spot{form.spots.length !== 1 ? "s" : ""} available for rent</div>
+              <div role="status" style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.spots.length ? `${form.spots.filter(spot => spot.forRent).length} of ${form.spots.length} marked spot${form.spots.length !== 1 ? "s" : ""} available for rent` : "No spots marked yet"}</div>
             </SpotMapBoundary>
           ) : (
             <>
@@ -5618,7 +5887,7 @@ function ListDrivewayView({ user }) {
             <Btn variant="pill" onClick={() => setStep(3)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <button onClick={() => setStep(5)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-              <Btn onClick={() => setStep(5)} disabled={form.selectedSpots.filter(Boolean).length === 0}>Continue →</Btn>
+              <Btn onClick={() => setStep(5)} disabled={(hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? form.spots.filter(spot => spot.forRent) : form.selectedSpots.filter(Boolean)).length === 0}>Continue →</Btn>
             </div>
           </div>
         </div>
@@ -5627,14 +5896,7 @@ function ListDrivewayView({ user }) {
       {/* Step 5: Details */}
       {step === 5 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div><label style={labelStyle}>Features</label>
-            {[{key:"covered",label:"Covered / garage"},{key:"cctv",label:"CCTV / security camera"},{key:"lighting",label:"Well-lit at night"},{key:"snowRemoval",label:"Snow removal in winter"},{key:"evCharging",label:"EV charging available"},{key:"gated",label:"Gated access"}].map(({key,label}) => (
-              <label key={key} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom:8 }}>
-                <input type="checkbox" checked={form[key]} onChange={e => update(key, e.target.checked)} />
-                <span style={{ fontSize:14, color:C.navy }}>{label}</span>
-              </label>
-            ))}
-          </div>
+          <ListingFeatureFields form={form} onChange={update} C={C} />
           <div><label style={labelStyle}>Description (optional)</label><textarea style={{ ...inputStyle, resize:"vertical", minHeight:80 }} placeholder="Anything useful for drivers to know…" value={form.description} onChange={e => update("description", e.target.value)} /></div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
             <Btn variant="pill" onClick={() => setStep(4)}>← Back</Btn>
@@ -5983,7 +6245,10 @@ function clientBookingWindow(booking) {
 }
 
 function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = null) {
-  const timeZone = propertyTimeZone || (scheduled ? "UTC" : undefined);
+  let timeZone = propertyTimeZone || "UTC";
+  let verifiedZone = Boolean(propertyTimeZone);
+  try { new Intl.DateTimeFormat("en-CA", { timeZone }).format(0); }
+  catch { timeZone = "UTC"; verifiedZone = false; }
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
   const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
@@ -5994,6 +6259,7 @@ function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = 
     date: start.toLocaleDateString("en-CA", dateOptions),
     startTime: start.toLocaleTimeString("en-CA", timeOptions),
     endTime: end.toLocaleTimeString("en-CA", timeOptions),
+    timeZoneLabel: verifiedZone ? `${timeZone} local time` : "UTC (property time zone unavailable)",
   };
 }
 
@@ -6025,7 +6291,7 @@ async function requestBookingCancellation(bookingId, reason, expectedAccountId, 
       "Content-Type": "application/json",
       Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ bookingId, reason }),
+    body: JSON.stringify(typeof reason === "object" ? { bookingId, ...reason } : { bookingId, reason }),
   });
   const data = await response.json().catch(() => ({}));
   if (!isContextCurrent()) return null;
@@ -6067,7 +6333,7 @@ function useBookingCancellation(user, reason, onCancelled) {
     token.active = false;
     replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
   };
-  const confirm = async () => {
+  const confirm = async selectedReason => {
     const request = current.request, token = request?.token;
     if (!isCurrent(token) || token.pending) return;
     // Lock before the first await, including clicks before React re-renders.
@@ -6078,7 +6344,7 @@ function useBookingCancellation(user, reason, onCancelled) {
     patch("");
     try {
       const bookingId = request.target.rawId;
-      const result = await requestBookingCancellation(bookingId, reason, accountId, () => isCurrent(token), request.target.cancellationDeadline);
+      const result = await requestBookingCancellation(bookingId, selectedReason || reason, accountId, () => isCurrent(token), request.target.cancellationDeadline);
       if (!isCurrent(token) || !result) return;
       onCancelled(bookingId, result);
       token.active = false;
@@ -6095,22 +6361,37 @@ function useBookingCancellation(user, reason, onCancelled) {
 }
 
 function CancellationModal({ title, actor, busy, error, onClose, onConfirm, cancellationDeadline }) {
+  const [reasonCode, setReasonCode] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const reasons = CANCELLATION_REASONS[actor] || [];
+  const selectedReason = reasons.find(reason => reason.code === reasonCode);
+  const needsExplanation = selectedReason?.explanation;
   const deadlineError = busy ? "" : cancellationDeadlineError(cancellationDeadline);
   const deadlineNotice = deadlineError && actor === "host" ? "Host cancellations must be requested before the booking starts. Contact support for help with this booking." : deadlineError;
   return (
     <Modal title={title} onClose={onClose}>
       {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineNotice}</div> : <>
       <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
-        {actor === "host"
+        {selectedReason?.payer === "review" ? "Your report will go to ParkShare support for review. Selecting this reason does not cancel the booking or issue a refund." : actor === "host"
           ? "The Driver will receive a full refund, including the ParkShare service fee."
           : "Because this scheduled booking starts at least one hour from now, you'll receive a full refund, including the ParkShare service fee."}
       </p>
+      <label style={{display:"block",fontSize:13}}>Cancellation reason
+        <select value={reasonCode} disabled={busy} onChange={event => setReasonCode(event.target.value)} style={{display:"block",width:"100%",minHeight:44,margin:"8px 0"}}>
+          <option value="">Choose a reason</option>
+          {reasons.map(reason => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
+        </select>
+      </label>
+      {(needsExplanation || selectedReason?.payer === "review") && <label style={{display:"block",fontSize:13}}>Explanation{needsExplanation ? " (required)" : " (optional)"}
+        <textarea value={explanation} maxLength={1000} disabled={busy} onChange={event => setExplanation(event.target.value)} style={{display:"block",width:"100%",boxSizing:"border-box",minHeight:70,margin:"8px 0"}} />
+      </label>}
+      {selectedReason && <p style={{fontSize:12,lineHeight:1.55}}>{selectedReason.payer === "review" ? "ParkShare must verify the problem before deciding who covers the processing fee. This submits a support request; your booking remains active." : selectedReason.payer === "host" ? "The Host covers Stripe’s original processing fee. A ParkShare exception requires staff approval." : "ParkShare covers the original Stripe processing fee for this eligible free cancellation."}</p>}
       <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>
       </>}
       {error && !deadlineError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
         <Btn variant="ghost" onClick={onClose} disabled={busy}>Keep booking</Btn>
-        <Btn variant="outline" full onClick={onConfirm} disabled={busy || Boolean(deadlineError)}>{busy ? "Cancelling…" : "Confirm cancellation"}</Btn>
+        <Btn variant="outline" full onClick={() => onConfirm({reasonCode, explanation})} disabled={Boolean(busy || deadlineError || !selectedReason || needsExplanation && explanation.trim().length < 3)}>{busy ? "Submitting…" : selectedReason?.payer === "review" ? "Request support review" : "Confirm cancellation"}</Btn>
       </div>
     </Modal>
   );
@@ -6196,6 +6477,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             date: display.date,
             startTime: display.startTime,
             endTime: display.endTime,
+            timeZoneLabel: display.timeZoneLabel,
             duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
@@ -6205,6 +6487,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             spotLabel: row.spot_label || "",
             total: row.charged_total ?? row.total,
             vehicle: {
+              vehicleType: row.vehicle_type || "",
               vehicleMake: row.vehicle_make || "",
               vehicleModel: row.vehicle_model || "",
               vehicleColour: row.vehicle_colour || "",
@@ -6252,8 +6535,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
     requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
     confirm: cancelDriverBooking } = useBookingCancellation(user, "Cancelled by Driver", (bookingId, result) => {
+      if (result.reviewRequired) return;
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: result.reviewRequired ? b.canCancel : false } : b));
     });
 
   return (
@@ -6356,6 +6640,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.navy, lineHeight: 1.5, overflowWrap: "anywhere" }}>Reservation #PK-{b.rawId}</div>
             </div>
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
@@ -6366,9 +6651,10 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           </div>
           {isPast ? (
             <div className="ps-past-booking-overview">
-              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}`}>
+              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}, ${b.timeZoneLabel}`}>
                 <strong>{b.date}</strong>
                 <span>{b.startTime} – {b.endTime} <span className="ps-past-booking-duration">· {b.duration}</span></span>
+                <span>{b.timeZoneLabel}</span>
               </div>
               <button
                 type="button"
@@ -6387,6 +6673,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             date={b.date}
             startTime={b.startTime}
             endTime={b.endTime}
+            timeZoneLabel={b.timeZoneLabel}
             duration={b.duration}
             bookingEnd={b.bookingEnd}
             isActive={displayStatus === "Active"}
@@ -6485,7 +6772,7 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 // Booking-only vehicle editor is shared by Hosts and Drivers.
 function BookingVehicleForm({ user, onSaved, onCancel }) {
   const accountId = user?.id || null;
-  const [form, setForm] = useState(() => Object.fromEntries(["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].map(key => [key, user?.[key] || ""])));
+  const [form, setForm] = useState(() => Object.fromEntries(["vehicleType", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].map(key => [key, user?.[key] || ""])));
   const [errors, setErrors] = useState({});
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -6558,6 +6845,16 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
 
   return (
     <div className="ps-profile-vehicle-fields">
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-type`}>Vehicle type <span>Optional</span></label>
+        <select id={`${idPrefix}-type`} value={vehicle.vehicleType || ""} disabled={disabled}
+          onChange={event => onUpdate("vehicleType", event.target.value)}
+          aria-invalid={Boolean(errorFor("vehicleType"))} aria-describedby={describedBy("vehicleType")}>
+          <option value="">Not specified</option>
+          {Object.entries(VEHICLE_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        {errorFor("vehicleType") && <small id={errorId("vehicleType")} role="alert">{errorFor("vehicleType")}</small>}
+      </div>
       <div className="ps-profile-field">
         <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>{required ? "Required" : "Recommended"}</span></label>
         <select required={required}
@@ -6678,6 +6975,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   const [form, setForm] = useState({
     name: user?.name || "",
     phone: user?.phone || "",
+    vehicleType: user?.vehicleType || "",
     vehicleMake: user?.vehicleMake || "",
     vehicleModel: user?.vehicleModel || "",
     vehicleColour: user?.vehicleColour || "",
@@ -6716,13 +7014,14 @@ function DriverProfileView({ user, onProfileUpdated }) {
     setForm({
       name: user?.name || "",
       phone: user?.phone || "",
+      vehicleType: user?.vehicleType || "",
       vehicleMake: user?.vehicleMake || "",
       vehicleModel: user?.vehicleModel || "",
       vehicleColour: user?.vehicleColour || "",
       licensePlate: user?.licensePlate || "",
       guestVehicles: Array.isArray(user?.guestVehicles) ? user.guestVehicles : [],
     });
-  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
+  }, [user?.id, user?.name, user?.phone, user?.vehicleType, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
 
   const update = (field, value) => {
     if (!canAct() || attempt.current?.pending) return;
@@ -6772,7 +7071,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
     const id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setForm(current => ({
       ...current,
-      guestVehicles: [...current.guestVehicles, { id, vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
+      guestVehicles: [...current.guestVehicles, { id, vehicleType: "", vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
     }));
     setOpenGuestIds(current => ({ ...current, [id]: true }));
     setErrors(current => ({ ...current, guestVehicles: "" }));
@@ -6793,7 +7092,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
     setSaveError("");
     setSaved(false);
     if (!validation.valid) {
-      if (["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
+      if (["vehicleType", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
         setPrimaryOpen(true);
       }
       const guestIndexes = Object.keys(validation.errors)
@@ -6832,7 +7131,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   return (
-    <main className="ps-driver-profile-page">
+    <div className="ps-driver-profile-page">
       <section className="ps-driver-profile-intro">
         <div>
           <div className="ps-profile-eyebrow">DRIVER PROFILE</div>
@@ -6963,7 +7262,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
           <button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</button>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
@@ -7325,8 +7624,9 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(26,42,107,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, fontFamily: "'Poppins', sans-serif" }}>
-      <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+    <NativeDialog onClose={closeDialog} title={{ landing: "Sign in or create a ParkShare account", signin: "Sign in to ParkShare", signup: "Create a ParkShare account", role: "Choose your ParkShare role", disclaimer: "ParkShare terms and privacy", verify: "Confirm your ParkShare email", recovery: "Reset your ParkShare password", recoverySuccess: "ParkShare password updated" }[screen] || "ParkShare account"}
+      className="ps-auth-dialog" style={{ position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", maxWidth: 400, maxHeight: "calc(100dvh - 40px)", overflowY: "auto", border: 0, padding: 0, background: C.white, borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", fontFamily: "'Poppins', sans-serif" }}>
+      <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, overflow: "hidden" }}>
 
         {/* Modal header */}
         <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "24px 24px 18px", textAlign: "center", position: "relative" }}>
@@ -7508,7 +7808,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                   ParkShare is not liable for damage, injury, disputes, or losses connected to a booking, to the fullest extent the law allows.
                 </p>
                 <p style={{ margin: 0 }}>
-                  This is a summary. <a href="/?legal=liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
+                  This is a summary. <a href="/liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
                 </p>
               </div>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
@@ -7537,63 +7837,92 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
         </div>
       </div>
-    </div>
+    </NativeDialog>
   );
 }
 
+function NativeDialog({ children, onClose, title, className, style, returnFocus }) {
+  const dialogRef = React.useRef(null);
+  const useDialogLayoutEffect = typeof document === "undefined" ? React.useEffect : React.useLayoutEffect;
+  const controlsFor = dialog => [...dialog.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")]
+    .filter(control => control.tabIndex >= 0 && !control.matches(":disabled")
+      && !control.closest("[hidden], [inert]") && control.getClientRects().length > 0);
+  const keepFocusInside = dialog => {
+    if (!dialog.contains(dialog.ownerDocument.activeElement)) controlsFor(dialog)[0]?.focus({ preventScroll: true });
+  };
+  useDialogLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = dialog.ownerDocument.activeElement;
+    // Native modality places the panel in the top layer and makes the page inert.
+    dialog.showModal();
+    keepFocusInside(dialog);
+    return () => {
+      dialog.close();
+      const requested = returnFocus?.();
+      const target = requested?.isConnected ? requested : opener;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    };
+  }, []);
+  // Screen/form changes can remove the focused control; preserve valid input focus.
+  useDialogLayoutEffect(() => { keepFocusInside(dialogRef.current); });
+  return <dialog ref={dialogRef} className={className} style={style} aria-label={title} aria-modal="true"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const dialog = event.currentTarget, controls = controlsFor(dialog);
+      const first = controls[0], last = controls.at(-1), active = dialog.ownerDocument.activeElement;
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog || !dialog.contains(active))) {
+        event.preventDefault(); first.focus();
+      }
+    }}>{children}</dialog>;
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
-// ─── Floating Parker Help Assistant ────────────────────────────────────────────
-function FloatingParkerHelp({ onHelpClick, onContactClick }) {
+// ─── Parker Help Assistant ─────────────────────────────────────────────────────
+function ParkerHelp({ onHelpClick, onContactClick }) {
   const [open, setOpen] = useState(false);
   const [activeQ, setActiveQ] = useState(null);
-  const [pos, setPos] = useState(null); // { right, bottom } in px; null = default corner
-  const dragState = useRef({ dragging: false, moved: false, startX: 0, startY: 0, startRight: 16, startBottom: 16 });
+  const panelId = useId();
+  const trigger = useRef(null);
+  const backButton = useRef(null);
+  const topicButtons = useRef([]);
+  const focusAfterChange = useRef(null);
 
-  const BTN_SIZE = 60;
+  useEffect(() => {
+    const target = focusAfterChange.current;
+    focusAfterChange.current = null;
+    if (!open || target === null) return;
+    (target === "answer" ? backButton.current : topicButtons.current[target])?.focus();
+  }, [open, activeQ]);
 
-  const clampPos = (right, bottom) => {
-    const maxRight = window.innerWidth - BTN_SIZE;
-    const maxBottom = window.innerHeight - BTN_SIZE;
-    return { right: Math.min(Math.max(right, 0), maxRight), bottom: Math.min(Math.max(bottom, 0), maxBottom) };
+  const closeHelp = () => {
+    setOpen(false);
+    setActiveQ(null);
+    focusAfterChange.current = null;
+    trigger.current?.focus();
   };
 
-  const onPointerDown = (e) => {
-    const current = pos || { right: 16, bottom: 16 };
-    dragState.current = {
-      dragging: true, moved: false,
-      startX: e.clientX, startY: e.clientY,
-      startRight: current.right, startBottom: current.bottom,
-    };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-
-  const onPointerMove = (e) => {
-    const d = dragState.current;
-    if (!d.dragging) return;
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
-    if (d.moved) {
-      setPos(clampPos(d.startRight - dx, d.startBottom - dy));
-    }
-  };
-
-  const onPointerUp = () => {
-    dragState.current.dragging = false;
-  };
-
-  const handleClick = () => {
-    if (dragState.current.moved) { dragState.current.moved = false; return; }
-    setOpen(o => !o);
-  };
-
-  const corner = pos || { right: 16, bottom: 16 };
-  const panelOnLeft = corner.right > (typeof window !== "undefined" ? window.innerWidth - 340 : 340);
-
+  // Reserve space in document flow: help must never sit over maps, reviews or cards.
   return (
-    <div style={{ position: "fixed", right: corner.right, bottom: corner.bottom, zIndex: 1500, fontFamily: "'Poppins', sans-serif" }}>
+    <div className="ps-parker-help" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 60px", alignItems: "center", gap: 16, width: "100%", maxWidth: 1180, boxSizing: "border-box", padding: "20px 24px", margin: "0 auto", fontFamily: "'Poppins', sans-serif" }} onKeyDown={event => {
+      if (event.key === "Escape" && open) { event.preventDefault(); closeHelp(); }
+    }}>
+      <div style={{ minWidth: 0, color: C.navy }}>
+        <strong>Need a hand?</strong>
+        <div style={{ fontSize: 13 }}>Ask Parker for help with ParkShare.</div>
+      </div>
+      <button ref={trigger} type="button" aria-label="ParkShare help" aria-expanded={open} aria-controls={panelId}
+        onClick={() => { if (open) closeHelp(); else setOpen(true); }}
+        style={{ width: 60, height: 60, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white,
+          boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px " + C.navy, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 0, overflow: "hidden", touchAction: "manipulation" }}>
+        <img src={PARKER.icon} alt="Parker help" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+      </button>
       {open && (
-        <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
+        <div id={panelId} role="region" aria-label="Ask Parker" style={{ gridColumn: "1 / -1", justifySelf: "end", width: "100%", minWidth: 0, maxWidth: 540, boxSizing: "border-box", background: C.white, borderRadius: 18, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "2px solid " + C.navy }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderRadius: "16px 16px 0 0", position: "relative", zIndex: 1 }}>
             <div style={{ width: 68, height: 68, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 2 }}>
               <img src={PARKER.icon} alt="Parker" style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -7602,7 +7931,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
               <div style={{ color: C.white, fontWeight: 700, fontSize: 14 }}>Ask Parker</div>
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 11 }}>Your ParkShare helper</div>
             </div>
-            <button onClick={() => { setOpen(false); setActiveQ(null); }} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 26, height: 26, cursor: "pointer", color: C.white, fontSize: 14, flexShrink: 0 }}>×</button>
+            <button type="button" aria-label="Close Parker help" onClick={closeHelp} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 44, height: 44, cursor: "pointer", color: C.white, fontSize: 14, flexShrink: 0 }}>×</button>
           </div>
 
           <div style={{ padding: "14px 16px" }}>
@@ -7611,7 +7940,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Hi, I'm Parker! What can I help with?</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {HELP_TOPICS.map((t, i) => (
-                    <button key={i} onClick={() => setActiveQ(i)} style={{ textAlign: "left", background: C.warmWhite, border: "1.5px solid " + C.concrete, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: C.navy, fontWeight: 600, cursor: "pointer" }}>
+                    <button key={i} ref={node => { topicButtons.current[i] = node; }} type="button" onClick={() => { focusAfterChange.current = "answer"; setActiveQ(i); }} style={{ textAlign: "left", background: C.warmWhite, border: "1.5px solid " + C.concrete, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: C.navy, fontWeight: 600, cursor: "pointer" }}>
                       {t.q}
                     </button>
                   ))}
@@ -7622,7 +7951,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
               </>
             ) : (
               <div>
-                <button onClick={() => setActiveQ(null)} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: 0, marginBottom: 10 }}>← Back to topics</button>
+                <button ref={backButton} type="button" onClick={() => { focusAfterChange.current = activeQ; setActiveQ(null); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: 0, marginBottom: 10 }}>← Back to topics</button>
                 <div style={{ fontWeight: 700, color: C.navy, fontSize: 13, marginBottom: 8 }}>{HELP_TOPICS[activeQ].q}</div>
                 <div style={{ background: C.mossLight, border: "1px solid " + C.moss, borderRadius: 10, padding: "12px 14px", color: C.navy, fontSize: 13, lineHeight: 1.5 }}>
                   {HELP_TOPICS[activeQ].a}
@@ -7638,21 +7967,6 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
           </div>
         </div>
       )}
-
-      <button
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClick={handleClick}
-        style={{
-          width: BTN_SIZE, height: BTN_SIZE, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white,
-          boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px " + C.navy, cursor: "grab",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 0, overflow: "hidden",
-          marginLeft: "auto", touchAction: "none", userSelect: "none",
-        }} aria-label="ParkShare help">
-        <img src={PARKER.icon} alt="Parker help" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
-      </button>
     </div>
   );
 }
@@ -7671,7 +7985,7 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
       <div className="ps-footer-v2-inner">
         <div className="ps-footer-v2-brand">
           <button className="ps-footer-v2-logo" onClick={onAboutClick} aria-label="About ParkShare">
-            <img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" />
+            <img src="/brand/parkshare-footer-480.webp" srcSet="/brand/parkshare-footer-480.webp 480w, /brand/parkshare-footer-960.webp 960w" sizes="(max-width: 820px) 180px, 220px" width="1440" height="615" alt="ParkShare" loading="lazy" decoding="async" />
           </button>
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
@@ -7716,7 +8030,7 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
         <div className="ps-footer-v2-powered" aria-label="Powered by ESKA Technologies">
           <span>Powered by</span>
           <span className="ps-footer-v2-powered-logo">
-            <img src="/parker/parker-eska-logo.png" alt="ESKA Technologies" />
+            <img src="/brand/eska-footer.webp" width="400" height="76" alt="ESKA Technologies" loading="lazy" decoding="async" />
           </span>
         </div>
       </div>
@@ -7796,7 +8110,7 @@ function DiscoverNav({ tab, onTabChange, signedIn = false }) {
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
-    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
+    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions", "Profile"]
     : ["Browse", "Discover", "My Bookings", "Messages", "Transactions", "Profile"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
@@ -7807,7 +8121,18 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
 
   return (
     <header className={`ps-header${dashboardMobileHeader ? " ps-header-dashboard" : ""}`} style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
-      <style>{`
+      <a className="ps-skip-link" href="#main-content" onClick={event => {
+        const content = document.getElementById("main-content");
+        if (!content) return;
+        event.preventDefault();
+        // Keep the target below the current desktop/mobile sticky header.
+        const headerHeight = event.currentTarget.closest("header")?.getBoundingClientRect().height || 0;
+        content.style.scrollMarginTop = `${Math.ceil(headerHeight) + 8}px`;
+        content.focus({ preventScroll: true });
+        content.scrollIntoView({ block: "start", behavior: "instant" });
+      }}>Skip to main content</a>
+      {/* Authored static CSS: preserve raw selectors/quotes across SSR hydration. */}
+      <style dangerouslySetInnerHTML={{__html: `
         /* One header system for every public ParkShare page. */
         .ps-mobile-header-row { display: none !important; }
         .ps-dashboard-mobile-header-row { display: none !important; }
@@ -7914,7 +8239,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             margin-bottom: 2px;
           }
         }
-      `}</style>
+      `}} />
       {dashboardMobileHeader && (
         <div className="ps-dashboard-mobile-header-row">
           <button onClick={onLogoClick} aria-label="ParkShare home" style={{ width: 190, maxWidth: "62vw", minHeight: 44, padding: 0, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "flex-start" }}>
@@ -8126,7 +8451,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
           {tabs.map(t => t === "Discover" ? (
             <DiscoverNav key={t} tab={tab} signedIn onTabChange={nextTab => { setDashboardMenuOpen(false); onTabChange(nextTab); }} />
           ) : (
-            <button key={t} aria-label={t === "Profile" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && !user.profileComplete ? "Profile •" : t}</button>
+            <button key={t} aria-label={t === "Profile" && user.role === "driver" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && user.role === "driver" && !user.profileComplete ? "Profile •" : t}</button>
           ))}
         </div>
       )}
@@ -8261,6 +8586,25 @@ function FoundingHostsCard({ onShowAuth }) {
   );
 }
 
+function NotFoundPage() {
+  return (
+    <div style={{minHeight: "100vh", background: C.warmWhite, color: C.navy, fontFamily: "'Poppins', sans-serif"}}>
+      <header style={{background: C.navy, padding: 24, textAlign: "center"}}>
+        <a href="/" aria-label="ParkShare home"><img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" style={{width: "100%", maxWidth: 300, height: "auto"}} /></a>
+      </header>
+      <main id="main-content" tabIndex={-1} style={{maxWidth: 640, margin: "0 auto", padding: "56px 24px"}}>
+        <p style={{fontWeight: 800}}>404</p>
+        <h1>Page not found</h1>
+        <p>That address does not lead to a ParkShare page. You can find parking or return to the homepage.</p>
+        <nav aria-label="Find your way" style={{display: "flex", flexWrap: "wrap", gap: 12, marginTop: 24}}>
+          <a href="/parking" style={{display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 20px", background: C.amber, color: C.navy, border: "2px solid " + C.navy, borderRadius: 10, fontWeight: 700}}>Find Parking</a>
+          <a href="/" style={{display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 20px", color: C.navy, border: "2px solid " + C.navy, borderRadius: 10, fontWeight: 700}}>Home</a>
+        </nav>
+      </main>
+    </div>
+  );
+}
+
 function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick, onHelpClick }) {
   return (
     <div className="ps-landing-page ps-home-v2">
@@ -8277,6 +8621,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* Section 1 — Hero */}
       <section className="ps-home-v2-hero">
@@ -8291,14 +8636,18 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-hero-art">
           <div className="ps-home-v2-parker-card">
-            <ResponsiveMascot
-              family="william-parker-v2"
-              name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
-              alt="William and Parker welcoming ParkShare Drivers and Hosts"
-              className="ps-mascot-home-hero"
-              hero
-              sizes="(max-width: 600px) 82vw, 340px"
-            />
+            <picture style={{display: "contents"}}>
+              <source type="image/avif" srcSet={HOME_HERO_AVIF_SRC_SET} sizes={HOME_HERO_IMAGE.sizes} />
+              <img
+                {...HOME_HERO_IMAGE}
+                alt="William and Parker welcoming ParkShare Drivers and Hosts"
+                className="ps-responsive-mascot ps-mascot-home-hero"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
           </div>
         </div>
       </section>
@@ -8413,6 +8762,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       </section>
 
       {/* Section 7 — Footer */}
+      </main>
       <HomeFooter
         hostFirst
         onLegalClick={onLegalClick}
@@ -8435,9 +8785,9 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
 function LegalDoc({ eyebrow, title, accent, updated, children }) {
   return (
     <section style={{ marginBottom: 56 }}>
-      <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>{eyebrow}</div>
+      <div style={{ color: "#8A6100", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>{eyebrow}</div>
       <div style={{ display: "inline-block", background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "8px 18px", marginBottom: 4 }}>
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.white }}>{accent}</span></h1>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.navy }}>{accent}</span></h1>
       </div>
       <p style={{ color: C.muted, fontSize: 12.5, margin: "10px 0 20px" }}>Last updated: {updated}</p>
       {children}
@@ -8468,7 +8818,8 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+function LegalPage({ section = "terms", onLegalClick, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+  const activeSection = ["terms", "privacy", "payments", "liability"].includes(section) ? section : "terms";
   const UPDATED = "August 22, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -8491,13 +8842,14 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
         <div id="legal-documents" style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32, scrollMarginTop: 90 }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>On this page</div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>Legal documents</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {nav.map(([id, label]) => (
-              <a key={id} href={"#" + id} style={{ color: C.navy, textDecoration: "none", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <a key={id} href={getRouteForState("legal", "Browse", id).path} aria-current={activeSection === id ? "page" : undefined} style={{ color: C.navy, textDecoration: "none", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.hazard, flexShrink: 0 }} />
                 {label}
               </a>
@@ -8505,7 +8857,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
 
-        <div id="terms" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "terms" && (<div id="terms" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 1 of 4" title="Terms of" accent="Service" updated={UPDATED}>
             <LegalH2>1. Agreement to Terms</LegalH2>
             <LegalP>ParkShare is a product developed and operated by ESKA Technologies Inc. ("ESKA Technologies," "we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
@@ -8583,9 +8935,9 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>16. Contact</LegalH2>
             <LegalP>Questions about these Terms: <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="privacy" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "privacy" && (<div id="privacy" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 2 of 4" title="Privacy" accent="Policy" updated={UPDATED}>
             <LegalP>This Privacy Policy explains how ESKA Technologies Inc., the developer and operator of ParkShare ("we," "us," or "our"), collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
 
@@ -8637,9 +8989,9 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>12. Contact Us</LegalH2>
             <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="payments" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "payments" && (<div id="payments" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 3 of 4" title="Payment Processing" accent="Agreement" updated={UPDATED}>
             <LegalP>This Agreement explains how payments, fees, and payouts work on the ParkShare Platform, and forms part of the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink>. By making a booking or listing a driveway on ParkShare, you agree to this Agreement.</LegalP>
 
@@ -8680,9 +9032,9 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>12. Contact</LegalH2>
             <LegalP>Payment-related questions can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="liability" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "liability" && (<div id="liability" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 4 of 4" title="Disclaimer of" accent="Liability" updated={UPDATED}>
             <LegalP>This Disclaimer of Liability supplements the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink> and applies to all use of the ParkShare Platform. By using ParkShare, you acknowledge and agree to the following.</LegalP>
 
@@ -8734,10 +9086,11 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalH2>9. Contact</LegalH2>
             <LegalP>Questions about this Disclaimer can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
       </div>
 
-      <HomeFooter onLegalClick={(section = "terms") => document.getElementById(section)?.scrollIntoView({ block: "start" })} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
+      </main>
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -8746,26 +9099,29 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // Legal page, with a simple form. Reached via the footer's "Contact Us"
 // button. Form has no backend wired up yet — see the TODO on handleSubmit.
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled }) {
+function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled, required = false }) {
+  const fieldId = useId();
+  const errorId = `${fieldId}-error`;
+  const accessibility = {id: fieldId, required, "aria-invalid": Boolean(error), "aria-describedby": error ? errorId : undefined};
   const fieldStyle = {
     width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14,
-    border: "2px solid " + (error ? C.hazard : C.concrete), fontFamily: "'Poppins', sans-serif",
+    border: "2px solid " + (error ? C.red : C.concrete), fontFamily: "'Poppins', sans-serif",
     color: C.navy, background: C.white, outline: "none", boxSizing: "border-box",
   };
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
+      <label htmlFor={fieldId} style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
       {options ? (
-        <select name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
+        <select {...accessibility} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
           <option value="">Select a topic</option>
           {options.map(option => <option key={option} value={option}>{option}</option>)}
         </select>
       ) : textarea ? (
-        <textarea name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
+        <textarea {...accessibility} name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
       ) : (
-        <input type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
+        <input {...accessibility} type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
       )}
-      {error && <div style={{ color: C.hazard, fontSize: 12, marginTop: 4, fontWeight: 600 }}>{error}</div>}
+      {error && <div id={errorId} className="ps-form-field-error">{error}</div>}
     </div>
   );
 }
@@ -8824,6 +9180,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
     <div className="ps-trust-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={onHostClick} onAboutClick={onAboutClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       <section id="trust" className="ps-trust-v2-hero">
         <div className="ps-trust-v2-hero-copy">
@@ -8854,7 +9211,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         {TRUST_SECTIONS.map((s) => <button key={s.id} onClick={() => s.id === "privacy" ? onLegalClick?.("privacy") : scrollTo(s.id)}><span>{s.icon}</span>{s.title}</button>)}
       </nav>
 
-      <main className="ps-trust-v2-content">
+      <div className="ps-trust-v2-content">
         <section id="community" className="ps-trust-v2-intro">
           <div className="ps-trust-v2-eyebrow">A MARKETPLACE BUILT ON CLEAR EXPECTATIONS</div>
           <h2>Safety works better when everyone knows their part.</h2>
@@ -8939,8 +9296,9 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           <div className="ps-trust-v2-closing-actions"><button className="ps-trust-v2-primary" onClick={onDriverClick}>Find Parking</button><button className="ps-trust-v2-closing-dark" onClick={onHostClick}>Become a Host</button></div>
           <button className="ps-trust-v2-legal-link" onClick={onLegalClick}>Review ParkShare Legal &amp; T/C →</button>
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -8982,6 +9340,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut}
         onHostClick={onHostClick} onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       <section id="about" className="ps-about-hero">
         <div className="ps-about-hero-copy">
@@ -9015,7 +9374,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         ))}
       </nav>
 
-      <main className="ps-about-content">
+      <div className="ps-about-content">
         <section className="ps-about-intro">
           <P>Every day, parking spaces sit empty while Drivers search for somewhere convenient to park — near work, transit, events, hospitals, restaurants, campuses and neighbourhood destinations.</P>
           <P>At the same time, homeowners and property owners already have parking space that may be unused for hours at a time.</P>
@@ -9149,8 +9508,9 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
           <button className="ps-about-trust-link" onClick={onTrustClick}>Learn About Trust &amp; Safety →</button>
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
         onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
@@ -9257,6 +9617,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       {/* Hero */}
       <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
@@ -9561,6 +9922,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
       </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -9692,6 +10054,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* 1 — Hero */}
       <section className="ps-driver-v2-hero">
@@ -9727,7 +10090,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         ))}
       </nav>
 
-      <main className="ps-driver-v2-main">
+      <div className="ps-driver-v2-main">
         {/* 2 — Find Parking That Fits Your Plans */}
         <section id="find" className="ps-driver-v2-find">
           <div className="ps-driver-v2-intro">
@@ -9916,8 +10279,9 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
             draggable={false}
           />
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -10558,6 +10922,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         onTrustClick={onTrustClick}
         onHelpClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="ps-help-hero">
         <div className="ps-help-hero-copy">
@@ -10593,7 +10958,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </div>
       </section>
 
-      <main className="ps-help-shell">
+      <div className="ps-help-shell">
         {searching ? (
           <div className="ps-help-search-results">
             <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
@@ -10691,8 +11056,9 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             </div>
           </section>
         </div>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -10705,6 +11071,13 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
 
+  const formElement = useRef(null);
+  const validationFocus = useRef(null);
+  useEffect(() => {
+    const shouldFocus = validationFocus.current;
+    validationFocus.current = null;
+    if (shouldFocus) formElement.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [errors]);
   const submissionContext = useRef(null);
   useEffect(() => {
     const context = { active: true, busy: false, complete: false };
@@ -10734,7 +11107,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
     if (!form.helpType) errs.helpType = "Please select what you need help with.";
     if (!form.message.trim()) errs.message = "Please enter a message.";
     setErrors(errs);
-    if (Object.keys(errs).length) return;
+    if (Object.keys(errs).length) { validationFocus.current = true; return; }
 
     context.busy = true;
     setIsSubmitting(true);
@@ -10814,6 +11187,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="ps-contact-hero">
         <div className="ps-contact-hero-copy">
@@ -10833,7 +11207,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </div>
       </section>
 
-      <main className="ps-contact-shell">
+      <div className="ps-contact-shell">
         <section className="ps-contact-details">
           <div>
             <h2>Reach ParkShare Support</h2>
@@ -10849,13 +11223,14 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
               <strong>Thanks, {form.name}.</strong><br />Your message has been sent to ParkShare Support. We’ll get back to you as soon as we can.
             </div>
           ) : (
-            <form onSubmit={handleSubmit} noValidate>
+            <form ref={formElement} onSubmit={handleSubmit} noValidate>
+              {Object.values(errors).some(Boolean) && <div className="ps-form-error-summary" role="alert"><strong>Please correct the following:</strong><ul>{Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
               {submissionError && <div className="ps-contact-status error" role="alert">{submissionError}</div>}
-              <ContactField label="Name" name="name" value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
-              <ContactField label="Email" name="email" type="email" value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
-              <ContactField label="What can we help with?" name="helpType" value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
+              <ContactField label="Name" name="name" required value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
+              <ContactField label="Email" name="email" type="email" required value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
+              <ContactField label="What can we help with?" name="helpType" required value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
               <ContactField label="Reservation number — optional" name="reservationNumber" value={form.reservationNumber} onChange={handleChange} disabled={isSubmitting} />
-              <ContactField label="Message" name="message" value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
+              <ContactField label="Message" name="message" required value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
               <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
                 <label>Website<input name="website" value={form.website} onChange={handleChange} tabIndex={-1} autoComplete="off" /></label>
               </div>
@@ -10863,8 +11238,9 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
             </form>
           )}
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -11110,7 +11486,8 @@ function CheckoutReturnNotice({ kind, onDismiss }) {
 // Retain only the immutable fields needed by the chooser and map apps.
 function navigationDestination(listing) {
   if (!listing || typeof listing !== "object") return null;
-  return { id: listing.id, title: listing.title, address: listing.address, lat: listing.lat, lng: listing.lng };
+  return { id: listing.id, title: listing.title, address: listing.address, lat: listing.lat, lng: listing.lng,
+    ...(listing.locationPrecision === "approximate" ? { locationPrecision: "approximate" } : {}) };
 }
 
 function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
@@ -11144,6 +11521,7 @@ function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
     if (latest.current !== current) return false;
     const destination = navigationDestination(listing);
     if (!destination) return false;
+    if (!hasNavigationDestination(destination)) return replace({ listing: destination, mode: "navigate" });
     const available = getAvailableNavigationProviders().some(provider => provider.id === preferredProvider);
     if (preferredProvider && available) {
       if (!replace(null)) return false;
@@ -11155,6 +11533,7 @@ function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
     if (latest.current !== current || !current.request?.listing) return false;
     if (!getAvailableNavigationProviders().some(option => option.id === provider)) return false;
     const destination = current.request.listing;
+    if (!hasNavigationDestination(destination)) return false;
     if (!replace(null)) return false;
     savePreferredNavigationProvider(provider);
     onPreferredProvider(provider);
@@ -11173,14 +11552,17 @@ function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const initialRouteRef = useRef(getRouteFromPath(window.location.pathname));
+  const entryLocation = typeof window === "undefined" ? {pathname: "/", search: ""} : window.location;
+  const initialRouteRef = useRef(getRouteFromPath(entryLocation.pathname));
   const [screen, setScreen] = useState(initialRouteRef.current.screen);
   const [tab, setTab] = useState(initialRouteRef.current.tab || "Browse");
   const [legalSection, setLegalSection] = useState(initialRouteRef.current.anchor || "terms");
   const [messageThreadState, setMessageThreadState] = useState(null);
-  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(window.location.search));
+  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(entryLocation.search));
   const [user, setUser] = useState(null);
   const [signOutNotice, setSignOutNotice] = useState(null);
+  const [showRefundManager, setShowRefundManager] = useState(false);
+  useEffect(() => setShowRefundManager(false), [user?.id]);
   const signOutAttempt = useRef(null);
   const signOutAccount = useRef(user?.id || null);
   signOutAccount.current = user?.id || null;
@@ -11214,8 +11596,8 @@ export default function App() {
   const [browseKey, setBrowseKey] = useState(0);
   const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
   // Capture before the navigation-only return handler removes query flags.
-  const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(window.location.search));
-  const [extensionHoldToCancel] = useState(() => cancelledExtensionCheckoutHold(window.location.search));
+  const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(entryLocation.search));
+  const [extensionHoldToCancel] = useState(() => cancelledExtensionCheckoutHold(entryLocation.search));
   const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
   const { bookingId: extendBookingId, select: setExtendBookingId, isCurrent: isExtensionContextCurrent } = useExtensionRequest(user);
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
@@ -11232,7 +11614,7 @@ export default function App() {
   const moveToRoute = (nextScreen, nextTab = tab, anchor = null, { replace = false } = {}) => {
     const route = getRouteForState(nextScreen, nextTab, anchor);
     const method = replace ? "replaceState" : "pushState";
-    if (window.location.pathname !== route.path || replace) {
+    if (route.path && (window.location.pathname !== route.path || replace)) {
       window.history[method]({ parkShareRoute: true }, "", route.path);
     }
     navigationAnchorRef.current = route.anchor || anchor;
@@ -11289,7 +11671,7 @@ export default function App() {
       setScreen("app");
       setTab("Browse");
     } else if (params.get("legal")) {
-      const section = params.get("legal") === "privacy" ? "privacy" : "terms";
+      const section = ["terms", "privacy", "payments", "liability"].includes(params.get("legal")) ? params.get("legal") : "terms";
       navigationAnchorRef.current = section;
       setLegalSection(section);
       setScreen("legal");
@@ -11504,11 +11886,15 @@ export default function App() {
     if (user?.role === "driver") return content;
     return (
       <div role="alert" style={{ padding: "60px 24px", textAlign: "center", color: C.navy }}>
-        <h3>Driver account required</h3>
-        <p>Vehicle profiles are available to Driver accounts.</p>
-        <button type="button" onClick={() => user ? changeTab("Host Dashboard") : setShowAuth(true)}
+        <h3>{user ? "Driver account required" : "Sign in required"}</h3>
+        <p>{user ? "Vehicle profiles are available to Driver accounts." : "Sign in to view and manage your profile and vehicle details."}</p>
+        <button type="button" onClick={() => {
+          if (user) { changeTab("Host Dashboard"); return; }
+          setAuthInitialScreen("signin");
+          setShowAuth(true);
+        }}
           style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
-          {user ? "Return to Host Dashboard" : "Sign in / Join free"}
+          {user ? "Return to Host Dashboard" : "Sign in"}
         </button>
       </div>
     );
@@ -11606,7 +11992,9 @@ export default function App() {
         </div>
       )}
       {/* End sign-out feedback */}
-      {screen === "landing" ? (
+      {user && (user.role === "host" || user.isParkShareStaff) && screen === "app" && <button type="button" onClick={() => setShowRefundManager(true)} style={{position:"fixed",bottom:80,right:16,zIndex:100,minHeight:44,padding:12,borderRadius:8,background:C.navy,color:C.white}}>Manage refunds</button>}
+      {showRefundManager && user && (user.role === "host" || user.isParkShareStaff) && <Modal title="Refund management" onClose={() => setShowRefundManager(false)}><React.Suspense fallback={<p role="status">Loading refund management…</p>}><RefundManager key={user.id} user={user} client={supabase}/></React.Suspense></Modal>}
+      {screen === "not-found" ? <NotFoundPage /> : screen === "landing" ? (
         <LandingPage
           onSearchAddress={handleLandingSearch}
           onUseLocation={handleLandingLocation}
@@ -11626,6 +12014,8 @@ export default function App() {
         />
       ) : screen === "legal" ? (
         <LegalPage
+          section={legalSection}
+          onLegalClick={openLegal}
           tab={tab}
           onTabChange={changeTab}
           onLogoClick={goHome}
@@ -11737,6 +12127,7 @@ export default function App() {
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
           <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
           <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} onHostClick={openHost} onAboutClick={openAbout} onTrustClick={openTrust} onHelpClick={openHelp} />
+          <main id="main-content" tabIndex={-1}>
           {driverProfileCompletion && !driverProfileCompletion.complete && tab !== "Profile" && (
             <div className="ps-profile-reminder" role="status">
               <span><strong>Complete your Driver profile</strong> · {driverProfileCompletion.completed} of {driverProfileCompletion.total} details ready</span>
@@ -11752,21 +12143,23 @@ export default function App() {
             : <BrowseView onVehicleUpdated={vehicle => setUser(current => current?.id === vehicle.id ? { ...current, ...vehicle } : current)} key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
           {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
-          {tab === "Profile" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
+          {tab === "Profile" && user?.role === "host" && <HostProfileView key={user.id} user={user} client={supabase} onProfileUpdated={profile => setUser(current => current?.id === profile.id && current.role === "host" ? { ...current, ...profile } : current)} />}
+          {tab === "Profile" && user?.role !== "host" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
           {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key={"driver:" + user?.id} user={user} />
             : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}
+          {tab !== "Profile" && <ParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
+          </main>
           {messageThread && <MessagingPanel key={messageConversationKey(user?.id, messageThread)} listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
-          {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
       {screen === "host" && hostOnboardingAccount && <HostOnboarding key={hostOnboardingAccount.id} accountId={hostOnboardingAccount.id} auth={supabase.auth} onClose={() => setHostOnboardingAccount(null)} onReady={openHostAuth} />}
-      {showAuth && <SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} recoveryAccountId={authRecoveryAccountId} onRecoveryComplete={() => setAuthRecoveryCompletedRevision(revision => revision + 1)} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setAuthRecoveryAccountId(null); setHostAuthIntent(false); }} onAuth={handleAuth} />}
-      {!showAuth && messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
+      {showAuth && <DeferredAuth key={authRecoveryRevision} Dialog={NativeDialog}><SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} recoveryAccountId={authRecoveryAccountId} onRecoveryComplete={() => setAuthRecoveryCompletedRevision(revision => revision + 1)} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setAuthRecoveryAccountId(null); setHostAuthIntent(false); }} onAuth={handleAuth} /></DeferredAuth>}
+      {!showAuth && messageBookingId && !user && <DeferredAuth Dialog={NativeDialog}><SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} /></DeferredAuth>}
       {navigationRequest && (
         <NavigationChooser
           key={navigationRequestKey}
@@ -11783,10 +12176,11 @@ export default function App() {
           // Arrived from an email link while signed out — ask them to sign
           // in first, then hand straight back to the extend modal rather
           // than losing which booking they clicked through for.
-          <SignInModal initialScreen="signin" closeOnAuth={false} onClose={() => setExtendBookingId(null)} onAuth={handleAuth} />
+          <DeferredAuth Dialog={NativeDialog}><SignInModal initialScreen="signin" closeOnAuth={false} onClose={() => setExtendBookingId(null)} onAuth={handleAuth} /></DeferredAuth>
         )
       )}
     </>
   );
 }
+
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import React from 'react';
+import {createHostListingJournal} from '../src/lib/hostListingState.js';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {transform} from 'esbuild';
 import {getBookingDisplayStatus} from '../src/lib/bookingTime.js';
@@ -27,7 +28,7 @@ function harness(overrides={}){
   let cursor=0,cancelled,tree,rows=[];
   const visual=name=>props=>React.createElement('span',null,name==='BookingParkingDetails'?props.spotLabel:name==='BookingSchedule'?props.startTime+'–'+props.endTime:name==='BookingVehicleVisual'?props.vehicle.licensePlate:'');
   const components=Object.fromEntries([...whole.matchAll(/<([A-Z]\w*)\b/g)].map(m=>[m[1],visual(m[1])]));
-  const values={React,...components,C:new Proxy({},{get:()=>'#000'}),
+  const values={React,...components,createHostListingJournal:account=>createHostListingJournal(account,null),useMemo:fn=>fn(),C:new Proxy({},{get:()=>'#000'}),
     useState:initial=>{const key=names[cursor++];if(!(key in state))state[key]=typeof initial==='function'?initial():initial;return [state[key],v=>{state[key]=typeof v==='function'?v(state[key]):v;}];},
     useRef:initial=>({current:initial}),useEffect:fn=>effects.push(fn),
     useHostListingEdit:()=>({listing:null}),useHostListingDeletion:()=>({deletingId:null,confirmDeleteId:null}),

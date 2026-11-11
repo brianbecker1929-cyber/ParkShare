@@ -19,11 +19,11 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 const session=id=>({data:{session:{user:{id},access_token:id+'-token'}}});
 const listing=(id=7)=>({rawId:id,id:'db-'+id,title:'PRIVATE TITLE',address:'PRIVATE ADDRESS',photos:['PRIVATE PHOTO']});
 const success=(pending=false)=>Response.json({deleted:true,photoCleanupPending:pending});
-function harness({auth=async()=>session('A'),fetcher=async()=>success()}={}){
+function harness({auth=async()=>session('A'),fetcher=async()=>success(),notice=null}={}){
  const slots=[],effects=[],cleanups=[],writes=[],requests=[],alerts=[],removed=[];let cursor=0,changed=false,result,owner='A',authCalls=0;
  const values={validId,useState:initial=>{const n=cursor++;if(!slots[n])slots[n]={value:typeof initial==='function'?initial():initial};return [slots[n].value,v=>{writes.push(n);const next=typeof v==='function'?v(slots[n].value):v;if(next!==slots[n].value){slots[n].value=next;changed=true;}}];},useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},useEffect:fn=>{const n=cursor++;if(!slots[n]){slots[n]={};effects.push(fn);}},supabase:{auth:{getSession:()=>{authCalls++;return auth();}}},fetch:(url,init)=>{requests.push({url,...init});return fetcher(url,init);},alert:message=>alerts.push(message),setDbListings:fn=>{removed.push(fn([{id:'db-7'},{id:'db-8'}]));}};
  const factory=new Function(...Object.keys(values),helper.replaceAll('export ','')+'\n'+hook+';return {useHostListingDeletion,deleteHostListing};')(...Object.values(values));
- function render(id=owner){owner=id;let count=0;do{cursor=0;changed=false;result=factory.useHostListingDeletion(id?{id}:null,id=>removed.push(id));assert.ok(++count<5);}while(changed);for(const effect of effects.splice(0))cleanups.push(effect());return result;}
+ function render(id=owner){owner=id;let count=0;do{cursor=0;changed=false;result=factory.useHostListingDeletion(id?{id}:null,id=>removed.push(id),notice);assert.ok(++count<5);}while(changed);for(const effect of effects.splice(0))cleanups.push(effect());return result;}
  const open=(id=7)=>{render().open(listing(id));return render();};
  const stop=()=>{for(const cleanup of cleanups.splice(0))cleanup?.();};
  return {render,open,stop,requests,alerts,removed,writes,slots,get authCalls(){return authCalls;},direct:(input)=>factory.deleteHostListing(values.supabase,input)};
@@ -85,10 +85,41 @@ test('missing session owner or expired session does not submit deletion; dispose
  const pending=deferred(),h=harness({auth:()=>pending.promise}),work=h.open().confirm();h.stop();const n=h.writes.length;pending.reject(Error('lookup failed'));await work;assert.equal(h.alerts.length,0);assert.equal(h.writes.length,n);
 });
 test('actual Host Dashboard wires scoped Delete/Keep actions and removes only the returned listing',async()=>{
- const from=app.indexOf('  const { deletingId, confirmDeleteId'),to=app.indexOf('\n    });',from)+8;let received;
+ const from=app.indexOf('  const { deletingId, confirmDeleteId'),to=app.indexOf('\n\n  const { listing: editingListing',from);let received;
  const props={deletingId:null,confirmDeleteId:'db-7',open:()=>{},close:()=>{},confirm:()=>{}};
  const rows=[{id:'db-7'},{id:'db-8'}];let remaining;
- const bindings=new Function('useHostListingDeletion','user','setDbListings',app.slice(from,to)+';return {deletingId,confirmDeleteId,openListingDeletion,closeListingDeletion,deleteListing};')((...args)=>{received=args;return props;},{id:'A'},fn=>{remaining=fn(rows);});received[1]('db-7');assert.deepEqual(remaining,[{id:'db-8'}]);assert.equal(received[0].id,'A');
- const x=app.indexOf('<div className="host-dashboard-delete-confirm"'),tag=app.slice(x,app.indexOf('</div>',x)+6),built=await transform('function Row(){return '+tag+';}',{loader:'jsx'});const values={React,C:{},l:listing(),...bindings};const Row=new Function(...Object.keys(values),built.code+';return Row;')(...Object.values(values)),buttons=React.Children.toArray(Row().props.children);assert.equal(buttons[0].props.onClick,props.confirm);assert.equal(buttons[1].props.onClick,props.close);assert.equal(buttons[1].props.disabled,false);
- const busyValues={...values,deletingId:'db-7'},Busy=new Function(...Object.keys(busyValues),built.code+';return Row;')(...Object.values(busyValues));assert.equal(React.Children.toArray(Busy().props.children)[1].props.disabled,true);assert.match(app,/openListingDeletion\(l\)/);
+ const bindings=new Function('useHostListingDeletion','user','setDbListings','listingJournal','showListingNotice',app.slice(from,to)+';return {deletingId,confirmDeleteId,openListingDeletion,closeListingDeletion,deleteListing};')((...args)=>{received=args;return props;},{id:'A'},fn=>{remaining=fn(rows);},{remove(){}},()=>{});received[1]('db-7');assert.deepEqual(remaining,[{id:'db-8'}]);assert.equal(received[0].id,'A');
+ const x=app.indexOf('<ListingDeletionDialog title='),tag=app.slice(x,app.indexOf('/>',x)+2),built=await transform('function Row(){return '+tag+';}',{loader:'jsx'});const values={React,ListingDeletionDialog:()=>null,l:listing(),...bindings};const Row=new Function(...Object.keys(values),built.code+';return Row;')(...Object.values(values)),dialog=Row();assert.equal(dialog.props.onConfirm,props.confirm);assert.equal(dialog.props.onClose,props.close);assert.equal(dialog.props.busy,false);assert.equal(dialog.props.title,'PRIVATE TITLE');
+ const busyValues={...values,deletingId:'db-7'},Busy=new Function(...Object.keys(busyValues),built.code+';return Row;')(...Object.values(busyValues));assert.equal(Busy().props.busy,true);assert.match(app,/openListingDeletion\(l\)/);
+});
+
+const dialogCode=(await transform(app.slice(app.indexOf('function ListingDeletionDialog('),app.indexOf('function useHostListingDeletion(')),{loader:'jsx'})).code;
+function deletionDialog(){
+ let agreed=false,confirmations=0,cancellations=0;
+ const Modal=()=>null;
+ const View=new Function('React','C','Modal','useState',dialogCode+';return ListingDeletionDialog;')(React,{},Modal,()=>[agreed,value=>{agreed=value;}]);
+ const visit=node=>!React.isValidElement(node)?[]:[node,...React.Children.toArray(node.props.children).flatMap(visit)];
+ const render=(busy=false)=>{const root=View({title:'Synthetic listing',busy,onConfirm:()=>{confirmations++;},onClose:()=>{cancellations++;}});const nodes=visit(root);return {root,checkbox:nodes.find(n=>n.type==='input'),keep:nodes.find(n=>n.type==='button'&&n.props.children==='Keep listing'),remove:nodes.find(n=>n.type==='button'&&n.props.children!=='Keep listing')};};
+ return {render,get confirmations(){return confirmations;},get cancellations(){return cancellations;}};
+}
+test('BUG-005443 repeated clicks cannot confirm before a separate acknowledgement in the native dialog',()=>{
+ const h=deletionDialog(),first=h.render();assert.equal(first.root.props.nativeModal,true);assert.equal(first.root.props.title,'Delete parking listing?');
+ assert.equal(first.checkbox.props.checked,false);assert.equal(first.remove.props.disabled,true);
+ first.remove.props.onClick();first.remove.props.onClick();assert.equal(h.confirmations,0);
+ first.checkbox.props.onChange({target:{checked:true}});const acknowledged=h.render();assert.equal(acknowledged.remove.props.disabled,false);
+ acknowledged.remove.props.onClick();assert.equal(h.confirmations,1);
+});
+test('BUG-005443 Keep, unticking, busy state and reopening preserve deliberate deletion',()=>{
+ const h=deletionDialog();h.render().keep.props.onClick();assert.equal(h.cancellations,1);assert.equal(h.confirmations,0);
+ h.render().checkbox.props.onChange({target:{checked:true}});const busy=h.render(true);
+ assert.equal(busy.checkbox.props.disabled,true);assert.equal(busy.keep.props.disabled,true);assert.equal(busy.remove.props.disabled,true);busy.remove.props.onClick();assert.equal(h.confirmations,0);
+ h.render().checkbox.props.onChange({target:{checked:false}});const unchecked=h.render();assert.equal(unchecked.remove.props.disabled,true);unchecked.remove.props.onClick();assert.equal(h.confirmations,0);
+ assert.equal(deletionDialog().render().checkbox.props.checked,false,'Each newly mounted confirmation starts unacknowledged');
+});
+
+test('BUG-005488 current deletion confirms inline and removes stale 404 cards with clear feedback',async()=>{
+ for(const gone of [false,true]){const notices=[],h=harness({fetcher:async()=>gone?Response.json({error:'not found'},{status:404}):success(),notice:(...args)=>notices.push(args)});try{await h.open().confirm();assert.deepEqual(h.removed,['db-7']);assert.equal(h.alerts.length,0);assert.match(notices[0][0],gone?/already have been deleted/:/Listing deleted/);assert.equal(notices[0][1],false);assert.equal(h.render().confirmDeleteId,null);}finally{h.stop();}}
+});
+test('BUG-005488 protected deletion and lost response show feedback without removing the card',async()=>{
+ for(const lost of [false,true]){const notices=[],h=harness({fetcher:async()=>{if(lost)throw Error('lost');return Response.json({error:'Bookings protect this listing'},{status:409});},notice:(...args)=>notices.push(args)});try{await h.open().confirm();assert.equal(h.removed.length,0);assert.equal(h.alerts.length,0);assert.equal(notices[0][1],true);assert.match(notices[0][0],lost?/Unable to confirm deletion/:/Bookings protect/);}finally{h.stop();}}
 });

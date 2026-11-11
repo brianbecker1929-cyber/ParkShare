@@ -124,6 +124,21 @@ export default async function handler(req, res) {
       || (participantId && !validParticipant(participantId))) {
       return res.status(400).json({ error: "Invalid conversation." });
     }
+    if (Number.isInteger(bookingId)) {
+      const booking = await bookingFor(bookingId);
+      const listing = await listingFor(booking.listing_id);
+      const isHost = user.id === listing.host_id;
+      const isDriver = user.id === booking.renter_id;
+      const otherId = isHost ? booking.renter_id : listing.host_id;
+      // An authenticated but unrelated caller must receive an explicit denial,
+      // rather than the empty success used for a participant's new thread.
+      // Check the booking relationship before touching the messages table.
+      if ((!isHost && !isDriver)
+        || (Number.isInteger(listingId) && listingId !== booking.listing_id)
+        || (participantId && participantId !== otherId)) {
+        return res.status(403).json({ error: "You are not part of this booking conversation." });
+      }
+    }
     let query = supabaseAdmin
       .from("messages")
       .select("id, listing_id, booking_id, sender_id, recipient_id, text, created_at")
@@ -156,13 +171,17 @@ export default async function handler(req, res) {
         userId: user.id, hostId: listingResult.data?.host_id,
         listingId: row.listing_id, booking,
       });
+      // Roles belong to this listing relationship, not a profile's global role.
+      const partyRole = listingResult.data?.host_id === otherId ? "Host"
+        : listingResult.data?.host_id === user.id ? "Driver" : "ParkShare user";
       conversations.push({
         id: `${row.listing_id}-${row.booking_id || "listing"}-${otherId}`,
         listingId: row.listing_id,
         bookingId: row.booking_id,
         participantId: otherId,
         title: mayReadTitle ? listingResult.data?.title || "Listing" : "Private parking",
-        otherParty: profileResult.data?.name || (listingResult.data?.host_id === otherId ? "Host" : "Renter"),
+        otherParty: profileResult.data?.name || partyRole,
+        partyRole,
         preview: row.text,
         createdAt: row.created_at,
       });
@@ -175,3 +194,4 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: status === 404 ? "Conversation unavailable." : "Unable to load or send messages right now." });
   }
 }
+

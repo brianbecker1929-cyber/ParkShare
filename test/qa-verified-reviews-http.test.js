@@ -74,7 +74,8 @@ test("review HTTP endpoint verifies actual Driver stay and rejects fake reviews"
     r=await send();
     assert.equal(r.code,403);
 
-    bookings=[{...eligibleBooking,paid_at:"2026-10-30T09:00:00Z"}];
+    // Remain a future stay as the calendar advances.
+    bookings=[{...eligibleBooking,paid_at:new Date(Date.now()+24*3600000).toISOString()}];
     r=await send();
     assert.equal(r.code,403);
 
@@ -105,3 +106,4 @@ test("review HTTP endpoint verifies actual Driver stay and rejects fake reviews"
     }
   }
 });
+

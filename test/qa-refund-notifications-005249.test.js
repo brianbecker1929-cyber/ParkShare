@@ -201,15 +201,17 @@ test('authorized cron scans test-mode pending work and surfaces queue read error
   let scans=0;
   globalThis.fetch=async input=>{
     const url=new URL(input instanceof Request?input.url:input);
-    assert.equal(url.hostname,'sample.invalid');assert.ok(url.pathname.endsWith('/refund_email_deliveries'));
+    assert.equal(url.hostname,'sample.invalid');
+    if(url.pathname.endsWith('/booking_refund_operations')){assert.equal(url.searchParams.get('livemode'),'eq.false');return Response.json([]);}
+    assert.ok(url.pathname.endsWith('/refund_email_deliveries'));
     assert.equal(url.searchParams.get('livemode'),'eq.false');
     assert.equal(url.searchParams.get('sent_at'),'is.null');assert.equal(url.searchParams.get('blocked_at'),'is.null');
     assert.equal(url.searchParams.get('limit'),'10');scans++;return Response.json([]);
   };
   await handler({method:'GET',headers:{authorization:'Bearer synthetic-cron'}},res);
-  assert.equal(code,200);assert.deepEqual(body,{sent:0,busy:0,blocked:0,failed:0});assert.equal(scans,1);
+  assert.equal(code,200);assert.deepEqual(body,{sent:0,busy:0,blocked:0,failed:0,refunds:{complete:0,pending:0,busy:0,review:0}});assert.equal(scans,1);
   globalThis.fetch=async()=>Response.json({message:'synthetic db failure'},{status:400});
-  await handler({method:'GET',headers:{authorization:'Bearer synthetic-cron'}},res);assert.equal(code,500);
+  await handler({method:'GET',headers:{authorization:'Bearer synthetic-cron'}},res);assert.equal(code,503);
 });
 test('read-only refund previews cover cancellation, partial and extension wording at desktop and narrow widths',async()=>{
   const prior=process.env.VERCEL_ENV;process.env.VERCEL_ENV='preview';

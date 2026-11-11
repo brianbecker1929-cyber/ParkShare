@@ -1,4 +1,4 @@
-import { validateNewPassword } from './authForm.js';
+import { loadAuthValidation, validateNewPassword } from './authValidation.js';
 
 export const RECOVERY_SESSION_CHANGED = 'Your recovery session changed or could not be verified. Close this dialog and reopen your password reset link. If you already submitted, try signing in with the new password before requesting another reset.';
 const uncertain = "We couldn't confirm your password update. Try signing in with your new password before requesting another reset.";
@@ -13,6 +13,10 @@ export async function updateRecoveryPasswordForAccount({
 }) {
   if (!isCurrent()) return null;
   if (typeof expectedAccountId !== 'string' || !expectedAccountId.trim()) throw sessionError();
+  // A delayed chunk must not advance a closed or replaced recovery attempt.
+  try { await loadAuthValidation(); }
+  catch { if (!isCurrent()) return null; throw new Error('Password validation could not load. Please try again.'); }
+  if (!isCurrent()) return null;
   const passwordError = validateNewPassword(password);
   if (passwordError) throw new Error(passwordError);
   const session = async () => {

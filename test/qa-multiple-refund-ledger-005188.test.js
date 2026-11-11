@@ -53,7 +53,7 @@ for(const [label,mutate] of [
  ['over-refund',h=>{h.stripe.refunds.list=async()=>({data:[refund('re_first',20000)],has_more:false});}],
 ])test(`invalid ${label} blocks all writes`,async()=>{const h=harness();mutate(h);await assert.rejects(h.run());assert.equal(h.writes.length,0);});
 test('database and CAS failures propagate for Stripe retry without false success',async()=>{
- for(const code of ['40001','42501','57014']){const h=harness({rpcError:{code}});await assert.rejects(h.run(),e=>e.code===code);}
+ for(const code of ['PT409','40001','42501','57014']){const h=harness({rpcError:{code}});await assert.rejects(h.run(),e=>e.code===code);assert.equal(h.writes.length,1,'Never repeat a refused financial snapshot');}
  const h=harness({lookupError:{code:'42501'}});await assert.rejects(h.run(),e=>e.code==='42501');assert.equal(h.writes.length,0);
 });
 test('malformed/untrusted events never make provider or database calls',async()=>{
