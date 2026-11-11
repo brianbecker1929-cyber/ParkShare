@@ -1,0 +1,323 @@
+{
+  "checks": [
+    {
+      "name": "Restored production catalog fingerprint matches hosted read-only capture",
+      "status": "passed"
+    },
+    {
+      "name": "Unapproved execution is refused before any schema change",
+      "status": "passed"
+    },
+    {
+      "name": "Baseline drift stops the entire package",
+      "status": "passed"
+    },
+    {
+      "name": "A late duplicate-review failure rolls back all earlier DDL, bucket metadata and financial changes",
+      "status": "passed"
+    },
+    {
+      "name": "A changed Storage policy baseline blocks migration before private-photo rules can be weakened",
+      "status": "passed"
+    },
+    {
+      "name": "Retained legacy Checkout evidence requires an explicit reconciliation acknowledgement",
+      "status": "passed"
+    },
+    {
+      "name": "Active Checkout holds block cutover even after acknowledgement",
+      "status": "passed"
+    },
+    {
+      "name": "Preservation guard detects an injected historical-field rewrite and rolls back the complete package",
+      "status": "passed"
+    },
+    {
+      "name": "Complete production package commits against the exact restored production catalog",
+      "status": "passed"
+    },
+    {
+      "name": "All original columns and rows survive: 29 paid bookings, two extensions, messages, profiles, reviews and listing data",
+      "status": "passed"
+    },
+    {
+      "name": "No historical email, refund, fee-credit or photo-deletion work is queued",
+      "status": "passed"
+    },
+    {
+      "name": "Browser roles cannot read or write private money/delivery queues; every new public table uses RLS",
+      "status": "passed"
+    },
+    {
+      "name": "Required application RPCs are service-only and readiness probes return true",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 anonymous profile projection and count are denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 Driver and Host can read only their own sign-in profile",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 explicit foreign ID and broad OR filter cannot enumerate profiles",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 counts and pagination expose only the caller row",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 absent identity cannot use authenticated profile grants",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 browser cannot read email or Stripe fields even on own profile",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 extra permissive read policy cannot reopen the account directory",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 server retains account access while browser profile writes stay denied",
+      "status": "passed"
+    },
+    {
+      "name": "Financial FKs prevent listing, profile or Auth deletion from cascading away paid history",
+      "status": "passed"
+    },
+    {
+      "name": "New canonical scheduled bookings use the supplied UTC instant and retain the property-zone snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "Direct Host requests cannot rewrite trusted property coordinates or time zones",
+      "status": "passed"
+    },
+    {
+      "name": "Photo bucket starts private and Storage policies scope writes to the owning Host",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 Driver A cannot read Driver B thread on the same listing",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 Host sees actual incoming/outgoing messages, not unaddressed legacy rows",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 unrelated and missing identities see no messages",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 anonymous reads and writes are denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 direct browser message creation/edit/delete/truncate are denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 extra permissive read rule cannot reopen other conversations",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 filtered counts cannot reveal another Driver thread",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 server retains insertion/read access and legacy participant is not inferred",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: migration changes no booking or historical refund and queues no historical emails",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: browser roles cannot inspect receipts or queue messages",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: verified successful partial refund commits one Driver and one Host job",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: duplicate events deduplicate while a second refund gets its own two receipts",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: pending and failed refunds do not claim success; transition to succeeded queues receipts",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: full cancellation and receipts commit together; rolling back refund transaction removes both",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: extension refund resolves the correct parent booking and queues both recipients",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: newly discovered historical success is suppressed",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: known old pending refund notifies only when it newly succeeds",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: conditional lease excludes active and already accepted deliveries",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: replay freezes financial amount and responsibility",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: competing request is blocked until the first operation settles",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: database lease grants only one claim",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: no fee credit before a successful customer refund",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: successive partials round cumulatively, replay safely, and never exceed actual original fee",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: partial requests do not cancel an active booking",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: browser roles cannot insert money operations or invoke privileged RPCs",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: browser roles cannot settle or reject Checkout payments",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: spot conflict records failed payment and releases own hold without changing other reservation",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: replay resumes the same rejected payment after hold consumption",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: pending refund remains distinct from returned money and grants no booking",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: successful refund persists exact history without changing rejection marker",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: valid booking confirms once and replays without requesting refund",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: already reversed payment cannot grant parking",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: browser roles cannot journal payments or release extension holds",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: rejected financial audit and hold release commit together without changing booking",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: rejected checkout replay cannot grant time",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: refund ledger records rejected extension money and retains rejection marker",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: same additional hour can be reserved and applied after rejection",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: unpaid terminal pair cleanup preserves applied booking hours",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: a rolled-back new message leaves no email job",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: independent workers claim one new chat email only once",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: accepted chat mail cannot replay after lease expiry",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: concurrent reminder creation permits one record per booking and kind",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: reminder lease and provider marker prevent concurrent and accepted replay",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: successful verified refund creates separate audience receipts and one worker claim",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: independent refund workers receive one financial-operation lease",
+      "status": "passed"
+    },
+    {
+      "name": "production queues: fee credit waits for success, uses the proportional actual fee and is stable on retry",
+      "status": "passed"
+    },
+    {
+      "name": "Read-only postflight SQL executes and reports zero RLS or browser-queue privilege failures",
+      "status": "passed"
+    },
+    {
+      "name": "Blind reapplication is refused without changing committed data or queues",
+      "status": "passed"
+    }
+  ],
+  "status": "passed",
+  "productionWrites": 0,
+  "providerCalls": 0,
+  "engine": "PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "baseline": {
+    "fingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6",
+    "tables": 45,
+    "columns": 499,
+    "constraints": 178,
+    "policies": 19,
+    "capturedAt": "2026-11-11T12:56:35.37296+00:00"
+  },
+  "package": {
+    "id": "production-candidate-2026-11-11",
+    "sha256": "f0731655a392c211f64b337cd574615aea5a68d6cc6a2b7e771f04b2574c9b61",
+    "sourceCommit": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+    "sources": 31
+  },
+  "fixture": {
+    "bookings": 29,
+    "extensions": 2,
+    "unaddressedMessages": 7,
+    "retainedCheckouts": 1,
+    "customerRowsExported": 0
+  },
+  "migrations": [],
+  "completedAt": "2026-11-11T13:18:08.273Z"
+}

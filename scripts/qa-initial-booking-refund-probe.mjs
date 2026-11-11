@@ -17,9 +17,9 @@ export async function registerInitial(db,listing,session,{spot='A',hours=1,offse
  return {hold,booking:{listing_id:Number(listing),renter_id:DRIVER,hours,total:11.5,subtotal:10,service_fee:1.5,status:'confirmed',stripe_checkout_session_id:session,stripe_payment_intent_id:'pi_'+session,stripe_charge_id:'ch_'+session,stripe_connected_account_id:'acct_initial',spot_label:spot,paid_at:start.toISOString(),property_time_zone:'America/Toronto'}};
 }
 export const settleInitial=(db,registration,reversed=false)=>db.query('select public.settle_initial_booking_checkout($1,$2::jsonb,$3) result',[registration.hold,JSON.stringify(registration.booking),reversed]);
-export async function runInitialBookingRefundProbe(db,report){
+export async function runInitialBookingRefundProbe(db,report,{installMigration=true}={}){
  const check=name=>report.checks.push({name:'initial booking refund: '+name,status:'passed'});
- await db.exec(await readFile(initialBookingMigration,'utf8'));report.migrations.push({name:'initial_booking_refund_history',status:'passed'});
+ if(installMigration){await db.exec(await readFile(initialBookingMigration,'utf8'));report.migrations.push({name:'initial_booking_refund_history',status:'passed'});}
  for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'public.settle_initial_booking_checkout(uuid,jsonb,boolean)','EXECUTE') allowed",[role])).rows[0].allowed,false);
  check('browser roles cannot settle or reject Checkout payments');
  await db.exec('BEGIN;');
