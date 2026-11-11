@@ -5,7 +5,7 @@
   "productionCommit": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
   "targetProject": "oyxrussraxjgqwzpwyca",
   "baselineFingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6",
-  "baselineFixtureSha256": "883f46cefee4b0c9977a2d0e493d5e42fb4260a76ea820b74038465980030366",
+  "baselineFixtureSha256": "8c09c23a7e76b0859c7af7e23211d373293f6619d3fee8e7633b960a1dbf5e3a",
   "inputsSha256": "d2ffd9bebdaee2bb3b62025da27060343b91d992fdf4f64e6b670dc8c0ba1f5d",
   "migrationFile": "supabase/migrations/20261111125931_production_release_candidate.sql",
   "migrationSha256": "f0731655a392c211f64b337cd574615aea5a68d6cc6a2b7e771f04b2574c9b61",

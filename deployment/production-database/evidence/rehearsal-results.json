@@ -303,7 +303,7 @@
     "columns": 499,
     "constraints": 178,
     "policies": 19,
-    "capturedAt": "2026-11-11T12:56:35.37296+00:00"
+    "capturedAt": "2026-11-11T20:20:49.385048+00:00"
   },
   "package": {
     "id": "production-candidate-2026-11-11",
@@ -319,5 +319,5 @@
     "customerRowsExported": 0
   },
   "migrations": [],
-  "completedAt": "2026-11-11T13:25:40.130Z"
+  "completedAt": "2026-11-11T20:21:58.846Z"
 }

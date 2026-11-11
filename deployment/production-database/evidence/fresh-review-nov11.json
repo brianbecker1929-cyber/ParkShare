@@ -1,0 +1,59 @@
+{
+  "review": "Fresh production migration preparation and rehearsal restarted at Brian's request",
+  "checkedAt": "2026-11-11T20:22:27.123789+00:00",
+  "previousHead": "dd3a131e141c0e9c6315e06d63d924f3a94f0b41",
+  "previousCatalogCapture": "2026-11-11T12:56:35.37296+00:00",
+  "freshCatalogCapture": "2026-11-11T20:20:49.385048+00:00",
+  "comparison": {
+    "method": "Canonical object keys and array ordering; capture timestamp excluded",
+    "sections": [
+      "inventory",
+      "structure",
+      "code",
+      "permissions",
+      "extra"
+    ],
+    "structuralOrPermissionChanges": []
+  },
+  "production": {
+    "bookings": 29,
+    "paidBookings": 29,
+    "extensions": 2,
+    "listings": 13,
+    "authUsers": 14,
+    "migrationHistoryEntries": 0,
+    "privateSchemaPresent": false
+  },
+  "cutoverReview": {
+    "activeHolds": 0,
+    "retainedCheckoutHolds": 1,
+    "missingCoordinates": 3,
+    "nonHostListingOwners": 1,
+    "unaddressedHistoricalMessages": 7,
+    "pendingLegacyRefunds": 0,
+    "storageBuckets": 0,
+    "storagePolicies": 0
+  },
+  "validation": {
+    "engine": "native PostgreSQL 17.6, isolated new cluster",
+    "migrationChecks": 73,
+    "qaSchemaChecks": 144,
+    "focusedTests": 42,
+    "failed": 0,
+    "sqlSha256": "f0731655a392c211f64b337cd574615aea5a68d6cc6a2b7e771f04b2574c9b61",
+    "sqlChanged": false
+  },
+  "scope": {
+    "productionWrites": 0,
+    "activeQaWrites": 0,
+    "providerActions": 0,
+    "backupRestoreCertification": false
+  },
+  "remainingGates": [
+    "Managed backup/PITR and an isolated restore test",
+    "Retained Checkout reconciliation",
+    "Verified production listing locations, Host ownership and trusted time zones",
+    "Hosted Auth, Storage and API validation",
+    "Production configuration, coordinated app/schema cutover and separately approved activation"
+  ]
+}

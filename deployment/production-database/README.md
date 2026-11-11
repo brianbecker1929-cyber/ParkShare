@@ -7,6 +7,8 @@ No production or recovery-QA database, deployment, scheduler, Stripe object, ema
 
 ## Result
 
+Fresh review: production's catalog was recaptured at **20:20 UTC / 15:20 EST on November 11** after Brian requested a restart. No structural or permission differences were found across the captured application, Auth and Storage definitions. The package was rebuilt and all rehearsal checks below were rerun in a new isolated PostgreSQL cluster; the generated SQL hash is unchanged. See `evidence/fresh-review-nov11.json` and the refreshed rehearsal results. Production and active QA were not modified.
+
 The package was rehearsed on native PostgreSQL **17.6**, matching production's major/minor engine. It restores production's captured application, Auth and Storage *definitions*, then uses synthetic users, bookings and messages. No production customer, authentication, payment or Storage-object rows were copied.
 
 - **73 production migration checks passed**, including actual competing database connections for job claims.
