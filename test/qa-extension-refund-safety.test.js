@@ -61,14 +61,10 @@ test("Stripe extension events write only matching connected-account payment reco
   assert.match(dispute, /charge_disputed: true/);
 });
 
-test("cancel-booking checks paid extensions BEFORE initiating an original-payment refund", async () => {
-  const cancel = await source("../api/cancel-booking.js");
-  const check = cancel.indexOf('.from("booking_extensions")');
-  const create = cancel.indexOf("stripe.refunds.create");
-  assert.ok(check > 0 && create > check);
-  assert.match(cancel, /if \(extensionError\) throw extensionError/);
-  assert.match(cancel, /if \(paidExtensions\?\.length\)[\s\S]*?code: "support_required"/);
-});
+// Paid-extension cancellation is exercised against the actual handler in
+// cancellation-fee-policy.test.js, including an assertion that no Stripe
+// request or refund reservation happens when an extension is present.
+
 
 test("SQL proposal is transactionally atomic and service-role-only, not an applied migration", async () => {
   const sql = await source("../docs/sql-proposals/qa-atomic-extensions-and-refunds.sql");

@@ -1,6 +1,7 @@
 // Service-only cron drains successful-refund notifications queued by the ledger.
 import {timingSafeEqual} from 'node:crypto';
-import {supabaseAdmin} from './_lib.js';
+import {supabaseAdmin,stripe} from './_lib.js';
+import {drainBookingRefunds} from './_refund-operations.js';
 import {processRefundEmail} from './_refund-email-delivery.js';
 export default async function handler(req,res) {
   res.setHeader('Cache-Control','private, no-store');
@@ -9,9 +10,12 @@ export default async function handler(req,res) {
   const expected = Buffer.from(`Bearer ${process.env.CRON_SECRET}`);
   const actual = Buffer.from(req.headers.authorization || '');
   if (actual.length!==expected.length || !timingSafeEqual(actual,expected)) return res.status(401).json({error:'Unauthorized'});
+  const livemode = /^(sk|rk)_live_/.test(process.env.STRIPE_SECRET_KEY || '');
+  let refunds;
+  try { refunds = await drainBookingRefunds({db:supabaseAdmin,stripe,livemode}); }
+  catch { return res.status(503).json({error:'Refund processing queue is unavailable.'}); }
   if (!process.env.RESEND_API_KEY || !process.env.EMAIL_FROM) return res.status(503).json({error:'Notification email is not configured.'});
   const now = new Date();
-  const livemode = /^(sk|rk)_live_/.test(process.env.STRIPE_SECRET_KEY || '');
   const {data,error} = await supabaseAdmin.from('refund_email_deliveries').select('id')
     .eq('livemode',livemode).is('sent_at',null).is('blocked_at',null).lte('lease_until',now.toISOString())
     .order('created_at').limit(10);
@@ -22,5 +26,5 @@ export default async function handler(req,res) {
     catch { results.failed++; console.error('refund-notifications: delivery failed',job.id); }
   }
   console.info('refund-notifications: completed',JSON.stringify(results));
-  return res.status(200).json(results);
+  return res.status(200).json({...results,refunds});
 }

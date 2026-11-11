@@ -1,3 +1,4 @@
+import {CANCELLATION_REASONS} from '../src/lib/cancellationReasons.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -14,12 +15,13 @@ const compiled=await transform(code,{loader:'jsx'});
 const nodes=node=>!React.isValidElement(node)?[]:[node,...React.Children.toArray(node.props.children).flatMap(nodes)];
 function modal({deadline=1000,busy=false,actor='driver',error=''}={}){
   let now=999;
-  const values={React,C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),
+  let stateSlot=0;
+  const values={React,CANCELLATION_REASONS,useState:initial=>[(stateSlot++%2===0?(actor==='host'?'host_unavailable':'driver_plans'):'') ,()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),
     Btn:({children,onClick,disabled})=>React.createElement('button',{type:'button',onClick,disabled},children),
     cancellationDeadlineError:value=>cancellationDeadlineError(value,now)};
   const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
   const props={title:'Cancel fixture booking?',actor,busy,error,cancellationDeadline:deadline,onClose:()=>{},onConfirm:()=>{}};
-  const tree=()=>View(props);
+  const tree=()=>{stateSlot=0;return View(props);};
   return {setTime:value=>{now=value;},html:()=>renderToStaticMarkup(tree()),button:label=>nodes(tree()).find(n=>n.props.children===label)};
 }
 
@@ -47,10 +49,11 @@ test('an open Host dialog expires at the start while allowing cancellation just 
   h.setTime(1000);assert.equal(h.button('Confirm cancellation').props.disabled,true);assert.equal(h.button('Keep booking').props.disabled,false);assert.match(h.html(),/Host cancellations must be requested before the booking starts/);assert.doesNotMatch(h.html(),/full refund|5–10 business days/);
 });
 test('a previously sent cancellation stays pending rather than reporting expiry while its response is unknown',()=>{
-  const h=modal({busy:true});h.setTime(1001);assert.equal(h.button('Cancelling…').props.disabled,true);assert.equal(h.button('Keep booking').props.disabled,true);assert.match(h.html(),/role="status"/);assert.match(h.html(),/Please wait for confirmation/);assert.doesNotMatch(h.html(),/Contact support|full refund|5–10 business days/);
+  const h=modal({busy:true});h.setTime(1001);assert.equal(h.button('Submitting…').props.disabled,true);assert.equal(h.button('Keep booking').props.disabled,true);assert.match(h.html(),/role="status"/);assert.match(h.html(),/Please wait for confirmation/);assert.doesNotMatch(h.html(),/Contact support|full refund|5–10 business days/);
 });
 test('Host confirmation without a Driver deadline preserves the original refund guidance',()=>{
-  const values={React,C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),Btn:({children})=>React.createElement('button',null,children),cancellationDeadlineError};
+  let slot=0;
+  const values={React,CANCELLATION_REASONS,useState:()=>[slot++===0?'host_unavailable':'',()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),Btn:({children})=>React.createElement('button',null,children),cancellationDeadlineError};
   const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
   const html=renderToStaticMarkup(View({actor:'host',busy:false,onClose:()=>{},onConfirm:()=>{}}));assert.match(html,/Driver will receive a full refund/);assert.doesNotMatch(html,/Contact support/);
 });

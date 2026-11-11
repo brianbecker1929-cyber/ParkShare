@@ -1,3 +1,4 @@
+import {CANCELLATION_REASONS} from "./lib/cancellationReasons.js";
 import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
 import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
 import {HOME_HERO_IMAGE, HOME_HERO_AVIF_SRC_SET} from "./lib/homeHeroImage.js";
@@ -13,6 +14,7 @@ import {validateBookingVehicle} from "./lib/bookingVehicle.js";
 import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
 import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
+const RefundManager = React.lazy(() => import("./components/RefundManager.jsx"));
 import { GoogleMap, useJsApiLoader, OverlayView, Rectangle, Marker } from "@react-google-maps/api";
 import { supabase, updateRecoveryPasswordForAccount } from "./lib/supabaseClient";
 import { RECOVERY_SESSION_CHANGED } from "./lib/passwordRecovery";
@@ -251,6 +253,7 @@ function buildAppUser(profile, authUser) {
     name: driverProfile.name,
     email: authUser?.email || "",
     createdAt: authUser?.created_at || null,
+    isParkShareStaff: authUser?.app_metadata?.parkshare_staff === true,
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
@@ -4314,8 +4317,9 @@ function HostDashboard({ user, setTab }) {
   const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
     requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
     confirm: cancelHostBooking } = useBookingCancellation(user, "Cancelled by Host", (bookingId, result) => {
+      if (result.reviewRequired) return;
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: result.reviewRequired ? b.canCancel : false } : b));
     });
   const { data: txData, loading: txLoading, error: txError, retry: retryTransactions } = useTransactions(user);
 
@@ -6287,7 +6291,7 @@ async function requestBookingCancellation(bookingId, reason, expectedAccountId, 
       "Content-Type": "application/json",
       Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ bookingId, reason }),
+    body: JSON.stringify(typeof reason === "object" ? { bookingId, ...reason } : { bookingId, reason }),
   });
   const data = await response.json().catch(() => ({}));
   if (!isContextCurrent()) return null;
@@ -6329,7 +6333,7 @@ function useBookingCancellation(user, reason, onCancelled) {
     token.active = false;
     replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
   };
-  const confirm = async () => {
+  const confirm = async selectedReason => {
     const request = current.request, token = request?.token;
     if (!isCurrent(token) || token.pending) return;
     // Lock before the first await, including clicks before React re-renders.
@@ -6340,7 +6344,7 @@ function useBookingCancellation(user, reason, onCancelled) {
     patch("");
     try {
       const bookingId = request.target.rawId;
-      const result = await requestBookingCancellation(bookingId, reason, accountId, () => isCurrent(token), request.target.cancellationDeadline);
+      const result = await requestBookingCancellation(bookingId, selectedReason || reason, accountId, () => isCurrent(token), request.target.cancellationDeadline);
       if (!isCurrent(token) || !result) return;
       onCancelled(bookingId, result);
       token.active = false;
@@ -6357,22 +6361,37 @@ function useBookingCancellation(user, reason, onCancelled) {
 }
 
 function CancellationModal({ title, actor, busy, error, onClose, onConfirm, cancellationDeadline }) {
+  const [reasonCode, setReasonCode] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const reasons = CANCELLATION_REASONS[actor] || [];
+  const selectedReason = reasons.find(reason => reason.code === reasonCode);
+  const needsExplanation = selectedReason?.explanation;
   const deadlineError = busy ? "" : cancellationDeadlineError(cancellationDeadline);
   const deadlineNotice = deadlineError && actor === "host" ? "Host cancellations must be requested before the booking starts. Contact support for help with this booking." : deadlineError;
   return (
     <Modal title={title} onClose={onClose}>
       {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineNotice}</div> : <>
       <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
-        {actor === "host"
+        {selectedReason?.payer === "review" ? "Your report will go to ParkShare support for review. Selecting this reason does not cancel the booking or issue a refund." : actor === "host"
           ? "The Driver will receive a full refund, including the ParkShare service fee."
           : "Because this scheduled booking starts at least one hour from now, you'll receive a full refund, including the ParkShare service fee."}
       </p>
+      <label style={{display:"block",fontSize:13}}>Cancellation reason
+        <select value={reasonCode} disabled={busy} onChange={event => setReasonCode(event.target.value)} style={{display:"block",width:"100%",minHeight:44,margin:"8px 0"}}>
+          <option value="">Choose a reason</option>
+          {reasons.map(reason => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
+        </select>
+      </label>
+      {(needsExplanation || selectedReason?.payer === "review") && <label style={{display:"block",fontSize:13}}>Explanation{needsExplanation ? " (required)" : " (optional)"}
+        <textarea value={explanation} maxLength={1000} disabled={busy} onChange={event => setExplanation(event.target.value)} style={{display:"block",width:"100%",boxSizing:"border-box",minHeight:70,margin:"8px 0"}} />
+      </label>}
+      {selectedReason && <p style={{fontSize:12,lineHeight:1.55}}>{selectedReason.payer === "review" ? "ParkShare must verify the problem before deciding who covers the processing fee. This submits a support request; your booking remains active." : selectedReason.payer === "host" ? "The Host covers Stripe’s original processing fee. A ParkShare exception requires staff approval." : "ParkShare covers the original Stripe processing fee for this eligible free cancellation."}</p>}
       <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>
       </>}
       {error && !deadlineError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
         <Btn variant="ghost" onClick={onClose} disabled={busy}>Keep booking</Btn>
-        <Btn variant="outline" full onClick={onConfirm} disabled={busy || Boolean(deadlineError)}>{busy ? "Cancelling…" : "Confirm cancellation"}</Btn>
+        <Btn variant="outline" full onClick={() => onConfirm({reasonCode, explanation})} disabled={Boolean(busy || deadlineError || !selectedReason || needsExplanation && explanation.trim().length < 3)}>{busy ? "Submitting…" : selectedReason?.payer === "review" ? "Request support review" : "Confirm cancellation"}</Btn>
       </div>
     </Modal>
   );
@@ -6516,8 +6535,9 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
     requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
     confirm: cancelDriverBooking } = useBookingCancellation(user, "Cancelled by Driver", (bookingId, result) => {
+      if (result.reviewRequired) return;
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: false } : b));
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: result.reviewRequired ? b.canCancel : false } : b));
     });
 
   return (
@@ -11541,6 +11561,8 @@ export default function App() {
   const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(entryLocation.search));
   const [user, setUser] = useState(null);
   const [signOutNotice, setSignOutNotice] = useState(null);
+  const [showRefundManager, setShowRefundManager] = useState(false);
+  useEffect(() => setShowRefundManager(false), [user?.id]);
   const signOutAttempt = useRef(null);
   const signOutAccount = useRef(user?.id || null);
   signOutAccount.current = user?.id || null;
@@ -11970,6 +11992,8 @@ export default function App() {
         </div>
       )}
       {/* End sign-out feedback */}
+      {user && (user.role === "host" || user.isParkShareStaff) && screen === "app" && <button type="button" onClick={() => setShowRefundManager(true)} style={{position:"fixed",bottom:80,right:16,zIndex:100,minHeight:44,padding:12,borderRadius:8,background:C.navy,color:C.white}}>Manage refunds</button>}
+      {showRefundManager && user && (user.role === "host" || user.isParkShareStaff) && <Modal title="Refund management" onClose={() => setShowRefundManager(false)}><React.Suspense fallback={<p role="status">Loading refund management…</p>}><RefundManager key={user.id} user={user} client={supabase}/></React.Suspense></Modal>}
       {screen === "not-found" ? <NotFoundPage /> : screen === "landing" ? (
         <LandingPage
           onSearchAddress={handleLandingSearch}
