@@ -14,6 +14,7 @@ The package was rehearsed on native PostgreSQL **17.6**, matching production's m
 - **73 production migration checks passed**, including actual competing database connections for job claims.
 - **144 existing QA schema checks passed**, after preserving the QA probes' default install behaviour.
 - **42 focused cancellation, financial retry and target-guard tests passed**. Provider responses in these unit tests are mocks; no payment or email was sent.
+- **1,909 full regression tests passed locally on the fresh run; application build passed.** GitHub's duplicate jobs were queued when this evidence was recorded, so they are not claimed as successful. See `evidence/fresh-full-regression-results.json` for the local result and verification time.
 - All 31 source SQL components install in one transaction. Failure of a late unique-index check rolls back all earlier schema and bucket changes. An injected historical-field change is also detected and rolled back.
 - All original columns/rows in the synthetic legacy application tables survive. This includes 29 paid bookings, two extensions, sent-reminder markers, a legacy partial refund, seven messages without recipients and a retained expired Checkout hold.
 
