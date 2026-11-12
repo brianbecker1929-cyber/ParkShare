@@ -5,22 +5,31 @@ const QA_URLS = new Set([
   "https://biydlfekindgaslgktsx.supabase.co",
   "https://heqxirlsorcztsawaldg.supabase.co",
 ]);
+const RECOVERY_URL = "https://heqxirlsorcztsawaldg.supabase.co";
+const REVIEW_BRANCH = "fix/bug-005672-005673-recovery-nov12";
+const REVIEW_APP_URL = "https://parkshare-qa-git-fix-bug-005672-005673-60a133-eska-technologies.vercel.app";
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
   if (!QA_URLS.has(process.env.SUPABASE_URL) || (process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID !== "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC")) return res.status(404).json({ error: "Not found" });
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  const appUrl = process.env.APP_URL?.replace(/\/$/, "");
+  const reviewBranch = process.env.VERCEL_GIT_COMMIT_REF === REVIEW_BRANCH;
+  const recoveryPreview = process.env.VERCEL_ENV === "preview"
+    && process.env.VERCEL_PROJECT_ID === "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC"
+    && process.env.SUPABASE_URL === RECOVERY_URL;
   const checks = {
-    qaDatabase: process.env.VITE_SUPABASE_URL === process.env.SUPABASE_URL,
+    // The review build must not silently fall back to the older QA backend.
+    qaDatabase: process.env.VITE_SUPABASE_URL === process.env.SUPABASE_URL
+      && (!reviewBranch || process.env.SUPABASE_URL === RECOVERY_URL),
     stripeTestMode: /^(sk|rk)_test_/.test(process.env.STRIPE_SECRET_KEY || ""),
     webhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     emailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM),
     mapsConfigured: Boolean(process.env.VITE_GOOGLE_MAPS_API_KEY),
-    qaLinks: process.env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa.vercel.app" || (
-      process.env.VERCEL_ENV === "preview" &&
-      process.env.VERCEL_PROJECT_ID === "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC" &&
-      process.env.SUPABASE_URL === "https://heqxirlsorcztsawaldg.supabase.co" &&
-      process.env.APP_URL?.replace(/\/$/, "") === "https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app"
-    ),
+    qaLinks: reviewBranch
+      ? recoveryPreview && appUrl === REVIEW_APP_URL
+      : appUrl === "https://parkshare-qa.vercel.app" || (
+        recoveryPreview && appUrl === "https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app"
+      ),
   };
   const {error} = await supabaseAdmin.from("listings").select("id,time_zone,is_paused", {count:"exact",head:true});
   checks.schemaReady = !error;

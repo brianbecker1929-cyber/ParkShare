@@ -6386,7 +6386,7 @@ function CancellationModal({ title, actor, busy, error, onClose, onConfirm, canc
         <textarea value={explanation} maxLength={1000} disabled={busy} onChange={event => setExplanation(event.target.value)} style={{display:"block",width:"100%",boxSizing:"border-box",minHeight:70,margin:"8px 0"}} />
       </label>}
       {selectedReason && <p style={{fontSize:12,lineHeight:1.55}}>{selectedReason.payer === "review" ? "ParkShare must verify the problem before deciding who covers the processing fee. This submits a support request; your booking remains active." : selectedReason.payer === "host" ? "The Host covers Stripe’s original processing fee. A ParkShare exception requires staff approval." : "ParkShare covers the original Stripe processing fee for this eligible free cancellation."}</p>}
-      <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>
+      {selectedReason?.payer !== "review" && <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>}
       </>}
       {error && !deadlineError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
