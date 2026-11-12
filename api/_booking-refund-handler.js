@@ -1,5 +1,5 @@
 // One authenticated entry point for cancellation, partial refund and staff review.
-import {decideRefund, originalProcessingFee} from './_refund-policy.js';
+import {decideRefund, originalProcessingFee, refundRequestIntent} from './_refund-policy.js';
 import {isParkShareStaff} from '../src/lib/cancellationReasons.js';
 import {processBookingRefund} from './_refund-operations.js';
 
@@ -30,6 +30,39 @@ export function createRefundHandler({db, payments, authenticate, live = false}) 
         if (jobs.error) throw jobs.error;
         return res.status(200).json({booking: {id: booking.id,status: booking.status,total: booking.total,refunded: booking.refund_total_amount || 0}, operations: jobs.data, staff});
       }
+      const intent = refundRequestIntent({user, booking, hostId: listing.host_id, body});
+      if (intent.error) return res.status(intent.status).json({error:intent.error,code:intent.code});
+      const findExistingPartial = async () => {
+        if (intent.action !== 'refund') return null;
+        const saved = await db.from('booking_refund_operations')
+          .select('id,booking_id,request_key,requested_by,actor,action,reason_code,explanation,fee_payer,connected_account_id,payment_intent_id,charge_id,livemode,currency,gross_cents,amount_cents,refund_status,state')
+          .eq('booking_id', booking.id).eq('request_key', intent.requestKey).maybeSingle();
+        if (saved.error) throw saved.error;
+        return saved.data;
+      };
+      const matchesPartial = op => Number(op.booking_id) === Number(booking.id) && op.request_key === intent.requestKey
+        && op.requested_by === user.id && op.actor === intent.actor && op.action === intent.action
+        && op.reason_code === intent.reason.code && op.explanation === intent.explanation && op.fee_payer === intent.reason.payer
+        && Number(op.amount_cents) === body.amountCents && Number(op.gross_cents) === Math.round(Number(booking.total) * 100)
+        && op.connected_account_id === booking.stripe_connected_account_id && op.payment_intent_id === booking.stripe_payment_intent_id
+        && op.charge_id === booking.stripe_charge_id && op.livemode === live && op.currency === 'cad';
+      const conflict = () => res.status(409).json({code:'request_conflict',error:'This request reference is already associated with different refund details. Review the booking before preparing another refund.'});
+      const acknowledgePartial = op => {
+        if (!matchesPartial(op)) return conflict();
+        const review = op.state === 'review' || ['failed','canceled'].includes(op.refund_status);
+        const complete = !review && op.state === 'complete' && op.refund_status === 'succeeded';
+        const message = review ? 'This existing refund request needs ParkShare staff review. Please contact support with your booking number.'
+          : complete ? 'This partial refund has already been processed.'
+          : op.refund_status === 'succeeded' ? 'Stripe has already confirmed this partial refund. Reconciliation or any Host fee reimbursement is still pending.'
+          : 'This partial refund request has already been submitted and is still processing. Please refresh shortly.';
+        return res.status(complete ? 200 : 202).json({bookingId:booking.id,bookingStatus:booking.status,operationId:op.id,
+          amountCents:Number(op.amount_cents),refundStatus:op.refund_status || null,operationState:op.state,feePayer:op.fee_payer,
+          alreadyProcessed:complete,alreadySubmitted:true,reviewRequired:review,message});
+      };
+      // A settled refund has already reduced both balances. A matching retry is
+      // a read of its durable operation, never a new request to the worker/Stripe.
+      const existingPartial = await findExistingPartial();
+      if (existingPartial) return acknowledgePartial(existingPartial);
       const decision = decideRefund({user, booking, hostId: listing.host_id, body});
       if (decision.error) return res.status(decision.status).json({error: decision.error,code:decision.code});
       if (decision.review) {
@@ -47,15 +80,30 @@ export function createRefundHandler({db, payments, authenticate, live = false}) 
       if (!booking.stripe_charge_id || !booking.stripe_connected_account_id || !booking.stripe_payment_intent_id) return res.status(409).json({error:'This payment needs ParkShare support review.'});
       const charge = await payments.charges.retrieve(booking.stripe_charge_id, {expand:['balance_transaction']}, {stripeAccount: booking.stripe_connected_account_id,timeout:8000,maxNetworkRetries:0});
       const fee = originalProcessingFee(charge, booking, live);
-      if (decision.amount > charge.amount - charge.amount_refunded) return res.status(409).json({error:'The payment has changed. Refresh the booking before requesting a refund.'});
+      if (decision.amount > charge.amount - charge.amount_refunded) {
+        // Another copy of this request may have completed after the first lookup.
+        const existing = await findExistingPartial();
+        if (existing) return acknowledgePartial(existing);
+        return res.status(409).json({error:'The payment has changed. Refresh the booking before requesting a refund.'});
+      }
       const reserved = await db.rpc('reserve_booking_refund', {p_operation: {
         booking_id:booking.id,request_key:decision.requestKey,requested_by:user.id,actor:decision.actor,action:decision.action,
         reason_code:decision.reason.code,explanation:decision.explanation,fee_payer:decision.reason.payer,
         connected_account_id:booking.stripe_connected_account_id,payment_intent_id:booking.stripe_payment_intent_id,
         charge_id:booking.stripe_charge_id,livemode:live,gross_cents:decision.gross,amount_cents:decision.amount,processing_fee_cents:fee,
       }});
-      if (reserved.error) return res.status(409).json({error:'Another refund is pending or requires review. Refresh this booking or contact ParkShare support.'});
+      if (reserved.error) {
+        const existing = await findExistingPartial();
+        if (existing) return acknowledgePartial(existing);
+        return res.status(409).json({error:'Another refund is pending or requires review. Refresh this booking or contact ParkShare support.'});
+      }
       const op = reserved.data;
+      if (intent.action === 'refund') {
+        // The reservation RPC can return an existing row after a concurrent
+        // insert. Recheck the immutable intent before touching the worker.
+        if (!matchesPartial(op)) return conflict();
+        if (op.state !== 'queued' || op.refund_status) return acknowledgePartial(op);
+      }
       const outcome = await processBookingRefund({db,stripe:payments,id:op.id,livemode:live});
       if (outcome === 'review') return res.status(202).json({bookingId:booking.id,bookingStatus:booking.status,operationId:op.id,reviewRequired:true,message:'This refund request needs ParkShare staff review. Please contact support with your booking number.'});
       return res.status(202).json({bookingId:booking.id,bookingStatus:booking.status,operationId:op.id,feePayer:op.fee_payer,message:'Refund request recorded. Booking status and any Host fee reimbursement update after Stripe confirms processing. Please refresh shortly.'});

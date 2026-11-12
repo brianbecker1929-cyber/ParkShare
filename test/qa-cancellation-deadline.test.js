@@ -13,10 +13,10 @@ const begin=source.indexOf('function CancellationModal(');
 const code=source.slice(begin,source.indexOf('function MyBookingsView(',begin));
 const compiled=await transform(code,{loader:'jsx'});
 const nodes=node=>!React.isValidElement(node)?[]:[node,...React.Children.toArray(node.props.children).flatMap(nodes)];
-function modal({deadline=1000,busy=false,actor='driver',error=''}={}){
+function modal({deadline=1000,busy=false,actor='driver',error='',reasonCode}={}){
   let now=999;
   let stateSlot=0;
-  const values={React,CANCELLATION_REASONS,useState:initial=>[(stateSlot++%2===0?(actor==='host'?'host_unavailable':'driver_plans'):'') ,()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),
+  const values={React,CANCELLATION_REASONS,useState:initial=>[(stateSlot++%2===0?(reasonCode??(actor==='host'?'host_unavailable':'driver_plans')):'') ,()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),
     Btn:({children,onClick,disabled})=>React.createElement('button',{type:'button',onClick,disabled},children),
     cancellationDeadlineError:value=>cancellationDeadlineError(value,now)};
   const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
@@ -56,4 +56,16 @@ test('Host confirmation without a Driver deadline preserves the original refund 
   const values={React,CANCELLATION_REASONS,useState:()=>[slot++===0?'host_unavailable':'',()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),Btn:({children})=>React.createElement('button',null,children),cancellationDeadlineError};
   const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
   const html=renderToStaticMarkup(View({actor:'host',busy:false,onClose:()=>{},onConfirm:()=>{}}));assert.match(html,/Driver will receive a full refund/);assert.doesNotMatch(html,/Contact support/);
+});
+
+test('access report excludes card-refund timing and keeps the support-review action',()=>{
+  const h=modal({reasonCode:'driver_access'});
+  assert.match(h.html(),/support for review|support request/);
+  assert.match(h.html(),/booking remains active/);
+  assert.equal(h.button('Request support review').props.disabled,false);
+  assert.doesNotMatch(h.html(),/Stripe usually returns|5–10 business days|you.ll receive a full refund/);
+});
+
+test('ordinary Driver and Host cancellation dialogs retain card-refund timing',()=>{
+  for(const actor of ['driver','host'])assert.match(modal({actor}).html(),/Stripe usually returns card refunds within 5–10 business days/);
 });

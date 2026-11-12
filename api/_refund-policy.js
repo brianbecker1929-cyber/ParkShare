@@ -1,7 +1,9 @@
 import {evaluateCancellation} from './_cancellation-policy.js';
 import {cancellationReasonFor, isParkShareStaff} from '../src/lib/cancellationReasons.js';
 
-export function decideRefund({user, booking, hostId, body, now = new Date()}) {
+// Validate caller-controlled intent separately from mutable booking balances.
+// A retry must be identified before applying eligibility for a NEW refund.
+export function refundRequestIntent({user, booking, hostId, body}) {
   const actor = isParkShareStaff(user) ? 'staff' : booking.renter_id === user.id ? 'driver' : hostId === user.id ? 'host' : null;
   if (!actor) return {error: 'You cannot refund this booking.', status: 403};
   // Reject financial authority fields rather than silently trusting a caller.
@@ -14,6 +16,17 @@ export function decideRefund({user, booking, hostId, body, now = new Date()}) {
   if (!reason) return {error: 'This cancellation reason is not permitted for your account.', status: 403};
   const explanation = String(body.explanation || '').trim();
   if (explanation.length > 1000 || reason.explanation && explanation.length < 3) return {error: 'Please provide an explanation (3–1000 characters).', status: 400};
+  if (action === 'refund') {
+    if (!Number.isSafeInteger(body.amountCents) || body.amountCents <= 0) return {error: 'Enter a valid partial refund amount below the remaining payment.', status: 400};
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(body.requestId || '')) return {error: 'A refund request ID is required.', status: 400};
+  }
+  return {actor, action, reason, explanation, requestKey: action === 'cancel' ? `cancel-${booking.id}` : `partial-${body.requestId}`};
+}
+
+export function decideRefund({user, booking, hostId, body, now = new Date()}) {
+  const intent = refundRequestIntent({user, booking, hostId, body});
+  if (intent.error) return intent;
+  const {actor, action, reason, explanation} = intent;
   const eligibility = evaluateCancellation({booking, userId: user.id, hostId, now});
   if (reason.payer === 'review') return {actor, action, reason, explanation, review: true};
   if (actor !== 'staff' && action === 'cancel' && !eligibility.allowed) return {error: eligibility.message, code: eligibility.code, status: eligibility.code === 'forbidden' ? 403 : 409};
@@ -28,8 +41,7 @@ export function decideRefund({user, booking, hostId, body, now = new Date()}) {
   if (Number(booking.refund_pending_amount) > 0 || ['pending', 'requires_action'].includes(booking.refund_status)) return {error: 'A refund is already pending. Wait for it to settle.', status: 409};
   const amount = action === 'cancel' ? remaining : body.amountCents;
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > remaining || action === 'refund' && amount >= remaining) return {error: 'Enter a valid partial refund amount below the remaining payment.', status: 400};
-  if (action === 'refund' && !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(body.requestId || '')) return {error: 'A refund request ID is required.', status: 400};
-  return {actor, action, reason, explanation, amount, gross, requestKey: action === 'cancel' ? `cancel-${booking.id}` : `partial-${body.requestId}`};
+  return {...intent, amount, gross};
 }
 
 export function originalProcessingFee(charge, booking, livemode) {
