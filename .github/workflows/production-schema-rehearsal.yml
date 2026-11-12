@@ -1,0 +1,58 @@
+name: Production database migration rehearsal
+
+on:
+  pull_request:
+    paths:
+      - 'deployment/production-database/**'
+      - 'supabase/migrations/**'
+      - 'supabase-migration-*.sql'
+      - 'docs/sql-proposals/**'
+      - 'scripts/*probe*.mjs'
+      - 'scripts/*schema-rehearsal.mjs'
+      - 'scripts/build-production-migration.mjs'
+      - 'test/database/fixtures/production-schema-nov11.json'
+      - '.github/workflows/production-schema-rehearsal.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  production-schema-rehearsal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: parkshare_production_rehearsal
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parkshare_production_rehearsal"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify deterministic migration package
+        run: |
+          node scripts/build-production-migration.mjs
+          git diff --exit-code -- deployment/production-database/manifest.json deployment/production-database/supabase/migrations
+      - name: Rehearse production catalog with synthetic records
+        run: node scripts/run-production-schema-rehearsal.mjs
+        env:
+          PRODUCTION_SCHEMA_REHEARSAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/parkshare_production_rehearsal
+          PRODUCTION_REHEARSAL_CI_SERVICE: postgres:17.6-bookworm
+      - name: Preserve rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-migration-rehearsal-results
+          path: deployment/production-database/evidence/rehearsal-results.json
+          if-no-files-found: warn

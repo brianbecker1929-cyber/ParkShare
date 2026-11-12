@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 export const extensionSettlementMigration=new URL('../supabase/migrations/20261020205407_extension_settlement_005116_005260.sql',import.meta.url);
-export async function runExtensionSettlementProbe(db,report){
+export async function runExtensionSettlementProbe(db,report,{installMigration=true}={}){
  const check=name=>report.checks.push({name:'extension settlement: '+name,status:'passed'});
- await db.exec(await readFile(extensionSettlementMigration,'utf8'));
- report.migrations.push({name:'extension_settlement_005116_005260',status:'passed'});
+ if(installMigration){await db.exec(await readFile(extensionSettlementMigration,'utf8'));
+ report.migrations.push({name:'extension_settlement_005116_005260',status:'passed'});}
  for(const fn of ['public.record_rejected_booking_extension(text,text,text,text,integer,timestamptz)','public.release_unpaid_extension_checkout(text,text)']){
   for(const role of ['anon','authenticated'])assert.equal((await db.query('select has_function_privilege($1,$2,\'EXECUTE\') allowed',[role,fn])).rows[0].allowed,false);
  }
