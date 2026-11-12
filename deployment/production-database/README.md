@@ -7,14 +7,14 @@ No production or recovery-QA database, deployment, scheduler, Stripe object, ema
 
 ## Result
 
-Fresh review: production's catalog was recaptured at **20:20 UTC / 15:20 EST on November 11** after Brian requested a restart. No structural or permission differences were found across the captured application, Auth and Storage definitions. The package was rebuilt and all rehearsal checks below were rerun in a new isolated PostgreSQL cluster; the generated SQL hash is unchanged. See `evidence/fresh-review-nov11.json` and the refreshed rehearsal results. Production and active QA were not modified.
+Frozen-source refresh: this package now binds the November 15 handoff's app commit **072629e16b35970bcae1260ab2e5660ece2b08d8**, including BUG-005661. Production's complete scoped application/Auth/Storage catalog was recaptured at **03:08 UTC on November 12 / 22:08 EST on November 11**. All five catalog sections match the prior capture apart from capture time, including ordered enum labels and permissions. The 31 SQL inputs are unchanged; the generated SQL differs only in the private release marker's app-source commit. The new SQL SHA-256 is `5ae2c33139f15ea8da10cabdd6a466e3460cd8ee4f4b40c8bd331d0b5b0e5f67`. See `evidence/frozen-source-refresh.json`. Production and active QA were not modified.
 
 The package was rehearsed on native PostgreSQL **17.6**, matching production's major/minor engine. It restores production's captured application, Auth and Storage *definitions*, then uses synthetic users, bookings and messages. No production customer, authentication, payment or Storage-object rows were copied.
 
-- **73 production migration checks passed**, including actual competing database connections for job claims.
+- **74 production migration checks passed**, including actual competing database connections for job claims and the private marker's frozen source/input hashes.
 - **144 existing QA schema checks passed**, after preserving the QA probes' default install behaviour.
-- **42 focused cancellation, financial retry and target-guard tests passed**. Provider responses in these unit tests are mocks; no payment or email was sent.
-- **1,909 full regression tests passed locally on the fresh run; application build passed.** GitHub's duplicate jobs were queued when this evidence was recorded, so they are not claimed as successful. See `evidence/fresh-full-regression-results.json` for the local result and verification time.
+- **84 focused cancellation, financial retry, authenticated-handler and target-guard tests passed**. Provider responses in these unit tests are mocks; no payment or email was sent.
+- **1,935 full regression tests passed locally with no failures/skips; application build passed.** The new GitHub checks are tracked separately on the refreshed PR head and are not inferred from earlier CI. Current local results and verification time are in `evidence/frozen-source-refresh.json`; earlier evidence files retain their historical source pins.
 - All 31 source SQL components install in one transaction. Failure of a late unique-index check rolls back all earlier schema and bucket changes. An injected historical-field change is also detected and rolled back.
 - All original columns/rows in the synthetic legacy application tables survive. This includes 29 paid bookings, two extensions, sent-reminder markers, a legacy partial refund, seven messages without recipients and a retained expired Checkout hold.
 
@@ -22,7 +22,7 @@ The package was rehearsed on native PostgreSQL **17.6**, matching production's m
 
 ## Package boundary
 
-- Candidate app source: `62ffb4b65de72ace10d5bd9454b54ad6786c57e3` (not yet the Nov 15 freeze).
+- Frozen QA app source: `072629e16b35970bcae1260ab2e5660ece2b08d8`. Production release approval remains separate.
 - Observed production app: `8c80feab4596e238eb46f585de5b8e1f2cf4b433`.
 - Intended production database: `oyxrussraxjgqwzpwyca`.
 - `manifest.json`: ordered original sources, original file SHA-256s, adaptation notes, generated migration SHA-256, baseline fingerprint and fixture hash.
@@ -80,12 +80,12 @@ The old production app is incompatible with parts of the privacy and new server-
 
 - A fresh managed backup/PITR checkpoint and **an isolated restore test** with recorded date/result. This rehearsal does not close that requirement.
 - A reviewed production release PR/commit integrating the QA code; the preparation branch and PR #252 are not a production promotion.
-- Verified live keys, signing-secret isolation, connected-account webhook scope, sender identity, scheduler authentication and alert route. No key values belong in evidence.
+- Verified live keys, signing-secret isolation, sender identity, scheduler authentication and alert route. Connected-account webhook scope is now confirmed read-only by the live destination's `events_from: ["@accounts"]` setting; see `evidence/live-connected-event-scope.json`. No key values belong in evidence.
 - Verified controls to pause production workers and new checkouts while preserving retryable Stripe event handling. `--skip-domain` alone is not proof of a scheduler hold.
 - BetterQA acceptance of staff-only reason restrictions, forged direct requests, partial refunds, TEST-mode fee credits and the Nov 15 frozen build; Nov 16–17 regression; Nov 17 report.
 - Actual hosted Auth/PostgREST/Storage HTTP tests and explicitly approved live payment/refund/email scenarios after deployment. Database-level permission tests and mocked providers do not prove these outcomes.
 - Queue inventory, activation of one scheduler per production worker, at least 20 consecutive successful minute runs, and actual controlled inbox evidence. The refund worker can move money, not merely send email.
-- Postgres/tzdata version review: production reports 17.6, while the current Supabase advisory calls for 17.11.0.003 or later for affected Canadian local-time rules. Verify applicability and plan any upgrade separately; this package does not upgrade the server.
+- Postgres/tzdata version review: production reports 17.6. Check current Supabase upgrade/tzdata guidance for the supported Canadian property zones before rollout. This rehearsal does not upgrade the production server; an earlier version-specific advisory is not being treated as a fresh finding.
 
 ## Failure and recovery
 

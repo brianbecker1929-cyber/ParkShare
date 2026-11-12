@@ -37,6 +37,10 @@
       "status": "passed"
     },
     {
+      "name": "Private release marker records the frozen app source and reviewed SQL inputs",
+      "status": "passed"
+    },
+    {
       "name": "All original columns and rows survive: 29 paid bookings, two extensions, messages, profiles, reviews and listing data",
       "status": "passed"
     },
@@ -303,12 +307,12 @@
     "columns": 499,
     "constraints": 178,
     "policies": 19,
-    "capturedAt": "2026-11-11T20:20:49.385048+00:00"
+    "capturedAt": "2026-11-12T03:08:45.668321+00:00"
   },
   "package": {
     "id": "production-candidate-2026-11-11",
-    "sha256": "f0731655a392c211f64b337cd574615aea5a68d6cc6a2b7e771f04b2574c9b61",
-    "sourceCommit": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+    "sha256": "5ae2c33139f15ea8da10cabdd6a466e3460cd8ee4f4b40c8bd331d0b5b0e5f67",
+    "sourceCommit": "072629e16b35970bcae1260ab2e5660ece2b08d8",
     "sources": 31
   },
   "fixture": {
@@ -319,5 +323,5 @@
     "customerRowsExported": 0
   },
   "migrations": [],
-  "completedAt": "2026-11-11T20:21:58.846Z"
+  "completedAt": "2026-11-12T03:11:24.188Z"
 }

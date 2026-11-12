@@ -3,6 +3,7 @@ import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 const root=new URL('../',import.meta.url),base=new URL('deployment/production-database/',root);
+const SOURCE_COMMIT='072629e16b35970bcae1260ab2e5660ece2b08d8';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const sources=[
  'supabase-migration-010-preserve-bookings-on-listing-delete.sql',
@@ -97,12 +98,12 @@ ALTER TABLE parkshare_private.production_release_versions ENABLE ROW LEVEL SECUR
 REVOKE ALL ON parkshare_private.production_release_versions FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON parkshare_private.production_release_versions TO service_role;
 INSERT INTO parkshare_private.production_release_versions(package_id,source_commit,inputs_sha256)
- VALUES('production-candidate-2026-11-11','62ffb4b65de72ace10d5bd9454b54ad6786c57e3','${inputsHash}');
+ VALUES('production-candidate-2026-11-11','${SOURCE_COMMIT}','${inputsHash}');
 NOTIFY pgrst,'reload schema';
 COMMIT;
 `;
 const sql=header+sections.join('\n')+tail;
-const manifest={packageId:'production-candidate-2026-11-11',status:'rehearsal-only; production execution requires separate approval',sourceCommit:'62ffb4b65de72ace10d5bd9454b54ad6786c57e3',productionCommit:'8c80feab4596e238eb46f585de5b8e1f2cf4b433',targetProject:'oyxrussraxjgqwzpwyca',baselineFingerprint:'c88a7b09cb3c4da5b99628cfe6d6a3a6',baselineFixtureSha256:sha(snapshot),inputsSha256:inputsHash,migrationFile:'supabase/migrations/'+files[0],migrationSha256:sha(sql),transaction:'One transaction; no intermediate committed stages',sources:inputs,excluded:['QA combined recovery installer and backup schema','QA geography cell backfill','QA pg_cron/pg_net/Vault bootstrap','Auth/customer rows and QA staff flags','Historical notification/money queue backfills','Any Stripe, Resend, Storage object or HTTP request']};
+const manifest={packageId:'production-candidate-2026-11-11',status:'rehearsal-only; production execution requires separate approval',sourceCommit:SOURCE_COMMIT,productionCommit:'8c80feab4596e238eb46f585de5b8e1f2cf4b433',targetProject:'oyxrussraxjgqwzpwyca',baselineFingerprint:'c88a7b09cb3c4da5b99628cfe6d6a3a6',baselineFixtureSha256:sha(snapshot),inputsSha256:inputsHash,migrationFile:'supabase/migrations/'+files[0],migrationSha256:sha(sql),transaction:'One transaction; no intermediate committed stages',sources:inputs,excluded:['QA combined recovery installer and backup schema','QA geography cell backfill','QA pg_cron/pg_net/Vault bootstrap','Auth/customer rows and QA staff flags','Historical notification/money queue backfills','Any Stripe, Resend, Storage object or HTTP request']};
 await writeFile(new URL(manifest.migrationFile,base),sql);
 await writeFile(new URL('manifest.json',base),JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify({sources:inputs.length,bytes:Buffer.byteLength(sql),migration:manifest.migrationFile,sha256:manifest.migrationSha256}));

@@ -2024,6 +2024,6 @@ ALTER TABLE parkshare_private.production_release_versions ENABLE ROW LEVEL SECUR
 REVOKE ALL ON parkshare_private.production_release_versions FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON parkshare_private.production_release_versions TO service_role;
 INSERT INTO parkshare_private.production_release_versions(package_id,source_commit,inputs_sha256)
- VALUES('production-candidate-2026-11-11','62ffb4b65de72ace10d5bd9454b54ad6786c57e3','d2ffd9bebdaee2bb3b62025da27060343b91d992fdf4f64e6b670dc8c0ba1f5d');
+ VALUES('production-candidate-2026-11-11','072629e16b35970bcae1260ab2e5660ece2b08d8','d2ffd9bebdaee2bb3b62025da27060343b91d992fdf4f64e6b670dc8c0ba1f5d');
 NOTIFY pgrst,'reload schema';
 COMMIT;

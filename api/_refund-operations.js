@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto';
 const DAY = 24 * 60 * 60 * 1000;
+const stripeId = value => typeof value === 'string' ? value : value?.id;
 export async function processBookingRefund({db, stripe, id, livemode, now = new Date()}) {
   const token = randomUUID();
   const {data: claimed, error: claimError} = await db.rpc('claim_booking_refund', {p_id: id, p_token: token});
@@ -16,14 +17,25 @@ export async function processBookingRefund({db, stripe, id, livemode, now = new 
   try {
     if (op.livemode !== livemode) return await review('stripe_mode_mismatch');
     if (!op.refund_id && +now - Date.parse(op.refund_attempt_at) >= DAY) return await review('refund_idempotency_window_expired');
+    // Refund objects do not expose livemode. Verify the original charge in
+    // the operation's connected-account context before any financial write.
+    const charge = await stripe.charges.retrieve(op.charge_id, {}, opts);
+    if (charge?.object !== 'charge' || charge.id !== op.charge_id
+      || stripeId(charge.payment_intent) !== op.payment_intent_id || charge.livemode !== livemode
+      || charge.currency !== op.currency || charge.amount !== Number(op.gross_cents)
+      || charge.paid !== true || charge.captured !== true || charge.status !== 'succeeded' || charge.disputed) {
+      return await review('refund_payment_identity_mismatch');
+    }
     const refund = op.refund_id
       ? await stripe.refunds.retrieve(op.refund_id, {}, opts)
       : await stripe.refunds.create({
         payment_intent: op.payment_intent_id, amount: op.amount_cents, reason: 'requested_by_customer', refund_application_fee: true,
         metadata: {booking_id: String(op.booking_id), parkshare_operation: op.id, parkshare_reason: op.reason_code},
       }, {...opts, idempotencyKey: `parkshare-refund-${op.id}`});
-    if (refund.payment_intent !== op.payment_intent_id || refund.charge !== op.charge_id || refund.livemode !== livemode
-      || refund.currency !== op.currency || refund.amount !== op.amount_cents) return await review('refund_identity_mismatch');
+    if (refund?.object !== 'refund' || typeof refund.id !== 'string' || !/^re_[A-Za-z0-9_]+$/.test(refund.id)
+      || stripeId(refund.payment_intent) !== op.payment_intent_id || stripeId(refund.charge) !== op.charge_id
+      || refund.currency !== op.currency || refund.amount !== Number(op.amount_cents)
+      || (op.refund_id && refund.id !== op.refund_id)) return await review('refund_identity_mismatch');
     await patch({refund_id: refund.id, refund_status: refund.status});
     if (['failed', 'canceled'].includes(refund.status)) return await review('customer_refund_failed');
     if (refund.status !== 'succeeded') return 'pending';

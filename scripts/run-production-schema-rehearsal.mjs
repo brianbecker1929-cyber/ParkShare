@@ -83,6 +83,10 @@ try {
   await assert.rejects(()=>db.exec(injected),/Historical data changed/);await db.exec('ROLLBACK');assert.deepEqual(await rowDigest(),before);
  });
  await check('Complete production package commits against the exact restored production catalog',async()=>{await db.exec(sql);});
+ await check('Private release marker records the frozen app source and reviewed SQL inputs',async()=>{
+  const marker=(await db.query('SELECT source_commit,inputs_sha256 FROM parkshare_private.production_release_versions WHERE package_id=$1',[manifest.packageId])).rows[0];
+  assert.equal(marker.source_commit,manifest.sourceCommit);assert.equal(marker.inputs_sha256,manifest.inputsSha256);
+ });
  await check('All original columns and rows survive: 29 paid bookings, two extensions, messages, profiles, reviews and listing data',async()=>{
   assert.deepEqual(await rowDigest(),before);
   assert.equal((await db.query('SELECT count(*)::int n FROM public.bookings WHERE paid_at IS NOT NULL')).rows[0].n,29);

@@ -22,6 +22,10 @@ const fixture = () => ({
   stripe_charge_id: "ch_fixture", stripe_checkout_session_id: "cs_fixture", stripe_payment_intent_id: "pi_fixture",
   stripe_connected_account_id: "acct_fixture", refund_status: null, refund_ledger_revision: 0,
 });
+const refundFixture = (change = {}) => ({
+  object: 'refund', id: 're_fixture', status: 'succeeded', amount: 1380,
+  payment_intent: 'pi_fixture', charge: 'ch_fixture', currency: 'cad', ...change,
+});
 
 let accountBookings, cancelBooking, clientWindow, clientDisplay;
 let rows, actor, requests, refunds, stripeRefundMock, operation;
@@ -62,7 +66,7 @@ before(async () => {
     const table = url.pathname.split("/").pop();
     if (url.pathname.includes('/rpc/')) {
       const args=JSON.parse(options.body);
-      if(table==='reserve_booking_refund') {operation ||= {...args.p_operation,id:'00000000-0000-4000-8000-000000000166',state:'queued',refund_attempt_at:new Date(NOW).toISOString()};return Response.json(operation);}
+      if(table==='reserve_booking_refund') {operation ||= {...args.p_operation,id:'00000000-0000-4000-8000-000000000166',currency:'cad',state:'queued',refund_attempt_at:new Date(NOW).toISOString()};return Response.json(operation);}
       if(table==='claim_booking_refund') {if(operation.claimed)return Response.json(null);operation.claimed=true;operation.lease_token=args.p_token;return Response.json(operation);}
       throw Error('Unexpected RPC '+table);
     }
@@ -92,9 +96,9 @@ before(async () => {
   const lib = await import("../api/_lib.js");
   stripeRefundMock = mock.method(lib.stripe.refunds, "create", async (...args) => {
     refunds.push(args);
-    return { id: "re_fixture", status: "succeeded", amount: 1380, payment_intent:"pi_fixture",charge:"ch_fixture",currency:"cad",livemode:false };
+    return refundFixture();
   });
-  mock.method(lib.stripe.charges, "retrieve", async()=>({id:'ch_fixture',payment_intent:'pi_fixture',amount:1380,amount_refunded:0,livemode:false,currency:'cad',paid:true,captured:true,status:'succeeded',balance_transaction:{source:'ch_fixture',currency:'cad',fee_details:[{type:'stripe_fee',amount:70,currency:'cad'}]}}));
+  mock.method(lib.stripe.charges, "retrieve", async()=>({object:'charge',id:'ch_fixture',payment_intent:'pi_fixture',amount:1380,amount_refunded:0,livemode:false,currency:'cad',paid:true,captured:true,status:'succeeded',disputed:false,balance_transaction:{source:'ch_fixture',currency:'cad',fee_details:[{type:'stripe_fee',amount:70,currency:'cad'}]}}));
   ({ default: accountBookings } = await import("../api/account-bookings.js"));
   ({ default: cancelBooking } = await import("../api/cancel-booking.js"));
   // Execute the real browser date/window functions without mounting React or
@@ -176,6 +180,8 @@ test("Host can cancel before canonical start even inside the Driver notice cutof
   mock.timers.setTime(Date.parse("2026-10-20T17:30:00Z"));
   assert.equal((await cancel()).statusCode, 202);
   assert.equal(operation.actor, "host");
+  assert.equal(refunds.length, 1);
+  assert.equal(operation.refund_id, 're_fixture');
 });
 
 test("unrelated user cannot list or cancel this booking", async () => {
@@ -213,11 +219,11 @@ test("invalid canonical instant fails closed without refunding the legacy fallba
 });
 
 test('a provider amount mismatch requires review without falsely marking the booking refunded',async()=>{
- stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);return {id:'re_mismatch',status:'succeeded',amount:690};});
+ stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);return refundFixture({id:'re_mismatch',amount:690});});
  const res=await cancel();assert.equal(res.statusCode,202);assert.equal(res.body.bookingStatus,'confirmed');assert.equal(res.body.reviewRequired,true);
  assert.equal(operation.review_code,'refund_identity_mismatch');assert.equal(rows[0].cancelled_at,undefined);
 });
 test('a webhook revision change while Stripe responds cannot be overwritten by the cancellation response',async()=>{
- stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);rows[0].refund_ledger_revision++;rows[0].stripe_refund_id='re_webhook_first';rows[0].refund_total_amount=6.9;return {id:'re_fixture',status:'succeeded',amount:1380,payment_intent:'pi_fixture',charge:'ch_fixture',currency:'cad',livemode:false};});
+ stripeRefundMock.mock.mockImplementationOnce(async(...args)=>{refunds.push(args);rows[0].refund_ledger_revision++;rows[0].stripe_refund_id='re_webhook_first';rows[0].refund_total_amount=6.9;return refundFixture();});
  const res=await cancel();assert.equal(res.statusCode,202);assert.equal(rows[0].stripe_refund_id,'re_webhook_first');assert.equal(rows[0].refund_total_amount,6.9);
 });

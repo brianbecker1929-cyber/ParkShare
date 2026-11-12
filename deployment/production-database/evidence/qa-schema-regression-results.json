@@ -694,5 +694,8 @@
       "code": "23505",
       "message": "could not create unique index \"reviews_one_per_driver_listing\""
     }
-  ]
+  ],
+  "rehearsalWorkspaceBaseCommit": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "frozenAppSourceCommit": "072629e16b35970bcae1260ab2e5660ece2b08d8",
+  "sourceNote": "Native working tree contains verified frozen app files plus production-preparation changes; sourceCommit records checkout base."
 }

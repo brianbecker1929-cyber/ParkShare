@@ -1,14 +1,14 @@
 {
   "packageId": "production-candidate-2026-11-11",
   "status": "rehearsal-only; production execution requires separate approval",
-  "sourceCommit": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "sourceCommit": "072629e16b35970bcae1260ab2e5660ece2b08d8",
   "productionCommit": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
   "targetProject": "oyxrussraxjgqwzpwyca",
   "baselineFingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6",
-  "baselineFixtureSha256": "8c09c23a7e76b0859c7af7e23211d373293f6619d3fee8e7633b960a1dbf5e3a",
+  "baselineFixtureSha256": "5ff75fe930f6046848df58aa57b3af17030a39909cf3202ed771db50acac3ec9",
   "inputsSha256": "d2ffd9bebdaee2bb3b62025da27060343b91d992fdf4f64e6b670dc8c0ba1f5d",
   "migrationFile": "supabase/migrations/20261111125931_production_release_candidate.sql",
-  "migrationSha256": "f0731655a392c211f64b337cd574615aea5a68d6cc6a2b7e771f04b2574c9b61",
+  "migrationSha256": "5ae2c33139f15ea8da10cabdd6a466e3460cd8ee4f4b40c8bd331d0b5b0e5f67",
   "transaction": "One transaction; no intermediate committed stages",
   "sources": [
     {
