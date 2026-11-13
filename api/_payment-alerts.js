@@ -1,5 +1,6 @@
 // Opt-in operational notifications. Never pass an event body, error object,
-// customer data or credentials into an alert. No database or Stripe writes.
+// customer data or credentials into an alert. Only the private alert outbox
+// is written; no booking, refund, transfer or Stripe mutation is performed.
 import {createHash} from 'node:crypto';
 
 const ENVIRONMENTS = {
@@ -36,7 +37,8 @@ export function paymentAlertConfiguration(env) {
     || target.live && env.VERCEL_ENV !== 'production') return {enabled: false, reason: 'environment_mismatch'};
   const from = env.EMAIL_FROM || '';
   const sender = from.match(/^[^<>\r\n]*<([^<>\r\n]+)>$/)?.[1] || from;
-  if (!mailbox(env.PAYMENT_ALERT_EMAIL_TO) || !mailbox(sender) || !sender.endsWith('@myparkshare.ca') || !env.RESEND_API_KEY) {
+  if (!mailbox(env.PAYMENT_ALERT_EMAIL_TO) || !mailbox(sender) || !sender.endsWith('@myparkshare.ca')
+    || !env.RESEND_API_KEY || !env.SUPABASE_SERVICE_ROLE_KEY) {
     return {enabled: false, reason: 'configuration_missing'};
   }
   return {enabled: true, environment: env.PAYMENT_ALERTS_ENVIRONMENT, live: target.live,
@@ -62,17 +64,30 @@ export function buildPaymentAlert(kind, input, config) {
       'This notification does not perform a refund, transfer, booking correction or replay.',
       'Sign in to the existing Stripe and ParkShare dashboards to investigate.'].join('\n'),
   };
-  // Exact body and destination form the key: a repeated logical notification
-  // cannot conflict with a changed email body. Resend retains keys for 24h;
-  // this is bounded provider deduplication, not a durable incident outbox.
-  const digest = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
-  return {payload, idempotencyKey: `parkshare-payment-alert-v1/${config.environment}/${kind}/${digest}`};
+  return {payload, idempotencyKey: paymentAlertIdempotencyKey(kind, payload, config.environment)};
 }
 
-export function createPaymentAlertReporter({env = process.env, fetchImpl = globalThis.fetch, logger = console} = {}) {
+export function paymentAlertIdempotencyKey(kind, payload, environment) {
+  // A fixed field order survives JSONB key reordering after persistence.
+  const digest = createHash('sha256').update(JSON.stringify([payload.from, payload.to, payload.subject, payload.text])).digest('hex');
+  return `parkshare-payment-alert-v2/${environment}/${kind}/${digest}`;
+}
+
+export function paymentAlertJobMatchesConfiguration(job, config) {
+  const p = job?.payload;
+  return Boolean(Object.hasOwn(KINDS, job?.kind) && job.livemode === config.live && p
+    && Object.keys(p).length === 4 && ['from','to','subject','text'].every(k => Object.hasOwn(p,k))
+    && p.from === config.from && Array.isArray(p.to) && p.to.length === 1 && p.to[0] === config.to
+    && p.subject === `[ParkShare ${config.live ? 'LIVE' : 'TEST'}] ${KINDS[job.kind][0]}`
+    && typeof p.text === 'string' && p.text.length <= 5000
+    && job.idempotency_key === paymentAlertIdempotencyKey(job.kind, p, config.environment));
+}
+
+const defaultDatabase = async () => (await import('./_lib.js')).supabaseAdmin;
+export function createPaymentAlertReporter({env = process.env, db, dbFactory = defaultDatabase, logger = console} = {}) {
   return async function report(kind, input) {
-    // Best-effort bounded delivery: alert failures must not alter financial
-    // results, suppress a webhook 500, or release a refund review hold.
+    // Persist before responding; a separate, opt-in worker owns email sends.
+    // Queue failures must not alter the existing financial result.
     try {
       const config = paymentAlertConfiguration(env);
       if (!config.enabled) {
@@ -81,20 +96,18 @@ export function createPaymentAlertReporter({env = process.env, fetchImpl = globa
       }
       const alert = buildPaymentAlert(kind, input, config);
       if (!alert) return {status: 'invalid_alert'};
-      const response = await fetchImpl('https://api.resend.com/emails', {
-        method: 'POST', headers: {Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json',
-          'Idempotency-Key': alert.idempotencyKey},
-        signal: AbortSignal.timeout(2500), body: JSON.stringify(alert.payload),
-      });
-      if (!response.ok) throw new Error('provider_rejected');
-      const result = await response.json();
-      if (typeof result?.id !== 'string' || !/^[0-9a-f-]{36}$/i.test(result.id)) throw new Error('invalid_provider_response');
-      logger.info?.('[payment-alert] accepted', {kind, livemode: config.live});
-      return {status: 'accepted'};
+      const database = db || await dbFactory();
+      const result = await database.rpc('enqueue_payment_alert', {p_key: alert.idempotencyKey, p_kind: kind,
+        p_livemode: config.live, p_payload: alert.payload}).abortSignal(AbortSignal.timeout(2500));
+      if (result.error) throw new Error('queue_unavailable');
+      const job = Array.isArray(result.data) ? result.data[0] : result.data;
+      if (!job?.id) throw new Error('invalid_queue_response');
+      return {status: job.accepted_at ? 'already_accepted' : job.blocked_at ? 'blocked' : 'queued'};
     } catch {
-      // Never log the provider response, request headers or raw exception.
-      try { logger.error?.('[payment-alert] delivery failed', {kind: Object.hasOwn(KINDS, kind) ? kind : 'invalid'}); } catch {}
-      return {status: 'delivery_failed'};
+      // A database outage can also prevent queuing; retain the original
+      // incident log/Stripe retry and require independent outage monitoring.
+      try { logger.error?.('[payment-alert] queue unavailable', {kind: Object.hasOwn(KINDS, kind) ? kind : 'invalid'}); } catch {}
+      return {status: 'queue_unavailable'};
     }
   };
 }

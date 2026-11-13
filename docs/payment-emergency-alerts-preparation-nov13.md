@@ -1,97 +1,138 @@
 # Payment emergency alerts — preparation, November 13, 2026
 
-Status: isolated draft based on frozen `072629e`. No production or frozen-QA deployment, hosted
-configuration change, migration, scheduler activation, replay or email send.
-The existing PR 254 review, production and frozen QA are separate.
+Status: isolated draft based on frozen `072629e`. Production, frozen QA and
+PR 254's separate review remain unchanged. No hosted outbox installation,
+configuration change, scheduler activation, payment, refund, transfer or
+webhook replay was performed. One owner-approved synthetic TEST email was
+sent through the existing email connection; the application worker was not
+activated to send it.
 
 ## Owner decisions
 
 - Brian selected an emergency mailbox on November 13. Configure its exact
-  value privately as `PAYMENT_ALERT_EMAIL_TO`; do not put a personal address
-  in this public repository.
-- Assume Vancouver is included at launch. BUG-005674 remains a launch blocker
-  until its cause is established, repaired and independently verified.
-  Observed canonical UTC records and a simulated older browser timezone
-  database are investigation evidence, not a confirmed diagnosis. Do not
-  shift historical records or change the frozen build on that basis.
+  value privately as `PAYMENT_ALERT_EMAIL_TO`; keep the personal address out
+  of this public repository.
+- Vancouver is assumed included at launch. BUG-005674 remains a blocker until
+  diagnosed, repaired and independently verified. Observed canonical UTC
+  records and a simulated older browser timezone database are investigation
+  evidence, not a confirmed diagnosis. Preserve historical booking records.
 
 ## Prepared behavior
 
-| Signal | Email | Existing financial result |
+| Signal | Alert | Existing financial result |
 | --- | --- | --- |
-| Signed webhook processing throws | Webhook failure, or paid-checkout reconciliation alert for a paid Checkout event | Keep HTTP 500 for Stripe retry |
-| Registered paid initial booking retained as rejected | Checkout not applied; inspect reversal/refund audit | Keep existing settlement/reversal rules |
+| Signed webhook processing throws | Webhook failure, or paid-checkout reconciliation | Keep HTTP 500 for Stripe retry |
+| Registered paid initial booking is retained as rejected | Checkout not applied; inspect reversal/refund audit | Keep existing settlement/reversal rules |
 | Refund or Host fee operation enters review | Staff reconciliation required | Keep the review hold |
 | Refund/fee worker catches an error | Processing needs investigation | Keep the operation pending |
 | Signed `refund.failed` or failed `refund.updated` | Refund failed | Keep normal account-scoped ledger reconciliation |
 
-No alert submits a financial operation or repairs a booking. A paid Checkout
-event or rejection is not proof that funds remain captured: inspect the
-original connected-account Charge, refunds and dispute before acting.
+No alert repairs a booking or submits a financial operation. A paid Checkout
+or rejected-booking event is not proof that funds remain captured: inspect
+the original connected-account Charge, refunds and dispute before acting.
 Unregistered connected-account payments are not classified as ParkShare
-bookings by this change. Invalid signatures never trigger emergency emails.
+bookings. Invalid signatures cannot enqueue emergency emails.
 
-Only correlation IDs and a booking number are included. Raw event payloads,
-customer details, addresses, plates, error messages and credentials are
-discarded. LIVE and TEST are explicit in the subject. Email failure does not
-change the existing financial outcome; the provider request has a 2.5-second
-timeout and no inline retry.
+Only allowlisted correlation IDs and a booking number enter the message.
+Customer details, addresses, plates, raw payloads, error text and credentials
+are discarded. LIVE and TEST appear explicitly in the subject.
+
+## Durable delivery repair
+
+The original direct-send draft could lose a notification when the mail
+provider failed, particularly after a refund operation entered review. The
+new reporter records an immutable payload and deterministic key in a
+service-only outbox. It does not send mail inline with the financial path.
+The queue RPC has a 2.5-second request timeout.
+
+A separate authenticated `/api/send-payment-alerts` worker handles emails
+only. It never calls the reminder, refund or reimbursement workers. No
+scheduler is added to `vercel.json`.
+
+- A database lease permits one worker to claim each job for two minutes.
+- The original payload, recipient, sender, first-attempt time and key survive
+  restarts. JSONB key reordering cannot change the idempotency key.
+- Failed responses and ambiguous acceptance retry with that same payload/key.
+  Backoff starts at 30 seconds and caps at one hour. Numeric Retry-After is
+  honored within that cap. Concurrent provider requests retry; payload
+  conflicts and other permanent rejections block for operator review.
+- At most eight attempts are allowed, including claims after worker crashes.
+  Each run handles at most five jobs, sequentially.
+- Ambiguous jobs block after 23 hours, before Resend's documented 24-hour key
+  retention expires. They require reconciliation rather than automatic
+  re-keying. Reference: https://resend.com/docs/dashboard/emails/idempotency-keys
+- Provider acceptance is recorded durably. Accepted jobs do not resend after
+  the provider cache expires. Acceptance is not proof of inbox delivery.
+- A changed recipient/sender, mode mismatch or payload/key corruption blocks
+  the saved job. No frozen payload is silently redirected or edited.
+
+The schema proposal is `docs/sql-proposals/payment-emergency-alert-outbox.sql`.
+It creates an empty table, with RLS and no anonymous/authenticated grants.
+Its fixed-search-path functions are SECURITY INVOKER and service-only. It
+adds no historical jobs or triggers on financial tables. It is not included
+in the existing PR 253 production migration package. Incorporating it into
+an approved release is a separate step; it has not been applied to hosted
+production or active QA.
 
 ## Runtime gate — off by default
 
-No settings are created by this draft. Later configuration requires:
+Later configuration requires all of the following; none are enabled here:
 
 - `PAYMENT_ALERTS_ENABLED=true` and `PAYMENT_ALERTS_ENVIRONMENT=production`
   or `qa`.
-- `PAYMENT_ALERT_EMAIL_TO` set to the owner-approved monitored mailbox;
-  one recipient, no CC/BCC.
-- An explicit `EMAIL_FROM` mailbox on verified `myparkshare.ca`, plus the
-  existing `RESEND_API_KEY`. Confirm the actual production sender separately.
+- `PAYMENT_ALERT_EMAIL_TO` set privately to the approved monitored mailbox.
+- Explicit verified-domain `EMAIL_FROM`, existing `RESEND_API_KEY` and
+  service-only database credentials.
 - Exact expected Vercel project and Supabase URL, and matching Live/TEST key
-  prefix. Live alerts additionally require Vercel Production target.
+  prefix. Live alerts additionally require the Production target.
+- The reviewed outbox schema and exactly one separately approved scheduler
+  for the email-only drain, using the existing `CRON_SECRET` authorization.
 
-These runtime checks are guards, not evidence of the current production key
-or signing-secret isolation. No secret comparison is performed here.
+These guards do not prove current production key or signing-secret
+isolation. Exact production sender and APP_URL remain separate evidence.
 
-## Local verification and safe delivery rehearsal
+## Verification and controlled TEST delivery
 
-`node scripts/preview-payment-alerts.mjs` renders six synthetic TEST messages
-locally without using credentials or a network. Tests inject a fake email
-transport; no external email is sent. The configured emergency mailbox is
-not tested by this offline exercise.
+`node scripts/preview-payment-alerts.mjs` renders six synthetic messages
+locally without a provider call. JavaScript fixtures test queuing, crashes,
+ambiguous acceptance, duplicate protection, backoff, blocked cases, mode
+isolation and preserved financial responses. Native disposable PostgreSQL
+checks exercise real grants/RLS, competing lease claims and retry state.
 
-Before activation, use a separate review build and a synthetic signed TEST
-fixture with a stubbed failing dependency, not a real charge or refund. Send
-one clearly labelled TEST notification to the approved mailbox, confirm its
-arrival, and inspect the redacted provider delivery status. Repeat the same
-fixture to verify duplicate handling. Record exact source/deployment, test
-time in UTC, accepted message ID, delivery evidence and mailbox receipt.
-Coordinate any BetterQA retest separately; do not modify its frozen target.
+Controlled transport test, November 13, 2026 at 23:44:44 UTC:
 
-Provider deduplication uses an identical body and stable key for an identical
-incident. Resend documents a **24-hour** idempotency retention period:
-https://resend.com/docs/dashboard/emails/idempotency-keys
-After that window another notification can be sent. Different signed events
-about the same incident can produce separate notifications. This is not a
-durable incident queue and does not promise exactly-once lifetime delivery.
+- Used the established `ParkShare QA <qa@myparkshare.ca>` sender and the
+  privately approved emergency destination.
+- Subject explicitly stated TEST and that no payment incident existed.
+- The provider reported **delivered**. Repeating the identical request/key
+  returned the same provider message ID, rather than a second message.
+- Brian's personal mailbox receipt confirmation remains pending.
 
-## Operator response
+This proves the existing email connection's transport to the selected
+mailbox. It does not prove the deployed application reporter, outbox worker,
+production configuration or scheduler. No real financial action was used.
+Before activation, rehearse the complete application-to-outbox-to-worker
+path in an isolated review environment, then record exact source/deployment,
+UTC time, queue/lease state, provider acceptance/delivery and owner receipt.
+Do not change frozen QA or replay BetterQA's financial events for this test.
 
-Brian is the initial incident owner. A backup operator is not yet nominated.
-Suggested launch procedure: investigate a LIVE alert promptly; match mode,
-connected account, event/session/operation and booking audit first. Preserve
-history and record an incident note before considering a controlled retry.
-Check actual provider results before any manual refund, reimbursement or
-booking correction. Avoid automatic replay while a disputed or ambiguous
-payment is being reconciled.
+## Operator response and remaining launch gate
 
-## Remaining production gate
+Brian is the initial incident owner; a backup is not yet nominated. Inspect
+mode, connected account and event/session/operation references before a
+controlled retry. Preserve history and reconcile actual provider results
+before any manual refund, reimbursement or booking correction.
 
-This draft does **not** close the production payment-alert checklist item.
-It requires review, coordinated application release, destination/sender
-configuration and actual TEST delivery evidence, then approved production
-activation. It does not catch failures before the application executes,
-events never delivered by Stripe, silent stale queues, or a simultaneous
-Resend outage. Preserve the existing logs and Stripe delivery monitoring;
-independent monitoring, durable retry/escalation and rate-limit policy remain
-required review decisions before relying on this as the sole emergency path.
+The production payment-alert checklist item remains open. Review and
+separate application/schema rollout, full-path TEST evidence, scheduler
+selection and production activation are still required. Blocked jobs need
+operator review and a monitored health/escalation procedure.
+
+This queue protects notifications after successful enqueue. A database outage
+can still prevent the initial enqueue, and an outage before application
+execution or an event never delivered by Stripe is outside this path.
+Queueing is separate from the financial transaction; a failed enqueue after
+an operation enters review requires reconciliation from its retained audit.
+Preserve the existing logs and Stripe retries. Independent outage and stale-
+queue monitoring remain necessary before relying on this as the sole
+emergency channel. No exactly-once lifetime delivery guarantee is claimed.
