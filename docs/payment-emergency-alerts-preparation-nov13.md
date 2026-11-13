@@ -1,6 +1,6 @@
 # Payment emergency alerts — preparation, November 13, 2026
 
-Status: isolated draft based on frozen `072629e`. No deployment, hosted
+Status: isolated draft based on frozen `072629e`. No production or frozen-QA deployment, hosted
 configuration change, migration, scheduler activation, replay or email send.
 The existing PR 254 review, production and frozen QA are separate.
 
