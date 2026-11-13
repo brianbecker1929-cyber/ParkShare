@@ -17,6 +17,7 @@ import { sendEmail, confirmationEmailHtml, hostBookingNotificationHtml, extensio
 import { renderParkingSpotImage, deriveEmailSpotStates } from "./_driveway-image.js";
 import { renderHostLogoPng, renderHostPortraitPng, renderDriverPortraitPng } from "./_host-logo.js";
 import { formatBookingEmailTimes } from "./_booking-email-times.js";
+import { reportPaymentAlert } from "./_payment-alerts.js";
 
 import {normaliseVehicleType} from "../src/lib/vehicleTypes.js";
 import {sendDriverBookingConfirmation} from "./_booking-confirmation-delivery.js";
@@ -231,6 +232,9 @@ async function confirmBooking(session, connectedAccountId, hold, event) {
     await sendBookingConfirmationEmail(settlement.booking).catch(err => {
       console.error("Failed to send booking confirmation email:", err);
     });
+  } else if (settlement.refund_required) {
+    await reportPaymentAlert('paid_checkout_rejected', {eventId: event.id, sessionId: session.id,
+      connectedAccountId, bookingId: Number(settlement.booking.id), livemode: event.livemode});
   }
 
 }
@@ -621,6 +625,8 @@ async function processPaidCheckout(session, connectedAccountId, event) {
   if (existingBooking) {
     if(existingBooking.application_state === "rejected") {
       await finishRejectedInitialBooking({event,booking:existingBooking,stripe,db:supabaseAdmin,reconcile:reconcilePaymentRefund});
+      await reportPaymentAlert('paid_checkout_rejected', {eventId: event.id, sessionId: session.id,
+        connectedAccountId, bookingId: Number(existingBooking.id), livemode: event.livemode});
     }
     return;
   }
@@ -828,6 +834,10 @@ export default async function handler(req, res) {
       case "refund.failed": {
         await recoverRejectedExtensionRefund({ event, stripe, db: supabaseAdmin });
         await reconcilePaymentRefund({ event, stripe, db: supabaseAdmin });
+        if (event.type === 'refund.failed' || event.type === 'refund.updated' && event.data.object.status === 'failed') {
+          await reportPaymentAlert('refund_failed', {eventId: event.id, refundId: event.data.object.id,
+            connectedAccountId: event.account || null, livemode: event.livemode});
+        }
         break;
       }
 
@@ -861,6 +871,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true });
   } catch (error) {
     console.error("[stripe-webhook] failed", deliveryContext);
+    const paidCheckout = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)
+      && event.data?.object?.payment_status === 'paid';
+    await reportPaymentAlert(paidCheckout ? 'paid_checkout_needs_review' : 'webhook_processing_failed', {
+      eventId: event.id, sessionId: paidCheckout ? event.data.object.id : null,
+      connectedAccountId: event.account || null, livemode: event.livemode,
+    });
     const referenceNotice = paidCheckoutReferenceLog(error, {
       eventId: event.id,
       sessionId: event.data?.object?.id,
