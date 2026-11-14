@@ -1,0 +1,44 @@
+name: Isolated payment alert flow
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  alert-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: parkshare_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parkshare_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Rehearse signed application error, real database API and email-only worker
+        run: node scripts/run-payment-alert-integration.mjs
+        env:
+          PAYMENT_ALERT_INTEGRATION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/parkshare_test
+      - name: Preserve sanitized integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: payment-alert-integration-results
+          path: payment-alert-integration-results.json
+          if-no-files-found: warn

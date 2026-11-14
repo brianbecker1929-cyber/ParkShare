@@ -106,7 +106,9 @@ Controlled transport test, November 13, 2026 at 23:44:44 UTC:
 - Subject explicitly stated TEST and that no payment incident existed.
 - The provider reported **delivered**. Repeating the identical request/key
   returned the same provider message ID, rather than a second message.
-- Brian's personal mailbox receipt confirmation remains pending.
+- Brian confirmed inbox receipt and supplied a matching screenshot for the
+  same TEST reference. The personal address, message ID and screenshot
+  remain private.
 
 This proves the existing email connection's transport to the selected
 mailbox. It does not prove the deployed application reporter, outbox worker,
@@ -122,6 +124,11 @@ Brian is the initial incident owner; a backup is not yet nominated. Inspect
 mode, connected account and event/session/operation references before a
 controlled retry. Preserve history and reconcile actual provider results
 before any manual refund, reimbursement or booking correction.
+
+The disposable application/database-API/worker rehearsal is described in
+`docs/payment-alert-integration-rehearsal-nov13.md`. It requires no hosted
+target and sends only to a loopback provider simulator. Its results do not
+activate or certify the deployed production path.
 
 The production payment-alert checklist item remains open. Review and
 separate application/schema rollout, full-path TEST evidence, scheduler
