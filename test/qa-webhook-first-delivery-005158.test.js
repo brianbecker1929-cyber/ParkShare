@@ -130,6 +130,7 @@ function tracedWebhookFixture(fail = false, noInfo = false) {
   const handlerCode = tracedSource.slice(tracedSource.indexOf("export default async function handler"))
     .replace("export default async function handler","return async function handler");
   const deps = {
+    reportPaymentAlert:async()=>({status:'disabled'}),
     readRawBody:async()=>Buffer.from("unit-test-only"),
     stripe:{webhooks:{constructEvent:()=>event}},
     syncConnectedAccount:async()=>{if(fail)throw {message:"upstream request timeout"};},
