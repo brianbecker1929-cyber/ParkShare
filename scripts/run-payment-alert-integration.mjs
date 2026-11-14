@@ -26,12 +26,19 @@ const report = {sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'
 const check = name => report.checks.push({name,status:'passed'});
 const client = new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});
 const servers = [], requests = [], messages = new Map();
+const httpFailures = [];
 let stage = 'local database guard', containerStarted = false, connected = false, providerFailures = 0;
 const localFetch = async (url, options) => {
   const u = new URL(url);
   assert.equal(u.hostname,'127.0.0.1','Integration HTTP must remain on loopback');
   requests.push({method:options?.method || 'GET',path:u.pathname});
-  return fetch(url, {...options,signal:options?.signal || AbortSignal.timeout(5000)});
+  const response=await fetch(url, {...options,signal:options?.signal || AbortSignal.timeout(5000)});
+  if(!response.ok){
+    let code=null;
+    try {const value=(await response.clone().json()).code;if(/^[A-Z0-9_]+$/.test(value || ''))code=value;}catch {}
+    httpFailures.push({path:u.pathname,status:response.status,code});
+  }
+  return response;
 };
 const listen = async server => {
   servers.push(server);
@@ -232,5 +239,6 @@ try {
   for(const server of servers.reverse())await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
   if(containerStarted)try {execFileSync('docker',['rm','-f',container],{stdio:'ignore',timeout:10_000});}catch {}
   if(connected)await client.end();
+  report.httpFailures=httpFailures;
   await writeFile('payment-alert-integration-results.json',JSON.stringify(report,null,2)+'\n');
 }
