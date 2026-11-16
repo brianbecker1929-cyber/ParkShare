@@ -44,7 +44,10 @@ export async function runPaymentAlertHealthProbe(db,report){
   assert.ok(classifyPaymentAlertHealth(await health(false)).includes('worker_failed'));
   await service('select public.record_payment_alert_worker_health(false,0)');
   check('a stopped worker and failed batch are reported and a valid completion refreshes state');
-  await db.exec("update public.payment_alert_deliveries set created_at=clock_timestamp()-interval '16 minutes' where not livemode and accepted_at is null and blocked_at is null;");
+  const payload={from:'ParkShare QA <qa@myparkshare.ca>',to:['operator@example.invalid'],subject:'Synthetic health fixture',text:'Synthetic only'};
+  const queued=(await service('select * from public.enqueue_payment_alert($1,$2,false,$3::jsonb)',
+    ['parkshare-payment-alert-v2/qa/refund_failed/'+String(9001).padStart(64,'0'),'refund_failed',JSON.stringify(payload)])).rows[0];
+  await db.query("update public.payment_alert_deliveries set created_at=clock_timestamp()-interval '16 minutes' where id=$1",[queued.id]);
   const summary=await health(false);
   assert.ok(summary.pending_count>0);assert.ok(summary.stale_pending_count>0);assert.ok(summary.blocked_count>0);
   assert.ok(classifyPaymentAlertHealth(summary).includes('queue_stalled'));
