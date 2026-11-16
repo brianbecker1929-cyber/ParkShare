@@ -12,6 +12,8 @@ import {createClient} from '@supabase/supabase-js';
 import {assertLocalRehearsalUrl, literal} from './qa-schema-rehearsal.mjs';
 import {createPaymentAlertReporter} from '../api/_payment-alerts.js';
 import {drainPaymentAlerts} from '../api/_payment-alert-worker.js';
+import {getPaymentAlertHealth,recordPaymentAlertWorkerHealth} from '../api/_payment-alert-health.js';
+import {runPaymentAlertMonitor} from './payment-alert-monitor.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Alert integration requires a disposable GitHub runner');
 const raw = process.env.PAYMENT_ALERT_INTEGRATION_DATABASE_URL;
@@ -27,7 +29,7 @@ const check = name => report.checks.push({name,status:'passed'});
 const client = new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});
 const servers = [], requests = [], messages = new Map();
 const httpFailures = [];
-let stage = 'local database guard', containerStarted = false, connected = false, providerFailures = 0;
+let stage = 'local database guard', containerStarted = false, connected = false, providerFailures = 0, gatewayUnavailable=false;
 const localFetch = async (url, options) => {
   const u = new URL(url);
   assert.equal(u.hostname,'127.0.0.1','Integration HTTP must remain on loopback');
@@ -65,6 +67,7 @@ try {
     grant anon,authenticated,service_role to payment_alert_authenticator;
     grant usage on schema public to anon,authenticated;`);
   await client.query(await readFile(new URL('../docs/sql-proposals/payment-emergency-alert-outbox.sql',import.meta.url),'utf8'));
+  await client.query(await readFile(new URL('../docs/sql-proposals/payment-alert-health.sql',import.meta.url),'utf8'));
   const token = role => {
     const header=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url');
     const claims=Buffer.from(JSON.stringify({role,iss:'synthetic-local-integration',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url');
@@ -92,6 +95,7 @@ try {
   // decisions are handled by the real PostgREST server and PostgreSQL.
   const gatewayOrigin=await listen(createServer(async(req,res)=>{
     try {
+      if(gatewayUnavailable)return json(res,503,{error:'Synthetic database API outage'});
       if(!req.url.startsWith('/rest/v1/'))return json(res,404,{error:'Local gateway route not found'});
       const bytes=await body(req),headers={...req.headers};
       for(const key of ['host','connection','content-length'])delete headers[key];
@@ -146,14 +150,23 @@ try {
   const workerSource=await readFile(new URL('../api/send-payment-alerts.js',import.meta.url),'utf8');
   const workerCode=workerSource.slice(workerSource.indexOf('export default async function handler'))
     .replace('export default async function handler','return async function handler');
-  const worker=new Function('supabaseAdmin','drainPaymentAlerts','timingSafeEqual','process',workerCode)
-    (db,options=>drainPaymentAlerts({...options,env,fetchImpl:mailFetch}),timingSafeEqual,{env:{CRON_SECRET:cronSecret}});
+  const worker=new Function('supabaseAdmin','drainPaymentAlerts','timingSafeEqual','process','recordPaymentAlertWorkerHealth',workerCode)
+    (db,options=>drainPaymentAlerts({...options,env,fetchImpl:mailFetch}),timingSafeEqual,{env:{CRON_SECRET:cronSecret}},
+      options=>recordPaymentAlertWorkerHealth({...options,env}));
+  const monitorSecret=randomBytes(32).toString('hex');
+  const healthSource=await readFile(new URL('../api/payment-alert-health.js',import.meta.url),'utf8');
+  const healthCode=healthSource.slice(healthSource.indexOf('export default async function handler'))
+    .replace('export default async function handler','return async function handler');
+  const health=new Function('createClient','getPaymentAlertHealth','timingSafeEqual','process',healthCode)
+    (()=>db,options=>getPaymentAlertHealth({...options,env}),timingSafeEqual,
+      {env:{...env,PAYMENT_ALERT_MONITOR_SECRET:monitorSecret,CRON_SECRET:cronSecret}});
   const applicationOrigin=await listen(createServer(async(req,res)=>{
     res.status=n=>{res.statusCode=n;return res;};res.json=value=>{json(res,res.statusCode,value);return res;};
     res.send=value=>{res.end(value);return res;};
     try {
       if(req.url==='/application-webhook')await webhook(req,res);
       else if(req.url==='/worker')await worker(req,res);
+      else if(req.url==='/health')await health(req,res);
       else json(res,404,{error:'Unknown synthetic route'});
     } catch {json(res,500,{error:'Local handler unavailable'});}
   }));
@@ -169,6 +182,15 @@ try {
     return {status:response.status,body:await response.json()};
   };
   const rows=async()=> (await client.query('select * from public.payment_alert_deliveries order by created_at')).rows;
+  const monitorEnv={...env,PAYMENT_ALERT_MONITOR_ENVIRONMENT:'qa',PAYMENT_ALERT_MONITOR_SECRET:monitorSecret,
+    PAYMENT_ALERT_MONITOR_FROM:env.EMAIL_FROM,PAYMENT_ALERT_MONITOR_SEND_EMAIL:'true'};
+  const monitorFetch=(url,options)=>{
+    if(url==='https://api.resend.com/emails')return mailFetch(url,options);
+    assert.equal(url,'https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app/api/payment-alert-health');
+    return localFetch(applicationOrigin+'/health',options);
+  };
+  const monitorNow=Date.now();
+  const monitor=()=>runPaymentAlertMonitor({env:monitorEnv,fetchImpl:monitorFetch,now:monitorNow});
   stage='invalid signatures and worker authorization';
   assert.equal((await delivery('unsigned',false)).status,400);assert.equal((await runWorker(false)).status,401);
   assert.equal((await rows()).length,0);assert.equal(mailRequests.length,0);
@@ -182,6 +204,12 @@ try {
   saved=await rows();assert.ok(saved[0].accepted_at);assert.ok(saved[0].provider_id);assert.equal(saved[0].attempts,1);
   assert.equal(messages.size,1);
   check('authenticated worker claims, sends and records provider acceptance through real database requests');
+  stage='independent healthy worker probe';
+  const beforeProbe=mailRequests.length;
+  assert.equal((await monitor()).healthy,true);assert.equal(mailRequests.length,beforeProbe);
+  const unauthorized=await localFetch(applicationOrigin+'/health',{headers:{Authorization:`Bearer ${cronSecret}`,'x-parkshare-health-probe':randomUUID()}});
+  assert.equal(unauthorized.status,401);
+  check('completed worker persists a real heartbeat; an independent healthy probe sends nothing and rejects worker credentials');
   stage='signed replay and accepted-job deduplication';
   assert.equal((await delivery('success')).status,500);assert.equal((await runWorker()).body.accepted,0);
   assert.equal((await rows()).length,1);assert.equal(mailRequests.length,1);
@@ -227,9 +255,42 @@ try {
   const final=await rows();assert.equal(final.length,4);assert.equal(final.filter(j=>j.accepted_at).length,3);
   assert.equal(final.filter(j=>j.blocked_at).length,1);assert.equal(messages.size,3);
   assert.deepEqual((await client.query("select tablename from pg_tables where schemaname='public' order by tablename")).rows,
-    [{tablename:'payment_alert_deliveries'}]);
-  check('only the synthetic outbox exists; no bookings or financial tables are created');
-  report.summary={queued:4,accepted:3,blocked:1,uniqueSimulatedMessages:messages.size,loopbackHttpRequests:requests.length};
+    [{tablename:'payment_alert_deliveries'},{tablename:'payment_alert_worker_health'}]);
+  check('only synthetic alert/health tables exist; no bookings or financial tables are created');
+  stage='blocked alert escalation outside the queue';
+  let monitored=await monitor();assert.ok(monitored.issues.includes('queue_blocked'));assert.equal(monitored.notification,'accepted');
+  const monitorMessage=mailRequests.at(-1),uniqueBefore=messages.size;
+  assert.deepEqual(JSON.parse(monitorMessage.body).to,['operator@example.invalid']);
+  check('blocked notification triggers one independent, redacted monitor message');
+  stage='stopped worker and non-mutating probes';
+  await client.query("update public.payment_alert_worker_health set completed_at=clock_timestamp()-interval '6 minutes' where not livemode");
+  const heartbeatBefore=(await client.query('select completed_at from public.payment_alert_worker_health where not livemode')).rows[0].completed_at;
+  monitored=await monitor();assert.ok(monitored.issues.includes('worker_stale'));
+  assert.deepEqual((await client.query('select completed_at from public.payment_alert_worker_health where not livemode')).rows[0].completed_at,heartbeatBefore);
+  assert.equal(messages.size,uniqueBefore);assert.equal(mailRequests.at(-1).key,monitorMessage.key);assert.equal(mailRequests.at(-1).body,monitorMessage.body);
+  check('read-only probes detect a stopped worker without refreshing its heartbeat or duplicating the window notification');
+  stage='stalled pending notification';
+  await delivery('stalled');
+  await client.query("update public.payment_alert_deliveries set created_at=clock_timestamp()-interval '16 minutes' where accepted_at is null and blocked_at is null");
+  monitored=await monitor();assert.ok(monitored.issues.includes('queue_stalled'));assert.equal(messages.size,uniqueBefore);
+  check('an old pending notification is detected independently of delivery backoff');
+  stage='database API outage independent notification';
+  gatewayUnavailable=true;monitored=await monitor();gatewayUnavailable=false;
+  assert.deepEqual(monitored.issues,['database_unavailable']);assert.equal(monitored.notification,'accepted');assert.equal(messages.size,uniqueBefore);
+  check('database API outage produces a direct monitor notification without any successful database request');
+  stage='real API health-role isolation';
+  for(const role of ['anon','authenticated']){
+    const other=createClient(gatewayOrigin,token(role),sdkOptions);
+    assert.ok((await other.from('payment_alert_worker_health').select('*')).error);
+    assert.ok((await other.rpc('record_payment_alert_worker_health',{p_livemode:false,p_failed_count:0})).error);
+    assert.ok((await other.rpc('get_payment_alert_health',{p_livemode:false})).error);
+  }
+  check('real API denies health data and heartbeat mutation to public/authenticated roles');
+  report.healthMonitor={checks:6,simulatedNotificationAccepted:true,duplicateWindowProtected:true};
+  const completedRows=await rows();
+  report.summary={queued:completedRows.length,accepted:completedRows.filter(j=>j.accepted_at).length,
+    blocked:completedRows.filter(j=>j.blocked_at).length,pending:completedRows.filter(j=>!j.accepted_at&&!j.blocked_at).length,
+    uniqueSimulatedMessages:messages.size,loopbackHttpRequests:requests.length};
   report.postgrestImage=image;report.status='passed';
   console.log(`PASS: ${report.checks.length} isolated alert-flow checks; no external sends or hosted changes.`);
 } catch(error) {

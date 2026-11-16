@@ -21,6 +21,7 @@ import { runRefundLedgerProbe } from './qa-refund-ledger-probe.mjs';
 import {runExtensionCapacityProbe} from './qa-extension-capacity-probe.mjs';
 import {runMessageNotificationProbe} from './qa-message-notification-probe.mjs';
 import {runPaymentAlertProbe} from './payment-alert-outbox-probe.mjs';
+import {runPaymentAlertHealthProbe} from './payment-alert-health-probe.mjs';
 
 const raw=process.env.QA_SCHEMA_REHEARSAL_DATABASE_URL;
 assert.ok(raw,'Set QA_SCHEMA_REHEARSAL_DATABASE_URL to LOCAL disposable PostgreSQL 17 /parkshare_test');
@@ -48,6 +49,7 @@ try {
   await runMessageNotificationProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
   await runCancellationFeeProbe(db,report);
   await runPaymentAlertProbe(db,report,async()=>{const peer=new pg.Client({connectionString:raw,connectionTimeoutMillis:5000});await peer.connect();return peer;});
+  await runPaymentAlertHealthProbe(db,report);
   assert.equal(report.findings?.length??0,0,'Unresolved release findings; inspect rehearsal report');
   console.log(`PASS: ${report.checks.length} full-schema checks; ${report.migrations.length} proposals installed.`);
 } catch(e) {
