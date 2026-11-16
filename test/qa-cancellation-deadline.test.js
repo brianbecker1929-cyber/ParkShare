@@ -16,7 +16,7 @@ const nodes=node=>!React.isValidElement(node)?[]:[node,...React.Children.toArray
 function modal({deadline=1000,busy=false,actor='driver',error=''}={}){
   let now=999;
   let stateSlot=0;
-  const values={React,CANCELLATION_REASONS,useState:initial=>[(stateSlot++%2===0?(actor==='host'?'host_unavailable':'driver_plans'):'') ,()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),
+  const values={React,CANCELLATION_REASONS,useEffect:()=>{},useState:initial=>[(stateSlot++%2===0?(actor==='host'?'host_unavailable':'driver_plans'):'') ,()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),
     Btn:({children,onClick,disabled})=>React.createElement('button',{type:'button',onClick,disabled},children),
     cancellationDeadlineError:value=>cancellationDeadlineError(value,now)};
   const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
@@ -53,7 +53,69 @@ test('a previously sent cancellation stays pending rather than reporting expiry 
 });
 test('Host confirmation without a Driver deadline preserves the original refund guidance',()=>{
   let slot=0;
-  const values={React,CANCELLATION_REASONS,useState:()=>[slot++===0?'host_unavailable':'',()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),Btn:({children})=>React.createElement('button',null,children),cancellationDeadlineError};
+  const values={React,CANCELLATION_REASONS,useEffect:()=>{},useState:()=>[slot++===0?'host_unavailable':'',()=>{}],C:{navy:'#000',muted:'#777',red:'#c00'},Modal:({children})=>React.createElement('section',null,children),Btn:({children})=>React.createElement('button',null,children),cancellationDeadlineError};
   const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
   const html=renderToStaticMarkup(View({actor:'host',busy:false,onClose:()=>{},onConfirm:()=>{}}));assert.match(html,/Driver will receive a full refund/);assert.doesNotMatch(html,/Contact support/);
+});
+
+function liveModal({deadline=1000,busy=false,actor='driver'}={}) {
+  let now=900, cursor=0, dirty=false, result, nextTimer=0;
+  const slots=[], effects=[], timers=new Map(), listeners=new Map();
+  const listen=(kind,fn)=>listeners.set(kind,fn), unlisten=kind=>listeners.delete(kind);
+  const values={React,CANCELLATION_REASONS,C:{navy:'#000',muted:'#777',red:'#c00'},
+    Date:{now:()=>now},cancellationDeadlineError:(value)=>cancellationDeadlineError(value,now),
+    Modal:({children})=>React.createElement('section',null,children),Btn:({children,disabled})=>React.createElement('button',{disabled},children),
+    window:{setTimeout:(fn,delay)=>{timers.set(++nextTimer,{fn,at:now+delay});return nextTimer;},clearTimeout:id=>timers.delete(id),addEventListener:listen,removeEventListener:unlisten},
+    document:{addEventListener:listen,removeEventListener:unlisten},
+    useState:initial=>{const n=cursor++;slots[n]??={value:n===0?(actor==='host'?'host_unavailable':'driver_plans'):initial};return [slots[n].value,v=>{slots[n].value=typeof v==='function'?v(slots[n].value):v;dirty=true;}];},
+    useEffect:(fn,deps)=>{const n=cursor++,prev=slots[n];if(!prev||deps.some((v,i)=>v!==prev.deps[i])){slots[n]={deps,cleanup:prev?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();});}}
+  };
+  const View=new Function(...Object.keys(values),compiled.code+';return CancellationModal;')(...Object.values(values));
+  const props={actor,busy,cancellationDeadline:deadline};
+  const render=()=>{do{dirty=false;cursor=0;result=View(props);for(const effect of effects.splice(0))effect();}while(dirty);};
+  render();
+  return {html:()=>renderToStaticMarkup(result),timers,listeners,
+    jump:at=>{now=at;},
+    advance:at=>{now=at;for(const [id,timer] of [...timers])if(timer.at<=now){timers.delete(id);timer.fn();}if(dirty)render();},
+    focus:()=>{listeners.get('focus')?.();if(dirty)render();},
+    update:changes=>{Object.assign(props,changes);render();},
+    stop:()=>{for(const slot of slots)slot?.cleanup?.();}
+  };
+}
+
+test('BUG-005677 an idle open dialog expires at deadline + 1ms without waiting for a parent tick',()=>{
+  const h=liveModal();
+  try {
+    h.advance(1000);assert.match(h.html(),/full refund/);assert.doesNotMatch(h.html(),/disabled="">Confirm cancellation/);
+    h.advance(1001);assert.doesNotMatch(h.html(),/full refund|5–10 business days/);
+    assert.match(h.html(),/Driver cancellations need at least one hour of notice for an automatic refund/);
+    assert.match(h.html(),/disabled="">Confirm cancellation/);
+  } finally {h.stop();}
+  assert.equal(h.timers.size,0);assert.equal(h.listeners.size,0);
+});
+
+test('BUG-005677 long deadlines are rescheduled and returning focus refreshes expiry',()=>{
+  const h=liveModal({deadline:2147485000});
+  try {
+    assert.equal([...h.timers.values()][0].at,900+2147483647);
+    h.advance(900+2147483647);assert.equal(h.timers.size,1);assert.match(h.html(),/full refund/);
+    h.advance(2147485001);h.focus();assert.doesNotMatch(h.html(),/full refund/);
+  } finally {h.stop();}
+});
+
+test('BUG-005677 a throttled background tab removes refund copy on focus and clears its old timer',()=>{
+  const h=liveModal();
+  try {
+    h.jump(1100);assert.match(h.html(),/full refund/);
+    h.focus();assert.doesNotMatch(h.html(),/full refund/);assert.equal(h.timers.size,0);
+  } finally {h.stop();}
+});
+
+test('BUG-005677 pending cancellations suspend expiry copy and cleanup timers',()=>{
+  const h=liveModal();
+  try {
+    h.update({busy:true});assert.equal(h.timers.size,0);assert.equal(h.listeners.size,0);
+    h.advance(1001);assert.match(h.html(),/Please wait for confirmation/);assert.doesNotMatch(h.html(),/full refund|automatic refund/);
+    h.update({busy:false});assert.match(h.html(),/Driver cancellations need at least one hour/);
+  } finally {h.stop();}
 });

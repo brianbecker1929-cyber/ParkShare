@@ -428,7 +428,7 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
     moss: { background: C.moss, color: C.white },
     pill: { background: C.amber, border: "2px solid "+C.white, color: C.navy, borderRadius: 20 },
   };
-  return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
+  return <button disabled={disabled} onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
 }
 
 function Modal({ children, onClose, title, nativeModal = false, returnFocus }) {
@@ -1261,6 +1261,7 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
               </div>
             )}
             <p role="note" style={{ fontSize: 12, color: C.navy, margin: "0 0 14px" }}>{propertyTimeZoneLabel}</p>
+            {!date && <p role="note" style={{ fontSize: 13, color: C.navy, lineHeight: 1.6 }}>Book Now starts immediately after payment and cannot be cancelled in the app. Contact ParkShare support to request a refund review.</p>}
             {selectedEvent && <EventDestinationSummary event={selectedEvent} booking />}
             {[
               [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
@@ -2136,6 +2137,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
                 Starts the moment you pay · {bookNowTimes?.start || (durationError ? "Enter a valid duration" : "Listing local time unavailable")}
               </div>
+              <p role="note" style={{ fontSize: 12, color: C.navy, lineHeight: 1.6 }}>Book Now starts immediately after payment and cannot be cancelled in the app. Contact ParkShare support to request a refund review.</p>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>How long do you need?</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                 {NOW_DURATIONS.map(d => (
@@ -6363,11 +6365,37 @@ function useBookingCancellation(user, reason, onCancelled) {
 function CancellationModal({ title, actor, busy, error, onClose, onConfirm, cancellationDeadline }) {
   const [reasonCode, setReasonCode] = useState("");
   const [explanation, setExplanation] = useState("");
+  const [, refreshDeadline] = useState(0);
+  useEffect(() => {
+    if (busy || !Number.isFinite(cancellationDeadline)) return;
+    let timer;
+    const schedule = () => {
+      const remaining = cancellationDeadline - Date.now() + 1;
+      if (remaining > 0) timer = window.setTimeout(refresh, Math.min(remaining, 2147483647));
+    };
+    const refresh = () => {
+      window.clearTimeout(timer);
+      refreshDeadline(value => value + 1);
+      schedule();
+    };
+    schedule();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [cancellationDeadline, busy]);
   const reasons = CANCELLATION_REASONS[actor] || [];
   const selectedReason = reasons.find(reason => reason.code === reasonCode);
   const needsExplanation = selectedReason?.explanation;
   const deadlineError = busy ? "" : cancellationDeadlineError(cancellationDeadline);
-  const deadlineNotice = deadlineError && actor === "host" ? "Host cancellations must be requested before the booking starts. Contact support for help with this booking." : deadlineError;
+  const deadlineNotice = !deadlineError ? "" : actor === "host"
+    ? "Host cancellations must be requested before the booking starts. Contact support for help with this booking."
+    : Number.isFinite(cancellationDeadline)
+      ? "Driver cancellations need at least one hour of notice for an automatic refund. Contact support for help with this booking."
+      : deadlineError;
   return (
     <Modal title={title} onClose={onClose}>
       {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineNotice}</div> : <>
