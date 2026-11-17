@@ -48,3 +48,49 @@ test('recovery return links are accepted only for the exact isolated Preview sit
  }
  assert.equal((await run({...env,VERCEL_PROJECT_ID:'production-project'})).code,404);
 });
+
+const reviewEnv={
+ VERCEL_ENV:'preview',VERCEL_GIT_COMMIT_REF:'fix/bug-005672-005673-recovery-nov12',
+ SUPABASE_URL:'https://heqxirlsorcztsawaldg.supabase.co',
+ VITE_SUPABASE_URL:'https://heqxirlsorcztsawaldg.supabase.co',
+ APP_URL:'https://parkshare-qa-git-fix-bug-005672-005673-60a133-eska-technologies.vercel.app',
+};
+test('the separate refund-review preview accepts only its bound return URL and recovery backend',async()=>{
+ for(const suffix of ['', '/']){
+  const r=await run({...reviewEnv,APP_URL:reviewEnv.APP_URL+suffix});
+  assert.equal(r.code,200);assert.equal(r.value.ready,true);
+  assert.equal(Object.keys(r.value.checks).length,15);
+ }
+});
+test('the refund-review build rejects fallback links to frozen, legacy or production sites',async()=>{
+ for(const appUrl of ['https://parkshare-qa.vercel.app',
+  'https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app',
+  'https://www.myparkshare.ca',reviewEnv.APP_URL+'.attacker.invalid',
+  reviewEnv.APP_URL+'/path',reviewEnv.APP_URL+'?redirect=https://attacker.invalid']){
+  const r=await run({...reviewEnv,APP_URL:appUrl});
+  assert.equal(r.code,503);assert.equal(r.value.checks.qaLinks,false);
+ }
+});
+test('the refund-review branch cannot pass on the legacy backend, even when client and server agree',async()=>{
+ const r=await run({...reviewEnv,SUPABASE_URL:qa.SUPABASE_URL,VITE_SUPABASE_URL:qa.SUPABASE_URL});
+ assert.equal(r.code,503);assert.equal(r.value.checks.qaDatabase,false);
+ assert.equal(r.value.checks.qaLinks,false);
+});
+test('the refund-review preview refuses project, environment, branch and client/backend mismatches',async()=>{
+ for(const change of [{VERCEL_PROJECT_ID:'production-project'},{VERCEL_ENV:'production'},
+  {VERCEL_GIT_COMMIT_REF:'unrelated-review'},{VERCEL_GIT_COMMIT_REF:undefined},
+  {VITE_SUPABASE_URL:qa.SUPABASE_URL}]){
+  assert.notEqual((await run({...reviewEnv,...change})).code,200);
+ }
+});
+test('new preview support keeps credential and schema failures blocking readiness',async()=>{
+ for(const change of [{STRIPE_SECRET_KEY:'sk_live_synthetic'},{CRON_SECRET:''},
+  {RESEND_API_KEY:''},{EMAIL_FROM:''},{VITE_GOOGLE_MAPS_API_KEY:''}]){
+  assert.equal((await run({...reviewEnv,...change})).code,503);
+ }
+ assert.equal((await run(reviewEnv,{code:'42703'})).code,503);
+ const r=await run(reviewEnv);const json=JSON.stringify(r.value);
+ for(const value of ['sk_test_synthetic','whsec_synthetic','synthetic-cron-secret','qa@example.invalid',reviewEnv.SUPABASE_URL,reviewEnv.APP_URL]){
+  assert.ok(!json.includes(value));
+ }
+});
