@@ -57,8 +57,10 @@ The new review deployment is a separate application using the existing TEST
 review environment and shared recovery QA database. BetterQA acceptance remains
 pending. The source commit, review URL and completed checks are recorded in the PR.
 
-The branch's non-secret `APP_URL` is scoped to this review branch, pointing to
+The branch's non-secret `CLOCK_CHANGE_REVIEW_APP_URL` is evaluated only on this
+exact branch in the QA Preview project, pointing to
 `https://parkshare-qa-clock-change-review-eska-technologies.vercel.app`.
 Its readiness check requires that exact return address, TEST mode and the recovery
 backend. Existing environment records, credential scopes and the accepted combined
-review's return-address binding remain intact.
+review's `APP_URL` and return-address binding remain intact. The same resolved
+review address is used by payment return links and rendered booking emails.

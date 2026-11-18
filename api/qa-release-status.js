@@ -1,6 +1,7 @@
 // QA-only release readiness. Never returns credentials or customer data.
 import { supabaseAdmin } from "./_lib.js";
 import {resolveListingTimeZone} from "./_listing-time-zone.js";
+import {deploymentAppUrl} from "./_deployment-app-url.js";
 const QA_URLS = new Set([
   "https://biydlfekindgaslgktsx.supabase.co",
   "https://heqxirlsorcztsawaldg.supabase.co",
@@ -14,7 +15,8 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
   if (!QA_URLS.has(process.env.SUPABASE_URL) || (process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID !== "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC")) return res.status(404).json({ error: "Not found" });
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
-  const appUrl = process.env.APP_URL?.replace(/\/$/, "");
+  let appUrl;
+  try { appUrl = deploymentAppUrl(process.env)?.replace(/\/$/, ""); } catch { appUrl = null; }
   const expectedReviewAppUrl = process.env.VERCEL_GIT_COMMIT_REF === CLOCK_CHANGE_REVIEW_BRANCH
     ? CLOCK_CHANGE_REVIEW_APP_URL
     : process.env.VERCEL_GIT_COMMIT_REF === REVIEW_BRANCH ? REVIEW_APP_URL : null;
