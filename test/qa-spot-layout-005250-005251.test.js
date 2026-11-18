@@ -12,6 +12,7 @@ import {getBookableVehicles} from '../src/lib/driverProfile.js';
 import {futureBookingDate,localCalendarDate} from '../src/lib/bookingCalendarDate.js';
 import {calculateBookingAmounts} from '../api/_booking-rules.js';
 import {validateBookingDuration,MAX_BOOKING_HOURS} from '../src/lib/bookingDuration.js';
+import {validateScheduledBooking,invalidScheduledHours} from '../src/lib/scheduledBooking.js';
 const source=await readFile(process.env.QA_SPOT_LAYOUT_APP||new URL('../src/App.jsx',import.meta.url),'utf8');
 const compiledPicker=await transform(source.slice(source.indexOf('function SpotPicker('),source.indexOf('// Read-only booking view shared')),{loader:'jsx'});
 const compiledDetail=await transform(source.slice(source.indexOf('function ListingDetail('),source.indexOf('// The email opens the actual booked listing')).replaceAll('import.meta.env.VITE_GOOGLE_MAPS_API_KEY','false'),{loader:'jsx'});
@@ -50,7 +51,7 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function detailHarness({count=4,flags,fetcher,bookability='ready',clock}={}){
  const slots=[],effects=[],requests=[],intervals=new Map();let cursor=0,dirty=false,tree,timerId=0;
  const props={listing:{id:'db-7',spaces:flags?flags.filter(Boolean).length:count,spots:flags?.map(forRent=>({forRent}))||[],title:'Synthetic layout',price:12,features:[],timeZone:'America/Toronto'},user:{id:'driver',vehicleMake:'Honda',vehicleModel:'Accord',vehicleColour:'Blue',licensePlate:'QA 250'}};
- const values={React,C,useListingBookability:()=>({status:bookability,retry:()=>{}}),bookingReadinessMessage,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes:(zone,hours)=>formatBookNowTimes(zone,hours,clock===undefined?Date.now():clock),getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,MAX_BOOKING_HOURS,
+ const values={React,C,useListingBookability:()=>({status:bookability,retry:()=>{}}),bookingReadinessMessage,getListingSpotLayout,canChooseListingSpot,availabilityRequestKey,listingAvailabilityMessage,formatBookNowTimes:(zone,hours)=>formatBookNowTimes(zone,hours,clock===undefined?Date.now():clock),getBookableVehicles,futureBookingDate,localCalendarDate,calculateBookingAmounts,validateBookingDuration,validateScheduledBooking,invalidScheduledHours,MAX_BOOKING_HOURS,
   getEventParkingSuggestion:()=>null,isListingImageUrl:()=>false,formatVehicleVisualSummary:()=>'Saved primary vehicle',formatAvailabilitySummary:()=>'Open',formatHour:value=>String(value),money:value=>`$${value.toFixed(2)}`,bookingCheckoutKey:({chosenSpot,date})=>`${chosenSpot}:${date}`,HOUR_OPTIONS:Array.from({length:96},(_,i)=>i/4),END_HOUR_OPTIONS:Array.from({length:191},(_,i)=>(i+1)/4),
   window:{setInterval:fn=>{intervals.set(++timerId,fn);return timerId;},clearInterval:id=>intervals.delete(id),addEventListener(){},removeEventListener(){}},document:{visibilityState:'visible',addEventListener(){},removeEventListener(){}},
   fetch:async(url,options)=>{requests.push({url,options});if(fetcher)return fetcher(url,options);const scheduled=new URL(url,'https://fixture.invalid').searchParams.has('bookingDate');const state=open(count);if(!scheduled){state.available=false;state.spacesFree=0;for(const label of Object.keys(state.spotStatus))state.spotStatus[label]=false;}return {ok:true,json:async()=>state};},
@@ -67,6 +68,27 @@ function detailHarness({count=4,flags,fetcher,bookability='ready',clock}={}){
 const switchMode=(h,mode)=>h.find(node=>node.type==='button'&&node.props.children===(mode==='now'?'⚡ Book Now':'📅 Schedule for Later')).props.onClick();
 const assertBay=(h,label)=>assert.match(renderToStaticMarkup(h.render()),new RegExp('Spot '+label));
 const hasPayment=h=>walk(h.render()).some(node=>node.type===h.values.PaymentModal);
+
+for(const c of [{day:[2027,2,14],start:1,end:4,hours:2,gap:2.5},{day:[2027,10,7],start:0,end:3,hours:4,gap:1.5}])test(`BUG-005823 actual schedule picker and Review & pay use ${c.hours} elapsed hours across the clock change`,async()=>{
+ const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});
+ try{
+  await h.flush();switchMode(h,'advance');h.render();
+  h.find(node=>node.type==='button'&&node.props.children==='Change').props.onClick();
+  h.find(node=>node.type===h.values.MiniCalendar).props.onSelect(new Date(...c.day));h.render();
+  h.find(node=>node.type==='select'&&node.props['aria-label']==='Parking start time').props.onChange({target:{value:String(c.start)}});h.render();
+  h.find(node=>node.type==='select'&&node.props['aria-label']==='Parking end time').props.onChange({target:{value:String(c.end)}});h.render();await h.flush();
+  const startSelect=h.find(node=>node.props?.['aria-label']==='Parking start time');
+  assert.equal(walk(startSelect).find(node=>node.type==='option'&&node.props.value===c.gap).props.disabled,true);
+  const endSelect=h.find(node=>node.props?.['aria-label']==='Parking end time');
+  assert.equal(walk(endSelect).find(node=>node.type==='option'&&node.props.value===c.gap).props.disabled,true);
+  const query=new URL(h.requests.at(-1).url,'https://fixture.invalid').searchParams;
+  assert.equal(query.get('hours'),String(c.hours));assert.equal(query.get('endHour'),String(c.end));
+  assert.match(renderToStaticMarkup(h.render()),new RegExp(`${c.hours} hours total.*adjusted for the clock change`));
+  h.find(node=>node.type==='button'&&node.props.children==='Choose spot').props.onClick();h.choose(0);h.pay().props.onClick();
+  const payment=h.find(node=>node.type===h.values.PaymentModal);assert.equal(payment.props.hours,c.hours);assert.equal(payment.props.endHour,c.end);
+  assert.equal(calculateBookingAmounts(h.props.listing.price,payment.props.hours).totalCents,Math.round(c.hours*1200*1.15));
+ }finally{h.stop();}
+});
 
 test('BUG-005466 scheduled booking controls identify the driveway time zone',async()=>{
  const h=detailHarness({fetcher:async()=>({ok:true,json:async()=>open(4)})});

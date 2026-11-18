@@ -69,7 +69,7 @@ test("checkout, availability, and webhook are synchronized on server-owned canon
     readFile(new URL("../api/send-reminders.js",import.meta.url),"utf8"),
     readFile(new URL("../src/App.jsx",import.meta.url),"utf8"),
   ]);
-  assert.match(checkout,/resolveLocalBookingStart\(/);
+  assert.match(checkout,/resolveLocalBookingWindow\(/);
   assert.match(availability,/resolveLocalBookingStart\(/);
   assert.match(checkout,/time_zone/);
   assert.match(availability,/time_zone/);

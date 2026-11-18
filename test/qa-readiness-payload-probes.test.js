@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createClient} from '@supabase/supabase-js';
 import {resolveListingTimeZone} from '../api/_listing-time-zone.js';
+import {deploymentAppUrl} from '../api/_deployment-app-url.js';
 
 const source=await readFile(new URL('../api/qa-release-status.js',import.meta.url),'utf8');
 const code=source.slice(source.indexOf('const QA_URL')).replace('export default async function handler','async function handler');
@@ -22,7 +23,7 @@ async function probe({brokenTable, status=403}={}){
     }}
   });
   const env={SUPABASE_URL:'https://biydlfekindgaslgktsx.supabase.co',VITE_SUPABASE_URL:'https://biydlfekindgaslgktsx.supabase.co',VERCEL_PROJECT_ID:'prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC',STRIPE_SECRET_KEY:'sk_test_synthetic',STRIPE_WEBHOOK_SECRET:'synthetic',RESEND_API_KEY:'synthetic',EMAIL_FROM:'qa@example.invalid',VITE_GOOGLE_MAPS_API_KEY:'synthetic',APP_URL:'https://parkshare-qa.vercel.app',CRON_SECRET:'synthetic'};
-  const handler=new Function('supabaseAdmin','resolveListingTimeZone','process',code+';return handler;')(db,resolveListingTimeZone,{env});
+  const handler=new Function('supabaseAdmin','resolveListingTimeZone','process','deploymentAppUrl',code+';return handler;')(db,resolveListingTimeZone,{env},deploymentAppUrl);
   const res={code:200,setHeader(){},status(value){this.code=value;return this;},json(body){this.body=body;return this;}};
   await handler({method:'GET'},res);return {res,requests};
 }

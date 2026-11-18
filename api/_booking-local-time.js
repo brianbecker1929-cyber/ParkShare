@@ -1,6 +1,14 @@
-// Pure proposed foundation for BUG-005156. NOT wired into live booking creation.
-// Booking dates/times must be interpreted in the parking property's IANA zone,
-// not in UTC or the driver's device time zone.
+// Pure, shared property-local time resolution for checkout and its preview.
+// Never use the Driver's device zone to interpret either selected endpoint.
+const formatterCache = new Map();
+const offsetCache = new Map();
+function cached(map, key, create, limit = 64) {
+  if (!map.has(key)) {
+    if (map.size >= limit) map.delete(map.keys().next().value);
+    map.set(key, create());
+  }
+  return map.get(key);
+}
 
 function parseLocalStart(bookingDate, startHour) {
   if (typeof bookingDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(bookingDate)) {
@@ -20,17 +28,18 @@ function parseLocalStart(bookingDate, startHour) {
 }
 
 function formatInZone(instant, timeZone) {
-  const parts = new Intl.DateTimeFormat("en-US-u-nu-latn", {
+  const formatter = cached(formatterCache, `parts:${timeZone}`, () => new Intl.DateTimeFormat("en-US-u-nu-latn", {
     timeZone,
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(instant);
+  }));
+  const parts = formatter.formatToParts(instant);
   const get = type => Number(parts.find(part => part.type === type)?.value);
   return { year: get("year"), month: get("month"), day: get("day"), hour: get("hour"), minute: get("minute") };
 }
 
 function offsetMinutesAt(instant, timeZone) {
-  const zonePart = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "shortOffset" })
+  const zonePart = cached(formatterCache, `offset:${timeZone}`, () => new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "shortOffset" }))
     .formatToParts(instant).find(part => part.type === "timeZoneName")?.value;
   if (zonePart === "GMT") return 0;
   const match = /^GMT([+-])(\d{1,2})(?::(\d{2}))?$/.exec(zonePart || "");
@@ -44,9 +53,6 @@ function offsetMinutesAt(instant, timeZone) {
  * Reject missing/invalid zones, DST gaps and DST folds rather than silently
  * booking the wrong time. Return a Date; caller must store an unambiguous UTC
  * instant and keep the property zone for future display.
- *
- * This helper is intentionally not used by checkout/DB until a coordinated
- * database migration, historic-data review and QA release are approved.
  */
 export function resolveLocalBookingStart({ bookingDate, startHour, timeZone }) {
   const local = parseLocalStart(bookingDate, startHour);
@@ -55,10 +61,16 @@ export function resolveLocalBookingStart({ bookingDate, startHour, timeZone }) {
   }
   // Fail fast for invalid IANA zones. Device/server locale is never consulted.
   const anchor = Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute);
-  const uniqueOffsets = new Set();
-  for (let delta = -36; delta <= 36; delta += 6) {
-    uniqueOffsets.add(offsetMinutesAt(new Date(anchor + delta * 3600_000), timeZone));
-  }
+  // A date's candidate offsets are reusable across the quarter-hour picker.
+  // Include both sides of transitions throughout the entire local date.
+  const uniqueOffsets = cached(offsetCache, `${timeZone}:${bookingDate}`, () => {
+    const offsets = new Set();
+    const midnight = Date.UTC(local.year, local.month - 1, local.day);
+    for (let delta = -36; delta <= 60; delta += 6) {
+      offsets.add(offsetMinutesAt(new Date(midnight + delta * 3600_000), timeZone));
+    }
+    return offsets;
+  });
   const matching = [...uniqueOffsets].map(minutes => new Date(anchor - minutes * 60_000))
     .filter(date => {
       const actual = formatInZone(date, timeZone);
@@ -68,4 +80,26 @@ export function resolveLocalBookingStart({ bookingDate, startHour, timeZone }) {
   if (matching.length === 0) throw new RangeError("Local booking time does not exist due to a daylight-saving transition.");
   if (matching.length > 1) throw new RangeError("Local booking time is ambiguous due to a daylight-saving transition.");
   return matching[0];
+}
+
+// End pickers express the next day as 24..47.75 (and API callers may
+// express longer stays). Calendar arithmetic must precede zone resolution.
+export function resolveLocalBookingEnd({ bookingDate, endHour, timeZone }) {
+  const local = parseLocalStart(bookingDate, 0);
+  if (typeof endHour !== "number" || !Number.isFinite(endHour) || endHour < 0 || endHour > 24 * 32 ||
+      Math.abs(endHour * 4 - Math.round(endHour * 4)) > 1e-9) {
+    throw new RangeError("End hour must be a valid quarter-hour time.");
+  }
+  const date = new Date(Date.UTC(local.year, local.month - 1, local.day + Math.floor(endHour / 24)));
+  return resolveLocalBookingStart({
+    bookingDate: date.toISOString().slice(0, 10), startHour: endHour % 24, timeZone,
+  });
+}
+
+export function resolveLocalBookingWindow({ bookingDate, startHour, endHour, timeZone }) {
+  const start = resolveLocalBookingStart({ bookingDate, startHour, timeZone });
+  const end = resolveLocalBookingEnd({ bookingDate, endHour, timeZone });
+  const hours = (end.getTime() - start.getTime()) / 3600_000;
+  if (!Number.isFinite(hours) || hours <= 0) throw new RangeError("Choose an end time after the start time.");
+  return { start, end, hours };
 }

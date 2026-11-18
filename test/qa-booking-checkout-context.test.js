@@ -81,6 +81,14 @@ test('same-account profile rerenders with unchanged selection do not discard a v
 test('Book Now sends no scheduled date/time and retains the selected spot',async()=>{
  const h=harness();h.render({date:undefined,startHour:undefined,endHour:undefined,selectedEvent:null});await h.pay();const body=h.requests[0].body;assert.equal(body.spotLabel,'B');assert.equal(body.hours,2);assert.equal('bookingDate' in body,false);assert.equal('startHour' in body,false);assert.equal('endHour' in body,false);assert.equal('eventId' in body,false);h.stop();
 });
+for(const c of [{date:new Date(2027,2,14),startHour:1,endHour:4,hours:2,total:27.6},{date:new Date(2027,10,7),startHour:0,endHour:3,hours:4,total:55.2}])test(`BUG-005823 actual payment preview sends the ${c.hours}-hour elapsed price with the selected clock endpoints`,async()=>{
+ const h=harness();
+ try{
+  h.render({listing:{...h.props.listing,timeZone:'America/Toronto'},...c});
+  await h.pay();const body=h.requests[0].body;
+  assert.equal(body.hours,c.hours);assert.equal(body.total,c.total);assert.equal(body.startHour,c.startHour);assert.equal(body.endHour,c.endHour);
+ }finally{h.stop();}
+});
 test('BUG-005466 Review & pay names the property zone for scheduled and immediate bookings',async()=>{
  for(const now of [false,true]){
   const h=harness();

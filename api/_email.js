@@ -1,4 +1,5 @@
 // api/_email.js
+import { deploymentAppUrl } from "./_deployment-app-url.js";
 //
 // Shared email sending helper, used by stripe-webhook.js (booking
 // confirmation) and send-reminders.js (halfway + ending reminders).
@@ -77,7 +78,7 @@ export async function sendEmailPayload(payload, { idempotencyKey } = {}) {
 const LIVE_EMAIL_ORIGIN = "https://www.myparkshare.ca";
 
 function emailOrigin() {
-  const configured = process.env.APP_URL?.trim();
+  const configured = deploymentAppUrl(process.env)?.trim();
   if (!configured) return LIVE_EMAIL_ORIGIN;
   let url;
   try {
