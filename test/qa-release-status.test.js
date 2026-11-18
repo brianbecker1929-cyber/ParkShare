@@ -55,6 +55,18 @@ const reviewEnv={
  VITE_SUPABASE_URL:'https://heqxirlsorcztsawaldg.supabase.co',
  APP_URL:'https://parkshare-qa-git-fix-bug-005672-005673-60a133-eska-technologies.vercel.app',
 };
+test('clock-change review requires its own exact return address and preserves the accepted refund review binding',async()=>{
+ const clockEnv={...reviewEnv,VERCEL_GIT_COMMIT_REF:'fix/bug-005823-clock-change-nov18',APP_URL:'https://parkshare-qa-clock-change-review-eska-technologies.vercel.app'};
+ assert.equal((await run(clockEnv)).code,200);
+ assert.equal((await run(reviewEnv)).code,200);
+ for(const change of [{APP_URL:reviewEnv.APP_URL},{APP_URL:'https://parkshare-qa.vercel.app'},{APP_URL:'https://www.myparkshare.ca'},
+  {APP_URL:clockEnv.APP_URL+'.attacker.invalid'},{APP_URL:clockEnv.APP_URL+'/path'},
+  {VERCEL_GIT_COMMIT_REF:'unrelated-review'},{VERCEL_ENV:'production'},
+  {SUPABASE_URL:qa.SUPABASE_URL,VITE_SUPABASE_URL:qa.SUPABASE_URL},{STRIPE_SECRET_KEY:'sk_live_synthetic'}]){
+  assert.notEqual((await run({...clockEnv,...change})).code,200);
+ }
+ assert.notEqual((await run({...reviewEnv,APP_URL:clockEnv.APP_URL})).code,200);
+});
 test('the separate refund-review preview accepts only its bound return URL and recovery backend',async()=>{
  for(const suffix of ['', '/']){
   const r=await run({...reviewEnv,APP_URL:reviewEnv.APP_URL+suffix});
