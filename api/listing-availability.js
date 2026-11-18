@@ -1,12 +1,12 @@
 // GET /api/listing-availability?listingId=123&hours=1
-//   or  ?listingId=123&hours=2&bookingDate=2026-07-25&startHour=14
+//   or  ?listingId=123&hours=2&bookingDate=2026-07-25&startHour=14&endHour=16
 //
 // Public, no auth required. Checks both Host-defined schedule rules and
 // overlapping confirmed bookings/holds for the requested time window.
 
 import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
 import { isListingAvailableForWindow, formatAvailabilityForDate } from "../src/lib/listingAvailability.js";
-import { resolveLocalBookingStart } from "./_booking-local-time.js";
+import { resolveLocalBookingStart, resolveLocalBookingWindow } from "./_booking-local-time.js";
 import { isValidBookingDuration } from "./_booking-rules.js";
 import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
 
@@ -20,6 +20,7 @@ export default async function handler(req, res) {
   const startHour = req.query?.startHour !== undefined && req.query.startHour !== ""
     ? Number(req.query.startHour)
     : null;
+  const endHour = req.query?.endHour != null && req.query.endHour !== "" ? Number(req.query.endHour) : null;
 
   if (!Number.isSafeInteger(listingId) || listingId <= 0) {
     return res.status(400).json({ error: "Missing or invalid listingId." });
@@ -46,16 +47,24 @@ export default async function handler(req, res) {
         error: "This driveway's time zone must be verified before future bookings can be checked."
       });
       try {
-        scheduledStartsAt = resolveLocalBookingStart({
-          bookingDate, startHour, timeZone: listing.time_zone,
-        }).toISOString();
+        if (endHour !== null) {
+          const window = resolveLocalBookingWindow({bookingDate, startHour, endHour, timeZone: listing.time_zone});
+          if (!isValidBookingDuration(window.hours, {scheduled: true}) || Math.abs(window.hours - hours) > 1e-9) {
+            return res.status(400).json({code: "invalid_scheduled_window", error: "Refresh the page and review the selected times and parking duration."});
+          }
+          scheduledStartsAt = window.start.toISOString();
+        } else {
+          // Older duration-only availability callers explicitly request elapsed
+          // hours. New selected-clock-window callers send both endpoints.
+          scheduledStartsAt = resolveLocalBookingStart({bookingDate, startHour, timeZone: listing.time_zone}).toISOString();
+        }
       } catch (error) {
         return res.status(400).json({ error: error.message || "Invalid scheduled time." });
       }
       if (new Date(scheduledStartsAt).getTime() <= Date.now()) {
         return res.status(400).json({ error: "Choose a future scheduled start." });
       }
-    } else if (startHour !== null) {
+    } else if (startHour !== null || endHour !== null) {
       return res.status(400).json({ error: "Start hour requires a scheduled date." });
     }
     const { start, end } = getSessionWindow({

@@ -9,7 +9,7 @@ import { calculateBookingAmounts, isRentableSpot, isValidBookingDuration } from 
 import { getBookableVehicles } from "../src/lib/driverProfile.js";
 import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
 import { validateHourlyRate } from "../src/lib/listingPrice.js";
-import { resolveLocalBookingStart } from "./_booking-local-time.js";
+import { resolveLocalBookingWindow } from "./_booking-local-time.js";
 
 const SERVICE_FEE_RATE = 0.15;
 
@@ -93,8 +93,7 @@ export default async function handler(req, res) {
     // No silent Toronto fallback: if zone is unverified, fail closed.
     let scheduledStartsAt = null;
     if (bookingDate) {
-      if (startHour === null || endHour === null ||
-          Math.abs(endHour - startHour - hours) > 1e-9) {
+      if (startHour === null || endHour === null) {
         return res.status(400).json({
           error: "Your selected times do not match the booking length. Go back and choose an end time at least 1 hour after the start.",
           code: "invalid_scheduled_window",
@@ -106,9 +105,17 @@ export default async function handler(req, res) {
         });
       }
       try {
-        scheduledStartsAt = resolveLocalBookingStart({
-          bookingDate, startHour, timeZone: listing.time_zone,
-        }).toISOString();
+        const window = resolveLocalBookingWindow({
+          bookingDate, startHour, endHour, timeZone: listing.time_zone,
+        });
+        // A stale browser quote must never silently change the price at Stripe.
+        if (!isValidBookingDuration(window.hours, {scheduled: true}) || Math.abs(window.hours - hours) > 1e-9) {
+          return res.status(400).json({
+            error: "Your selected times do not match the booking length. Parking must last at least 1 hour. Refresh the page and review the times and price before checkout.",
+            code: "invalid_scheduled_window",
+          });
+        }
+        scheduledStartsAt = window.start.toISOString();
       } catch (error) {
         return res.status(400).json({ error: error.message || "Invalid property-local booking time." });
       }

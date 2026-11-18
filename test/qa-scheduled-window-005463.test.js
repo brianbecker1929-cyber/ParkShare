@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {isRentableSpot,isValidBookingDuration} from '../api/_booking-rules.js';
 import {getBookableVehicles} from '../src/lib/driverProfile.js';
 import {validateHourlyRate} from '../src/lib/listingPrice.js';
+import {resolveLocalBookingWindow} from '../api/_booking-local-time.js';
 
 const source=(await readFile(process.env.QA_SCHEDULED_CHECKOUT_SOURCE||new URL('../api/create-checkout-session.js',import.meta.url),'utf8'))
   .replace(/^import .*;\n/gm,'').replace('export default async function handler','return async function handler');
@@ -14,7 +15,7 @@ test('BUG-005463 a mismatched schedule explains the time error before any confli
     jsonMethod:()=>true,
     requireUser:async()=>({id:'driver-fixture',user_metadata:{vehicle_make:'Honda',vehicle_model:'Civic',vehicle_colour:'Blue',license_plate:'FIXTURE'}}),
     getOrigin:()=> 'https://fixture.invalid',
-    isRentableSpot,isValidBookingDuration,getBookableVehicles,validateHourlyRate,
+    isRentableSpot,isValidBookingDuration,getBookableVehicles,validateHourlyRate,resolveLocalBookingWindow,
     supabaseAdmin:{
       from:table=>{
         effects.push(table);assert.equal(table,'listings','Invalid schedule must stop before Host/account lookups');

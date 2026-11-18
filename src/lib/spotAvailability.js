@@ -9,13 +9,14 @@ export function canChooseListingSpot({ isRealListing, hostRentable, availableDat
   return availableData?.spotStatus?.[label] === true;
 }
 
-export function availabilityRequestKey({ listingId, mode, hours, bookingDate, startHour }) {
+export function availabilityRequestKey({ listingId, mode, hours, bookingDate, startHour, endHour }) {
   return [
     String(listingId ?? "demo"),
     String(mode),
     String(hours),
     mode === "advance" ? String(bookingDate) : "now",
     mode === "advance" ? String(startHour) : "now",
+    mode === "advance" ? String(endHour) : "now",
   ].join(":");
 }
 
