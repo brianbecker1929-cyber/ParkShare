@@ -9,6 +9,7 @@ import {seedMessagePrivacyRows,messagePrivacyChecks} from './qa-message-privacy-
 import {runInitialBookingRefundProbe} from './qa-initial-booking-refund-probe.mjs';
 import {runExtensionSettlementProbe} from './qa-extension-settlement-probe.mjs';
 import {runProductionDeliveryProbes} from './production-delivery-probes.mjs';
+import {runPaymentAlertProbe} from './payment-alert-outbox-probe.mjs';
 import {assertProductionRehearsalUrl,assertProductionRehearsalServer,restoreProductionSnapshot,seedProductionShape} from './production-schema-rehearsal.mjs';
 const config=assertProductionRehearsalUrl(process.env.PRODUCTION_SCHEMA_REHEARSAL_DATABASE_URL);
 const c=new pg.Client(config);
@@ -31,7 +32,7 @@ try {
  const check=async(name,fn)=>{await fn();report.checks.push({name,status:'passed'});};
  const manifest=JSON.parse(await readFile(new URL('../deployment/production-database/manifest.json',import.meta.url),'utf8'));
  const hash=value=>createHash('sha256').update(value).digest('hex');
- assert.equal(hash(await readFile(new URL('fixtures/production-schema-nov11.json',new URL('../test/database/',import.meta.url)))),manifest.baselineFixtureSha256,'Captured schema fixture must match the manifest');
+ assert.equal(hash(await readFile(new URL('../'+manifest.baselineFixture,import.meta.url))),manifest.baselineFixtureSha256,'Captured schema fixture must match the manifest');
  for(const source of manifest.sources)assert.equal(hash(await readFile(new URL('../'+source.path,import.meta.url))),source.sha256,'SQL source changed: '+source.path);
  const sql=await readFile(new URL('../deployment/production-database/'+manifest.migrationFile,import.meta.url),'utf8');
  assert.equal(createHash('sha256').update(sql).digest('hex'),manifest.migrationSha256,'Built migration hash must match reviewed manifest');
@@ -94,7 +95,7 @@ try {
   assert.equal((await db.query('SELECT count(*)::int n FROM public.listings WHERE time_zone IS NULL')).rows[0].n,1);
  });
  report.fixture={bookings:29,extensions:2,unaddressedMessages:7,retainedCheckouts:1,customerRowsExported:0};
- const queueTables=['booking_refund_operations','booking_cancellation_reviews','payment_refunds','booking_reminder_deliveries','refund_email_deliveries','message_email_deliveries','listing_photo_cleanup'];
+ const queueTables=['booking_refund_operations','booking_cancellation_reviews','payment_refunds','booking_reminder_deliveries','refund_email_deliveries','message_email_deliveries','listing_photo_cleanup','payment_alert_deliveries'];
  await check('No historical email, refund, fee-credit or photo-deletion work is queued',async()=>{for(const t of queueTables)assert.equal((await db.query(`SELECT count(*)::int n FROM public.${t}`)).rows[0].n,0);});
  await check('Browser roles cannot read or write private money/delivery queues; every new public table uses RLS',async()=>{
   for(const t of queueTables){assert.equal((await db.query('SELECT relrowsecurity FROM pg_class WHERE oid=$1::regclass',['public.'+t])).rows[0].relrowsecurity,true);
@@ -148,6 +149,7 @@ try {
  await runInitialBookingRefundProbe(db,report,{installMigration:false});
  await runExtensionSettlementProbe(db,report,{installMigration:false});
  await runProductionDeliveryProbes(db,report,config,fixture);
+ await runPaymentAlertProbe(db,report,async()=>{const peer=new pg.Client(config);await peer.connect();return peer;},{installMigration:false});
  await check('Read-only postflight SQL executes and reports zero RLS or browser-queue privilege failures',async()=>{
   const results=await db.exec(await readFile(new URL('../deployment/production-database/postflight-readonly.sql',import.meta.url),'utf8'));
   const rows=results.flatMap(r=>r.rows??[]).filter(r=>'failures' in r);assert.equal(rows.length,2);for(const row of rows)assert.equal(Number(row.failures),0,row.check_name);

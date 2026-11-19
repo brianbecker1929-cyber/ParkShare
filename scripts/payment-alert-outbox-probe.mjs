@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 
-export async function runPaymentAlertProbe(db, report, peerConnection) {
+export async function runPaymentAlertProbe(db, report, peerConnection, {installMigration=true}={}) {
   const check = name => report.checks.push({name:'payment alert outbox: '+name,status:'passed'});
-  await db.exec(await readFile(new URL('../docs/sql-proposals/payment-emergency-alert-outbox.sql',import.meta.url),'utf8'));
-  report.migrations.push({name:'payment_emergency_alert_outbox_proposal',status:'passed'});
+  if(installMigration){
+    await db.exec(await readFile(new URL('../docs/sql-proposals/payment-emergency-alert-outbox.sql',import.meta.url),'utf8'));
+    report.migrations.push({name:'payment_emergency_alert_outbox_proposal',status:'passed'});
+  }
   assert.equal((await db.query('select count(*)::int n from public.payment_alert_deliveries')).rows[0].n,0);
   check('proposal starts empty and performs no historical replay');
   const payload={from:'ParkShare <alerts@myparkshare.ca>',to:['operator@example.invalid'],subject:'Synthetic TEST alert',text:'Synthetic only'};

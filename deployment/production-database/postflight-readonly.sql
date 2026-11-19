@@ -8,7 +8,7 @@ SELECT 'public_tables_without_rls' check_name,count(*) failures
 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
 WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity;
 SELECT 'browser_money_or_delivery_access' check_name,count(*) failures
-FROM unnest(ARRAY['booking_refund_operations','booking_cancellation_reviews','payment_refunds','booking_reminder_deliveries','refund_email_deliveries','message_email_deliveries','listing_photo_cleanup','pending_booking_extensions','booking_hold_attempts']) t(name)
+FROM unnest(ARRAY['booking_refund_operations','booking_cancellation_reviews','payment_refunds','booking_reminder_deliveries','refund_email_deliveries','message_email_deliveries','listing_photo_cleanup','payment_alert_deliveries','pending_booking_extensions','booking_hold_attempts']) t(name)
 CROSS JOIN unnest(ARRAY['anon','authenticated']) r(name)
 WHERE has_table_privilege(r.name,'public.'||t.name,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE');
 SELECT listing_timezone_assignment_ready() property_guard_ready,
@@ -23,6 +23,7 @@ SELECT jsonb_build_object(
  'reminder_jobs',(SELECT count(*) FROM public.booking_reminder_deliveries),
  'refund_email_jobs',(SELECT count(*) FROM public.refund_email_deliveries),
  'chat_email_jobs',(SELECT count(*) FROM public.message_email_deliveries),
+ 'payment_alert_jobs',(SELECT count(*) FROM public.payment_alert_deliveries),
  'photo_deletion_jobs',(SELECT count(*) FROM public.listing_photo_cleanup),
  'photo_bucket_private',(SELECT public=false FROM storage.buckets WHERE id='listing-photos')
 ) status;

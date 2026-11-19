@@ -3,7 +3,9 @@ import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 const root=new URL('../',import.meta.url),base=new URL('deployment/production-database/',root);
-const SOURCE_COMMIT='072629e16b35970bcae1260ab2e5660ece2b08d8';
+// Runtime integration source: accepted QA + clock-change repair + durable alerts.
+// Package-only commits follow this immutable application source.
+const SOURCE_COMMIT='1e959342d56c5b15118e73edd51d3d14ea3691fa';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const sources=[
  'supabase-migration-010-preserve-bookings-on-listing-delete.sql',
@@ -12,12 +14,13 @@ const sources=[
  'supabase-migration-013-listing-photos-storage.sql',
  ...['bug-005118-unpaid-hold-rate-limits.sql','qa-atomic-extensions-and-refunds.sql','bug-005156-property-local-canonical-bookings.sql','bug-005136-listing-postal-validation.sql','bug-005137-hourly-price-constraint.sql','bug-005138-future-exceptions.sql','qa-verified-reviews.sql','bug-005183-restrict-public-data-api.sql','qa-account-deletion-booking-retention.sql','qa-private-messages-rls.sql'].map(f=>'docs/sql-proposals/'+f),
  ...(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')&&f>'20261019135322_betterqa_verified_listing_zones_oct19.sql').sort().map(f=>'supabase/migrations/'+f),
- 'docs/sql-proposals/qa-message-notifications-005536.sql'
+ 'docs/sql-proposals/qa-message-notifications-005536.sql',
+ 'docs/sql-proposals/payment-emergency-alert-outbox.sql'
 ];
 const files=(await readdir(new URL('supabase/migrations/',base))).filter(f=>f.endsWith('_production_release_candidate.sql'));
 assert.equal(files.length,1,'Create exactly one production migration using supabase migration new in this separate workdir');
 const fingerprint=await readFile(new URL('schema-fingerprint.sql',base),'utf8');
-const snapshot=await readFile(new URL('test/database/fixtures/production-schema-nov11.json',root),'utf8');
+const snapshot=await readFile(new URL('test/database/fixtures/production-schema-nov18.json',root),'utf8');
 const inputs=[],sections=[];
 for(const path of sources){
  const original=await readFile(new URL(path,root),'utf8');
@@ -89,7 +92,8 @@ DO $preserve$ DECLARE t record; after_n bigint; after_digest text; BEGIN
  IF EXISTS(SELECT 1 FROM public.booking_refund_operations) OR EXISTS(SELECT 1 FROM public.booking_cancellation_reviews)
   OR EXISTS(SELECT 1 FROM public.payment_refunds) OR EXISTS(SELECT 1 FROM public.booking_reminder_deliveries)
   OR EXISTS(SELECT 1 FROM public.refund_email_deliveries) OR EXISTS(SELECT 1 FROM public.message_email_deliveries)
-  OR EXISTS(SELECT 1 FROM public.listing_photo_cleanup) THEN RAISE EXCEPTION 'Migration must not create historical notifications, money jobs or deletions'; END IF;
+  OR EXISTS(SELECT 1 FROM public.listing_photo_cleanup)
+  OR EXISTS(SELECT 1 FROM public.payment_alert_deliveries) THEN RAISE EXCEPTION 'Migration must not create historical notifications, money jobs, alerts or deletions'; END IF;
 END $preserve$;
 CREATE TABLE parkshare_private.production_release_versions (
  package_id text PRIMARY KEY,source_commit text NOT NULL,inputs_sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now()
@@ -98,12 +102,12 @@ ALTER TABLE parkshare_private.production_release_versions ENABLE ROW LEVEL SECUR
 REVOKE ALL ON parkshare_private.production_release_versions FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON parkshare_private.production_release_versions TO service_role;
 INSERT INTO parkshare_private.production_release_versions(package_id,source_commit,inputs_sha256)
- VALUES('production-candidate-2026-11-11','${SOURCE_COMMIT}','${inputsHash}');
+ VALUES('production-candidate-2026-11-18','${SOURCE_COMMIT}','${inputsHash}');
 NOTIFY pgrst,'reload schema';
 COMMIT;
 `;
 const sql=header+sections.join('\n')+tail;
-const manifest={packageId:'production-candidate-2026-11-11',status:'rehearsal-only; production execution requires separate approval',sourceCommit:SOURCE_COMMIT,productionCommit:'8c80feab4596e238eb46f585de5b8e1f2cf4b433',targetProject:'oyxrussraxjgqwzpwyca',baselineFingerprint:'c88a7b09cb3c4da5b99628cfe6d6a3a6',baselineFixtureSha256:sha(snapshot),inputsSha256:inputsHash,migrationFile:'supabase/migrations/'+files[0],migrationSha256:sha(sql),transaction:'One transaction; no intermediate committed stages',sources:inputs,excluded:['QA combined recovery installer and backup schema','QA geography cell backfill','QA pg_cron/pg_net/Vault bootstrap','Auth/customer rows and QA staff flags','Historical notification/money queue backfills','Any Stripe, Resend, Storage object or HTTP request']};
+const manifest={packageId:'production-candidate-2026-11-18',status:'rehearsal-only; production execution requires separate approval',sourceCommit:SOURCE_COMMIT,productionCommit:'8c80feab4596e238eb46f585de5b8e1f2cf4b433',targetProject:'oyxrussraxjgqwzpwyca',baselineFingerprint:'c88a7b09cb3c4da5b99628cfe6d6a3a6',baselineFixture:'test/database/fixtures/production-schema-nov18.json',baselineFixtureSha256:sha(snapshot),inputsSha256:inputsHash,migrationFile:'supabase/migrations/'+files[0],migrationSha256:sha(sql),transaction:'One transaction; no intermediate committed stages',sources:inputs,excluded:['QA combined recovery installer and backup schema','QA geography cell backfill','QA pg_cron/pg_net/Vault bootstrap','Auth/customer rows and QA staff flags','Historical notification/money/alert queue backfills','Any Stripe, Resend, Storage object or HTTP request']};
 await writeFile(new URL(manifest.migrationFile,base),sql);
 await writeFile(new URL('manifest.json',base),JSON.stringify(manifest,null,2)+'\n');
 console.log(JSON.stringify({sources:inputs.length,bytes:Buffer.byteLength(sql),migration:manifest.migrationFile,sha256:manifest.migrationSha256}));

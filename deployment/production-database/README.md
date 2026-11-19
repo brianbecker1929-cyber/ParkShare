@@ -1,4 +1,10 @@
-# Production database migration candidate — November 11, 2026
+# Production migration preparation history — November 11–12, 2026
+
+**Current combined release:** see [the November 18 release handoff](../../docs/production-release-candidate-nov18.md).
+The builder, manifest, postflight and rehearsal now describe that newer candidate:
+32 SQL inputs, the refreshed November 18 production catalog, and the integrated
+application source. The results and source pins below are retained historical
+evidence from PR #253, rather than validation of the combined release.
 
 Prepared for Brian Becker and BetterQA. Powered by ESKA Technologies.
 
