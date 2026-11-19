@@ -1,0 +1,178 @@
+{
+  "packageId": "production-candidate-2026-11-11",
+  "status": "rehearsal-only; production execution requires separate approval",
+  "sourceCommit": "072629e16b35970bcae1260ab2e5660ece2b08d8",
+  "productionCommit": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+  "targetProject": "oyxrussraxjgqwzpwyca",
+  "baselineFingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6",
+  "baselineFixtureSha256": "5ff75fe930f6046848df58aa57b3af17030a39909cf3202ed771db50acac3ec9",
+  "inputsSha256": "d2ffd9bebdaee2bb3b62025da27060343b91d992fdf4f64e6b670dc8c0ba1f5d",
+  "migrationFile": "supabase/migrations/20261111125931_production_release_candidate.sql",
+  "migrationSha256": "5ae2c33139f15ea8da10cabdd6a466e3460cd8ee4f4b40c8bd331d0b5b0e5f67",
+  "transaction": "One transaction; no intermediate committed stages",
+  "sources": [
+    {
+      "path": "supabase-migration-010-preserve-bookings-on-listing-delete.sql",
+      "sha256": "24c709e35050fecaea8db493b5f29ab7e6c3f628bfa83c8721ffa117c1f74787",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase-migration-011-registered-checkouts.sql",
+      "sha256": "2158ad4ea15a506c4e88b03de1240db4bb2334fff26d64b4e269baf4627bcafe",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase-migration-012-host-role-listings-rls.sql",
+      "sha256": "e4ee3fabb7badb0469528d3bc4f953c464f29e8348f41171e4d99f797f8df0c4",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase-migration-013-listing-photos-storage.sql",
+      "sha256": "750debeda6b2ef2d846ceefeb8e87144288ad42960b2f904f4b66ecb4189e4ea",
+      "adaptation": "Private bucket at creation; transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/bug-005118-unpaid-hold-rate-limits.sql",
+      "sha256": "779641869b7d798ce854ca96851a6bb655ab79d7dba18e50b4032d88a188b2e3",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/qa-atomic-extensions-and-refunds.sql",
+      "sha256": "d6e1c143776a866f903bca504e632563ae80e382a2f4d8fccfa7f5b994de3cd6",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/bug-005156-property-local-canonical-bookings.sql",
+      "sha256": "a35301f9cc089a77900c2d1901c22ce37af81dc84a7da4140a93ab8a4b4bd4a4",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/bug-005136-listing-postal-validation.sql",
+      "sha256": "9038b82b679040d0459e47deada3e089f3e3f50dd9ca1ff92b0a24a272bda1c8",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/bug-005137-hourly-price-constraint.sql",
+      "sha256": "221744ce87e36e8ba249676ba3509f5891ee780e69e67df93dcd72b1d7ab47aa",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/bug-005138-future-exceptions.sql",
+      "sha256": "f7a7abdae7372bb0bf8d2b808c5baf23828bcbab9afeb30762c7a8545008f550",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/qa-verified-reviews.sql",
+      "sha256": "2d4d5c7eb1d8cbeb2da32f2fcb0534bc69f33a06a2799b7ad2b4bb3129917db2",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/bug-005183-restrict-public-data-api.sql",
+      "sha256": "2bf90611f88729d5db2a7a8dc6288f3af947018f7971222555f0820819585fa6",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/qa-account-deletion-booking-retention.sql",
+      "sha256": "a14de5b7312959eb56f9b6f85a110469f2b7e662d7913d59994e2ca659fba84a",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/qa-private-messages-rls.sql",
+      "sha256": "3b321d089edc47436667563b40d65e42237c6abc9cd039714a9187d4e7e75d98",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261019164722_listing_photo_cleanup_005187.sql",
+      "sha256": "e8e2049f9709b2a9a8328d7145abccea04503c4cacd9468b51ba4371605f72a0",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261019182335_multiple_refund_ledger_005188.sql",
+      "sha256": "00a35c2b92438f171d7570069ac26e174091d9d0013a67a1a69dc54bfd52f5b8",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261019192851_bounded_public_parking_005220.sql",
+      "sha256": "21af26040fe4a3f9d4885b280a4f4ec83bbd47c801cddbc9dbd09ca3ad66bfdb",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261019203117_listing_timezone_assignment.sql",
+      "sha256": "2e47ac9814a64140230b14d75f54bd723b40064e4f7708ff3c1a3d45c7619d47",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261019221450_listing_publication_retries.sql",
+      "sha256": "b5a80427147b125a512baedf5a59f90fba5002735e2d480cf789a1b019a30237",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261020205407_extension_settlement_005116_005260.sql",
+      "sha256": "047b1772ef70243d91e54776fc25c1305a1372fd8c22c07c6acabeaa128dae3a",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261021103527_booking_reminder_delivery_005226_005261.sql",
+      "sha256": "e9084a6a524d902d14fe8bd27316a9c9f258bf8ced7fe6b03abbbfbe412b2e45",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261021111213_refund_notifications_005249.sql",
+      "sha256": "affc92e2216f189d5b139bb9b529d08bf2965ec3b2f599876d3348a3e558b164",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261021200835_exception_horizon_005138.sql",
+      "sha256": "7dfec1123e0bec083112d2b33c0bbaf7ebca1396477ee331caa888946070ed54",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261021210715_initial_booking_refund_history.sql",
+      "sha256": "162bad10b1e653c5ec89ecdfb3d79b2aafa80571b9a926852dc0ef5a57b3689e",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261025152330_deduplicate_extension_spot_capacity_005324.sql",
+      "sha256": "18e2efe4f19f9da9d6d7b966db673fc3630cd9efca4d0aed7d00e677deb0a256",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261031185643_webhook_refund_conflict_005158.sql",
+      "sha256": "1441e02a09fa1b45a75701313cf3f09289a102143360ae64ca66dd9bb021a54c",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261031191201_checkout_rate_limit_recovery_005462.sql",
+      "sha256": "7cc8efd90c8e7ab5e9d94bfa3dc97e24ffd7e995f5b9786225d87c943be2046a",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261101195507_qa_listing_pause_005445.sql",
+      "sha256": "1f432d963096d6517099a4cdc6a111b779d3567a4b95ae53ecea11a1cdd52b03",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261101225651_qa_booking_vehicle_type_005157.sql",
+      "sha256": "3aa09830452f9bf0ea04d683b1800d72991f46c8678fb57087f22672d54eac37",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "supabase/migrations/20261111033631_cancellation_reason_fee_policy.sql",
+      "sha256": "7ec0ec6cc4684b112a074b661963cb1141eff122c292967a2d193e67921918db",
+      "adaptation": "Transaction wrapper/comments removed"
+    },
+    {
+      "path": "docs/sql-proposals/qa-message-notifications-005536.sql",
+      "sha256": "a2fc31033371ae7cf0960a7707e17d637aacc9714663b743e1e41e4609f692ad",
+      "adaptation": "Transaction wrapper/comments removed"
+    }
+  ],
+  "excluded": [
+    "QA combined recovery installer and backup schema",
+    "QA geography cell backfill",
+    "QA pg_cron/pg_net/Vault bootstrap",
+    "Auth/customer rows and QA staff flags",
+    "Historical notification/money queue backfills",
+    "Any Stripe, Resend, Storage object or HTTP request"
+  ]
+}

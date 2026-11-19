@@ -1,0 +1,48 @@
+{
+  "capturedAt": "2026-11-11T12:56:35.37296+00:00",
+  "source": "Read-only production aggregates; no customer rows exported",
+  "holds_total": 1,
+  "holds_active": 0,
+  "invalid_rates": 0,
+  "vehicle_types": [
+    {
+      "count": 9,
+      "vehicle_type": null
+    },
+    {
+      "count": 7,
+      "vehicle_type": "primary"
+    },
+    {
+      "count": 13,
+      "vehicle_type": "guest"
+    }
+  ],
+  "legacy_image_hosts": [
+    {
+      "host": null,
+      "count": 13
+    }
+  ],
+  "extensions_negative": 0,
+  "missing_coordinates": 3,
+  "paid_future_bookings": 0,
+  "non_host_listing_owners": 1,
+  "retained_checkout_holds": 1,
+  "image_kinds": [
+    {
+      "n": 6,
+      "kind": "other"
+    },
+    {
+      "n": 7,
+      "kind": "embedded_image"
+    }
+  ],
+  "photo_arrays": [
+    {
+      "n": 13,
+      "kind": "array"
+    }
+  ]
+}

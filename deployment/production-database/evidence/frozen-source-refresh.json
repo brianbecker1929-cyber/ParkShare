@@ -1,0 +1,65 @@
+{
+  "verifiedAt": "2026-11-12T03:18:36.824639+00:00",
+  "verifiedAtToronto": "2026-11-11T22:18:36.825070-05:00",
+  "frozenAppSource": "072629e16b35970bcae1260ab2e5660ece2b08d8",
+  "previousAppSource": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "localCheckoutBase": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "appDelta": "Four frozen BUG-005661 files restored byte-for-byte from GitHub; no active QA branch or database changes.",
+  "scope": "New isolated native PostgreSQL 17.6 clusters; read-only production metadata and Stripe configuration checks.",
+  "catalog": {
+    "capture": "2026-11-12T03:08:45.668321+00:00",
+    "baselineFingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6",
+    "structuralOrPermissionChanges": [],
+    "tables": 45,
+    "columns": 499,
+    "constraints": 178,
+    "policies": 19
+  },
+  "package": {
+    "source": "072629e16b35970bcae1260ab2e5660ece2b08d8",
+    "migrationSha256": "5ae2c33139f15ea8da10cabdd6a466e3460cd8ee4f4b40c8bd331d0b5b0e5f67",
+    "sqlSources": 31,
+    "inputsSha256": "d2ffd9bebdaee2bb3b62025da27060343b91d992fdf4f64e6b670dc8c0ba1f5d",
+    "sqlBodyUnchangedAfterSourceMarkerNormalization": true,
+    "schemaChangeComparedWithPreviousPackage": false
+  },
+  "validation": {
+    "productionMigrationChecks": 74,
+    "qaSchemaChecks": 144,
+    "focused": {
+      "tests": 84,
+      "suites": 0,
+      "pass": 84,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 592.8229
+    },
+    "fullRegression": {
+      "tests": 1935,
+      "suites": 27,
+      "pass": 1935,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 115485.874747
+    },
+    "build": "passed"
+  },
+  "productionDeploymentVerified": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+  "productionWrites": 0,
+  "activeQaWrites": 0,
+  "providerMutations": 0,
+  "managedBackupRestoreCertified": false,
+  "remainingGates": [
+    "Managed backup/PITR and an isolated restore test",
+    "Live key mode and distinct signing-secret attestation",
+    "Exact production sender and canonical APP_URL",
+    "Live Host payout settings",
+    "Maps restrictions and payment-failure alerts",
+    "Retained Checkout reconciliation and listing ownership/location review",
+    "Reviewed production application/schema cutover and approved activation"
+  ]
+}

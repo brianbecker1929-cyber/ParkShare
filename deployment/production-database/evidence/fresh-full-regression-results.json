@@ -1,0 +1,24 @@
+{
+  "verifiedAt": "2026-11-11T20:29:10.444064+00:00",
+  "rehearsalSourceHead": "a0eba5a66a308ce4e6c6576257ccf57da8efa338",
+  "candidateAppSource": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "scope": "New isolated native PostgreSQL 17.6 clusters; no hosted database or provider actions",
+  "regression": {
+    "tests": 1909,
+    "suites": 27,
+    "pass": 1909,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0,
+    "duration_ms": 138974.403221
+  },
+  "build": {
+    "command": "npm run build",
+    "status": "passed"
+  },
+  "githubRerun": "Queued at verification; not reported as passed",
+  "productionDeploymentVerified": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+  "productionWrites": 0,
+  "activeQaWrites": 0
+}

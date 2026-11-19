@@ -16,7 +16,7 @@ const code=section('function readRawBody(', '// "Today"')
  +section('async function processPaidCheckout(', '// A signed expired/async-failed')
  +source.slice(source.indexOf('export default async function handler')).replace('export default async function handler','return async function handler');
 function harness({conflict=true,refundStatus='succeeded',history=[],rpcError=null,ledgerError=null,refundError=null}={}){
- const calls=[],state={booking:null,hold:null,history:structuredClone(history),ledger:[]};
+ const calls=[],alerts=[],state={booking:null,hold:null,history:structuredClone(history),ledger:[]};
  const session={id:'cs_initial',mode:'payment',payment_status:'paid',payment_intent:'pi_initial',amount_total:1150,currency:'cad',livemode:false,created:1792500000};
  const charge={id:'ch_initial',payment_intent:'pi_initial',amount:1150,amount_captured:1150,amount_refunded:history.filter(r=>['pending','succeeded'].includes(r.status)).reduce((n,r)=>n+r.amount,0),currency:'cad',livemode:false,paid:true,captured:true,status:'succeeded'};
  const hold={id:'initial_hold',listing_id:7,renter_id:'driver',spot_label:'A',starts_at:'2026-10-21T10:00:00Z',ends_at:'2026-10-21T11:00:00Z',expected_total_cents:1150,expected_connected_account_id:'acct_owner',stripe_checkout_session_id:'cs_initial',
@@ -52,6 +52,7 @@ function harness({conflict=true,refundStatus='succeeded',history=[],rpcError=nul
   }throw new Error(name);
  }};
  const deps={normaliseVehicleType,stripe,supabaseAdmin:db,CheckoutIntegrityError,verifyBookingHoldSnapshot,requirePaidCheckoutReference,translatePaidBookingInsertError,paidCheckoutReferenceLog,
+ reportPaymentAlert:async(kind,context)=>{alerts.push({kind,context});return {status:'disabled'};},
  readCheckoutDb:f=>f(),hostAccountForListing:async()=>({hostId:'host',connectedAccountId:'acct_owner'}),
  validatedIntent:async(s,a,e,h,total,fee)=>verifyPaidCheckout({session:s,eventAccount:a,expectedSessionId:'cs_initial',expectedConnectedAccountId:e,actualHostAccountId:h,expectedTotalCents:total,expectedApplicationFeeCents:fee,paymentIntent:intent()}),
  settleInitialBooking,finishRejectedInitialBooking,reconcilePaymentRefund,
@@ -64,7 +65,7 @@ function harness({conflict=true,refundStatus='succeeded',history=[],rpcError=nul
   const res={code:200,status(n){this.code=n;return this},json(b){this.body=b;return this},send(b){this.body=b;return this},setHeader(){},end(){}};
   await handler(req,res);return res;
  }
- return {state,calls,event,session,charge,stripe,deliver};
+ return {state,calls,alerts,event,session,charge,stripe,deliver};
 }
 const refunded=(status='succeeded')=>({id:'re_previous',amount:1150,status,currency:'cad',payment_intent:'pi_initial',charge:'ch_initial',created:1792500000});
 test('signed booking conflict records a failed payment before refund, reconciles it, releases hold and safely replays',async()=>{
@@ -73,11 +74,14 @@ test('signed booking conflict records a failed payment before refund, reconciles
  assert.equal(h.calls.filter(c=>c[0]==='refund').length,1);assert.equal(h.state.ledger.length,1);assert.equal(h.calls.some(c=>c[0]==='confirmation'),false);
  assert.ok(h.calls.findIndex(c=>c[1]==='settle_initial_booking_checkout')<h.calls.findIndex(c=>c[0]==='refund'));
  assert.equal(h.calls.find(c=>c[0]==='refund')[2].idempotencyKey,'booking-conflict-cs_initial');
+ assert.deepEqual(h.alerts.map(a=>a.kind),['paid_checkout_rejected','paid_checkout_rejected']);
+ assert.deepEqual(h.alerts[0].context,h.alerts[1].context);
 });
 test('valid booking confirms once with no refund and consumes its hold atomically',async()=>{
  const h=harness({conflict:false});assert.equal((await h.deliver()).code,200);assert.equal((await h.deliver()).code,200);
  assert.equal(h.state.booking.status,'confirmed');assert.equal(h.state.booking.application_state,'applied');assert.equal(h.state.hold,null);
  assert.equal(h.calls.filter(c=>c[0]==='confirmation').length,1);assert.equal(h.calls.some(c=>c[0]==='refund'),false);
+ assert.equal(h.alerts.length,0);
 });
 for(const status of ['succeeded','pending','requires_action'])test(`already ${status} refund cannot confirm a new booking or trigger another refund`,async()=>{
  const h=harness({conflict:false,history:[refunded(status)]});assert.equal((await h.deliver()).code,200);assert.equal((await h.deliver()).code,200);

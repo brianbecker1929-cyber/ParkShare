@@ -1,0 +1,4 @@
+# Isolated production-package namespace. No remote link, credentials or seed.
+project_id = "parkshare-production-migration-package"
+[db]
+major_version = 17

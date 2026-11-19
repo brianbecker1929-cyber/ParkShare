@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {processBookingRefund,drainBookingRefunds} from '../api/_refund-operations.js';
 const NOW=new Date('2026-11-11T12:00:00Z');
-function harness(change={}){
+function harness(change={},notify){
  let op={id:'operation-fixture',booking_id:1,livemode:false,connected_account_id:'acct_fixture',payment_intent_id:'pi_fixture',charge_id:'ch_fixture',currency:'cad',amount_cents:2500,gross_cents:10000,processing_fee_cents:320,fee_payer:'parkshare',reason_code:'staff_goodwill',state:'queued',refund_attempt_at:NOW.toISOString(),...change};
  let held=false,ledger=true,networkLost=false,providerLost=false;
  const refunds=[],transfers=[],chargeReads=[],refundReads=[],providerTransfers=new Map();
@@ -14,8 +14,21 @@ function harness(change={}){
   throw Error(name);
  },from(table){let values;const q={select(){return q;},update(v){values=v;return q;},eq(){return q;},maybeSingle(){return Promise.resolve({data:ledger?{status:'succeeded',amount_cents:2500,booking_id:1}:null});},then(resolve){if(values)Object.assign(op,values);return Promise.resolve({}).then(resolve);}};return q;}};
  const stripe={charges:{async retrieve(id,params,options){chargeReads.push({id,params,options});return {...charge};}},refunds:{async create(params,options){refunds.push({params,options});if(providerLost){providerLost=false;throw Error('network lost');}return {...refund};},async retrieve(id,params,options){refundReads.push({id,params,options});return {...refund};}},transfers:{async create(params,options){transfers.push({params,options});if(!providerTransfers.has(options.idempotencyKey))providerTransfers.set(options.idempotencyKey,{id:'tr_fixture',...params,livemode:false,reversed:false});if(networkLost){networkLost=false;throw Error('accepted but response lost');}return providerTransfers.get(options.idempotencyKey);}}};
- return {run:(now=NOW)=>processBookingRefund({db,stripe,id:op.id,livemode:false,now}),release:()=>{held=false;},op,stripe,charge,chargeReads,refund,refunds,refundReads,transfers,providerTransfers,setLedger:v=>{ledger=v;},loseTransferResponse:()=>{networkLost=true;},loseRefundResponse:()=>{providerLost=true;}};
+ return {run:(now=NOW)=>processBookingRefund({db,stripe,id:op.id,livemode:false,now,notify}),release:()=>{held=false;},op,stripe,charge,chargeReads,refund,refunds,refundReads,transfers,providerTransfers,setLedger:v=>{ledger=v;},loseTransferResponse:()=>{networkLost=true;},loseRefundResponse:()=>{providerLost=true;}};
 }
+test('review hold survives an unsuccessful emergency notification and cannot initiate a Host transfer',async()=>{
+ const alerts=[];const h=harness({},async(kind,context)=>{alerts.push({kind,context});return {status:'delivery_failed'};});
+ h.refund.status='failed';assert.equal(await h.run(),'review');assert.equal(h.op.state,'review');
+ assert.equal(h.op.review_code,'customer_refund_failed');assert.equal(h.transfers.length,0);
+ assert.deepEqual(alerts,[{kind:'refund_needs_review',context:{operationId:'operation-fixture',bookingId:1,connectedAccountId:'acct_fixture',livemode:false}}]);
+ h.release();assert.equal(await h.run(),'busy');assert.equal(alerts.length,1);
+});
+test('ambiguous financial result remains pending after an emergency alert, with the same provider retry key',async()=>{
+ const alerts=[];const h=harness({},async(kind,context)=>{alerts.push({kind,context});return {status:'accepted'};});
+ h.loseRefundResponse();assert.equal(await h.run(),'pending');assert.equal(h.op.state,'queued');
+ assert.equal(alerts[0].kind,'refund_retry_required');h.release();assert.equal(await h.run(),'complete');
+ assert.equal(h.refunds.length,2);assert.deepEqual(h.refunds[0],h.refunds[1]);
+});
 test('full path persists the actual refund and separate fee transfer; only one worker obtains the lease',async()=>{
  const h=harness();assert.equal(Object.hasOwn(h.refund,'livemode'),false);assert.deepEqual((await Promise.all([h.run(),h.run()])).sort(),['busy','complete']);
  assert.equal(h.refunds.length,1);assert.equal(h.transfers.length,1);assert.equal(h.op.state,'complete');

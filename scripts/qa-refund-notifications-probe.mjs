@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export async function runRefundNotificationsProbe(db,report={checks:[]}) {
+export async function runRefundNotificationsProbe(db,report={checks:[]},{installMigration=true}={}) {
   const check=name=>report.checks.push({name:'refund notifications: '+name,status:'passed'});
   const digest=async()=> (await db.query("select md5(coalesce(string_agg(to_jsonb(b)::text,'|' order by id),'')) digest from public.bookings b")).rows[0].digest;
   const before=await digest();
-  await db.exec(await readFile(new URL('../supabase/migrations/20261021111213_refund_notifications_005249.sql',import.meta.url),'utf8'));
+  if(installMigration)await db.exec(await readFile(new URL('../supabase/migrations/20261021111213_refund_notifications_005249.sql',import.meta.url),'utf8'));
   assert.equal(await digest(),before);
   assert.equal((await db.query('select count(*)::int n from public.refund_email_deliveries')).rows[0].n,0);
   check('migration changes no booking or historical refund and queues no historical emails');
@@ -61,6 +61,6 @@ export async function runRefundNotificationsProbe(db,report={checks:[]}) {
     await db.query("update public.refund_email_deliveries set payload='{}',first_attempt_at=now(),provider_id='email_test',sent_at=now(),lease_until=now()-interval '1 second' where id=$1",[id]);
     assert.equal((await claim()).rowCount,0);check('conditional lease excludes active and already accepted deliveries');
   } finally { await db.exec('rollback'); }
-  report.migrations??=[];report.migrations.push({name:'refund_notifications_005249',status:'passed'});
+  report.migrations??=[];if(installMigration)report.migrations.push({name:'refund_notifications_005249',status:'passed'});
   return report;
 }

@@ -1,10 +1,10 @@
 // Disposable schema rehearsal ONLY; callers must validate local database scope.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-export async function runCancellationFeeProbe(db,report={checks:[]}) {
-  await db.exec(await readFile(new URL('../supabase/migrations/20261111033631_cancellation_reason_fee_policy.sql',import.meta.url),'utf8'));
+export async function runCancellationFeeProbe(db,report={checks:[]},{installMigration=true}={}) {
+  if(installMigration)await db.exec(await readFile(new URL('../supabase/migrations/20261111033631_cancellation_reason_fee_policy.sql',import.meta.url),'utf8'));
   const check=name=>report.checks.push({name:'cancellation fee: '+name,status:'passed'});
-  report.migrations??=[];report.migrations.push({name:'cancellation_reason_fee_policy',status:'passed'});
+  report.migrations??=[];if(installMigration)report.migrations.push({name:'cancellation_reason_fee_policy',status:'passed'});
   await db.exec('begin');
   try {
     const host='00000000-0000-4000-8000-00000000f601',driver='00000000-0000-4000-8000-00000000f602';

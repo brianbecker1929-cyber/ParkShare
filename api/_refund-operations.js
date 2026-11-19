@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto';
+import {reportPaymentAlert} from './_payment-alerts.js';
 const DAY = 24 * 60 * 60 * 1000;
 const stripeId = value => typeof value === 'string' ? value : value?.id;
-export async function processBookingRefund({db, stripe, id, livemode, now = new Date()}) {
+export async function processBookingRefund({db, stripe, id, livemode, now = new Date(), notify = reportPaymentAlert}) {
   const token = randomUUID();
   const {data: claimed, error: claimError} = await db.rpc('claim_booking_refund', {p_id: id, p_token: token});
   if (claimError) throw claimError;
@@ -12,7 +13,12 @@ export async function processBookingRefund({db, stripe, id, livemode, now = new 
     if (error) throw error;
     op = {...op, ...values};
   };
-  const review = async code => { await patch({state: 'review', review_code: code}); return 'review'; };
+  const review = async code => {
+    await patch({state: 'review', review_code: code});
+    await notify('refund_needs_review', {operationId: op.id, bookingId: Number(op.booking_id),
+      connectedAccountId: op.connected_account_id, livemode: op.livemode});
+    return 'review';
+  };
   const opts = {stripeAccount: op.connected_account_id, timeout: 8000, maxNetworkRetries: 0};
   try {
     if (op.livemode !== livemode) return await review('stripe_mode_mismatch');
@@ -63,6 +69,8 @@ export async function processBookingRefund({db, stripe, id, livemode, now = new 
     return 'complete';
   } catch (error) {
     console.error('booking-refund-operation: retry required', id, error?.code || 'provider_or_database_error');
+    await notify('refund_retry_required', {operationId: op.id, bookingId: Number(op.booking_id),
+      connectedAccountId: op.connected_account_id, livemode: op.livemode});
     return 'pending';
   }
 }

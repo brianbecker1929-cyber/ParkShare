@@ -83,7 +83,7 @@ function httpHandler(h){
  const signatureStripe=new Stripe('sk_test_synthetic');
  h.stripe.webhooks=signatureStripe.webhooks;
  const readRawBody=new Function(bodyCode+';return readRawBody;')();
- const handler=new Function('stripe','supabaseAdmin','reconcilePaymentRefund','recoverRejectedExtensionRefund','readRawBody','paidCheckoutReferenceLog','process',handlerCode)(h.stripe,h.db,reconcilePaymentRefund,async()=>{},readRawBody,paidCheckoutReferenceLog,{env:{STRIPE_WEBHOOK_SECRET:'whsec_synthetic'}});
+ const handler=new Function('stripe','supabaseAdmin','reconcilePaymentRefund','recoverRejectedExtensionRefund','readRawBody','paidCheckoutReferenceLog','reportPaymentAlert','process',handlerCode)(h.stripe,h.db,reconcilePaymentRefund,async()=>{},readRawBody,paidCheckoutReferenceLog,async()=>({status:'disabled'}),{env:{STRIPE_WEBHOOK_SECRET:'whsec_synthetic'}});
  return async(valid=true)=>{
   const payload=JSON.stringify(event());const request=Readable.from([Buffer.from(payload)]);request.method='POST';
   request.headers={'stripe-signature':valid?signatureStripe.webhooks.generateTestHeaderString({payload,secret:'whsec_synthetic'}):'invalid'};

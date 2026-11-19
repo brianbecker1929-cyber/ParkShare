@@ -26,6 +26,7 @@ function fixture({failures=1,failTable='bookings',error=poolError}={}){
   },
  };}};
  const dependencies={
+  reportPaymentAlert:async()=>({status:'disabled'}),
   supabaseAdmin:db,
   CheckoutIntegrityError,
   retryTransientSupabaseRead:(read,options)=>retryTransientSupabaseRead(read,{...options,pause:noDelay}),
