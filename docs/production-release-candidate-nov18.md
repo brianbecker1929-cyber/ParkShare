@@ -65,6 +65,11 @@ Metadata and aggregate queries were run around **21:58–22:03 EST November 18**
 
 ### Confirmed database timezone prerequisite
 
+**November 19 update:** the live provider offers only **17.12.0.000**, with an
+up-to-one-hour outage warning and no downgrade. See the [prepared operation and
+compatibility review](production-timezone-upgrade-nov19.md). No upgrade has been
+submitted. The rehearsal matrix now also includes PostgreSQL 17.12.
+
 The actual production query for Vancouver **November 18, 2026 at 10:00** returns
 **18:00 UTC**; current rules require **17:00 UTC**. Toronto's March 2027 1–4 AM
 conversion correctly spans two elapsed hours. This is a database timezone-data
@@ -96,7 +101,7 @@ Use the exact PR-head checks as the current result:
 
 1. Full regression tests with a disposable database, followed by the app build.
 2. Full QA-schema rehearsal, including the alert outbox.
-3. Production-catalog migration rehearsal on isolated PostgreSQL 17.6 and 17.11:
+3. Production-catalog migration rehearsal on isolated PostgreSQL 17.6, 17.11 and 17.12:
    fingerprint/hash checks, drift and rollback failures, historical preservation,
    empty queues, RLS/permissions, refund and reminder behavior, alert access,
    immutable enqueueing, concurrent leases, backoff, retry cap and acceptance.

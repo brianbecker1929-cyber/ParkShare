@@ -25,6 +25,7 @@ test('Docker bridge allowance requires the explicit disposable GitHub service an
  const env={GITHUB_ACTIONS:'true',CI:'true',PRODUCTION_REHEARSAL_CI_SERVICE:'postgres:17.6-bookworm'};
  assert.doesNotThrow(()=>assertProductionRehearsalServer(target,env));
  assert.doesNotThrow(()=>assertProductionRehearsalServer({...target,engine:'PostgreSQL 17.11'},{...env,PRODUCTION_REHEARSAL_CI_SERVICE:'postgres:17.11-bookworm'}));
+ assert.doesNotThrow(()=>assertProductionRehearsalServer({...target,engine:'PostgreSQL 17.12'},{...env,PRODUCTION_REHEARSAL_CI_SERVICE:'postgres:17.12-bookworm'}));
  assert.throws(()=>assertProductionRehearsalServer(target,{...env,PRODUCTION_REHEARSAL_CI_SERVICE:'postgres:latest'}));
  for(const missing of Object.keys(env))assert.throws(()=>assertProductionRehearsalServer(target,{...env,[missing]:undefined}));
  assert.throws(()=>assertProductionRehearsalServer({...target,existingTables:45},env));

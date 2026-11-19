@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres: ['17.6', '17.11']
+        postgres: ['17.6', '17.11', '17.12']
     services:
       postgres:
         image: postgres:${{ matrix.postgres }}-bookworm

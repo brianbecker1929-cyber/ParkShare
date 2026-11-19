@@ -17,7 +17,7 @@ export function assertProductionRehearsalUrl(raw) {
 export function assertProductionRehearsalServer({db,engine,address,existingTables},env={}) {
   assert.equal(db,'parkshare_production_rehearsal');assert.match(engine,/^PostgreSQL 17\./);
   const ciBridge=env.GITHUB_ACTIONS==='true' && env.CI==='true'
-    && ['postgres:17.6-bookworm','postgres:17.11-bookworm'].includes(env.PRODUCTION_REHEARSAL_CI_SERVICE)
+    && ['postgres:17.6-bookworm','postgres:17.11-bookworm','postgres:17.12-bookworm'].includes(env.PRODUCTION_REHEARSAL_CI_SERVICE)
     && /^172\.(?:1[6-9]|2\d|3[01])\./.test(address);
   assert.ok(['127.0.0.1','::1'].includes(address)||ciBridge,'Unexpected rehearsal server address');
   assert.equal(existingTables,0,'Start with a NEW EMPTY isolated database; existing application/Auth/Storage tables are never reset on entry');

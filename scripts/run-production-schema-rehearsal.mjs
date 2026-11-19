@@ -30,6 +30,27 @@ try {
  report.checks.push({name:'Restored production catalog fingerprint matches hosted read-only capture',status:'passed'});
  report.baseline={fingerprint,tables:s.inventory.relations.filter(x=>x.kind==='r').length,columns:s.structure.columns.length,constraints:s.structure.constraints.length,policies:s.inventory.policies.length,capturedAt:s.inventory.captured_at};
  const check=async(name,fn)=>{await fn();report.checks.push({name,status:'passed'});};
+ await check('Engine upgrade preflight SQL runs read-only on the reconstructed production catalog',async()=>{
+  const results=await db.exec(await readFile(new URL('../deployment/production-database/timezone-upgrade-preflight-readonly.sql',import.meta.url),'utf8'));
+  const snapshot=results.flatMap(r=>r.rows??[]).find(r=>r.snapshot)?.snapshot;
+  assert.ok(snapshot);assert.equal(snapshot.invalid_indexes,0);assert.deepEqual(snapshot.stored_regtype_columns,[]);
+  report.upgradePreflight={serverVersion:snapshot.server_version,indexReview:snapshot.index_review,customOperators:snapshot.custom_operators};
+ });
+ await check('Read-only engine count query covers every legacy public table and sequence without exporting rows or row digests',async()=>{
+  const results=await db.exec(await readFile(new URL('../deployment/production-database/timezone-upgrade-preservation-readonly.sql',import.meta.url),'utf8'));
+  const snapshot=results.flatMap(r=>r.rows??[]).find(r=>r.snapshot)?.snapshot;
+  assert.equal(snapshot.public_tables.length,10);assert.equal(snapshot.public_sequences.length,7);
+  for(const t of snapshot.public_tables){assert.equal(t.row_count,0);assert.equal(Object.hasOwn(t,'row_digest'),false);}
+ });
+ await check('Read-only provider timezone verification SQL executes and checks Toronto spring and autumn elapsed hours',async()=>{
+  const results=await db.exec(await readFile(new URL('../deployment/production-database/timezone-upgrade-verification-readonly.sql',import.meta.url),'utf8'));
+  const rows=results.flatMap(r=>r.rows??[]);assert.equal(rows.length,10);
+  for(const r of rows.filter(r=>r.check_name))assert.equal(r.passed,true,r.check_name);
+  // Generic PostgreSQL Docker images and hosted Supabase builds can package
+  // different zone data. Record all results; require every case on the actual
+  // upgraded provider before reopening production.
+  report.upgradeTimezoneExamples=rows;
+ });
  const manifest=JSON.parse(await readFile(new URL('../deployment/production-database/manifest.json',import.meta.url),'utf8'));
  const hash=value=>createHash('sha256').update(value).digest('hex');
  assert.equal(hash(await readFile(new URL('../'+manifest.baselineFixture,import.meta.url))),manifest.baselineFixtureSha256,'Captured schema fixture must match the manifest');
