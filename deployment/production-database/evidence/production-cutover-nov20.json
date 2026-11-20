@@ -1,0 +1,546 @@
+{
+  "status": "production_live",
+  "targetProject": "oyxrussraxjgqwzpwyca",
+  "productionProject": "prj_oGpk1UWJ0NfPfAIxBYQv6bkv437z",
+  "candidate": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+  "runtimeSource": "1e959342d56c5b15118e73edd51d3d14ea3691fa",
+  "approval": "Start production maintenance now, allowing up to one hour offline for the database upgrade, then install matching database updates and release after verification.",
+  "productionPaused": true,
+  "baseline": {
+    "preflight": {
+      "database": "postgres",
+      "checked_at": "2026-11-20T11:41:33.171437+00:00",
+      "extensions": [
+        {
+          "name": "btree_gist",
+          "schema": "public",
+          "version": "1.7"
+        },
+        {
+          "name": "pg_stat_statements",
+          "schema": "extensions",
+          "version": "1.11"
+        },
+        {
+          "name": "pgcrypto",
+          "schema": "extensions",
+          "version": "1.3"
+        },
+        {
+          "name": "plpgsql",
+          "schema": "pg_catalog",
+          "version": "1.0"
+        },
+        {
+          "name": "supabase_vault",
+          "schema": "vault",
+          "version": "0.3.1"
+        },
+        {
+          "name": "uuid-ossp",
+          "schema": "extensions",
+          "version": "1.1"
+        }
+      ],
+      "index_review": [],
+      "subscriptions": 0,
+      "cron_installed": false,
+      "database_bytes": 17951891,
+      "server_version": "17.6",
+      "foreign_servers": 0,
+      "invalid_indexes": 0,
+      "vault_installed": true,
+      "custom_operators": [],
+      "replication_slots": [],
+      "vancouver_correct": false,
+      "active_connections": 6,
+      "active_checkout_holds": 0,
+      "prepared_transactions": 0,
+      "stored_regtype_columns": [],
+      "vancouver_observed_utc": "2026-11-18T18:00:00",
+      "future_confirmed_bookings": 0,
+      "non_extension_c_functions": [],
+      "retained_checkout_references": 1
+    },
+    "counts": {
+      "database": "postgres",
+      "auth_users": 15,
+      "checked_at": "2026-11-20T11:41:37.181391+00:00",
+      "public_tables": [
+        {
+          "row_count": 2,
+          "table_name": "booking_extensions"
+        },
+        {
+          "row_count": 1,
+          "table_name": "booking_holds"
+        },
+        {
+          "row_count": 29,
+          "table_name": "bookings"
+        },
+        {
+          "row_count": 0,
+          "table_name": "event_listing_access"
+        },
+        {
+          "row_count": 0,
+          "table_name": "event_submissions"
+        },
+        {
+          "row_count": 0,
+          "table_name": "events"
+        },
+        {
+          "row_count": 13,
+          "table_name": "listings"
+        },
+        {
+          "row_count": 9,
+          "table_name": "messages"
+        },
+        {
+          "row_count": 15,
+          "table_name": "profiles"
+        },
+        {
+          "row_count": 1,
+          "table_name": "reviews"
+        }
+      ],
+      "auth_identities": 15,
+      "storage_buckets": 0,
+      "storage_objects": 0,
+      "comparison_scope": "Schema, counts and sequence positions; no row-value equality claim",
+      "public_sequences": [
+        {
+          "is_called": true,
+          "last_value": 35,
+          "sequence_name": "booking_extensions_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 429,
+          "sequence_name": "bookings_id_seq"
+        },
+        {
+          "is_called": false,
+          "last_value": 1,
+          "sequence_name": "event_submissions_id_seq"
+        },
+        {
+          "is_called": false,
+          "last_value": 1,
+          "sequence_name": "events_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 32,
+          "sequence_name": "listings_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 10,
+          "sequence_name": "messages_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 1,
+          "sequence_name": "reviews_id_seq"
+        }
+      ]
+    },
+    "fingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6"
+  },
+  "upgrade": {
+    "submittedOnce": true,
+    "target": "17.12.0.000",
+    "providerStartUtc": "2026-11-20T11:42:12Z",
+    "completedHealthyUtc": "2026-11-20T11:50:03Z",
+    "actualVersion": "17.12.0.000",
+    "recoveryPointUtc": "2026-11-20T11:52:48Z",
+    "recoveryPointStatus": "Completed physical backup, Restore control visible"
+  },
+  "limitations": [
+    "Count/sequence preservation is not a full row-value equality audit.",
+    "Retained TEST checkout completed with CAD 13.80 captured and no matching booking; preserved without financial replay."
+  ],
+  "financialActions": 0,
+  "emailsSentByOperator": 0,
+  "postEngine": {
+    "counts": {
+      "database": "postgres",
+      "auth_users": 15,
+      "checked_at": "2026-11-20T11:50:25.815533+00:00",
+      "public_tables": [
+        {
+          "row_count": 2,
+          "table_name": "booking_extensions"
+        },
+        {
+          "row_count": 1,
+          "table_name": "booking_holds"
+        },
+        {
+          "row_count": 29,
+          "table_name": "bookings"
+        },
+        {
+          "row_count": 0,
+          "table_name": "event_listing_access"
+        },
+        {
+          "row_count": 0,
+          "table_name": "event_submissions"
+        },
+        {
+          "row_count": 0,
+          "table_name": "events"
+        },
+        {
+          "row_count": 13,
+          "table_name": "listings"
+        },
+        {
+          "row_count": 9,
+          "table_name": "messages"
+        },
+        {
+          "row_count": 15,
+          "table_name": "profiles"
+        },
+        {
+          "row_count": 1,
+          "table_name": "reviews"
+        }
+      ],
+      "auth_identities": 15,
+      "storage_buckets": 0,
+      "storage_objects": 0,
+      "comparison_scope": "Schema, counts and sequence positions; no row-value equality claim",
+      "public_sequences": [
+        {
+          "is_called": true,
+          "last_value": 35,
+          "sequence_name": "booking_extensions_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 429,
+          "sequence_name": "bookings_id_seq"
+        },
+        {
+          "is_called": false,
+          "last_value": 1,
+          "sequence_name": "event_submissions_id_seq"
+        },
+        {
+          "is_called": false,
+          "last_value": 1,
+          "sequence_name": "events_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 32,
+          "sequence_name": "listings_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 10,
+          "sequence_name": "messages_id_seq"
+        },
+        {
+          "is_called": true,
+          "last_value": 1,
+          "sequence_name": "reviews_id_seq"
+        }
+      ]
+    },
+    "countSequenceComparison": "passed",
+    "applicationFingerprintComparison": "passed",
+    "timezoneChecks": [
+      {
+        "label": "Edmonton winter",
+        "zone": "America/Edmonton",
+        "local_time": "2026-11-18 10:00:00",
+        "expected_utc": "2026-11-18 16:00:00",
+        "observed_utc": "2026-11-18 16:00:00",
+        "passed": true
+      },
+      {
+        "label": "Inuvik winter",
+        "zone": "America/Inuvik",
+        "local_time": "2026-11-18 10:00:00",
+        "expected_utc": "2026-11-18 16:00:00",
+        "observed_utc": "2026-11-18 16:00:00",
+        "passed": true
+      },
+      {
+        "label": "Regina winter",
+        "zone": "America/Regina",
+        "local_time": "2026-11-18 10:00:00",
+        "expected_utc": "2026-11-18 16:00:00",
+        "observed_utc": "2026-11-18 16:00:00",
+        "passed": true
+      },
+      {
+        "label": "Toronto after spring",
+        "zone": "America/Toronto",
+        "local_time": "2027-03-15 09:00:00",
+        "expected_utc": "2027-03-15 13:00:00",
+        "observed_utc": "2027-03-15 13:00:00",
+        "passed": true
+      },
+      {
+        "label": "Toronto before spring",
+        "zone": "America/Toronto",
+        "local_time": "2027-03-13 09:00:00",
+        "expected_utc": "2027-03-13 14:00:00",
+        "observed_utc": "2027-03-13 14:00:00",
+        "passed": true
+      },
+      {
+        "label": "Vancouver next spring",
+        "zone": "America/Vancouver",
+        "local_time": "2027-03-14 10:00:00",
+        "expected_utc": "2027-03-14 17:00:00",
+        "observed_utc": "2027-03-14 17:00:00",
+        "passed": true
+      },
+      {
+        "label": "Vancouver winter",
+        "zone": "America/Vancouver",
+        "local_time": "2026-11-18 10:00:00",
+        "expected_utc": "2026-11-18 17:00:00",
+        "observed_utc": "2026-11-18 17:00:00",
+        "passed": true
+      },
+      {
+        "label": "Winnipeg winter",
+        "zone": "America/Winnipeg",
+        "local_time": "2026-11-18 10:00:00",
+        "expected_utc": "2026-11-18 15:00:00",
+        "observed_utc": "2026-11-18 15:00:00",
+        "passed": true
+      },
+      {
+        "check_name": "Toronto spring elapsed",
+        "passed": true
+      },
+      {
+        "check_name": "Toronto autumn elapsed",
+        "passed": true
+      }
+    ],
+    "healthAdvisors": [],
+    "catalogReview": {
+      "applicationDefinitions": "unchanged",
+      "functionBodiesCompared": 31,
+      "functionBodyChanges": 0,
+      "triggerChanges": 0,
+      "indexChanges": 0,
+      "viewChanges": 0,
+      "effectivePermissionChanges": 0,
+      "structuralChanges": 0,
+      "rawAclOrderingChange": "auth.jwt only; effective grants unchanged",
+      "providerExtensionChange": "supabase_vault 0.3.1 to 0.3.2; zero secrets and no application reference",
+      "scope": "No current function body was exported. Counts and metadata are not a private-row equality audit."
+    }
+  },
+  "applicationMigration": {
+    "historyVersion": "20261120120118",
+    "name": "production_release_candidate",
+    "reviewedPayloadSha256": "6ebb9d4fe84eac2db5a0039fddadc0cf0824e30d673beab254701ae837eaa35a",
+    "postflight": {
+      "bookings": 29,
+      "listings": 13,
+      "profiles": 15,
+      "versions": [
+        {
+          "applied_at": "2026-11-20T12:01:18.743595+00:00",
+          "package_id": "production-candidate-2026-11-18",
+          "inputs_sha256": "4f1ea196717867babde827d0bbef4f486230452c7b77421a587067905f21e87f",
+          "source_commit": "1e959342d56c5b15118e73edd51d3d14ea3691fa"
+        }
+      ],
+      "extensions": 2,
+      "money_jobs": 0,
+      "paid_bookings": 29,
+      "reminder_jobs": 0,
+      "chat_email_jobs": 0,
+      "publication_ready": true,
+      "refund_email_jobs": 0,
+      "payment_alert_jobs": 0,
+      "payment_refund_rows": 0,
+      "photo_deletion_jobs": 0,
+      "photo_bucket_private": true,
+      "property_guard_ready": true,
+      "cancellation_review_jobs": 0,
+      "public_tables_without_rls": 0,
+      "listings_missing_trusted_zone": 13,
+      "browser_money_or_delivery_access": 0
+    },
+    "internalLegacyValuePreservationGuard": "passed in committed transaction",
+    "operatorScopesAdded": "Five transaction-local target/recovery/maintenance/reconciliation acknowledgements"
+  },
+  "stagedDeployment": {
+    "id": "dpl_HCkWVBW9PqnPMbLYzkP4p6uXebmY",
+    "url": "https://parkshare-project-8c6nedlpa-eska-technologies.vercel.app",
+    "commit": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+    "environment": "production",
+    "build": "READY",
+    "checks": {
+      "parkingApi": {
+        "status": 200,
+        "result": {
+          "listings": [],
+          "nextCursor": null,
+          "locationPrecision": "approximate"
+        }
+      },
+      "reminderGuard": {
+        "browserBody": {
+          "error": "Unauthorized"
+        },
+        "interpretation": "Expected application guard; Vercel fetcher misclassified the origin 401 as deployment authentication"
+      },
+      "preciseLocationGuard": {
+        "browserBody": {
+          "error": "Sign in is required."
+        }
+      },
+      "checkoutGetGuard": {
+        "browserBody": {
+          "error": "Method not allowed"
+        }
+      },
+      "runtimeErrorsObserved": 0,
+      "automaticWorkersObserved": "Reminder/refund/message runs completed with zero sends and zero failures"
+    }
+  },
+  "publicMaintenance": {
+    "mechanism": "Two temporary 503 CDN routes for www.myparkshare.ca and myparkshare.ca; build system unpaused",
+    "routeVersion": "552f1530-c4e8-4936-86d8-84a1d4e96501",
+    "httpVerified": true,
+    "removed": true,
+    "currentRoutes": [],
+    "completedWithinApprovedHour": true,
+    "durationApproxMinutes": 31
+  },
+  "qa": {
+    "unchanged": true,
+    "temporaryHoldRejected": true,
+    "mainMergePending": true,
+    "reason": "No authorization to change QA auto-deployment settings; release built directly from approved commit."
+  },
+  "completedChecksUtc": "2026-11-20T12:13:30Z",
+  "production": {
+    "domain": "https://www.myparkshare.ca",
+    "deployment": "dpl_HCkWVBW9PqnPMbLYzkP4p6uXebmY",
+    "commit": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+    "state": "READY",
+    "branch": "release/production-candidate-nov18",
+    "mainBranchCommit": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+    "mainMergePending": true
+  },
+  "publicChecks": [
+    {
+      "path": "/",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "maintenance_header": null,
+      "x_robots_tag": null,
+      "title": "ParkShare | Find or List Private Parking",
+      "has_noindex_meta": false
+    },
+    {
+      "path": "/api/public-parking?cursor=1",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "maintenance_header": null,
+      "x_robots_tag": null,
+      "body": {
+        "listings": [],
+        "nextCursor": null,
+        "locationPrecision": "approximate"
+      }
+    },
+    {
+      "path": "/api/private-listing-location?listingId=1",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "maintenance_header": null,
+      "x_robots_tag": null,
+      "body": {
+        "error": "Sign in is required."
+      }
+    },
+    {
+      "path": "/api/send-reminders",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "maintenance_header": null,
+      "x_robots_tag": null,
+      "body": {
+        "error": "Unauthorized"
+      }
+    },
+    {
+      "path": "/api/create-checkout-session",
+      "status": 405,
+      "expected": 405,
+      "passed": true,
+      "maintenance_header": null,
+      "x_robots_tag": null,
+      "body": {
+        "error": "Method not allowed"
+      }
+    },
+    {
+      "path": "/api/qa-release-status",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "maintenance_header": null,
+      "x_robots_tag": null,
+      "body": {
+        "error": "Not found"
+      }
+    }
+  ],
+  "browserVerification": {
+    "url": "https://www.myparkshare.ca/parking",
+    "parkingSearch": "loaded",
+    "googleMaps": "loaded with markers",
+    "existingHostSession": "restored",
+    "newFinancialActions": 0
+  },
+  "logs": {
+    "checkedAt": "2026-11-20T12:13:30Z",
+    "scope": "This deployment; production; preceding 15 minutes; error/fatal filters",
+    "errorFatalResults": 0,
+    "limitation": "Not a complete historical incident audit"
+  },
+  "serviceVersions": {
+    "postgres": "17.12.0.000",
+    "postgrest": "14.18",
+    "auth": "2.198.0",
+    "vault": "0.3.2"
+  },
+  "remaining": {
+    "legacyListingTimezonesMissing": 13,
+    "listingAction": "Validate existing listing locations and assign legitimate trusted zones; do not guess or rewrite paid bookings.",
+    "liveHostAndStripeEligibility": "Not independently verified in this cutover",
+    "controlledLiveBookingAndRefund": "Not performed; needs its own financial test scope",
+    "gitMainMerge": "PR #260 remains draft/unmerged to avoid the QA project's automatic main-branch deployment. Temporary QA ignore-build/domain-assignment change was rejected by automatic review; that change did not run."
+  },
+  "automaticReview": {
+    "fullCodeExport": "Rejected; completed narrower body-fingerprint/metadata comparison instead.",
+    "qaDeploymentHold": "Rejected; no QA configuration changed; deployed approved commit directly to production.",
+    "promotionCheck": "Initial promotion request rejected pending endpoint verification; expected origin auth guards then verified in browser. A later request reported deployment already current; domain mapping independently confirmed."
+  }
+}
