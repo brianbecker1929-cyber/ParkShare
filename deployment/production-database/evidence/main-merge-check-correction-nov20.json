@@ -1,0 +1,194 @@
+{
+  "status": "prepared_not_applied",
+  "ruleset": {
+    "id": 21821185,
+    "name": "Protect main",
+    "enforcement": "active"
+  },
+  "reason": "GitHub rejected merging PR #260: Required status check \"Vercel\" is expected.",
+  "pullRequest": 260,
+  "head": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+  "base": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+  "currentRequiredChecks": [
+    {
+      "context": "Vercel",
+      "integration_id": 8329
+    },
+    {
+      "context": "test"
+    }
+  ],
+  "proposedRequiredChecks": [
+    {
+      "context": "Vercel – parkshare-project",
+      "integration_id": 8329
+    },
+    {
+      "context": "Vercel – parkshare-qa",
+      "integration_id": 8329
+    },
+    {
+      "context": "test"
+    }
+  ],
+  "preserved": "test, active enforcement, source integration 8329, PR requirements, delete/force-push protection, default-branch scope and empty bypass list",
+  "qaControls": {
+    "temporaryHoldAppliedAndUiVerified": true,
+    "mergeFailed": true,
+    "restored": {
+      "commandForIgnoringBuildStep": null,
+      "autoAssignCustomDomains": true
+    },
+    "restorationUiVerified": true,
+    "activeDeploymentUnchanged": "dpl_DiHRRhYpGoiptZwKJ5zRzd6ausTD"
+  },
+  "production": {
+    "unchangedDeployment": "dpl_HCkWVBW9PqnPMbLYzkP4p6uXebmY",
+    "commit": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+    "online": true
+  },
+  "beforeRuleset": {
+    "id": 21821185,
+    "name": "Protect main",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "brianbecker1929-cyber/ParkShare",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "~DEFAULT_BRANCH"
+        ]
+      }
+    },
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "required_reviewers": [],
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": false,
+          "require_extra_approval_for_unattributed_changes": true,
+          "allowed_merge_methods": [
+            "merge",
+            "squash",
+            "rebase"
+          ]
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": false,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "Vercel",
+              "integration_id": 8329
+            },
+            {
+              "context": "test"
+            }
+          ]
+        }
+      }
+    ],
+    "node_id": "RRS_lACqUmVwb3NpdG9yec5NPnMSzgFM9wE",
+    "created_at": "2026-08-29T16:29:51.546-04:00",
+    "updated_at": "2026-08-29T16:47:33.628-04:00",
+    "bypass_actors": [],
+    "current_user_can_bypass": "never",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/brianbecker1929-cyber/ParkShare/rulesets/21821185"
+      },
+      "html": {
+        "href": "https://github.com/brianbecker1929-cyber/ParkShare/rules/21821185"
+      }
+    }
+  },
+  "proposedRuleset": {
+    "id": 21821185,
+    "name": "Protect main",
+    "target": "branch",
+    "source_type": "Repository",
+    "source": "brianbecker1929-cyber/ParkShare",
+    "enforcement": "active",
+    "conditions": {
+      "ref_name": {
+        "exclude": [],
+        "include": [
+          "~DEFAULT_BRANCH"
+        ]
+      }
+    },
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "required_approving_review_count": 0,
+          "dismiss_stale_reviews_on_push": false,
+          "required_reviewers": [],
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_review_thread_resolution": false,
+          "require_extra_approval_for_unattributed_changes": true,
+          "allowed_merge_methods": [
+            "merge",
+            "squash",
+            "rebase"
+          ]
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "strict_required_status_checks_policy": false,
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "Vercel – parkshare-project",
+              "integration_id": 8329
+            },
+            {
+              "context": "Vercel – parkshare-qa",
+              "integration_id": 8329
+            },
+            {
+              "context": "test"
+            }
+          ]
+        }
+      }
+    ],
+    "node_id": "RRS_lACqUmVwb3NpdG9yec5NPnMSzgFM9wE",
+    "created_at": "2026-08-29T16:29:51.546-04:00",
+    "updated_at": "2026-08-29T16:47:33.628-04:00",
+    "bypass_actors": [],
+    "current_user_can_bypass": "never",
+    "_links": {
+      "self": {
+        "href": "https://api.github.com/repos/brianbecker1929-cyber/ParkShare/rulesets/21821185"
+      },
+      "html": {
+        "href": "https://github.com/brianbecker1929-cyber/ParkShare/rules/21821185"
+      }
+    }
+  }
+}
