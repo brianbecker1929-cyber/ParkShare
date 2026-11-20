@@ -140,3 +140,18 @@ financial provider actions.
 - [Supabase timezone advisory](https://supabase.com/changelog/tzdata-local-time-vancouver-edmonton-casablanca)
 - [Supabase 17.11 compatibility guidance](https://supabase.com/changelog/postgres-15-19-17-11-breaking-changes)
 - [PostgreSQL 17.12 migration notes](https://www.postgresql.org/docs/17/release-17-12.html)
+
+## November 20 preflight update
+
+The upgrade target and outage warning were rechecked. The latest visible backup
+is November 19 at 13:11:49 UTC. Compatibility checks remain clear; Vancouver
+still converts to the wrong UTC hour on the old engine. Planning counts and
+sequences match the prior capture. The retained reference is a completed TEST
+Checkout with a captured CAD 13.80 charge and no matching booking in production
+or recovery QA; preserve this historical discrepancy without replaying it.
+
+Automatic approval review rejected the production pause, citing the need for
+explicit downtime/window approval. The pause did not run. The upgrade, migration,
+merge, production deployment and workers remain unchanged. Obtain the specific
+maintenance approval before attempting any downtime action again. See the
+November 20 section of the combined release handoff for current evidence.

@@ -10,7 +10,7 @@ transactional email was changed to prepare it.
 | --- | --- | --- |
 | Frozen SOW 1 QA | `072629e16b35970bcae1260ab2e5660ece2b08d8` | BetterQA regression and report |
 | Combined booking/refund repairs, PR #254 (includes PR #257) | `e713f6032e9415ff6fbb3dc20449a96a5fa4fc18` | Five fixes and Vancouver cancellation checks accepted by Brad |
-| Clock-change repair, PR #259 | `6cc39fc644161dbc8234ef12d6e51a6951d47705` | Automated tests and signed-out browser checks passed; independent paid-flow retest pending |
+| Clock-change repair, PR #259 | `6cc39fc644161dbc8234ef12d6e51a6951d47705` | BetterQA report v5: independent paid-flow retest passed November 19 |
 | Durable payment alerts, PR #256 | `d5a2791829622121e08310c85561b1a848918fcd` | Earlier isolated tests; deployed path and production activation pending |
 | Production migration preparation, PR #253 | `6d60760ea0da490d90f1893faf295071ea07809b` | Earlier synthetic migration rehearsal; refreshed here |
 
@@ -116,7 +116,7 @@ their original source pins; they are not passes for this candidate.
 
 ## Cutover gates and activation order
 
-1. Complete BetterQA's clock-change retest and review this exact combined head.
+1. BetterQA's clock-change retest passed on November 19 (report v5). Review the exact combined head; its runtime is unchanged.
 2. Resolve the timezone prerequisite and refresh/rehearse any changed catalog.
 3. Reconcile the retained Checkout reference and review listing locations,
    ownership and trusted zones. Verify Live/TEST credentials, separate webhook
@@ -147,3 +147,40 @@ If cutover fails after new financial activity, preserve the new ledgers and paus
 workers/checkouts. Use a reviewed forward repair or schema-compatible rollback;
 do not restore an older database over new payments. The old reminder worker is
 not an approved fallback because it includes Host CC.
+
+## November 20 execution preflight
+
+The user requested installation of the combined release and matching database
+updates. No production change has run: automatic approval review rejected the
+Vercel pause because the maintenance outage/window needs explicit approval.
+The next approval covers pausing production, the managed 17.12.0.000 upgrade,
+verification and resuming service. Supabase warns of up to one hour offline and
+no downgrade after success. Schema/application cutover remains coordinated with
+post-upgrade catalog review and controlled scheduler activation.
+
+Fresh checks at approximately 06:20–06:28 Toronto time on November 20 confirm
+production `8c80fea`, provider 17.6.1.155, unchanged application fingerprint
+`c88a7b09cb3c4da5b99628cfe6d6a3a6`, no active holds and no future confirmed
+bookings. The migration SHA-256 remains
+`6ebb9d4fe84eac2db5a0039fddadc0cf0824e30d673beab254701ae837eaa35a`.
+Health advisors are clear; no Supabase Edge Functions or pg_cron installation
+exist, and the current production vercel.json declares no cron jobs. Runtime
+log counts returned no entries for the latest 30-minute query; that is not proof
+that all possible external writers are absent.
+
+The latest visible physical backup is November 19 at 13:11:49 UTC / 08:11:49
+Toronto time. The November 12 restore rehearsal remains the restore evidence.
+No production booking was created after this latest backup, but unchanged
+booking counts do not establish that every field or authentication record is
+unchanged. Recapture a stopped-write baseline after maintenance is approved.
+
+The retained Checkout reference has now been identified through Stripe's TEST
+connected-account reporting (refreshed November 20 at 10:00 UTC): session
+complete, CAD 13.80 captured November 14, no refund. It has no matching booking
+in production or recovery QA. This is a historical TEST discrepancy, not a live
+charge or an in-flight payment; preserve it for investigation. No hold was
+deleted and no event, payment, refund or email was replayed. Do not label this
+as an expired unpaid Stripe session.
+
+Evidence: `deployment/production-database/evidence/production-upgrade-confirmation-nov20.jpg`.
+The database upgrade confirmation remains unsubmitted.
