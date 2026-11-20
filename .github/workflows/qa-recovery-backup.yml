@@ -1,0 +1,64 @@
+name: Encrypted QA recovery backup
+
+on:
+  push:
+    branches: [qa/recovery-preflight-oct27]
+    paths:
+      - .github/workflows/qa-recovery-backup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parkshare-qa-recovery-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.repository == 'brianbecker1929-cyber/ParkShare'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check required backup credential
+        env:
+          QA_RECOVERY_SOURCE_DATABASE_URL: ${{ secrets.QA_RECOVERY_SOURCE_DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import importlib.util, os
+          spec = importlib.util.spec_from_file_location('backup', 'scripts/qa-recovery-backup.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          try:
+              module.validate_source(os.environ.get('QA_RECOVERY_SOURCE_DATABASE_URL', ''))
+          except ValueError:
+              raise SystemExit('Set QA_RECOVERY_SOURCE_DATABASE_URL to the original QA project database connection string. No export has run.')
+          print('Source is the original QA project; credential value is not logged.')
+          PY
+      - name: Prepare pinned Supabase CLI
+        run: |
+          docker info > /dev/null
+          npm exec --yes --package=supabase@2.122.0 -- supabase --version
+      - name: Export and encrypt QA database
+        env:
+          QA_RECOVERY_SOURCE_DATABASE_URL: ${{ secrets.QA_RECOVERY_SOURCE_DATABASE_URL }}
+          QA_RECOVERY_BACKUP_DIR: ${{ runner.temp }}/parkshare-qa-recovery-backup
+        run: python scripts/qa-recovery-backup.py
+      - name: Upload encrypted export only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: parkshare-qa-encrypted-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/parkshare-qa-recovery-backup/parkshare-qa-backup.cms
+          if-no-files-found: error
+          retention-days: 1
+      - name: Remove temporary backup files
+        if: always()
+        run: |
+          python - <<'PY'
+          import os, pathlib, shutil
+          directory = pathlib.Path(os.environ['RUNNER_TEMP']) / 'parkshare-qa-recovery-backup'
+          shutil.rmtree(directory, ignore_errors=True)
+          PY

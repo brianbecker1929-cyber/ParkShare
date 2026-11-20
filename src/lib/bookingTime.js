@@ -23,3 +23,12 @@ export function formatBookingTimeRemaining(bookingEnd, currentTime = Date.now())
   if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
   return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
+
+// Optional for Host/legacy callers. A supplied deadline must be a finite epoch
+// millisecond value; exactly at the Driver's one-hour cutoff is still allowed.
+export function cancellationDeadlineError(deadline, currentTime = Date.now()) {
+  if (deadline === undefined) return "";
+  return Number.isFinite(deadline) && Number.isFinite(currentTime) && currentTime <= deadline
+    ? ""
+    : "Self-service cancellation is no longer available. Contact support for help with this booking.";
+}

@@ -1,7 +1,7 @@
 import { sendEmail } from "./_email.js";
 import { handleEventSubmission } from "./_event-submission.js";
+import { SUPPORT_EMAIL } from "../src/lib/supportContact.js";
 
-const SUPPORT_EMAIL = "info@myparkshare.ca";
 const HELP_TYPES = new Set(["Driver", "Host", "Booking", "Payment or Account", "Trust & Safety", "General"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -50,6 +50,8 @@ export default async function handler(req, res) {
   try {
     const result = await sendEmail({
       to: SUPPORT_EMAIL,
+      // Replying from the support inbox should reach the customer, not ParkShare's sender address.
+      replyTo: cleanEmail,
       subject: `ParkShare Support: ${cleanHelpType}${cleanReservationNumber ? ` — ${cleanReservationNumber}` : ""}`,
       html: `
         <h2>New ParkShare support request</h2>
@@ -62,12 +64,12 @@ export default async function handler(req, res) {
     });
 
     if (result?.skipped) {
-      return res.status(503).json({ error: "ParkShare Support messaging is temporarily unavailable. Please email support@myparkshare.ca directly." });
+      return res.status(503).json({ error: `ParkShare Support messaging is temporarily unavailable. Please email ${SUPPORT_EMAIL} directly.` });
     }
 
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error("[contact] Failed to send support request:", error);
-    return res.status(502).json({ error: "We couldn't send your message right now. Please try again or email support@myparkshare.ca directly." });
+    return res.status(502).json({ error: `We couldn't send your message right now. Please try again or email ${SUPPORT_EMAIL} directly.` });
   }
 }

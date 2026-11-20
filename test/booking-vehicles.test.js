@@ -19,7 +19,7 @@ test("booking review requires a saved vehicle selection", () => {
 test("checkout resolves the selected vehicle from authenticated profile metadata", () => {
   assert.match(checkout, /getBookableVehicles/);
   assert.match(checkout, /guest_vehicles: userMetadata\.guest_vehicles/);
-  assert.match(checkout, /Select a complete vehicle from your Driver Profile/);
+  assert.match(checkout, /Save and select a complete booking vehicle before checkout/);
 });
 
 test("Stripe webhook snapshots the selected vehicle onto the booking", () => {

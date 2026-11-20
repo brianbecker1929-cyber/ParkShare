@@ -1,0 +1,43 @@
+name: QA full-schema rehearsal
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  schema-rehearsal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: parkshare_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parkshare_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Restore captured QA application schema and rehearse proposals
+        run: node scripts/run-qa-schema-rehearsal.mjs
+        env:
+          QA_SCHEMA_REHEARSAL_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/parkshare_test
+      - name: Preserve rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-schema-rehearsal-results
+          path: qa-schema-rehearsal-results.json
+          if-no-files-found: warn

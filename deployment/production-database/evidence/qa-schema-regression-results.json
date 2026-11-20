@@ -1,0 +1,701 @@
+{
+  "checks": [
+    {
+      "name": "remote/QA source is PostgreSQL 17; local engine also PostgreSQL 17",
+      "status": "passed"
+    },
+    {
+      "name": "all captured tables, columns, constraints, indexes, triggers and policies restored",
+      "status": "passed"
+    },
+    {
+      "name": "existing inherited profile column grants are included in the fixture",
+      "status": "passed"
+    },
+    {
+      "name": "all ten proposals apply consecutively to the complete captured schema",
+      "status": "passed"
+    },
+    {
+      "name": "timed checkout-limit migration preserves the captured schema capacity/locking function",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 anonymous profile projection and count are denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 Driver and Host can read only their own sign-in profile",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 explicit foreign ID and broad OR filter cannot enumerate profiles",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 counts and pagination expose only the caller row",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 absent identity cannot use authenticated profile grants",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 browser cannot read email or Stripe fields even on own profile",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 extra permissive read policy cannot reopen the account directory",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005200 server retains account access while browser profile writes stay denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 Driver A cannot read Driver B thread on the same listing",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 Host sees actual incoming/outgoing messages, not unaddressed legacy rows",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 unrelated and missing identities see no messages",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 anonymous reads and writes are denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 direct browser message creation/edit/delete/truncate are denied",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 extra permissive read rule cannot reopen other conversations",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 filtered counts cannot reveal another Driver thread",
+      "status": "passed"
+    },
+    {
+      "name": "BUG-005119 server retains insertion/read access and legacy participant is not inferred",
+      "status": "passed"
+    },
+    {
+      "name": "existing paid booking columns and UTC interval remain unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "legacy listing address and CAD 900 rate are preserved",
+      "status": "passed"
+    },
+    {
+      "name": "new malformed postal suffix and fractional-cent price are rejected",
+      "status": "passed"
+    },
+    {
+      "name": "anon cannot read raw listings or reviews, including address columns",
+      "status": "passed"
+    },
+    {
+      "name": "inherited anon profile name/id/role grants are also revoked by privacy cutover",
+      "status": "passed"
+    },
+    {
+      "name": "unrelated Driver cannot read another Host raw listing or profile",
+      "status": "passed"
+    },
+    {
+      "name": "Host can read own listing and own profile after privacy changes",
+      "status": "passed"
+    },
+    {
+      "name": "paid Driver can read booking but exact raw listing remains API-only",
+      "status": "passed"
+    },
+    {
+      "name": "public photo bucket becomes private; Host object RLS still isolates owners",
+      "status": "passed"
+    },
+    {
+      "name": "browser roles cannot invoke payment RPCs; service_role retains execution",
+      "status": "passed"
+    },
+    {
+      "name": "Host cannot assign a trusted property time zone directly",
+      "status": "passed"
+    },
+    {
+      "name": "canonical property-local booking uses its UTC snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "past or unverified-zone exceptions fail; trusted future dates remain allowed",
+      "status": "passed"
+    },
+    {
+      "name": "review writes are server-only and duplicate reviewer/listing is rejected",
+      "status": "passed"
+    },
+    {
+      "name": "Driver and Host account deletion cannot cascade away financial records",
+      "status": "passed"
+    },
+    {
+      "name": "service-role reserves extension tail with the actual QA schema and trigger",
+      "status": "passed"
+    },
+    {
+      "name": "wrong connected account fails without extending the booking",
+      "status": "passed"
+    },
+    {
+      "name": "paid extension atomically updates hours and audit, consuming its hold",
+      "status": "passed"
+    },
+    {
+      "name": "extension replay is idempotent and does not add another hour or ledger row",
+      "status": "passed"
+    },
+    {
+      "name": "two active unpaid holds block a third reservation with P0058",
+      "status": "passed"
+    },
+    {
+      "name": "reapplying timezone SQL fails atomically: versioned migrations must not be replayed blindly",
+      "status": "passed"
+    },
+    {
+      "name": "spoofed availability timezone cannot bypass property-local exception date",
+      "status": "passed"
+    },
+    {
+      "name": "duplicate review data stops migration 7 and restores its prior policy/grants",
+      "status": "passed"
+    },
+    {
+      "name": "controlled collision recovery resumes only uncommitted proposals 7-10",
+      "status": "passed"
+    },
+    {
+      "name": "atomic QA release rolls back all schema/backup changes when late unique-review check fails",
+      "status": "passed"
+    },
+    {
+      "name": "versioned QA release installs all ten repairs and a matching private recovery copy",
+      "status": "passed"
+    },
+    {
+      "name": "trusted QA geography assigns only verified cells and preserves every paid booking field",
+      "status": "passed"
+    },
+    {
+      "name": "versioned QA release rejects blind reapply and keeps committed history intact",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: only owned Storage paths queued once, including cover",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: shared photo withheld",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: last reference deletion releases shared photo",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: retry delay respected",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: browser queue and RPC access denied",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: trigger function private",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: Host deletion can enqueue without private schema access",
+      "status": "passed"
+    },
+    {
+      "name": "photo cleanup: FK-blocked deletion queues nothing",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: duplicate delivery records one refund and does not double count",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: second partial refund retains original reference, totals both refunds, preserves reservation and other account",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: pending money is distinct from settled money",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: failed pending refund leaves settled total unchanged",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: older concurrent snapshot is rejected under lock without PostgREST transaction retry",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: incomplete, duplicate, over-refunded, immutable identity, wrong account/charge/mode snapshots roll back",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: legacy/cancellation financial write invalidates in-flight snapshot",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: full refund evidence preserves dispute status",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: fully settled refund marks only its base booking refunded",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: multiple extension refunds stay separate and preserve hours/base booking status",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: full extension refund does not revoke parking entitlement",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: anonymous and signed-in clients cannot read ledger or execute reconciliation",
+      "status": "passed"
+    },
+    {
+      "name": "refund ledger: service role can read and atomically reconcile through invoker RPC",
+      "status": "passed"
+    },
+    {
+      "name": "public parking: server-only RPC grants",
+      "status": "passed"
+    },
+    {
+      "name": "public parking: stable bounded pages omit photo blobs, addresses, identities and geometry",
+      "status": "passed"
+    },
+    {
+      "name": "listing timezone: migration preserves every historical booking field",
+      "status": "passed"
+    },
+    {
+      "name": "listing timezone: readiness RPC is server-only",
+      "status": "passed"
+    },
+    {
+      "name": "listing timezone: Host direct inserts cannot skip geographic verification",
+      "status": "passed"
+    },
+    {
+      "name": "listing timezone: browser location edits cannot retain a stale zone or spoof a new one",
+      "status": "passed"
+    },
+    {
+      "name": "listing timezone: ordinary Host edits continue to work",
+      "status": "passed"
+    },
+    {
+      "name": "listing timezone: trusted server writes preserve the computed zone",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: additive migration preserves booking history",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: browser roles cannot read the ledger or invoke publication",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: service-only readiness passes",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: lost response replay returns one original listing",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: changed payload cannot reuse a committed request ID",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: same ID is isolated by authenticated Host identity",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: Driver and forged owner calls are denied",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: failed insert leaves no false success receipt and can be retried",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: receipt write failure rolls back the listing insert atomically",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: durable rejection blocks racing inserts before photo cleanup",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: committed success wins over a later date-validation rejection",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: deleted listings cannot be resurrected by replay",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: native concurrent requests create one listing",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: native concurrent rejection blocks insertion",
+      "status": "passed"
+    },
+    {
+      "name": "listing publication: native concurrent success prevents cleanup rejection",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: browser roles cannot journal payments or release extension holds",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: rejected financial audit and hold release commit together without changing booking",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: rejected checkout replay cannot grant time",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: refund ledger records rejected extension money and retains rejection marker",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: same additional hour can be reserved and applied after rejection",
+      "status": "passed"
+    },
+    {
+      "name": "extension settlement: unpaid terminal pair cleanup preserves applied booking hours",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: migration changes no booking or historical refund and queues no historical emails",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: browser roles cannot inspect receipts or queue messages",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: verified successful partial refund commits one Driver and one Host job",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: duplicate events deduplicate while a second refund gets its own two receipts",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: pending and failed refunds do not claim success; transition to succeeded queues receipts",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: full cancellation and receipts commit together; rolling back refund transaction removes both",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: extension refund resolves the correct parent booking and queues both recipients",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: newly discovered historical success is suppressed",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: known old pending refund notifies only when it newly succeeds",
+      "status": "passed"
+    },
+    {
+      "name": "refund notifications: conditional lease excludes active and already accepted deliveries",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: browser roles cannot settle or reject Checkout payments",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: spot conflict records failed payment and releases own hold without changing other reservation",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: replay resumes the same rejected payment after hold consumption",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: pending refund remains distinct from returned money and grants no booking",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: successful refund persists exact history without changing rejection marker",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: valid booking confirms once and replays without requesting refund",
+      "status": "passed"
+    },
+    {
+      "name": "initial booking refund: already reversed payment cannot grant parking",
+      "status": "passed"
+    },
+    {
+      "name": "extension capacity: reviewed function bodies patched; existing owners, grants, security settings and booking data preserved",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: idempotent additive migration preserves booking history",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: existing and new listings default active",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: Host RLS permits own pause",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: paused listing rejects new hold before any allocation",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: pause preserves prior hold, booked reservation and schedule",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: another account cannot resume the listing",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: browser roles cannot invoke pause trigger",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: resume admits new hold without replacing schedule",
+      "status": "passed"
+    },
+    {
+      "name": "listing pause: concurrent admission waits for committed pause and then rejects",
+      "status": "passed"
+    },
+    {
+      "name": "booking fields: repeatable migration preserves every booking field and historical timestamp",
+      "status": "passed"
+    },
+    {
+      "name": "booking fields: six body classes and unspecified type save independently of vehicle profile ID; legacy rows remain valid",
+      "status": "passed"
+    },
+    {
+      "name": "booking fields: unknown body class fails the database constraint",
+      "status": "passed"
+    },
+    {
+      "name": "booking fields: new booking has no invented email acceptance timestamp",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: migration creates no historical-message jobs",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: the existing service-role message insert atomically creates one private job",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: rolling back a message also rolls back its email job",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: clients cannot read, write, enqueue or invoke privileged code; trigger is invoker",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: two independent database workers claim a pending message once",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: provider acceptance prevents replay after a lease expires",
+      "status": "passed"
+    },
+    {
+      "name": "message notifications: message deletion cleans up its private queue record",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: replay freezes financial amount and responsibility",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: competing request is blocked until the first operation settles",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: database lease grants only one claim",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: no fee credit before a successful customer refund",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: successive partials round cumulatively, replay safely, and never exceed actual original fee",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: partial requests do not cancel an active booking",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation fee: browser roles cannot insert money operations or invoke privileged RPCs",
+      "status": "passed"
+    }
+  ],
+  "migrations": [
+    {
+      "name": "bug-005118-unpaid-hold-rate-limits.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-atomic-extensions-and-refunds.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005156-property-local-canonical-bookings.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005136-listing-postal-validation.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005137-hourly-price-constraint.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005138-future-exceptions.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-verified-reviews.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005183-restrict-public-data-api.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-account-deletion-booking-retention.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-private-messages-rls.sql",
+      "status": "passed"
+    },
+    {
+      "name": "extension_settlement_005116_005260",
+      "status": "passed"
+    },
+    {
+      "name": "refund_notifications_005249",
+      "status": "passed"
+    },
+    {
+      "name": "initial_booking_refund_history",
+      "status": "passed"
+    },
+    {
+      "name": "deduplicate_extension_spot_capacity_005324",
+      "status": "passed"
+    },
+    {
+      "name": "qa_listing_pause_005445",
+      "status": "passed"
+    },
+    {
+      "name": "qa_booking_vehicle_type_005157",
+      "status": "passed"
+    },
+    {
+      "name": "qa_message_notifications_005536",
+      "status": "passed"
+    },
+    {
+      "name": "cancellation_reason_fee_policy",
+      "status": "passed"
+    }
+  ],
+  "runtime": "native PostgreSQL 17 CI service",
+  "sourceCommit": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "engine": "PostgreSQL 17.6 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 7.5.0-3ubuntu1~18.04) 7.5.0, 64-bit",
+  "restored": {
+    "tables": 46,
+    "columns": 511,
+    "constraints": 186,
+    "indexes": 163,
+    "triggers": 9,
+    "policies": 18
+  },
+  "findings": [],
+  "faultInjection": [
+    {
+      "name": "bug-005118-unpaid-hold-rate-limits.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-atomic-extensions-and-refunds.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005156-property-local-canonical-bookings.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005136-listing-postal-validation.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005137-hourly-price-constraint.sql",
+      "status": "passed"
+    },
+    {
+      "name": "bug-005138-future-exceptions.sql",
+      "status": "passed"
+    },
+    {
+      "name": "qa-verified-reviews.sql",
+      "status": "failed",
+      "code": "23505",
+      "message": "could not create unique index \"reviews_one_per_driver_listing\""
+    }
+  ],
+  "rehearsalWorkspaceBaseCommit": "62ffb4b65de72ace10d5bd9454b54ad6786c57e3",
+  "frozenAppSourceCommit": "072629e16b35970bcae1260ab2e5660ece2b08d8",
+  "sourceNote": "Native working tree contains verified frozen app files plus production-preparation changes; sourceCommit records checkout base."
+}

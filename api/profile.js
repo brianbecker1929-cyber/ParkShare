@@ -11,6 +11,12 @@ export default async function handler(req, res) {
     const user = await requireUser(req, res);
     if (!user) return;
 
+    // Database-owned role is authoritative; JWT user_metadata is editable.
+    const { data: profile, error: roleError } = await supabaseAdmin
+      .from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (roleError) throw roleError;
+    if (profile?.role !== "driver") return res.status(403).json({ error: "Only Driver accounts can save vehicle profiles." });
+
     const { normalised, errors, valid } = validateDriverProfile(req.body || {});
     if (!valid) return res.status(400).json({ error: "Check the highlighted fields.", errors });
 
@@ -26,6 +32,7 @@ export default async function handler(req, res) {
       name: normalised.name,
       phone: normalised.phone,
       vehicle_details: normalised.vehicleDetails,
+      vehicle_type: normalised.vehicleType,
       vehicle_make: normalised.vehicleMake,
       vehicle_model: normalised.vehicleModel,
       vehicle_colour: normalised.vehicleColour,
@@ -45,6 +52,7 @@ export default async function handler(req, res) {
         name: normalised.name,
         phone: normalised.phone,
         vehicleDetails: normalised.vehicleDetails,
+        vehicleType: normalised.vehicleType,
         vehicleMake: normalised.vehicleMake,
         vehicleModel: normalised.vehicleModel,
         vehicleColour: normalised.vehicleColour,

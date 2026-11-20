@@ -3,3 +3,5 @@ Allow: /
 Disallow: /api/
 
 Sitemap: https://www.myparkshare.ca/sitemap.xml
+
+# Service overview for AI readers: https://www.myparkshare.ca/llms.txt

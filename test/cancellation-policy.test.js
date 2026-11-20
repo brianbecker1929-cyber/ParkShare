@@ -62,7 +62,7 @@ test("unrelated users are forbidden", () => {
 test("completed cancellation states and in-flight refunds are idempotent", () => {
   const refunded = evaluateCancellation({ booking: scheduledBooking({ status: "refunded" }), userId: DRIVER_ID, hostId: HOST_ID, now: NOW });
   assert.equal(refunded.idempotent, true);
-  const pending = evaluateCancellation({ booking: scheduledBooking({ refund_status: "pending" }), userId: DRIVER_ID, hostId: HOST_ID, now: NOW });
+  const pending = evaluateCancellation({ booking: scheduledBooking({ refund_status: "pending", cancellation_requested_at: "2026-08-29T09:00:00Z" }), userId: DRIVER_ID, hostId: HOST_ID, now: NOW });
   assert.equal(pending.idempotent, true);
   assert.equal(pending.pending, true);
 });

@@ -1,0 +1,51 @@
+{
+  "status": "preparation-only; production approval pending",
+  "project": "oyxrussraxjgqwzpwyca",
+  "applicationCommit": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+  "runtimeIntegrationCommit": "1e959342d56c5b15118e73edd51d3d14ea3691fa",
+  "applicationFingerprint": "c88a7b09cb3c4da5b99628cfe6d6a3a6",
+  "catalogCapturedAt": "2026-11-19T02:58:21.607051+00:00",
+  "catalogFixture": "test/database/fixtures/production-schema-nov18.json",
+  "scope": "Read-only catalog definitions and aggregate counts; no customer or credential rows exported",
+  "preflight": {
+    "bookings": 29,
+    "listings": 13,
+    "auth_users": 15,
+    "paid_bookings": 29,
+    "booking_extensions": 2,
+    "null_message_recipient": 7,
+    "duplicate_review_groups": 0
+  },
+  "databaseObservation": {
+    "checked_at": "2026-11-19 03:00:18.110609+00",
+    "server_version": "17.6",
+    "vancouver_winter_utc": "2026-11-18 18:00:00",
+    "toronto_spring_start_utc": "2027-03-14 06:00:00",
+    "toronto_spring_end_utc": "2027-03-14 08:00:00",
+    "active_checkout_holds": 0,
+    "retained_checkout_references": 1
+  },
+  "timezoneGate": {
+    "status": "open",
+    "vancouverLocal": "2026-11-18 10:00:00",
+    "expectedUtc": "2026-11-18 17:00:00",
+    "observedUtc": "2026-11-18 18:00:00",
+    "reference": "https://supabase.com/changelog/tzdata-local-time-vancouver-edmonton-casablanca",
+    "action": "Review and perform separately approved supported provider upgrade; recapture and rehearse after any catalog changes"
+  },
+  "listingReview": {
+    "invalidOrMissingLocations": 3,
+    "listingsWithoutHostRole": 1,
+    "trustedZones": "Not yet installed; do not invent a backfill"
+  },
+  "backupReview": {
+    "newestPhysicalUtc": "2026-11-18T13:03:02Z",
+    "completedDailyEntries": 7,
+    "pitrEnabled": false,
+    "existingIsolatedRestore": "November 12 managed restore; 13 groups passed; temporary project deleted",
+    "newRestorePerformed": false
+  },
+  "hostedWrites": 0,
+  "financialProviderCalls": 0,
+  "transactionalEmailsSent": 0
+}

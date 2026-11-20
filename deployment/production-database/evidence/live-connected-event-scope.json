@@ -1,0 +1,17 @@
+{
+  "item": 2,
+  "checkedAt": "2026-11-12T03:16:13.978Z",
+  "account": "acct_1Trzsc1FxWZlqoOQ",
+  "livemode": true,
+  "destination": "we_1U7PMZ1FxWZlqoOQ8xh2NdHs",
+  "status": "enabled",
+  "eventPayload": "snapshot",
+  "eventsFrom": [
+    "@accounts"
+  ],
+  "eventCount": 10,
+  "meaning": "Events from resources belonging to connected accounts",
+  "source": "Stripe v2.core.event_destination GET",
+  "documentation": "https://docs.stripe.com/webhooks#create-webhook-endpoint",
+  "writes": 0
+}

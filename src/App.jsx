@@ -1,19 +1,63 @@
-import { useState, useEffect, useRef, useId, Component } from "react";
+import {CANCELLATION_REASONS} from "./lib/cancellationReasons.js";
+import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
+import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
+import {HOME_HERO_IMAGE, HOME_HERO_AVIF_SRC_SET} from "./lib/homeHeroImage.js";
+import {LISTING_FEATURE_OPTIONS,editableListingAvailability,listingScheduleError} from "./lib/listingSettings.js";
+import ListingFeatureFields from "./components/ListingFeatureFields.jsx";
+import HostOnboarding from "./components/HostOnboarding.jsx";
+import DeferredAuth from "./components/DeferredAuth.jsx";
+import HostProfileView from "./components/HostProfileView.jsx";
+import {useListingBookability} from "./lib/useListingBookability.js";
+import {bookingReadinessMessage} from "./lib/bookingReadiness.js";
+import {VEHICLE_TYPES} from "./lib/vehicleTypes.js";
+import {validateBookingVehicle} from "./lib/bookingVehicle.js";
+import {saveBookingVehicle} from "./lib/saveBookingVehicle.js";
+import React, { useState, useEffect, useLayoutEffect, useRef, useId, useMemo, useCallback, Component } from "react";
 import { createPortal } from "react-dom";
-import { GoogleMap, useJsApiLoader, OverlayView, DrawingManager, Rectangle, Marker } from "@react-google-maps/api";
-import { supabase } from "./lib/supabaseClient";
+const RefundManager = React.lazy(() => import("./components/RefundManager.jsx"));
+import { GoogleMap, useJsApiLoader, OverlayView, Rectangle, Marker } from "@react-google-maps/api";
+import { supabase, updateRecoveryPasswordForAccount } from "./lib/supabaseClient";
+import { RECOVERY_SESSION_CHANGED } from "./lib/passwordRecovery";
+import { validateCanadianPostalCode } from "./lib/canadianPostalCode";
+import { createAuthSessionSynchronizer } from "./lib/authSessionSync";
+import { calculateBookingAmounts } from "../api/_booking-rules.js";
+import { fetchPublicParkingPage } from "./lib/publicParkingPage";
+import { publicListingCoverUrl } from "./lib/publicListings";
+import { fetchPrivateCoverDataUrl } from "./lib/privateListingPhotos";
+import { createMessageConversation, messageConversationKey } from "./lib/messageConversation";
+import { validId } from "./lib/privateListingAccess";
+import { hasListingCoordinates, changeListingAddress } from "./lib/listingLocation";
+import { satelliteSpotPoint, satelliteSpotBounds } from "./lib/satelliteSpotDrawing";
+import { validateEventSubmissionForm } from "./lib/eventSubmissionValidation";
+import { requestPropertyTimeZone } from "./lib/hostListingPublish";
+import { createListingPublication } from "./lib/listingPublicationAttempt";
+import { deleteHostListing } from "./lib/listingDeletion";
+import { hostTransactionPresentation, hostEarnedTotal, hostEarningsContribution } from "./lib/hostTransactions";
+import { transactionDateDetails } from "./lib/transactionDetails";
+import { availabilityRequestKey, canChooseListingSpot, listingSpotStatusText, listingAvailabilityMessage, cancelledCheckoutHold, cancelledExtensionCheckoutHold } from "./lib/spotAvailability";
+import { formatBookNowTimes } from "./lib/bookNowTimes";
+import { validateBookingDuration, MAX_BOOKING_HOURS } from "./lib/bookingDuration";
+import { validateScheduledBooking, invalidScheduledHours } from "./lib/scheduledBooking.js";
+import { getListingSpotLayout } from "./lib/listingSpotLayout";
+import { localCalendarDate, futureBookingDate } from "./lib/bookingCalendarDate";
+import { MAX_LISTING_PHOTOS, isListingImageUrl, validateListingPhoto } from "./lib/listingPhotos";
+import { validateHourlyRate, NEW_LISTING_MAX_HOURLY_RATE_CAD } from "./lib/listingPrice";
+import { emptyAuthForm, isUnconfirmedEmailError, MIN_NEW_PASSWORD_LENGTH, signupOutcome } from "./lib/authFormBasics.js";
+import { validateAuthForm, validateNewPassword } from "./lib/authValidation.js";
 import {
   getAvailableNavigationProviders,
   getPreferredNavigationProvider,
+  hasNavigationDestination,
   openNavigation,
   savePreferredNavigationProvider,
 } from "./lib/navigation";
 import { buildRideshareUrl, formatRideshareTime, formatSuggestedPickupTime, RIDESHARE_PICKUP_BUFFER_MINUTES } from "./lib/rideshare";
 import { computeDrivingRoute, getEstimatedArrivalDate } from "./lib/drivingTime";
-import { formatBookingTimeRemaining, getBookingDisplayStatus } from "./lib/bookingTime";
+import { formatBookingTimeRemaining, getBookingDisplayStatus, cancellationDeadlineError } from "./lib/bookingTime";
 import { matchesBookingDateRange } from "./lib/bookingDateFilter";
 import { parseMessageBookingId, bookingMessageListing, bookingMessageThread } from "./lib/bookingMessage";
 import { buildWalkingLabel, computeWalkingRoutes, estimateWalkingMinutes } from "./lib/walkingTime";
+import { PARKING_SEARCH_RADIUS_KM, matchesParkingText, nearbyParkingListings, parkingSearchEmptyState, validParkingCoordinate, parkingDistanceKm } from "./lib/parkingSearch";
 import { RESTAURANT_CUISINES, buildRestaurantSearchText, chooseRandomRestaurant, normalizeRestaurantPlace } from "./lib/restaurants";
 import {
   EVENT_ARRIVAL_BUFFER_MINUTES,
@@ -29,9 +73,11 @@ import { MAX_GUEST_VEHICLES, getBookableVehicles, getDriverProfileCompletion, no
 import { VEHICLE_COLOURS, VEHICLE_MAKES, VEHICLE_MODELS } from "./lib/vehicleOptions";
 import { formatVehicleVisualSummary, getVehicleAssetPath, getVehicleBodyType, getVehicleColourName, hasDedicatedVehicleColourAsset } from "./lib/vehicleVisuals";
 import { hasDrivewayVehicle } from "./lib/drivewayCar";
+import { SUPPORT_EMAIL } from "./lib/supportContact";
 import { premiumVehicleUrl } from "./lib/premiumVehicle";
 import { getRouteForState, getRouteFromPath, updateRouteMetadata } from "./lib/routes";
 import { AVAILABILITY_DAYS, createAvailabilityPreset, formatAvailabilitySummary, hasAnyAvailability, normalizeAvailability } from "./lib/listingAvailability";
+import { addCalendarDays, dateInScheduleTimezone, isCalendarDate, validateHostAvailabilityExceptions, validateHostExceptionDates } from "./lib/availabilityExceptionDates";
 
 // Palette: official ParkShare brand — navy (#0E1B2E) and amber (#FFC107),
 // the same pair used in the logo/app icon and Parker's uniform. Warm
@@ -129,10 +175,10 @@ function BookingVehicleVisual({ vehicle }) {
   );
 }
 
-function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime }) {
+function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isActive, currentTime, timeZoneLabel }) {
   const timeRemaining = isActive ? formatBookingTimeRemaining(bookingEnd, currentTime) : "";
   return (
-    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
+    <div className={`ps-booking-schedule${isActive ? " has-countdown" : ""}`} aria-label={`Reservation date ${date}, starts ${startTime}, ends ${endTime}, duration ${duration}${timeZoneLabel ? `, ${timeZoneLabel}` : ""}${isActive ? `, ${timeRemaining} remaining` : ""}`}>
       <div className="ps-booking-schedule-cell is-date">
         <span>Date</span>
         <strong>{date}</strong>
@@ -155,6 +201,7 @@ function BookingSchedule({ date, startTime, endTime, duration, bookingEnd, isAct
           <strong role="timer">{timeRemaining}</strong>
         </div>
       )}
+      {timeZoneLabel && <div style={{ gridColumn: "1 / -1", padding: "5px 10px", fontSize: 11, color: C.white, borderTop: "1px solid rgba(255,255,255,.16)" }}>{timeZoneLabel}</div>}
     </div>
   );
 }
@@ -195,6 +242,7 @@ function buildAppUser(profile, authUser) {
     name: profile?.name || metadata.name || "ParkShare Driver",
     phone: metadata.phone || "",
     vehicleDetails: metadata.vehicle_details || "",
+    vehicleType: metadata.vehicle_type || "",
     vehicleMake: metadata.vehicle_make || "",
     vehicleModel: metadata.vehicle_model || "",
     vehicleColour: metadata.vehicle_colour || "",
@@ -205,9 +253,12 @@ function buildAppUser(profile, authUser) {
     id: profile?.id || authUser?.id,
     name: driverProfile.name,
     email: authUser?.email || "",
+    createdAt: authUser?.created_at || null,
+    isParkShareStaff: authUser?.app_metadata?.parkshare_staff === true,
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
+    vehicleType: driverProfile.vehicleType,
     vehicleMake: driverProfile.vehicleMake,
     vehicleModel: driverProfile.vehicleModel,
     vehicleColour: driverProfile.vehicleColour,
@@ -280,9 +331,9 @@ const INITIAL_THREADS = {
 // Renders the host's actual first uploaded photo when there is one, falling
 // back to the simple emoji icon for listings that don't have a photo yet.
 function ListingThumb({ listing, size, fontSize, style }) {
-  const isPhoto = typeof listing.img === "string" && listing.img.startsWith("data:");
+  const isPhoto = isListingImageUrl(listing.img);
   if (isPhoto) {
-    return <img src={listing.img} alt={listing.title || "Driveway"} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
+    return <img src={listing.img} alt={listing.title || "Driveway"} loading="lazy" decoding="async" style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
   return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{listing.img}</span>;
 }
@@ -378,18 +429,26 @@ function Btn({ children, onClick, variant = "primary", disabled, full, small }) 
     moss: { background: C.moss, color: C.white },
     pill: { background: C.amber, border: "2px solid "+C.white, color: C.navy, borderRadius: 20 },
   };
-  return <button onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
+  return <button disabled={disabled} onClick={disabled ? undefined : onClick} style={{ ...base, ...variants[variant] }}>{children}</button>;
 }
 
-function Modal({ children, onClose, title }) {
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
-      <div role="dialog" aria-modal="true" aria-label={title} style={{ background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
-        <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>{title}</div>
-          <button onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
+function Modal({ children, onClose, title, nativeModal = false, returnFocus }) {
+  const panelStyle = { background: C.white, borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto", fontFamily: "'Poppins', sans-serif", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" };
+  const content = <>
+        <div style={{ padding: "18px 22px", borderBottom: "1px solid "+C.concrete, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div style={{ fontWeight: 700, color: C.navy, fontSize: 16, minWidth: 0, overflowWrap: "anywhere" }}>{title}</div>
+          <button className="ps-tap-target" onClick={onClose} aria-label={`Close ${title}`} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 44, height: 44, flexShrink: 0, padding: 0, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ padding: "20px 22px" }}>{children}</div>
+      </>;
+  if (nativeModal) return <NativeDialog title={title} onClose={onClose} returnFocus={returnFocus} className="ps-navigation-modal"
+    style={{ ...panelStyle, position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", border: 0, padding: 0 }}>
+    {content}
+  </NativeDialog>;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(27,42,59,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20 }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={panelStyle}>
+        {content}
       </div>
     </div>
   );
@@ -400,6 +459,7 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
 
   const providers = getAvailableNavigationProviders();
   const isPreview = request.mode === "preview";
+  const destinationAvailable = hasNavigationDestination(request.listing);
   const descriptions = {
     waze: "Live traffic, road reports, and driving guidance",
     google: "Driving directions in Google Maps",
@@ -407,13 +467,16 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
   };
 
   return (
-    <Modal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
+    <Modal nativeModal title={isPreview ? "Preview route to parking" : "Navigate to your parking space"} onClose={onClose}>
       <div className="ps-navigation-chooser">
-        <p>
+        {destinationAvailable ? <p>
           {isPreview
-            ? `Choose an app to preview driving directions to ${request.listing.title || "this parking space"}.`
+            ? "Choose an app to preview the parking area. For public listings this is an approximate route; exact directions are available from your confirmed booking."
             : "Choose your preferred navigation app. Your parking location is ready to open."}
-        </p>
+        </p> : <p id="navigation-location-error" role="alert">
+          {isPreview ? "An approximate route preview is unavailable for this listing because its map location is missing. Choose another listing, or use exact directions from a confirmed booking."
+            : "Directions are unavailable because this reservation's location is missing. Please contact ParkShare support."}
+        </p>}
         <div className="ps-navigation-destination">
           <span aria-hidden="true">📍</span>
           <div>
@@ -427,6 +490,9 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
               key={provider.id}
               type="button"
               className={`ps-navigation-provider is-${provider.id}`}
+              disabled={!destinationAvailable}
+              aria-describedby={!destinationAvailable ? "navigation-location-error" : undefined}
+              style={!destinationAvailable ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
               onClick={() => onChoose(provider.id)}
             >
               <span className="ps-navigation-provider-icon" aria-hidden="true">
@@ -445,9 +511,9 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
             </button>
           ))}
         </div>
-        <p className="ps-navigation-remember-note">
+        {destinationAvailable && <p className="ps-navigation-remember-note">
           ParkShare remembers your selection for future <strong>Navigate to parking</strong> buttons. You can change it anytime.
-        </p>
+        </p>}
         <button type="button" className="ps-navigation-cancel" onClick={onClose}>Cancel</button>
       </div>
     </Modal>
@@ -590,7 +656,7 @@ function milesBetween(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const GOOGLE_MAPS_LIBRARIES = ["drawing", "places"]; // Stable reference: drawing powers the Host spot tool; places lets Drivers search destinations, landmarks, businesses, and addresses.
+const GOOGLE_MAPS_LIBRARIES = ["places"]; // Stable reference shared by every map loader; spot rectangles use the core Maps API.
 
 // Muted "curbside" map styling so Google's default map matches the app's palette.
 const MAP_STYLE = [
@@ -733,50 +799,49 @@ function ParkingMapPin({ listing, selected, onSelect, onViewListing, onPreviewRo
   );
 }
 
-function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc }) {
+function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRoute, userLoc, onSearchCenterChange }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const mapRef = useRef(null);
+  const [map, setMap] = useState(null);
+  const withCoords = listings.filter(l => Number.isFinite(l.lat) && Number.isFinite(l.lng));
+  const activeSelected = selected ? withCoords.find(l => String(l.id) === String(selected.id)) || null : null;
+  // Keep the controlled initial center stable. Recreating it on every render
+  // makes Google Maps jump back to the first listing after a selection.
+  const initialCenter = useRef(userLoc || (withCoords[0]
+    ? { lat: withCoords[0].lat, lng: withCoords[0].lng }
+    : { lat: 40.7128, lng: -74.006 }));
+  const coordinateKey = withCoords.map(l => `${l.id}:${l.lat}:${l.lng}`).sort().join("|");
 
-  const withCoords = listings.filter(l => typeof l.lat === "number" && typeof l.lng === "number");
-  const activeSelected = selected ? listings.find(l => l.id === selected.id) || selected : null;
-
-  // A searched destination (or device location) is the map's anchor. Centre it
-  // immediately instead of fitting every marketplace pin into one wide view;
-  // without a location search, keep the useful overview of all listing pins.
   useEffect(() => {
-    if (!mapRef.current || !window.google) return;
-    if (userLoc) {
-      mapRef.current.panTo({ lat: userLoc.lat, lng: userLoc.lng });
-      mapRef.current.setZoom(14);
+    if (!map || !window.google) return;
+    // Explicit selection takes priority over the destination/overview on every
+    // screen size, including when the map finishes loading after the click.
+    if (activeSelected) {
+      map.panTo({ lat: activeSelected.lat, lng: activeSelected.lng });
+      if (window.matchMedia("(max-width: 899px)").matches) {
+        const frame = window.requestAnimationFrame(() => map.panBy(0, -105));
+        return () => window.cancelAnimationFrame(frame);
+      }
       return;
     }
-    const pts = withCoords;
-    if (pts.length === 0) return;
-    if (pts.length === 1) {
-      mapRef.current.panTo({ lat: pts[0].lat, lng: pts[0].lng });
-      mapRef.current.setZoom(14);
+    if (userLoc) {
+      map.panTo({ lat: userLoc.lat, lng: userLoc.lng });
+      map.setZoom(14);
+      return;
+    }
+    if (withCoords.length === 0) return;
+    if (withCoords.length === 1) {
+      map.panTo({ lat: withCoords[0].lat, lng: withCoords[0].lng });
+      map.setZoom(14);
       return;
     }
     const bounds = new window.google.maps.LatLngBounds();
-    pts.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
-    mapRef.current.fitBounds(bounds, 48);
-  }, [isLoaded, withCoords.map(l => l.id).join(","), userLoc?.lat, userLoc?.lng]);
-
-  // On narrow mobile maps, center the chosen spot and leave vertical room
-  // above its pin so the compact preview cannot be clipped by the toolbar.
-  useEffect(() => {
-    if (!activeSelected || !mapRef.current || typeof window === "undefined") return;
-    if (!window.matchMedia("(max-width: 700px)").matches) return;
-    if (typeof activeSelected.lat !== "number" || typeof activeSelected.lng !== "number") return;
-
-    const map = mapRef.current;
-    map.panTo({ lat: activeSelected.lat, lng: activeSelected.lng });
-    const frame = window.requestAnimationFrame(() => map.panBy(0, -105));
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeSelected?.id]);
+    withCoords.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    map.fitBounds(bounds, 48);
+  }, [map, coordinateKey, userLoc?.lat, userLoc?.lng,
+    activeSelected?.id, activeSelected?.lat, activeSelected?.lng]);
 
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 }}>Map unavailable — missing Google Maps API key</div>;
@@ -790,8 +855,6 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
   if (withCoords.length === 0 && !userLoc) {
     return <div style={{ width: "100%", height: "100%", borderRadius: 12, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13 }}>No driveways to show on the map</div>;
   }
-
-  const center = userLoc || (withCoords[0] ? { lat: withCoords[0].lat, lng: withCoords[0].lng } : { lat: 40.7128, lng: -74.006 });
 
   return (
     <div className="ps-listings-map" style={{ width: "100%", height: "100%", borderRadius: 12, overflow: "hidden", position: "relative" }}>
@@ -816,9 +879,13 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
       `}</style>
       <GoogleMap
         mapContainerStyle={{ width: "100%", height: "100%" }}
-        center={center}
+        center={initialCenter.current}
         zoom={13}
-        onLoad={(map) => { mapRef.current = map; }}
+        onLoad={setMap}
+        onIdle={() => {
+          const center = map?.getCenter?.();
+          if (center) onSearchCenterChange?.({ lat: center.lat(), lng: center.lng() });
+        }}
         onClick={() => onSelect(null)}
         options={{
           styles: MAP_STYLE,
@@ -834,7 +901,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
         )}
 
         {withCoords.map(l => {
-          const on = selected?.id === l.id;
+          const on = activeSelected?.id === l.id;
           return (
             <OverlayView key={l.id} position={{ lat: l.lat, lng: l.lng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
               <ParkingMapPin listing={l} selected={on} onSelect={onSelect} onViewListing={onViewListing} onPreviewRoute={onPreviewRoute} />
@@ -842,7 +909,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
           );
         })}
       </GoogleMap>
-      {selected && (
+      {activeSelected && (
         <div className="ps-mobile-map-listing-preview" role="dialog" aria-label={`Preview of ${activeSelected.title || "parking spot"}`}>
           <button
             type="button"
@@ -877,7 +944,7 @@ function ListingsMap({ listings, selected, onSelect, onViewListing, onPreviewRou
 // ─── Messaging Panel ──────────────────────────────────────────────────────────
 function MessagingPanel({ listing, onClose, user }) {
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
-  const isRealListing = numericId !== null && user;
+  const isRealListing = numericId !== null;
   const bookingId = listing.bookingId || null;
 
   const [threads, setThreads] = useState(INITIAL_THREADS);
@@ -886,68 +953,60 @@ function MessagingPanel({ listing, onClose, user }) {
   const [messageError, setMessageError] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
+  const conversation = useRef(null);
+  const demoTimers = useRef(new Set());
+  const conversationKey = messageConversationKey(user?.id, listing);
   const msgs = isRealListing ? dbMsgs : (threads[listing.id] || []);
   const otherParty = listing.host || listing.driver || "ParkShare user";
+  const canSend = Boolean(input.trim() && !sending && (!isRealListing || user));
 
   const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-  const loadMessages = async () => {
-    if (!isRealListing) return;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Please sign in again to view messages.");
-      const params = new URLSearchParams({ listingId: String(numericId) });
-      if (bookingId) params.set("bookingId", String(bookingId));
-      if (listing.participantId) params.set("participantId", listing.participantId);
-      const res = await fetch(`/api/messages?${params}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Couldn't load messages.");
-      setDbMsgs((data.messages || []).map(row => ({ id: row.id, from: row.sender_id === user.id ? "me" : "host", text: row.text, ts: fmtTime(row.created_at) })));
-      setMessageError("");
-    } catch (error) {
-      setMessageError(error.message || "Couldn't load messages.");
-    }
-  };
-
-  useEffect(() => { loadMessages(); }, [listing.id, bookingId, listing.participantId, user]);
+  useEffect(() => {
+    setDbMsgs([]);
+    setInput("");
+    setMessageError("");
+    setSending(false);
+    const controller = isRealListing ? createMessageConversation({
+      client: supabase, userId: user?.id, listingId: numericId, bookingId,
+      participantId: listing.participantId || null,
+      onMessages: rows => setDbMsgs(rows.map(row => ({id: row.id, from: row.sender_id === user.id ? "me" : "host", text: row.text, ts: fmtTime(row.created_at)}))),
+      onError: setMessageError, onSending: setSending,
+    }) : null;
+    conversation.current = controller;
+    controller?.load();
+    return () => {
+      controller?.dispose();
+      if (conversation.current === controller) conversation.current = null;
+      for (const timer of demoTimers.current) clearTimeout(timer);
+      demoTimers.current.clear();
+    };
+  }, [conversationKey]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
 
   const send = async () => {
-    if (!input.trim()) return;
+    if (!canSend || conversation.current?.sending) return;
     const text = input.trim();
-    setInput("");
-
     if (isRealListing) {
-      setSending(true);
-      setMessageError("");
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Please sign in again to send this message.");
-        const res = await fetch("/api/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ listingId: numericId, bookingId, participantId: listing.participantId, text }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Message could not be sent.");
-        await loadMessages();
-      } catch (error) {
-        setInput(text);
-        setMessageError(error.message || "Message could not be sent.");
-      } finally {
-        setSending(false);
-      }
+      const controller = conversation.current;
+      if (!controller) return;
+      setInput("");
+      const result = await controller.send(text);
+      if (conversation.current === controller && result.retryText) setInput(current => current || result.retryText);
       return;
     }
+    setInput("");
 
     // Demo listings aren't backed by real hosts, so keep the local
     // simulated conversation (with an automatic reply) for those.
     const msg = { id: Date.now(), from: "me", text, ts: "Just now" };
     setThreads(t => ({ ...t, [listing.id]: [...(t[listing.id] || []), msg] }));
     const replies = ["Thanks for reaching out!", "Sure thing!", "Great, see you then 🙂", "The spot will be ready for you."];
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      demoTimers.current.delete(timer);
       setThreads(t => ({ ...t, [listing.id]: [...(t[listing.id] || []), { id: Date.now() + 1, from: "host", text: replies[Math.floor(Math.random() * replies.length)], ts: "Just now" }] }));
     }, 1400);
+    demoTimers.current.add(timer);
   };
 
   return (
@@ -962,7 +1021,7 @@ function MessagingPanel({ listing, onClose, user }) {
           <button onClick={onClose} style={{ background: C.concrete, border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer", fontSize: 16, color: C.muted }}>×</button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
-          {msgs.length === 0 && <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No messages yet. Say hi to {otherParty}!</div>}
+          {msgs.length === 0 && <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>{isRealListing && !user ? "Sign in to view this conversation." : `No messages yet. Say hi to ${otherParty}!`}</div>}
           {msgs.map(m => (
             <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: m.from === "me" ? "flex-end" : "flex-start" }}>
               <div style={{ background: m.from === "me" ? C.navy : C.warmWhite, color: m.from === "me" ? C.white : C.navy, padding: "9px 14px", borderRadius: m.from === "me" ? "16px 16px 4px 16px" : "16px 16px 16px 4px", fontSize: 13, maxWidth: "75%", lineHeight: 1.45 }}>{m.text}</div>
@@ -975,7 +1034,7 @@ function MessagingPanel({ listing, onClose, user }) {
         <div style={{ padding: "12px 16px", borderTop: "1px solid "+C.concrete, display: "flex", gap: 8 }}>
           <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={"Message "+otherParty+"…"}
             style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 24, padding: "10px 16px", fontSize: 13, outline: "none", fontFamily: "'Poppins', sans-serif", color: C.navy }} />
-          <button onClick={send} disabled={!input.trim() || sending} style={{ background: input.trim() && !sending ? C.navy : C.concrete, color: input.trim() && !sending ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: input.trim() && !sending ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>{sending ? "…" : "↑"}</button>
+          <button onClick={send} disabled={!canSend} style={{ background: canSend ? C.navy : C.concrete, color: canSend ? C.white : C.muted, border: "none", borderRadius: "50%", width: 42, height: 42, cursor: canSend ? "pointer" : "default", fontSize: 18, flexShrink: 0 }}>{sending ? "…" : "↑"}</button>
         </div>
       </div>
     </div>
@@ -983,12 +1042,50 @@ function MessagingPanel({ listing, onClose, user }) {
 }
 
 // ─── Payment Flow ─────────────────────────────────────────────────────────────
-function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange }) {
+function bookingCheckoutKey({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, user, selectedVehicleId }) {
+  const vehicle = getBookableVehicles(user || {}).find(item => item.id === selectedVehicleId);
+  return JSON.stringify([user?.id || null, listing.id, listing.title, listing.price, hours, chosenSpot ?? null,
+    date instanceof Date ? localCalendarDate(date) : null, startHour ?? null, endHour ?? null,
+    selectedVehicleId || null, vehicle ? [vehicle.vehicleType, vehicle.vehicleMake, vehicle.vehicleModel, vehicle.vehicleColour, vehicle.licensePlate] : null,
+    selectedEvent?.id ?? null]);
+}
+
+function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, onClose, onSuccess, user, selectedVehicleId, onVehicleChange, availableData = null }) {
   const [step, setStep] = useState(1); // 1=summary, 2=card, 3=processing, 4=done
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
   const [errors, setErrors] = useState({});
   const [stripeError, setStripeError] = useState("");
   const [redirecting, setRedirecting] = useState(false);
+  const checkoutModalActive = useRef(false);
+  const checkoutAttempt = useRef(null);
+  const checkoutKey = bookingCheckoutKey({ listing, hours, chosenSpot, date, startHour, endHour, selectedEvent, user, selectedVehicleId });
+  const checkoutOwner = useRef({ key: checkoutKey, active: true });
+  if (checkoutOwner.current.key !== checkoutKey) {
+    checkoutOwner.current.active = false;
+    if (checkoutAttempt.current) checkoutAttempt.current.active = false;
+    checkoutAttempt.current = null;
+    checkoutOwner.current = { key: checkoutKey, active: true };
+  }
+  const owner = checkoutOwner.current;
+  const canAct = () => checkoutModalActive.current && owner.active && checkoutOwner.current === owner;
+  useEffect(() => {
+    owner.active = true;
+    checkoutModalActive.current = true;
+    setRedirecting(false); setStripeError("");
+    return () => {
+      owner.active = false;
+      checkoutModalActive.current = false;
+      if (checkoutAttempt.current?.owner === owner) { checkoutAttempt.current.active = false; checkoutAttempt.current = null; }
+    };
+  }, [checkoutKey]);
+  const closeCheckout = () => {
+    if (!canAct()) return;
+    owner.active = false;
+    checkoutModalActive.current = false;
+    if (checkoutAttempt.current) checkoutAttempt.current.active = false;
+    checkoutAttempt.current = null;
+    onClose();
+  };
   const bookableVehicles = getBookableVehicles(user || {});
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [changeVehicleOpen, setChangeVehicleOpen] = useState(false);
@@ -997,13 +1094,21 @@ function PaymentModal({ listing, hours, chosenSpot, date, startHour, endHour, se
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-const subtotal = listing.price * hours;
-  const serviceFee = Math.round(subtotal * 0.15 * 100) / 100;
-  const total = subtotal + serviceFee;
+// Use the exact integer-cent calculation used by create-checkout-session.
+  // No floating-point/whole-dollar rounding drift between preview and Stripe.
+  const { subtotalCents, serviceFeeCents, totalCents } = calculateBookingAmounts(listing.price, hours);
+  const subtotal = subtotalCents / 100;
+  const serviceFee = serviceFeeCents / 100;
+  const total = totalCents / 100;
   const dateLabel = date ? date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
   const timeLabel = (typeof startHour === "number" && typeof endHour === "number") ? formatHour(startHour) + " – " + formatHour(endHour) : null;
+  const propertyTimeZoneLabel = listing.timeZone
+    ? `Times use ${listing.timeZone} local time.`
+    : "Listing time zone unavailable.";
 
   const payWithStripe = async () => {
+    if (!checkoutModalActive.current) return;
+    if (!canAct() || checkoutAttempt.current?.busy) return;
     setStripeError("");
 
     if (!user) {
@@ -1011,83 +1116,67 @@ const subtotal = listing.price * hours;
       return;
     }
 
-    if (!isRealListing) {
+    if (!isRealListing || !validId(numericId)) {
       setStripeError("This parking listing is not available for Stripe checkout.");
       return;
     }
 
     if (!selectedVehicle) {
-      setStripeError("Add or complete a vehicle in your Driver Profile before booking.");
+      setStripeError("Add or complete your vehicle in Choose your spot before booking.");
       return;
     }
 
+    const attempt = { owner, active: true, busy: true };
+    checkoutAttempt.current = attempt;
+    const current = () => canAct() && attempt.active && checkoutAttempt.current === attempt;
+    const accountId = user.id;
+    let redirected = false;
     setRedirecting(true);
 
     try {
-      // The Stripe API is protected. Send the current Supabase JWT so the
-      // server can verify which signed-in ParkShare user is making the booking.
+      // Capture the original selection before waiting for authentication.
+      const body = JSON.stringify({
+        listingId: numericId, hours, total, listingTitle: listing.title,
+        spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
+        bookingDate: date instanceof Date ? localCalendarDate(date) : undefined,
+        startHour, endHour, vehicleId: selectedVehicle.id, eventId: selectedEvent?.id || undefined,
+      });
       let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!current()) return;
       let session = sessionData?.session;
-
-      // Refresh an old session once before asking the user to sign in again.
+      if (session?.user?.id && session.user.id !== accountId) throw new Error("Your account changed. Reopen the booking after signing in.");
       if (sessionError || !session?.access_token) {
         const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!current()) return;
         if (refreshError) throw refreshError;
         session = refreshedData?.session;
       }
+      if (!session?.access_token || session.user?.id !== accountId) throw new Error("Your account changed or session expired. Please sign in again.");
 
-      if (!session?.access_token) {
-        throw new Error("Your session is invalid or expired. Please sign in again.");
-      }
-
+      // A sent request may create a hold; never replay it automatically.
       const res = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          listingId: numericId,
-          hours,
-          total,
-          listingTitle: listing.title,
-          spotLabel: chosenSpot !== null && chosenSpot !== undefined ? spotLabel(chosenSpot) : undefined,
-          // Send a date-only value. Sending a full ISO timestamp and later
-          // appending another time produced invalid future booking windows.
-          bookingDate: date instanceof Date
-            ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
-            : undefined,
-          startHour,
-          endHour,
-          vehicleId: selectedVehicle.id,
-          eventId: selectedEvent?.id || undefined,
-        }),
+        method: "POST", cache: "no-store",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body,
       });
+      if (!current()) return;
+      const data = await res.json().catch(() => ({}));
+      if (!current()) return;
+      if (res.status === 401) throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
+      if (!res.ok) throw new Error(data?.error || "Couldn't start Stripe checkout. Please try again.");
+      if (typeof data?.url !== "string" || !data.url) throw new Error("Stripe checkout did not return a payment link.");
 
-      let data = {};
-      try {
-        data = await res.json();
-      } catch {
-        // Keep the fallback error below when the API returns no JSON body.
-      }
-
-      if (res.status === 401) {
-        throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || "Couldn't start Stripe checkout. Please try again.");
-      }
-
-      if (!data.url) {
-        throw new Error("Stripe checkout did not return a payment link.");
-      }
-
+      const { data: latestData, error: latestError } = await supabase.auth.getSession();
+      if (!current()) return;
+      if (latestError || !latestData?.session?.access_token || latestData.session.user?.id !== accountId) throw new Error("Your account changed. Reopen the booking after signing in.");
+      if (!checkoutModalActive.current) return;
       window.location.assign(data.url); // hand off to Stripe's hosted checkout page
+      redirected = true;
     } catch (err) {
-      console.error("Stripe checkout error:", err);
-      setRedirecting(false);
-      setStripeError(err?.message || "Couldn't start Stripe checkout. Please try again.");
+      if (current()) setStripeError(err?.message || "Couldn't start Stripe checkout. Check My Bookings and Transactions before trying again.");
+    } finally {
+      if (!redirected) attempt.busy = false;
+      if (current() && !redirected) setRedirecting(false);
     }
   };
 
@@ -1152,7 +1241,7 @@ const subtotal = listing.price * hours;
   );
 
   return (
-    <Modal title={step === 1 ? "Review & pay" : "Payment details"} onClose={onClose}>
+    <Modal title={step === 1 ? "Review & pay" : "Payment details"} onClose={closeCheckout}>
       {step === 1 && (
         <div>
           {/* Booking summary */}
@@ -1172,6 +1261,8 @@ const subtotal = listing.price * hours;
                 {timeLabel && <div style={{ marginTop: 2 }}>🕐 {timeLabel} ({hours} hr{hours > 1 ? "s" : ""})</div>}
               </div>
             )}
+            <p role="note" style={{ fontSize: 12, color: C.navy, margin: "0 0 14px" }}>{propertyTimeZoneLabel}</p>
+            {!date && <p role="note" style={{ fontSize: 13, color: C.navy, lineHeight: 1.6 }}>Book Now starts immediately after payment and cannot be cancelled in the app. Contact ParkShare support to request a refund review.</p>}
             {selectedEvent && <EventDestinationSummary event={selectedEvent} booking />}
             {[
               [money(listing.price)+"/hr × "+hours+" hr"+(hours>1?"s":""), money(subtotal)],
@@ -1200,7 +1291,7 @@ const subtotal = listing.price * hours;
                   <span className="ps-spot-vehicle-check" aria-hidden="true">✓</span>
                 </div>
                 <button type="button" className="ps-spot-change-vehicle" aria-expanded={changeVehicleOpen}
-                  aria-controls="payment-vehicle-choices" onClick={() => setChangeVehicleOpen(open => !open)}>
+                  aria-controls="payment-vehicle-choices" disabled={redirecting} onClick={() => { if (canAct() && !checkoutAttempt.current?.busy) setChangeVehicleOpen(open => !open); }}>
                   {changeVehicleOpen ? "Hide vehicles" : "Switch vehicle"} <span aria-hidden="true">{changeVehicleOpen ? "▴" : "▾"}</span>
                 </button>
                 {changeVehicleOpen && (
@@ -1209,7 +1300,7 @@ const subtotal = listing.price * hours;
                       const isSelected = vehicle.id === selectedVehicleId;
                       return (
                         <button type="button" key={vehicle.id} className={isSelected ? "is-selected" : ""} role="radio"
-                          aria-checked={isSelected} onClick={() => { onVehicleChange(vehicle.id); setChangeVehicleOpen(false); }}>
+                          aria-checked={isSelected} disabled={redirecting} onClick={() => { if (!canAct() || checkoutAttempt.current?.busy) return; onVehicleChange(vehicle.id); setChangeVehicleOpen(false); }}>
                           <VehicleBadge vehicle={vehicle} compact />
                           <span><strong>{vehicle.label}</strong><small>{formatVehicleVisualSummary(vehicle)}</small><em>{vehicle.licensePlate}</em></span>
                           <i aria-hidden="true">{isSelected ? "✓" : ""}</i>
@@ -1225,12 +1316,12 @@ const subtotal = listing.price * hours;
             <div style={{ marginBottom: 20 }}>
               <div style={{ fontWeight: 700, color: C.navy, marginBottom: 10 }}>Your parking spot — live vehicle preview</div>
               <div>
-                <SpotPicker availableCount={Math.min(listing.spaces || 1, 4)} chosen={chosenSpot} onChoose={() => {}} spotStates={Array.isArray(listing.spots) && listing.spots.length > 0 ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent) : undefined} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={listing.spaces} chosen={chosenSpot} onChoose={() => {}} spotStates={getListingSpotLayout(listing).map(spot => spot.forRent)} availableData={availableData} isRealListing={isRealListing} vehicle={selectedVehicle} />
                 <div style={{ fontWeight: 800, fontSize: 20, color: C.navy, marginTop: 10 }}>Spot {spotLabel(chosenSpot)} · Your spot</div>
               </div>
             </div>
           )}
-          {stripeError && <div style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
+          {stripeError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 10, textAlign: "center" }}>{stripeError}</div>}
           {isRealListing ? (
             <>
               <Btn onClick={payWithStripe} full disabled={redirecting || !selectedVehicle}>
@@ -1295,73 +1386,166 @@ const subtotal = listing.price * hours;
 }
 
 // ─── Reviews Section ──────────────────────────────────────────────────────────
+function useReviewSubmission(user, listingId, scope, onSubmitted, initiallyOpen = false) {
+  const accountId = user?.id || null;
+  const key = JSON.stringify([accountId, listingId, scope]);
+  const fresh = () => ({ key, token: { active: true, pending: false, complete: false },
+    draft: { rating: 5, text: "" }, formOpen: initiallyOpen, submitting: false, error: "", submitted: false });
+  const [state, setState] = useState(fresh);
+  let current = state;
+  if (state.key !== key) {
+    state.token.active = false;
+    current = fresh();
+    setState(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    // React StrictMode replays setup after cleanup with the same hook state.
+    // Use a new token so disposed callbacks stay invalid on that replay.
+    if (!latest.current.token.active) {
+      const next = { ...latest.current, token: { active: true, pending: false, complete: latest.current.token.complete }, submitting: false };
+      latest.current = next;
+      setState(next);
+    }
+    return () => { mounted.current = false; latest.current.token.active = false; };
+  }, []);
+  const token = current.token;
+  const isCurrent = () => mounted.current && token.active && latest.current.token === token;
+  const patch = changes => {
+    if (!isCurrent()) return;
+    latest.current = { ...latest.current, ...changes };
+    setState(latest.current);
+  };
+  const open = () => {
+    if (!isCurrent() || token.pending || token.complete) return;
+    patch({ formOpen: true, error: "" });
+  };
+  const cancel = () => {
+    if (!isCurrent()) return false;
+    token.active = false;
+    const next = { ...fresh(), formOpen: false };
+    latest.current = next;
+    setState(next);
+    return true;
+  };
+  const change = changes => {
+    if (isCurrent() && !token.pending && !token.complete) patch({ draft: { ...latest.current.draft, ...changes }, error: "" });
+  };
+  const submit = async () => {
+    if (!isCurrent() || !latest.current.formOpen || token.pending || token.complete) return;
+    const draft = latest.current.draft;
+    const payload = { listingId, rating: Number(draft.rating), text: draft.text.trim() };
+    if (!payload.text) return;
+    if (!Number.isInteger(payload.rating) || payload.rating < 1 || payload.rating > 5 || payload.text.length < 2 || payload.text.length > 1500) {
+      patch({ error: "Choose 1–5 stars and write a review of 2–1500 characters." });
+      return;
+    }
+    token.pending = true;
+    patch({ submitting: true, error: "" });
+    try {
+      // Only explicit demo listings use session-local reviews.
+      if (listingId !== null) {
+        if (!validId(listingId) || !accountId) throw new Error("Please sign in to leave a review.");
+        const { data, error } = await supabase.auth.getSession();
+        if (!isCurrent()) return;
+        const session = data?.session;
+        if (error || !session?.access_token || session.user?.id !== accountId) {
+          throw new Error("Your account changed or expired. Sign in and reopen the review.");
+        }
+        const response = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(payload),
+        });
+        if (!isCurrent()) return;
+        const result = await response.json().catch(() => ({}));
+        if (!isCurrent()) return;
+        if (!response.ok) throw new Error(result.error || "Couldn't confirm your review. Refresh the reviews before trying again.");
+        if (!validId(result.review?.id) || Number(result.review.listing_id) !== listingId || Number(result.review.rating) !== payload.rating) {
+          throw new Error("Couldn't confirm your review. Refresh the reviews before trying again.");
+        }
+      }
+      if (!isCurrent()) return;
+      token.complete = true;
+      patch({ submitted: true, formOpen: false });
+      onSubmitted?.(payload);
+    } catch (error) {
+      if (isCurrent()) patch({ error: error?.message || "Couldn't confirm your review. Refresh the reviews before trying again." });
+    } finally {
+      token.pending = false;
+      if (isCurrent()) patch({ submitting: false });
+    }
+  };
+  return { ...current, open, cancel, change, submit };
+}
+
 function ReviewsSection({ listing, onSubmitReview, user }) {
+  const reviewTextId = useId();
+  const accountId = user?.id || null;
   const numericId = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
   const isRealListing = numericId !== null;
 
-  const [showForm, setShowForm] = useState(false);
-  const [draft, setDraft] = useState({ rating: 5, text: "" });
+  const [reviewRows, setReviewRows] = useState(() => ({ listingId: listing.id, accountId, revision:0, status:isRealListing ? "loading" : "loaded", rows: REVIEWS_DATA[listing.id] || [] }));
+  const [reviewReload, setReviewReload] = useState(0);
+  const reviewState = reviewRows.listingId === listing.id && reviewRows.accountId === accountId && reviewRows.revision === reviewReload
+    ? reviewRows : {status:isRealListing ? "loading" : "loaded",rows:REVIEWS_DATA[listing.id] || []};
+  const localReviews = reviewState.rows;
+  const reviewReadContext = useRef(null);
+  const { draft, formOpen: showForm, submitted, error: submitError, submitting, open, cancel, change, submit } =
+    useReviewSubmission(user, numericId, listing.id, payload => {
+      if (isRealListing) setReviewReload(value => value + 1);
+      else setReviewRows(current => ({ listingId: listing.id, accountId, revision:reviewReload, status:"loaded", rows: [
+        { id: Date.now(), user: "You", rating: payload.rating, date: "Just now", text: payload.text },
+        ...(current.listingId === listing.id ? current.rows : REVIEWS_DATA[listing.id] || []),
+      ] }));
+      onSubmitReview?.();
+    });
 
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [localReviews, setLocalReviews] = useState(REVIEWS_DATA[listing.id] || []);
-
-  const loadReviews = () => {
+  useEffect(() => {
     if (!isRealListing) return;
-    supabase
-      .from("reviews")
-      .select("*, profiles(name)")
-      .eq("listing_id", numericId)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error || !data) return;
-        setLocalReviews(
-          data.map(row => ({
-            id: row.id,
-            user: row.profiles?.name || "Renter",
-            rating: row.rating,
-            date: new Date(row.created_at).toLocaleDateString(),
-            text: row.text,
-          }))
-        );
-      });
-  };
-
-  useEffect(() => { loadReviews(); }, [listing.id]);
-
-  const submit = async () => {
-    if (!draft.text.trim()) return;
-    setSubmitError("");
-
-    if (isRealListing) {
-      if (!user) {
-        setSubmitError("Please sign in to leave a review.");
-        return;
+    const context = {active:true,listingId:listing.id,accountId,revision:reviewReload,retrying:false};
+    reviewReadContext.current = context;
+    const controller = new AbortController();
+    setReviewRows({listingId:listing.id,accountId,revision:reviewReload,status:"loading",rows:[]});
+    (async () => {
+      try {
+        let headers = {};
+        if (accountId) {
+          const {data, error} = await supabase.auth.getSession();
+          if (!context.active) return;
+          if (error || data?.session?.user?.id !== accountId || !data.session.access_token) throw new Error("Session changed");
+          headers.Authorization = `Bearer ${data.session.access_token}`;
+        }
+        const endpoint = accountId ? "/api/listing-reviews" : "/api/public-reviews";
+        const response = await fetch(endpoint + "?listingId=" + numericId, { headers, signal: controller.signal, cache:"no-store" });
+        if (!response.ok) throw new Error("Reviews unavailable");
+        const { reviews, textAvailable = false } = await response.json();
+        if (!context.active) return;
+        if (accountId) {
+          const {data, error} = await supabase.auth.getSession();
+          if (!context.active) return;
+          if (error || data?.session?.user?.id !== accountId) throw new Error("Session changed");
+        }
+        if (!Array.isArray(reviews) || reviews.length > 100 || !reviews.every(row => row && !Array.isArray(row) && Number.isInteger(row.rating) && row.rating >= 1 && row.rating <= 5 && ["user","date","text"].every(key => row[key] == null || typeof row[key] === "string"))) throw new Error("Reviews unavailable");
+        setReviewRows({ listingId: listing.id, accountId, revision:reviewReload, status:"loaded", textAvailable, rows: reviews.map((row, index) => ({
+          id: numericId + "-" + index, user: row.user || "ParkShare driver",
+          rating: row.rating, date: row.date || "", text: accountId && textAvailable === true ? row.text || "" : "",
+        })) });
+      } catch {
+        if (context.active) setReviewRows({listingId:listing.id,accountId,revision:reviewReload,status:"error",rows:[]});
       }
-      setSubmitting(true);
-      const { error } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating: draft.rating,
-        text: draft.text.trim(),
-      });
-      setSubmitting(false);
-      if (error) {
-        setSubmitError(error.message);
-        return;
-      }
-      loadReviews();
-    } else {
-      // Demo listings aren't backed by a real listing row, so keep the
-      // review local to this session.
-      const r = { id: Date.now(), user: "You", rating: draft.rating, date: "Just now", text: draft.text.trim() };
-      setLocalReviews(rs => [r, ...rs]);
-    }
+    })();
+    return () => { context.active = false; controller.abort(); };
+  }, [listing.id, reviewReload, accountId]);
 
-    setSubmitted(true);
-    setShowForm(false);
-    onSubmitReview?.();
+  const retryContext = reviewReadContext.current;
+  const retryReviews = () => {
+    if (reviewState.status !== "error" || !retryContext?.active || retryContext.retrying || reviewReadContext.current !== retryContext) return;
+    retryContext.retrying = true;
+    setReviewReload(value => value + 1);
   };
 
   const avgRating = localReviews.length
@@ -1373,11 +1557,13 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
           <span style={{ fontWeight: 700, color: C.navy, fontSize: 16 }}>Reviews</span>
-          <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, marginLeft: 8 }}>★ {avgRating}</span>
-          <span style={{ fontSize: 12, color: C.muted, marginLeft: 4 }}>({localReviews.length})</span>
+          {reviewState.status === "loaded" && <>
+            {(!isRealListing || localReviews.length > 0) && <span style={{ fontSize: 13, color: C.amber, fontWeight: 700, marginLeft: 8 }}>★ {avgRating}</span>}
+            <span style={{ fontSize: 12, color: C.muted, marginLeft: 4 }}>({localReviews.length})</span>
+          </>}
         </div>
         {!showForm && !submitted && (
-          <Btn small variant="outline" onClick={() => setShowForm(true)}>Write a review</Btn>
+          <Btn small variant="outline" onClick={open}>Write a review</Btn>
         )}
       </div>
 
@@ -1385,22 +1571,24 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your rating</div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div role="group" aria-label="Your rating" style={{ display: "flex", gap: 6 }}>
               {[1, 2, 3, 4, 5].map(n => (
-                <button key={n} onClick={() => setDraft(d => ({ ...d, rating: n }))}
+                <button key={n} type="button" aria-label={`${n} ${n === 1 ? "star" : "stars"} out of 5`} aria-pressed={draft.rating === n}
+                  onClick={() => change({ rating: n })} disabled={submitting}
                   style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer", color: n <= draft.rating ? C.amber : C.concrete, padding: 0 }}>★</button>
               ))}
             </div>
           </div>
-          <textarea
+          <label htmlFor={reviewTextId} style={{ display: "block", fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</label>
+          <textarea id={reviewTextId}
             value={draft.text}
-            onChange={e => setDraft(d => ({ ...d, text: e.target.value }))}
+            onChange={e => change({ text: e.target.value })} disabled={submitting} maxLength={1500}
             placeholder="Share your experience…"
             style={{ width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 13, resize: "vertical", minHeight: 80, fontFamily: "'Poppins', sans-serif", color: C.navy, outline: "none", boxSizing: "border-box" }}
           />
-          {submitError && <div style={{ color: C.red, fontSize: 12, marginTop: 8 }}>{submitError}</div>}
+          {submitError && <div role="alert" style={{ color: C.red, fontSize: 12, marginTop: 8 }}>{submitError}</div>}
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <Btn small variant="ghost" onClick={() => setShowForm(false)}>Cancel</Btn>
+            <Btn small variant="ghost" onClick={cancel}>Cancel</Btn>
             <Btn small variant="moss" onClick={submit} disabled={!draft.text.trim() || submitting}>{submitting ? "Submitting…" : "Submit review"}</Btn>
           </div>
         </div>
@@ -1413,6 +1601,12 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {reviewState.status === "loading" && <div role="status" style={{fontSize:13,color:C.muted}}>Loading reviews…</div>}
+        {reviewState.status === "error" && <div role="alert" style={{fontSize:13,color:C.muted}}>
+          <p style={{margin:"0 0 8px"}}>Reviews are temporarily unavailable. Please try again.</p>
+          <button type="button" onClick={retryReviews} style={{minHeight:44,padding:"8px 14px",border:"1px solid "+C.navy,borderRadius:8,background:C.white,color:C.navy,fontWeight:600,cursor:"pointer"}}>Retry reviews</button>
+        </div>}
+        {isRealListing && reviewState.status === "loaded" && localReviews.length > 0 && !reviewState.textAvailable && <p style={{fontSize:12,color:C.muted}}>Written reviews are available to the Host and Drivers with a confirmed paid booking, because they may contain private access details.</p>}
         {localReviews.map(r => (
           <div key={r.id} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 10, padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
@@ -1422,10 +1616,10 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
               </div>
               <Stars rating={r.rating} size={12} />
             </div>
-            <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, margin: 0 }}>{r.text}</p>
+            {r.text && <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{r.text}</p>}
           </div>
         ))}
-        {localReviews.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>No reviews yet. Be the first!</div>}
+        {reviewState.status === "loaded" && localReviews.length === 0 && <div style={{ fontSize: 13, color: C.muted }}>No reviews yet. Be the first!</div>}
       </div>
     </div>
   );
@@ -1436,7 +1630,7 @@ function ReviewsSection({ listing, onSubmitReview, user }) {
 // Shows the real aerial photo of the driveway. When the host marked spots in
 // step 4 of listing, they're drawn here too — tappable when used inside the
 // spot picker so renters choose their exact space on the actual property.
-function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null }) {
+function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chosen = null, onChoose, height = 220, chosenColor = C.hazard, vehicle = null, availableData = null, isRealListing = false }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -1467,19 +1661,25 @@ function ListingSatelliteView({ lat, lng, spots = [], interactive = false, chose
           // physical space to both host and renter.
           const isRent = s.forRent;
           const myLabel = i;
-          const isChosen = isRent && chosen === myLabel;
+          // A satellite bay follows the same exact-window booking/hold check
+          // as the ordinary picker; free total capacity alone is insufficient.
+          const canPick = isRent && canChooseListingSpot({
+            isRealListing, hostRentable: isRent, availableData,
+            label: String.fromCharCode(65 + myLabel),
+          });
+          const isChosen = canPick && chosen === myLabel;
           return (
             <Rectangle
               key={s.id}
               bounds={s.bounds}
               options={{
-                fillColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                fillColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 fillOpacity: isChosen ? 0.55 : 0.35,
-                strokeColor: isChosen ? chosenColor : (isRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
+                strokeColor: isChosen ? chosenColor : (isRent && canPick ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE),
                 strokeWeight: isChosen ? 3 : 2,
-                clickable: interactive && isRent,
+                clickable: interactive && canPick,
               }}
-              onClick={isRent && interactive ? () => onChoose(myLabel) : undefined}
+              onClick={canPick && interactive ? () => onChoose(myLabel) : undefined}
             />
           );
         })}
@@ -1559,7 +1759,7 @@ const formatHour = (h) => {
   const h12 = wholeHour % 12 === 0 ? 12 : wholeHour % 12;
   return `${h12}:${String(minutes).padStart(2, "0")} ${period}${Number(h) >= 24 ? " (+1 day)" : ""}`;
 };
-function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, user, initialSpotPickerOpen = true }) {
+function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onRequestSignIn, onVehicleUpdated, user, initialSpotPickerOpen = true }) {
   // "now" = Book Now (duration only, starts at payment). "advance" = Schedule
   // for Later (pick a date + time window). Two genuinely different booking
   // flows sharing one panel, not one flow pretending to be both.
@@ -1570,15 +1770,21 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   const [nowDuration, setNowDuration] = useState(1);
   const [nowCustomHours, setNowCustomHours] = useState("3");
   const isCustomDuration = !NOW_DURATIONS.includes(nowDuration);
-  const nowHours = isCustomDuration ? Math.max(1, Number(nowCustomHours) || 1) : nowDuration;
+  const nowDurationValidation = validateBookingDuration(isCustomDuration ? nowCustomHours : nowDuration);
+  const nowHours = nowDurationValidation.hours;
 
   // Schedule for Later — the original date + start/end hour pickers.
   const [startHour, setStartHour] = useState(9);
   const [endHour, setEndHour] = useState(11);
-  const advanceHours = Math.max(1, endHour - startHour);
+  const [date, setDate] = useState(() => futureBookingDate(listing.timeZone));
+  const bookingDate = localCalendarDate(date);
+  const advanceDurationValidation = useMemo(() => validateScheduledBooking({
+    bookingDate, startHour, endHour, timeZone: listing.timeZone,
+  }), [bookingDate, startHour, endHour, listing.timeZone]);
+  const invalidHours = useMemo(() => invalidScheduledHours({bookingDate, timeZone: listing.timeZone}), [bookingDate, listing.timeZone]);
+  const advanceHours = advanceDurationValidation.hours;
   const handleStartChange = (e) => { const v = Number(e.target.value); setStartHour(v); if (endHour <= v) setEndHour(v + 1); };
   const handleEndChange = (e) => { setEndHour(Number(e.target.value)); };
-  const [date, setDate] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; });
   const [showCalendar, setShowCalendar] = useState(false);
 
   useEffect(() => {
@@ -1594,18 +1800,59 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // The single source of truth for "how long, and what gets sent to
   // checkout" — depends entirely on which tab is active.
   const hours = bookingMode === "now" ? nowHours : advanceHours;
+  const durationError = bookingMode === "now" ? nowDurationValidation.error : advanceDurationValidation.error;
+  const bookNowTimes = durationError ? null : formatBookNowTimes(listing.timeZone, hours);
 
   const [showPayment, setShowPayment] = useState(false);
+  const availabilityPaused = useRef(false);
+  availabilityPaused.current = showPayment;
   const [booked, setBooked] = useState(false);
   const [bookingError, setBookingError] = useState("");
   const [chosenSpot, setChosenSpot] = useState(null);
+  const spotListingId = useRef(listing.id);
+  useEffect(() => {
+    if (spotListingId.current === listing.id) return;
+    spotListingId.current = listing.id;
+    setChosenSpot(null);
+    setShowPayment(false);
+  }, [listing.id]);
   const [showSpotPicker, setShowSpotPicker] = useState(initialSpotPickerOpen);
+  const spotPickerTrigger = useRef(null);
   const bookableVehicles = getBookableVehicles(user || {});
   const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const [vehicleEditorOpen, setVehicleEditorOpen] = useState(() => getBookableVehicles(user || {}).length === 0);
+  // The selected spot and schedule stay in place across another tab's
+  // sign-out/sign-in. Rehydrate a valid saved vehicle when Auth catches up.
+  const lastBookingUserId = useRef(user?.id || null);
+  useEffect(() => {
+    const nextId = user?.id || null;
+    if (lastBookingUserId.current !== nextId) {
+      // A different account should never inherit an open payment dialog.
+      setShowPayment(false);
+      lastBookingUserId.current = nextId;
+      setVehicleEditorOpen(Boolean(nextId) && getBookableVehicles(user || {}).length === 0);
+    }
+    if (!user) {
+      setShowPayment(false);
+      return;
+    }
+    setSelectedVehicleId(current => bookableVehicles.some(vehicle => vehicle.id === current)
+      ? current
+      : (bookableVehicles.find(vehicle => vehicle.id === "primary") || bookableVehicles[0])?.id || "");
+  }, [user]);
   const selectedVehicle = bookableVehicles.find(vehicle => vehicle.id === selectedVehicleId) || null;
   const [spotVehiclePickerOpen, setSpotVehiclePickerOpen] = useState(false);
   const spotVehiclePickerRef = useRef(null);
+  const spotLayout = getListingSpotLayout(listing);
   const chooseSpot = (index) => {
+    if (durationError || !bookingReady) return;
+    const hostRentable = spotLayout[index]?.forRent === true;
+    if (!canChooseListingSpot({
+      isRealListing: numericIdForAvailability !== null,
+      hostRentable,
+      availableData: selectedAvailability,
+      label: String.fromCharCode(65 + index),
+    })) return;
     // Automatically preview the Driver Profile's complete primary vehicle
     // when first choosing a bay. Preserve an explicitly selected guest
     // vehicle on subsequent spot changes. No red cartoon car in the chosen
@@ -1630,14 +1877,15 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     && Array.isArray(listing.spots) && listing.spots.some(s => s.forRent)
     && listing.spots.filter(s => s.forRent).every(hasValidBounds)
     && !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const rentableSpots = hasSatelliteSpots ? listing.spots.filter(s => s.forRent) : null;
-  const availableCount = rentableSpots ? rentableSpots.length : Math.min(listing.spaces || 1, 4);
-  const spotStates = Array.isArray(listing.spots) && listing.spots.length > 0
-    ? Array.from({ length: 4 }, (_, i) => !!listing.spots[i]?.forRent)
-    : undefined;
+  const availableCount = spotLayout.filter(spot => spot.forRent).length;
+  const spotStates = spotLayout.map(spot => spot.forRent);
   const spotLabel = (i) => String.fromCharCode(65 + i); // A, B, C… works past the old 4-spot cap
 
   const numericIdForAvailability = String(listing.id).startsWith("db-") ? Number(String(listing.id).slice(3)) : null;
+
+  const bookingReadiness = useListingBookability(numericIdForAvailability, showPayment);
+  const bookingReady = bookingReadiness.status === "ready";
+  useEffect(() => { if (!bookingReady) setShowPayment(false); }, [bookingReady]);
 
   // Glanceable "right now" badge shown near the title — always reflects this
   // instant, independent of whatever the renter has selected below.
@@ -1645,11 +1893,31 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   useEffect(() => {
     if (numericIdForAvailability === null) return;
     let cancelled = false;
-    fetch(`/api/listing-availability?listingId=${numericIdForAvailability}&hours=1`)
+    let controller;
+    let revision = 0;
+    const load = () => {
+      if (cancelled || document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      const attempt = ++revision;
+      fetch(`/api/listing-availability?listingId=${numericIdForAvailability}&hours=1`, { cache: "no-store", signal: controller.signal })
       .then(res => res.ok ? res.json() : null)
-      .then(data => { if (!cancelled && data) setLiveAvailability(data); })
+      .then(data => { if (!cancelled && attempt === revision && data) setLiveAvailability(data); })
       .catch(() => {}); // best-effort — booking itself is still enforced server-side regardless
-    return () => { cancelled = true; };
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    window.addEventListener("focus", load);
+    window.addEventListener("parkshare:availability-changed", load);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", load);
+      window.removeEventListener("parkshare:availability-changed", load);
+      document.removeEventListener("visibilitychange", load);
+    };
   }, [numericIdForAvailability]);
 
   // Live check tied to whatever the renter has actually selected — re-runs
@@ -1658,22 +1926,82 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
   // checkout, not just at the final payment step. Uses the same
   // getSessionWindow logic server-side as the actual booking enforcement, so
   // this can never show "available" for something that then gets rejected.
-  const [selectedAvailability, setSelectedAvailability] = useState(null);
+  const selectedWindowKey = availabilityRequestKey({
+    listingId: numericIdForAvailability,
+    mode: bookingMode,
+    hours,
+    bookingDate: bookingMode === "advance" ? localCalendarDate(date) : "",
+    startHour,
+    endHour,
+  });
+  // A new selection window owns its response, including Now -> Later -> Now.
+  // Retain the Driver's bay choice without trusting a previous window's check.
+  const availabilityWindow = useMemo(() => ({}), [selectedWindowKey, listing.id]);
+  const [availabilityResult, setAvailabilityResult] = useState(null);
+  // A result for the *previous* day, mode or duration can never unlock a bay.
+  const selectedAvailability = !durationError && availabilityResult?.window === availabilityWindow
+    ? availabilityResult.data : null;
+  const availabilityFailed = availabilityResult?.window === availabilityWindow
+    && availabilityResult.error;
   useEffect(() => {
+    if (durationError) {
+      setAvailabilityResult(null);
+      setChosenSpot(null);
+      setShowPayment(false);
+      setShowSpotPicker(false);
+      return;
+    }
     if (numericIdForAvailability === null) return;
     let cancelled = false;
-    setSelectedAvailability(null); // clear stale result immediately while the new one loads
+    let controller;
+    let revision = 0;
+    availabilityPaused.current = false;
+    setShowPayment(false);
     const params = new URLSearchParams({ listingId: String(numericIdForAvailability), hours: String(hours) });
     if (bookingMode === "advance") {
-      params.set("bookingDate", date.toISOString());
+      params.set("bookingDate", localCalendarDate(date));
       params.set("startHour", String(startHour));
+      params.set("endHour", String(endHour));
     }
-    fetch(`/api/listing-availability?${params.toString()}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (!cancelled && data) setSelectedAvailability(data); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [numericIdForAvailability, bookingMode, hours, bookingMode === "advance" ? date.getTime() : null, bookingMode === "advance" ? startHour : null]);
+    const load = () => {
+      if (cancelled || availabilityPaused.current || document.visibilityState === "hidden") return;
+      controller?.abort();
+      controller = new AbortController();
+      const attempt = ++revision;
+      fetch(`/api/listing-availability?${params.toString()}`, { cache: "no-store", signal: controller.signal })
+      .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(res.status >= 400 && res.status < 500 && typeof data.error === "string"
+          ? data.error : "Unable to verify availability. Try again shortly.");
+        return data;
+      })
+      .then(data => {
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, window: availabilityWindow, data, error: false });
+      })
+      .catch(error => {
+        if (!cancelled && attempt === revision && !availabilityPaused.current) setAvailabilityResult({ key: selectedWindowKey, window: availabilityWindow, data: null, error: error.message || "Unable to verify availability. Try again shortly." });
+      });
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    window.addEventListener("focus", load);
+    window.addEventListener("parkshare:availability-changed", load);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      window.clearInterval(timer);
+      window.removeEventListener("focus", load);
+      window.removeEventListener("parkshare:availability-changed", load);
+      document.removeEventListener("visibilitychange", load);
+    };
+  }, [availabilityWindow, numericIdForAvailability]);
+  const chosenSpotAvailable = bookingReady && !durationError && chosenSpot !== null && canChooseListingSpot({
+    isRealListing: numericIdForAvailability !== null,
+    hostRentable: spotLayout[chosenSpot]?.forRent === true,
+    availableData: selectedAvailability,
+    label: chosenSpot !== null ? String.fromCharCode(65 + chosenSpot) : "",
+  });
 
   const confirmBooking = async () => {
     // Only reached for demo listings — real (host-listed) bookings are now
@@ -1700,10 +2028,15 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
       {listing.walkLabel && <WalkingTimeLabel label={listing.walkLabel} className="ps-listing-detail-walk-time" />}
 
       <div style={{ marginBottom: 14 }}>
-        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview route</Btn>
+        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview approximate route</Btn>
       </div>
 
-      {liveAvailability && (
+      {!bookingReady && <div className="ps-listing-bookability-notice" role={bookingReadiness.status === "unknown" ? "alert" : "status"}>
+        <strong>{bookingReadiness.status === "paused" ? "Listing paused" : bookingReadiness.status === "not_ready" ? "Not bookable yet" : bookingReadiness.status === "checking" ? "Checking booking status" : "Booking status unavailable"}</strong>
+        <p>{bookingReadinessMessage(bookingReadiness.status)}</p>
+        {bookingReadiness.status !== "checking" && <button type="button" className="ps-tap-target" onClick={bookingReadiness.retry}>Check again</button>}
+      </div>}
+      {bookingReady && liveAvailability && (
         <div style={{ marginBottom: 10 }}>
           {liveAvailability.available ? (
             <Badge color={C.moss}>🟢 {liveAvailability.spacesFree} spot{liveAvailability.spacesFree === 1 ? "" : "s"} available now</Badge>
@@ -1738,7 +2071,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Where you'll park</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Approximate parking area</div>
             <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={(listing.spots || []).filter(hasValidBounds)} />
           </div>
         </SpotMapBoundary>
@@ -1762,11 +2095,19 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
           <div style={{ fontWeight: 700, color: C.moss, fontSize: 15, marginBottom: 4 }}>Booking confirmed!</div>
           <div style={{ fontSize: 13, color: C.moss, marginBottom: 12 }}>Check My Bookings for details.</div>
-          <div className="ps-booking-navigation-group">
-            <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
-            <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
-          </div>
-          <RidesharePickupCard listing={listing} />
+          {listing.locationPrecision === "approximate" ? (
+            <div role="status" style={{ fontSize: 12, color: C.navy, marginBottom: 10 }}>
+              The exact driveway address and navigation unlock in My Bookings after payment is confirmed.
+            </div>
+          ) : (
+            <>
+              <div className="ps-booking-navigation-group">
+                <Btn small variant="amber" onClick={() => onNavigateToParking(listing)}>🧭 Navigate to parking</Btn>
+                <button type="button" className="ps-change-navigation-app" onClick={() => onChangeNavigationApp(listing)}>Change app</button>
+              </div>
+              <RidesharePickupCard listing={listing} />
+            </>
+          )}
         </div>
       ) : (
         <div style={{ background: C.warmWhite, border: "1px solid "+C.concrete, borderRadius: 12, padding: 18, marginBottom: 20 }}>
@@ -1784,7 +2125,12 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               availability result so nothing shown is ever for the wrong mode. */}
           <div style={{ display: "flex", background: C.concrete, borderRadius: 10, padding: 2, marginBottom: 16 }}>
             {[["now", "⚡ Book Now"], ["advance", "📅 Schedule for Later"]].map(([mode, label]) => (
-              <button key={mode} onClick={() => setBookingMode(mode)} style={{
+              <button key={mode} onClick={() => {
+                if (mode === "advance" && bookingMode !== "advance" && !selectedEvent) {
+                  setDate(futureBookingDate(listing.timeZone)); setStartHour(9); setEndHour(11);
+                }
+                setBookingMode(mode);
+              }} style={{
                 flex: 1, padding: "9px 4px", borderRadius: 8, border: "none", cursor: "pointer",
                 fontFamily: "'Poppins', sans-serif", fontSize: 11, fontWeight: 700,
                 background: bookingMode === mode ? C.white : "transparent",
@@ -1796,8 +2142,9 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {bookingMode === "now" ? (
             <>
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 12 }}>
-                Starts the moment you pay · {new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
+                Starts the moment you pay · {bookNowTimes?.start || (durationError ? "Enter a valid duration" : "Listing local time unavailable")}
               </div>
+              <p role="note" style={{ fontSize: 12, color: C.navy, lineHeight: 1.6 }}>Book Now starts immediately after payment and cannot be cancelled in the app. Contact ParkShare support to request a refund review.</p>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>How long do you need?</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                 {NOW_DURATIONS.map(d => (
@@ -1819,14 +2166,17 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               </div>
               {isCustomDuration && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <input type="number" min="1" step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                  <input id="booking-custom-hours" type="number" min="1" max={MAX_BOOKING_HOURS} step="0.25" value={nowCustomHours} onChange={e => setNowCustomHours(e.target.value)}
+                    aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-duration-help booking-duration-error" : "booking-duration-help"}
                     style={{ width: 70, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif" }} />
-                  <span style={{ fontSize: 12, color: C.muted }}>hours</span>
+                  <label htmlFor="booking-custom-hours" style={{ fontSize: 12, color: C.muted }}>hours</label>
                 </div>
               )}
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
-                Ends around {new Date(Date.now() + hours * 3600 * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} today
-              </div>
+              {isCustomDuration && <p id="booking-duration-help" style={{ fontSize: 11, color: C.muted, marginTop: 0 }}>1–744 hours (31 days), in 15-minute increments.</p>}
+              {durationError && <p id="booking-duration-error" role="alert" style={{ fontSize: 12, color: C.red }}>{durationError}</p>}
+              {!durationError && <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginBottom: 4 }}>
+                {bookNowTimes ? `Ends around ${bookNowTimes.end}` : "Estimated departure unavailable until the listing's time zone is verified."}
+              </div>}
             </>
           ) : (
             <>
@@ -1843,15 +2193,22 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ marginBottom: 8, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Time needed</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <select value={startHour} onChange={handleStartChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
-                    {HOUR_OPTIONS.map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+                  <select value={startHour} onChange={handleStartChange} aria-label="Parking start time" aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-schedule-error" : undefined} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
+                    {HOUR_OPTIONS.map(h => <option key={h} value={h} disabled={invalidHours.has(h)}>{formatHour(h)}{invalidHours.has(h) ? " (unavailable — clock change)" : ""}</option>)}
                   </select>
                   <span style={{ color: C.muted, fontSize: 13 }}>to</span>
-                  <select value={endHour} onChange={handleEndChange} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
-                    {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h}>{formatHour(h)}</option>)}
+                  <select value={endHour} onChange={handleEndChange} aria-label="Parking end time" aria-invalid={Boolean(durationError)} aria-describedby={durationError ? "booking-schedule-error" : undefined} style={{ flex: 1, border: "1px solid "+C.concrete, borderRadius: 8, padding: "8px 10px", fontSize: 13, color: C.navy, fontFamily: "'Poppins', sans-serif", background: C.white }}>
+                    {END_HOUR_OPTIONS.filter(h => h > startHour && h <= startHour + 24).map(h => <option key={h} value={h} disabled={invalidHours.has(h)}>{formatHour(h)}{invalidHours.has(h) ? " (unavailable — clock change)" : ""}</option>)}
                   </select>
                 </div>
-                <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total</div>
+                <p role="note" style={{ fontSize: 12, color: C.navy, margin: "8px 0" }}>
+                  {listing.timeZone ? `Times use ${listing.timeZone} local time.` : "Listing time zone unavailable."}
+                </p>
+                {durationError ? (
+                  <div id="booking-schedule-error" role="alert" style={{ fontSize: 11, color: C.red, fontWeight: 700, marginTop: 6 }}>
+                    {durationError} Adjust the start or end time.
+                  </div>
+                ) : <div style={{ fontSize: 11, color: C.moss, fontWeight: 700, marginTop: 6 }}>{hours} hour{hours > 1 ? "s" : ""} total{advanceHours !== endHour - startHour ? " · adjusted for the clock change" : ""}</div>}
               </div>
             </>
           )}
@@ -1859,9 +2216,9 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           {/* Live check tied to exactly what's selected above — re-runs on
               every duration/date/time change, so this never lags behind
               what's actually being booked. */}
-          {numericIdForAvailability !== null && (
+          {bookingReady && !durationError && numericIdForAvailability !== null && (
             selectedAvailability === null ? (
-              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8 }}>Checking availability…</div>
+              <div role="status" style={{ fontSize: 10, color: availabilityFailed ? C.red : C.muted, marginBottom: 8 }}>{availabilityFailed || "Checking availability… Spot selection is temporarily disabled."}</div>
             ) : selectedAvailability.available ? (
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🟢</span>
@@ -1873,9 +2230,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               <div style={{ display: "flex", alignItems: "center", gap: 5, background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 6, padding: "5px 8px", marginBottom: 8 }}>
                 <span style={{ fontSize: 10 }}>🔴</span>
                 <span style={{ fontSize: 10, color: C.navy, fontWeight: 700 }}>
-                  {selectedAvailability.reason === "host_schedule"
-                    ? `Host is not accepting bookings for that ${bookingMode === "now" ? "time" : "slot"} — choose another time`
-                    : `Full for that ${bookingMode === "now" ? "time" : "slot"} — try a different ${bookingMode === "now" ? "duration" : "time"}`}
+                  {listingAvailabilityMessage(selectedAvailability, bookingMode)}
                 </span>
               </div>
             )
@@ -1884,20 +2239,36 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <div style={{ marginBottom: 14, paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontSize: 12, color: C.muted }}>Parking spot</div>
-              <button onClick={() => setShowSpotPicker(true)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
+              <button ref={spotPickerTrigger} className="ps-tap-target" type="button" disabled={Boolean(durationError) || !bookingReady} onClick={() => { if (!durationError && bookingReady) setShowSpotPicker(true); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 12, textDecoration: "underline", cursor: durationError ? "default" : "pointer" }}>{chosenSpot === null ? "Choose spot" : "Change"}</button>
             </div>
             <div style={{ fontWeight: 700, fontSize: 15, color: chosenSpot === null ? C.muted : C.navy, marginTop: 2 }}>
               {chosenSpot === null ? "Not selected yet" : "Spot " + spotLabel(chosenSpot)}
               {selectedVehicle && <div style={{ fontSize: 11, fontWeight: 600, color: C.muted, marginTop: 3 }}>{formatVehicleVisualSummary(selectedVehicle)}</div>}
             </div>
+            {bookingReady && chosenSpot !== null && selectedAvailability && !chosenSpotAvailable && (
+              <div role="status" style={{ fontSize: 11, color: C.red, marginTop: 6 }}>
+                Spot {spotLabel(chosenSpot)} is unavailable for this time. Choose another spot or change the date, time or duration.
+              </div>
+            )}
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
+          <div className="ps-booking-reserve-row" style={{ paddingTop: 14, borderTop: "1px solid "+C.concrete }}>
             <div>
               <div style={{ fontSize: 11, color: C.muted }}>Total (incl. fees)</div>
-              <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(Math.round(listing.price * hours * 1.15))}</div>
+              {durationError ? <div style={{ fontSize: 12, color: C.muted }}>Enter a valid duration to see the total.</div>
+                : <div style={{ fontWeight: 800, fontSize: 24, color: C.amber }}>{money(calculateBookingAmounts(listing.price, hours).totalCents / 100)}</div>}
             </div>
-            <Btn variant="amber" onClick={() => setShowPayment(true)} disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>Reserve & pay →</Btn>
+            <Btn variant="amber" onClick={() => { if (!durationError && chosenSpotAvailable && selectedVehicle && !vehicleEditorOpen) setShowPayment(true); }} disabled={Boolean(durationError) || !chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>Reserve & pay →</Btn>
           </div>
+          {!user && (
+            <div role="status" style={{ marginTop: 12, background: C.amberLight, padding: "12px 14px", borderRadius: 9, color: C.navy, fontSize: 12 }}>
+              Your session is signed out. Sign in to continue booking; your chosen parking spot and time will stay selected.
+              <button className="ps-tap-target" type="button" onClick={onRequestSignIn}
+                style={{ marginLeft: 9, fontSize: 12, fontWeight: 700, color: C.navy, border: "none", background: "transparent", textDecoration: "underline", cursor: "pointer" }}>
+                Sign in
+              </button>
+            </div>
+          )}
+
         </div>
       )}
 {showCalendar && (
@@ -1905,28 +2276,39 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           <MiniCalendar selected={date} onSelect={(d) => { setDate(d); setShowCalendar(false); }} />
         </Modal>
       )}
-      {showSpotPicker && (
-        <Modal title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
-          {typeof listing.img === "string" && listing.img.startsWith("data:") && (
+      {showSpotPicker && bookingReady && !durationError && (
+        <Modal nativeModal returnFocus={() => spotPickerTrigger.current} title={"Choose your spot — " + listing.title} onClose={() => setShowSpotPicker(false)}>
+          {isListingImageUrl(listing.img) && (
             <div style={{ borderRadius: 12, overflow: "hidden", marginBottom: 14, height: 140, background: C.concrete }}>
               <ListingThumb listing={listing} size="100%" />
             </div>
           )}
           <p style={{ fontSize: 12, color: C.muted, marginTop: -6, marginBottom: 14 }}>
             {selectedAvailability
-              ? (selectedAvailability.available
-                  ? `${selectedAvailability.spacesFree} of ${selectedAvailability.spacesTotal} spot${selectedAvailability.spacesTotal === 1 ? "" : "s"} free for ${bookingMode === "now" ? "right now" : "that time"}. Tap the one you'd like to park in.`
-                  : `All spots are taken for ${bookingMode === "now" ? "right now" : "that time"} — try a different ${bookingMode === "now" ? "duration" : "time"}, or pick a different listing.`)
-              : `This driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} available for rent. Tap the one you'd like to park in.`}
+              ? listingAvailabilityMessage(selectedAvailability, bookingMode)
+              : numericIdForAvailability !== null
+                ? (availabilityFailed ? "Availability could not be checked. Please retry later." : "Checking this time slot. Spot selection will unlock when availability is confirmed.")
+                : `This demo driveway has ${availableCount} spot${availableCount !== 1 ? "s" : ""} for rent.`}
           </p>
+          {bookingMode === "now" && (
+            <button type="button" className="ps-spot-schedule-later" onClick={() => {
+              if (!selectedEvent) {
+                setDate(futureBookingDate(listing.timeZone)); setStartHour(9); setEndHour(11);
+              }
+              setBookingMode("advance");
+              setShowSpotPicker(false);
+            }} style={{ background: C.amber, color: C.navy, border: "1px solid " + C.navy, borderRadius: 8, padding: "9px 14px", fontWeight: 700, cursor: "pointer", marginBottom: 14 }}>
+              Schedule for Later — choose a date &amp; time
+            </button>
+          )}
           {hasSatelliteSpots ? (
-                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />}>
+                <SpotMapBoundary fallback={<SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />}>
                   <div style={{ marginBottom: 16 }}>
-                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive chosen={chosenSpot} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} />
+                    <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={listing.spots} interactive={numericIdForAvailability === null || selectedAvailability?.available === true} chosen={chosenSpotAvailable ? chosenSpot : null} onChoose={chooseSpot} height={260} vehicle={selectedVehicle} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} />
                   </div>
                 </SpotMapBoundary>
               ) : (
-                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} spotStatus={selectedAvailability?.spotStatus} vehicle={selectedVehicle} />
+                <SpotPicker availableCount={availableCount} chosen={chosenSpot} onChoose={chooseSpot} spotStates={spotStates} availableData={selectedAvailability} isRealListing={numericIdForAvailability !== null} vehicle={selectedVehicle} />
               )}
           {chosenSpot !== null && (
             <section className="ps-spot-vehicle-panel" ref={spotVehiclePickerRef} aria-label="Choose the vehicle you will park">
@@ -1951,7 +2333,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
               )}
               {bookableVehicles.length === 0 ? (
                 <p className="ps-booking-vehicle-missing" role="alert">
-                  No complete saved vehicle is available. Sign in and add a vehicle (make, model, colour and plate) to your Driver Profile before reserving.
+                  {user ? "Add a vehicle below before reserving. Make, model, colour and plate are required." : "Sign in to add your vehicle before reserving."}
                 </p>
               ) : spotVehiclePickerOpen && (
                 <div id="spot-vehicle-choices" className="ps-booking-vehicle-options ps-spot-vehicle-dropdown" role="radiogroup" aria-label="Select your parking vehicle">
@@ -1969,11 +2351,25 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
                   })}
                 </div>
               )}
+              {user && (vehicleEditorOpen ? (
+                <BookingVehicleForm key={user.id} user={user}
+                  onCancel={() => setVehicleEditorOpen(false)}
+                  onSaved={vehicle => {
+                    onVehicleUpdated?.({id:user.id,...vehicle});
+                    setSelectedVehicleId("primary");
+                    setSpotVehiclePickerOpen(false);
+                    setVehicleEditorOpen(false);
+                  }} />
+              ) : (
+                <button type="button" className="ps-booking-vehicle-edit" onClick={() => setVehicleEditorOpen(true)}>
+                  {bookableVehicles.some(vehicle => vehicle.id === "primary") ? "Edit primary vehicle" : "Add vehicle"}
+                </button>
+              ))}
             </section>
           )}
           <Btn variant="amber" full
-            onClick={() => { if (chosenSpot !== null && selectedVehicle) setShowSpotPicker(false); }}
-            disabled={chosenSpot === null || !selectedVehicle || selectedAvailability?.available === false}>
+            onClick={() => { if (chosenSpotAvailable && selectedVehicle && !vehicleEditorOpen) setShowSpotPicker(false); }}
+            disabled={!chosenSpotAvailable || !selectedVehicle || vehicleEditorOpen}>
             {chosenSpot === null ? "Pick a spot to continue" : !selectedVehicle ? "Select a vehicle to continue" : "Confirm Spot " + spotLabel(chosenSpot)}
           </Btn>
         </Modal>
@@ -1981,8 +2377,11 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
       <ReviewsSection listing={listing} user={user} />
 
-      {showPayment && (
+      {showPayment && bookingReady && !durationError && (
       <PaymentModal
+          key={bookingCheckoutKey({ listing, hours, chosenSpot, date: bookingMode === "advance" ? date : undefined,
+            startHour: bookingMode === "advance" ? startHour : undefined, endHour: bookingMode === "advance" ? endHour : undefined,
+            selectedEvent, selectedVehicleId, user })}
           listing={listing}
           hours={hours}
           chosenSpot={chosenSpot}
@@ -1992,6 +2391,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
           selectedEvent={selectedEvent}
           selectedVehicleId={selectedVehicleId}
           onVehicleChange={setSelectedVehicleId}
+          availableData={selectedAvailability}
           onClose={() => setShowPayment(false)}
           onSuccess={confirmBooking}
           user={user}
@@ -2004,20 +2404,23 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
 
 // The email opens the actual booked listing, with its authenticated
 // conversation ready to compose. Opening the link never sends a message.
-function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRoute, onNavigateToParking, onChangeNavigationApp }) {
+function EmailMessageListing({ bookingId, user, onVehicleUpdated, onMessage, onBack, onPreviewRoute, onNavigateToParking, onChangeNavigationApp }) {
   const [context, setContext] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!user) return;
     let active = true;
+    const controller = new AbortController();
     setContext(null);
     setError("");
     (async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Please sign in again to open this conversation.");
+        if (!active) return;
+        if (!session?.access_token || session.user?.id !== user.id) throw new Error("Please sign in again to open this conversation.");
         const response = await fetch(`/api/messages?contextBookingId=${bookingId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store", signal: controller.signal,
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Couldn't open this booking conversation.");
@@ -2029,12 +2432,12 @@ function EmailMessageListing({ bookingId, user, onMessage, onBack, onPreviewRout
         if (active) setError(err.message || "Couldn't open this booking conversation.");
       }
     })();
-    return () => { active = false; };
+    return () => { active = false; controller.abort(); };
   }, [bookingId, user?.id, onMessage]);
 
   if (error) return <div style={{ padding: "40px 24px", textAlign: "center" }}><p role="alert" style={{ color: C.red }}>{error}</p><Btn variant="outline" onClick={onBack}>Back to parking</Btn></div>;
   if (!context) return <div role="status" style={{ padding: "40px 24px", textAlign: "center", color: C.muted }}>{user ? "Opening your booked listing…" : "Sign in to message your Host or Driver."}</div>;
-  return <ListingDetail listing={bookingMessageListing(context)} user={user} onBack={onBack} initialSpotPickerOpen={false}
+  return <ListingDetail listing={bookingMessageListing(context)} user={user} onVehicleUpdated={onVehicleUpdated} onBack={onBack} initialSpotPickerOpen={false}
     onMessage={() => onMessage(bookingMessageThread(context))}
     onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} />;
 }
@@ -2046,50 +2449,36 @@ function useAllListings() {
   const [dbListings, setDbListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const refresh = () => {
-    setLoading(true);
-    setError("");
-    supabase
-      .from("listings")
-      .select("*, profiles(name), reviews(rating)")
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("Couldn't load public listings:", error);
-          setError("We couldn't load available driveways right now.");
-          setLoading(false);
-          return;
-        }
-        setDbListings(
-          (data || []).map(row => ({
-            id: "db-" + row.id,
-            title: row.title,
-            address: row.address,
-            price: Number(row.price),
-            rating: row.reviews?.length ? row.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / row.reviews.length : 0,
-            reviewCount: row.reviews?.length || 0,
-            spaces: row.spaces,
-            features: row.features || [],
-            description: row.description || "",
-            img: row.img || "🏠",
-            photos: row.photos || [],
-            distance: "—",
-            lat: row.lat,
-            lng: row.lng,
-            spots: row.spots || [],
-            availability: row.availability || null,
-            host: row.profiles?.name || "Host",
-            hostImg: "🧑",
-          }))
-        );
-        setLoading(false);
-      });
+  const [nextCursor, setNextCursor] = useState(null);
+  const request = useRef(null);
+  const refresh = async (append = false) => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true); setError("");
+    try {
+      const payload = await fetchPublicParkingPage(append ? nextCursor : null, controller.signal);
+      if (controller.signal.aborted) return;
+      const rows = payload.listings.map(row => ({
+        ...row, id: "db-" + row.id,
+        title: row.title, address: row.address,
+        price: row.price, rating: row.rating || 0, reviewCount: row.reviewCount || 0,
+        spaces: row.spaces, features: row.features || [], description: "",
+        img: "🏠", photos: [], distance: "—",
+        lat: row.lat, lng: row.lng, spots: row.spots || [], availability: null,
+        host: row.host || "ParkShare Host", hostImg: "🧑",
+        locationPrecision: "approximate",
+      }));
+      setDbListings(current => append ? [...current, ...rows.filter(row => !current.some(old => old.id === row.id))] : rows);
+      setNextCursor(payload.nextCursor || null);
+    } catch (error) {
+      if (!controller.signal.aborted) setError("We couldn't load available driveways right now.");
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
   };
-
-  useEffect(() => { refresh(); }, []);
-
-  return { listings: dbListings, loading, error, refresh };
+  useEffect(() => { refresh(); return () => request.current?.abort(); }, []);
+  return { listings: dbListings, loading, error, refresh: () => refresh(), hasMore: Boolean(nextCursor), loadMore: () => refresh(true) };
 }
 
 function EventSubmissionForm({ onClose }) {
@@ -2113,11 +2502,47 @@ function EventSubmissionForm({ onClose }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const formId = useId();
+  const formElement = useRef(null);
+  const validationFocus = useRef(null);
+  useEffect(() => {
+    const shouldFocus = validationFocus.current;
+    validationFocus.current = null;
+    if (shouldFocus) formElement.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [fieldErrors]);
+  const fieldId = field => `${formId}-${field}`;
+  const fieldAttributes = field => ({id: fieldId(field), name: field, "aria-invalid": Boolean(fieldErrors[field]), "aria-describedby": [(["startTime", "endTime"].includes(field) ? `${formId}-timezone` : ""), fieldErrors[field] ? `${fieldId(field)}-error` : ""].filter(Boolean).join(" ") || undefined});
+  const fieldError = field => fieldErrors[field] && <p id={`${fieldId(field)}-error`} className="ps-form-field-error">{fieldErrors[field]}</p>;
   const [reference, setReference] = useState("");
-  const update = (field, value) => setForm(current => ({ ...current, [field]: value }));
+  const submissionContext = useRef(null);
+  useEffect(() => {
+    const context = { active: true, busy: false, complete: false };
+    submissionContext.current = context;
+    setSubmitting(false);
+    return () => { context.active = false; };
+  }, []);
+  const close = () => {
+    if (submissionContext.current) submissionContext.current.active = false;
+    onClose();
+  };
+  const update = (field, value) => {
+    const context = submissionContext.current;
+    if (!context?.active || context.busy || context.complete) return;
+    setForm(current => ({ ...current, [field]: value }));
+    setFieldErrors(current => ({...current, [field]: ""}));
+    setError("");
+  };
 
   const submit = async submitEvent => {
     submitEvent.preventDefault();
+    const context = submissionContext.current;
+    const current = () => Boolean(context?.active && submissionContext.current === context);
+    if (!current() || context.busy || context.complete) return;
+    const errors = validateEventSubmissionForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) { validationFocus.current = true; return; }
+    context.busy = true;
     setSubmitting(true);
     setError("");
     try {
@@ -2127,12 +2552,18 @@ function EventSubmissionForm({ onClose }) {
         body: JSON.stringify({ ...form, requestType: "event-submission" }),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "Your event could not be submitted. Please try again.");
-      setReference(result.reference || "Submitted");
+      if (!current()) return;
+      if (!response.ok) throw new Error(result?.error || "Your event could not be submitted. Please try again.");
+      if (result?.ok !== true || typeof result.reference !== "string" || !result.reference.trim()) {
+        throw new Error("We couldn't confirm whether your event was submitted. Please check with ParkShare Support before submitting it again.");
+      }
+      context.complete = true;
+      setReference(result.reference.trim());
     } catch (submitError) {
-      setError(submitError.message || "Your event could not be submitted. Please try again.");
+      if (current()) setError(submitError?.message || "We couldn't confirm whether your event was submitted. Please check with ParkShare Support before submitting it again.");
     } finally {
-      setSubmitting(false);
+      context.busy = false;
+      if (current()) setSubmitting(false);
     }
   };
 
@@ -2142,46 +2573,45 @@ function EventSubmissionForm({ onClose }) {
       <h3>Event submitted for review</h3>
       <p>Thank you. ParkShare will verify the event details before anything is published.</p>
       <small>Reference: {reference}</small>
-      <button type="button" onClick={onClose}>Done</button>
+      <button type="button" onClick={close}>Done</button>
     </div>
   );
 
   return (
-    <form className="ps-event-submission-form" onSubmit={submit}>
+    <form ref={formElement} className="ps-event-submission-form" onSubmit={submit} noValidate>
+      {Object.values(fieldErrors).some(Boolean) && <div className="ps-form-error-summary" role="alert"><strong>Please correct the following:</strong><ul>{Object.entries(fieldErrors).filter(([, message]) => message).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
       <p className="ps-event-submission-intro">Tell us about your upcoming event. Submissions are reviewed before appearing on ParkShare.</p>
-      <fieldset>
+      <fieldset disabled={submitting}>
         <legend>Organizer contact</legend>
-        <label>Organizer or organization name *<input value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required /></label>
-        <label>Email address *<input type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required /></label>
-        <label>Phone number<input type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} /></label>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerName")}>Organizer or organization name *</label><input {...fieldAttributes("organizerName")} value={form.organizerName} onChange={event => update("organizerName", event.target.value)} maxLength={120} required />{fieldError("organizerName")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerEmail")}>Email address *</label><input {...fieldAttributes("organizerEmail")} type="email" value={form.organizerEmail} onChange={event => update("organizerEmail", event.target.value)} maxLength={254} required />{fieldError("organizerEmail")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("organizerPhone")}>Phone number</label><input {...fieldAttributes("organizerPhone")} type="tel" value={form.organizerPhone} onChange={event => update("organizerPhone", event.target.value)} maxLength={40} />{fieldError("organizerPhone")}</div>
       </fieldset>
-      <fieldset>
+      <fieldset disabled={submitting}>
         <legend>Event details</legend>
-        <label className="is-wide">Event name *<input value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required /></label>
-        <label>Category *
-          <select value={form.category} onChange={event => update("category", event.target.value)} required>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventName")}>Event name *</label><input {...fieldAttributes("eventName")} value={form.eventName} onChange={event => update("eventName", event.target.value)} maxLength={180} required />{fieldError("eventName")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("category")}>Category *</label><select {...fieldAttributes("category")} value={form.category} onChange={event => update("category", event.target.value)} required>
             {EVENT_CATEGORIES.filter(option => option.value).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </label>
-        <label>Venue name *<input value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required /></label>
-        <label className="is-wide">Full event address *<input value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required /></label>
-        <label>Date *<input type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required /></label>
-        <label>Start time *<input type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required /></label>
-        <label>End time<input type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} /></label>
-        <div className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
-        <label className="is-wide">Description *<textarea value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required /></label>
-        <label className="is-wide">Ticket purchase link<input type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
-        <label className="is-wide">Official event link<input type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" /></label>
-        <label className="is-wide">Parking, accessibility, or street-closure notes<textarea value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} /></label>
+          </select>{fieldError("category")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("venueName")}>Venue name *</label><input {...fieldAttributes("venueName")} value={form.venueName} onChange={event => update("venueName", event.target.value)} maxLength={180} required />{fieldError("venueName")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("address")}>Full event address *</label><input {...fieldAttributes("address")} value={form.address} onChange={event => update("address", event.target.value)} maxLength={300} placeholder="Street, city, province and postal code" required />{fieldError("address")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("eventDate")}>Date *</label><input {...fieldAttributes("eventDate")} type="date" value={form.eventDate} onChange={event => update("eventDate", event.target.value)} required />{fieldError("eventDate")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("startTime")}>Start time *</label><input {...fieldAttributes("startTime")} type="time" value={form.startTime} onChange={event => update("startTime", event.target.value)} required />{fieldError("startTime")}</div>
+        <div className="ps-event-form-field"><label htmlFor={fieldId("endTime")}>End time</label><input {...fieldAttributes("endTime")} type="time" value={form.endTime} onChange={event => update("endTime", event.target.value)} />{fieldError("endTime")}</div>
+        <div id={`${formId}-timezone`} className="ps-event-timezone-note">Times are submitted in the venue's local time. ParkShare will confirm the timezone during review.</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("description")}>Description *</label><textarea {...fieldAttributes("description")} value={form.description} onChange={event => update("description", event.target.value)} maxLength={5000} rows={5} required />{fieldError("description")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("ticketUrl")}>Ticket purchase link</label><input {...fieldAttributes("ticketUrl")} type="url" value={form.ticketUrl} onChange={event => update("ticketUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("ticketUrl")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("eventUrl")}>Official event link</label><input {...fieldAttributes("eventUrl")} type="url" value={form.eventUrl} onChange={event => update("eventUrl", event.target.value)} maxLength={1000} placeholder="https://" />{fieldError("eventUrl")}</div>
+        <div className="ps-event-form-field is-wide"><label htmlFor={fieldId("accessNotes")}>Parking, accessibility, or street-closure notes</label><textarea {...fieldAttributes("accessNotes")} value={form.accessNotes} onChange={event => update("accessNotes", event.target.value)} maxLength={2000} rows={3} />{fieldError("accessNotes")}</div>
       </fieldset>
-      <label className="ps-event-submission-consent">
-        <input type="checkbox" checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
-        <span>I confirm that I am authorized to submit this event information and that it is accurate.</span>
-      </label>
+      <div><label className="ps-event-submission-consent" htmlFor={fieldId("authorized")}>
+        <input {...fieldAttributes("authorized")} aria-labelledby={`${fieldId("authorized")}-label`} type="checkbox" disabled={submitting} checked={form.authorized} onChange={event => update("authorized", event.target.checked)} required />
+        <span id={`${fieldId("authorized")}-label`}>I confirm that I am authorized to submit this event information and that it is accurate.</span>
+      </label>{fieldError("authorized")}</div>
       <label className="ps-event-submission-honeypot" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={event => update("website", event.target.value)} /></label>
       {error && <div className="ps-discover-error" role="alert">⚠️ {error}</div>}
       <div className="ps-event-submission-actions">
-        <button type="button" onClick={onClose}>Cancel</button>
+        <button type="button" onClick={close}>Cancel</button>
         <button type="submit" disabled={submitting}>{submitting ? "Submitting…" : "Submit event for review"}</button>
       </div>
     </form>
@@ -2210,12 +2640,58 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
   const [restaurantAction, setRestaurantAction] = useState("");
   const [eventSubmissionOpen, setEventSubmissionOpen] = useState(false);
 
-  const loadRestaurants = async () => {
+  // Scope changes retire pending work before paint. A fresh object also keeps
+  // an A -> B -> A filter/mode change from reviving an earlier request.
+  const searchScope = useMemo(() => ({ mode, restaurantQuery, restaurantCuisine, eventQuery, eventCategory, eventDate }),
+    [mode, restaurantQuery, restaurantCuisine, eventQuery, eventCategory, eventDate]);
+  const searchContext = useRef(null);
+  useLayoutEffect(() => {
+    const context = { scope: searchScope, active: true, busy: false, restaurants: [], events: [] };
+    searchContext.current = context;
+    setRestaurants([]); setEvents([]);
+    setRestaurantsLoading(false); setEventsLoading(false);
+    setRestaurantSearchError(""); setEventSearchError(""); setRestaurantAction("");
+    setEventSubmissionOpen(false);
+    return () => { context.active = false; };
+  }, [searchScope]);
+
+  const currentContext = () => {
+    const context = searchContext.current;
+    return context?.active && context.scope === searchScope ? context : null;
+  };
+  const retireSearch = () => {
+    const context = currentContext();
+    if (!context) return false;
+    context.active = false;
+    return true;
+  };
+  const updateFilter = (setter, previous, value) => {
+    if (previous === value || !retireSearch()) return;
+    setter(value);
+  };
+  const changeMode = nextMode => { if (retireSearch()) onModeChange(nextMode); };
+  const browseParking = () => { if (retireSearch()) onBrowseParking(); };
+
+  const restaurantDestination = restaurant => ({
+    type: "restaurant",
+    destination: restaurant,
+    location: { lat: restaurant.lat, lng: restaurant.lng },
+    query: restaurant.name,
+  });
+  const runRestaurants = async action => {
+    const context = currentContext();
+    if (!context || context.scope.mode !== "restaurants" || context.busy) return;
+    context.busy = true;
+    context.restaurants = [];
+    const current = () => currentContext() === context;
+    setRestaurants([]);
     setRestaurantsLoading(true);
+    setRestaurantAction(action);
     setRestaurantSearchError("");
     try {
       if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Google Places is still loading. Please try again.");
       const { Place } = await google.maps.importLibrary("places");
+      if (!current()) return;
       const { places } = await Place.searchByText({
         textQuery: buildRestaurantSearchText(restaurantQuery, restaurantCuisine),
         fields: ["id", "displayName", "formattedAddress", "location", "primaryType", "primaryTypeDisplayName"],
@@ -2226,37 +2702,44 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
         region: "ca",
         maxResultCount: 12,
       });
+      if (!current()) return;
       const nextRestaurants = (places || []).map(normalizeRestaurantPlace).filter(Boolean);
+      context.restaurants = nextRestaurants;
       setRestaurants(nextRestaurants);
-      return nextRestaurants;
+      if (action === "adventure") {
+        const restaurant = chooseRandomRestaurant(nextRestaurants);
+        if (restaurant) {
+          setRestaurantsLoading(false); setRestaurantAction("");
+          retireSearch();
+          onFindParking(restaurantDestination(restaurant));
+        } else setRestaurantSearchError("No restaurants were available for this adventure. Try another area or cuisine.");
+      } else if (nextRestaurants.length === 0) {
+        setRestaurantSearchError("No matching restaurants were found. Try another name, area, or cuisine.");
+      }
     } catch (error) {
+      if (!current()) return;
+      context.restaurants = [];
       setRestaurants([]);
       setRestaurantSearchError(error?.message || "Restaurants could not be loaded. Please try again.");
-      return [];
     } finally {
-      setRestaurantsLoading(false);
+      context.busy = false;
+      if (current()) { setRestaurantsLoading(false); setRestaurantAction(""); }
     }
   };
-
-  const findRestaurants = async (submitEvent) => {
+  const findRestaurants = submitEvent => {
     submitEvent?.preventDefault();
-    setRestaurantAction("search");
-    const nextRestaurants = await loadRestaurants();
-    if (nextRestaurants.length === 0) setRestaurantSearchError(current => current || "No matching restaurants were found. Try another name, area, or cuisine.");
-    setRestaurantAction("");
+    return runRestaurants("search");
   };
+  const beAdventurous = () => runRestaurants("adventure");
 
-  const beAdventurous = async () => {
-    setRestaurantAction("adventure");
-    const nextRestaurants = await loadRestaurants();
-    const restaurant = chooseRandomRestaurant(nextRestaurants);
-    if (restaurant) chooseRestaurant(restaurant);
-    else setRestaurantSearchError(current => current || "No restaurants were available for this adventure. Try another area or cuisine.");
-    setRestaurantAction("");
-  };
-
-  const findEvents = async (submitEvent) => {
+  const findEvents = async submitEvent => {
     submitEvent?.preventDefault();
+    const context = currentContext();
+    if (!context || context.scope.mode !== "events" || context.busy) return;
+    context.busy = true;
+    context.events = [];
+    const current = () => currentContext() === context;
+    setEvents([]);
     setEventsLoading(true);
     setEventSearchError("");
     try {
@@ -2268,28 +2751,33 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
         .gte("starts_at", earliest)
         .order("starts_at", { ascending: true })
         .limit(100);
+      if (!current()) return;
       if (error) throw error;
       const nextEvents = filterEvents(data || [], { query: eventQuery, category: eventCategory, date: eventDate });
+      context.events = nextEvents;
       setEvents(nextEvents);
       if (nextEvents.length === 0) setEventSearchError("No matching events were found. Try another date, category, or area.");
     } catch (error) {
+      if (!current()) return;
+      context.events = [];
       setEvents([]);
       setEventSearchError("Events could not be loaded. Please try again.");
     } finally {
-      setEventsLoading(false);
+      context.busy = false;
+      if (current()) setEventsLoading(false);
     }
   };
 
-  const chooseRestaurant = restaurant => onFindParking({
-    type: "restaurant",
-    destination: restaurant,
-    location: { lat: restaurant.lat, lng: restaurant.lng },
-    query: restaurant.name,
-  });
-
+  const chooseRestaurant = restaurant => {
+    const context = currentContext();
+    if (!context || context.busy || !context.restaurants.includes(restaurant) || !retireSearch()) return;
+    onFindParking(restaurantDestination(restaurant));
+  };
   const chooseEvent = eventRow => {
+    const context = currentContext();
+    if (!context || context.busy || !context.events.includes(eventRow)) return;
     const event = normalizeEventRow(eventRow);
-    if (!event) return;
+    if (!event || !retireSearch()) return;
     onFindParking({
       type: "event",
       destination: event,
@@ -2299,7 +2787,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
   };
 
   return (
-    <main className="ps-discover-view">
+    <div className="ps-discover-view">
       <section className="ps-discover-hero">
         <span className="ps-discover-kicker">DISCOVER YOUR DESTINATION</span>
         <h1>Choose where you're going.<br />We'll help you park nearby.</h1>
@@ -2308,7 +2796,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
 
       {!mode ? (
         <section className="ps-discover-hub" aria-label="Discover destinations">
-          <button type="button" className="ps-discover-choice" onClick={() => onModeChange("Restaurants")}>
+          <button type="button" className="ps-discover-choice" onClick={() => changeMode("Restaurants")}>
             <span className="ps-discover-choice-icon" aria-hidden="true">🍽️</span>
             <span>
               <small>DINING</small>
@@ -2317,7 +2805,7 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
             </span>
             <b>Explore restaurants →</b>
           </button>
-          <button type="button" className="ps-discover-choice" onClick={() => onModeChange("Events & Festivals")}>
+          <button type="button" className="ps-discover-choice" onClick={() => changeMode("Events & Festivals")}>
             <span className="ps-discover-choice-icon" aria-hidden="true">🎟️</span>
             <span>
               <small>WHAT'S ON</small>
@@ -2328,12 +2816,12 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           </button>
           <div className="ps-discover-direct">
             <span>Already know where you're going?</span>
-            <button type="button" onClick={onBrowseParking}>Browse parking</button>
+            <button type="button" onClick={browseParking}>Browse parking</button>
           </div>
         </section>
       ) : (
         <section className="ps-discover-panel">
-          <button type="button" className="ps-discover-back" onClick={() => onModeChange("Discover")}>← Back to Discover</button>
+          <button type="button" className="ps-discover-back" onClick={() => changeMode("Discover")}>← Back to Discover</button>
           <div className="ps-discover-panel-heading">
             <span aria-hidden="true">{mode === "restaurants" ? "🍽️" : "🎟️"}</span>
             <div>
@@ -2346,8 +2834,8 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           {mode === "restaurants" ? (
             <>
               <form className="ps-discover-search-form" onSubmit={findRestaurants}>
-                <input value={restaurantQuery} onChange={event => setRestaurantQuery(event.target.value)} placeholder="Restaurant name or area" aria-label="Restaurant name or area" />
-                <select value={restaurantCuisine} onChange={event => setRestaurantCuisine(event.target.value)} aria-label="Cuisine">
+                <input value={restaurantQuery} onChange={event => updateFilter(setRestaurantQuery, restaurantQuery, event.target.value)} placeholder="Restaurant name or area" aria-label="Restaurant name or area" />
+                <select value={restaurantCuisine} onChange={event => updateFilter(setRestaurantCuisine, restaurantCuisine, event.target.value)} aria-label="Cuisine">
                   {RESTAURANT_CUISINES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
                 </select>
                 <div className="ps-discover-search-actions">
@@ -2384,11 +2872,11 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           ) : (
             <>
               <form className="ps-discover-search-form is-events" onSubmit={findEvents}>
-                <input value={eventQuery} onChange={event => setEventQuery(event.target.value)} placeholder="Event name, venue, or area" aria-label="Event name, venue, or area" />
-                <select value={eventCategory} onChange={event => setEventCategory(event.target.value)} aria-label="Event category">
+                <input value={eventQuery} onChange={event => updateFilter(setEventQuery, eventQuery, event.target.value)} placeholder="Event name, venue, or area" aria-label="Event name, venue, or area" />
+                <select value={eventCategory} onChange={event => updateFilter(setEventCategory, eventCategory, event.target.value)} aria-label="Event category">
                   {EVENT_CATEGORIES.map(option => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
                 </select>
-                <input type="date" value={eventDate} onChange={event => setEventDate(event.target.value)} aria-label="Event date" />
+                <input type="date" value={eventDate} onChange={event => updateFilter(setEventDate, eventDate, event.target.value)} aria-label="Event date" />
                 <div className="ps-discover-search-actions">
                   <button type="submit" disabled={eventsLoading}>{eventsLoading ? "Searching…" : "Search events"}</button>
                   <button type="button" className="is-secondary" onClick={() => setEventSubmissionOpen(true)}>📣 Add your event</button>
@@ -2431,17 +2919,17 @@ function DiscoverView({ mode = null, onModeChange, onFindParking, onBrowseParkin
           <EventSubmissionForm onClose={() => setEventSubmissionOpen(false)} />
         </Modal>
       )}
-    </main>
+    </div>
   );
 }
 
 // ─── Browse View ──────────────────────────────────────────────────────────────
-function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
+function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToParking, onChangeNavigationApp, onOpenDiscover, onRequestSignIn, user, autoFocusSearch, autoLocate, initialLocation, initialQuery, initialEvent = null, initialRestaurant = null }) {
   const { isLoaded: placesLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const { listings: allListings, loading: listingsLoading, error: listingsError, refresh: refreshListings } = useAllListings();
+  const { listings: allListings, loading: listingsLoading, error: listingsError, refresh: refreshListings, hasMore, loadMore } = useAllListings();
   const [query, setQuery] = useState("");
   const [locatedSearch, setLocatedSearch] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
@@ -2449,7 +2937,11 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [sugError, setSugError] = useState(false);
   const [sort, setSort] = useState("distance");
   const [selected, setSelected] = useState(null);
-  const [mapHovered, setMapHovered] = useState(null);
+  const [mapSelectedId, setMapSelectedId] = useState(null);
+  const [mapScrollRequest, setMapScrollRequest] = useState(0);
+  const [mapSearchCenter, setMapSearchCenter] = useState(null);
+  const listingColumnRef = useRef(null);
+  const listingCardsRef = useRef(new Map());
   // Keep the map and listings together by default on every screen. Desktop
   // presents the two panes side by side; the mobile stylesheet stacks the
   // map above full-width listing cards so neither pane is squeezed or clipped.
@@ -2457,8 +2949,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const [userLoc, setUserLoc] = useState(null);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState(null);
-  const [walkingRoutes, setWalkingRoutes] = useState({});
-  const [walkingRoutesLoading, setWalkingRoutesLoading] = useState(false);
+  const [walkingState, setWalkingState] = useState({ key: "", routes: {}, loading: false });
+  const [resolvingDestination, setResolvingDestination] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState(initialRestaurant);
   const [selectedEvent, setSelectedEvent] = useState(initialEvent ? normalizeEventRow(initialEvent) : null);
   const [eventListingAccess, setEventListingAccess] = useState({});
@@ -2466,16 +2958,12 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const searchInputRef = useRef(null);
   const autocompleteTokenRef = useRef(null);
   const suggestionRequestRef = useRef(0);
-  const walkingRouteInputKey = allListings
-    .map(listing => `${listing.id}:${listing.lat ?? ""}:${listing.lng ?? ""}`)
-    .join("|");
 
   // If Google Places can't be reached, fall back to matching against our own
   // listing addresses and titles so the search field still stays useful.
   const localFallbackSuggestions = (val) => {
-    const q = val.toLowerCase();
     return allListings
-      .filter(l => l.address.toLowerCase().includes(q) || l.title.toLowerCase().includes(q))
+      .filter(l => validParkingCoordinate(l) && matchesParkingText(l, val))
       .slice(0, 5)
       .map(l => ({ short: l.address, full: l.title + " — " + l.address, lat: l.lat, lng: l.lng }));
   };
@@ -2483,6 +2971,11 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   const handleSearch = (val) => {
     const requestId = ++suggestionRequestRef.current;
     setQuery(val);
+    if (locatedSearch) setUserLoc(null);
+    setResolvingDestination(false);
+    setLocating(false);
+    setLocationError(null);
+    setMapSelectedId(null);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
     setLocatedSearch(false);
@@ -2495,6 +2988,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
       try {
         if (!placesLoaded || !window.google?.maps?.importLibrary) throw new Error("Places search is still loading");
         const { AutocompleteSessionToken, AutocompleteSuggestion } = await google.maps.importLibrary("places");
+        if (requestId !== suggestionRequestRef.current) return;
         if (!autocompleteTokenRef.current) autocompleteTokenRef.current = new AutocompleteSessionToken();
         const { suggestions: placeSuggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
           input: val,
@@ -2530,9 +3024,20 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   };
 
   const pickSuggestion = async (s) => {
+    const requestId = ++suggestionRequestRef.current;
+    clearTimeout(debounceRef.current);
     setSuggestions([]);
+    setLoadingSug(false);
     setSugError(false);
+    setLocationError(null);
+    setLocating(false);
+    setSelectedRestaurant(null);
+    setSelectedEvent(null);
+    setMapSelectedId(null);
+    setLocatedSearch(false);
+    setUserLoc(null);
     setQuery(s.short);
+    setResolvingDestination(true);
     let lat = s.lat;
     let lng = s.lng;
     let destinationName = s.short;
@@ -2543,37 +3048,76 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         lat = place.location?.lat();
         lng = place.location?.lng();
         destinationName = place.displayName || s.short;
-        setQuery(destinationName);
       }
-    } catch (e) {
-      setSugError(true);
-    } finally {
-      autocompleteTokenRef.current = null;
-    }
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      if (requestId !== suggestionRequestRef.current) return;
+      if (!validParkingCoordinate({ lat, lng })) throw new Error("Destination has no coordinates");
+      setQuery(destinationName);
       setUserLoc({ lat, lng });
       setSort("distance");
       setLocatedSearch(true);
+    } catch (e) {
+      if (requestId === suggestionRequestRef.current) {
+        setLocationError("Couldn't locate this destination. Please choose another suggestion.");
+      }
+    } finally {
+      if (requestId === suggestionRequestRef.current) {
+        autocompleteTokenRef.current = null;
+        setResolvingDestination(false);
+      }
     }
   };
 
-  const getLocation = () => {
+  const clearSearch = () => {
+    ++suggestionRequestRef.current;
+    clearTimeout(debounceRef.current);
+    autocompleteTokenRef.current = null;
+    setQuery("");
+    setSuggestions([]);
+    setLoadingSug(false);
+    setResolvingDestination(false);
+    setSugError(false);
+    setUserLoc(null);
+    setLocatedSearch(false);
+    setLocating(false);
+    setLocationError(null);
     setSelectedRestaurant(null);
     setSelectedEvent(null);
-    if (userLoc) { setUserLoc(null); setLocatedSearch(false); return; }
+    setMapSelectedId(null);
+  };
+
+  const getLocation = () => {
+    const clearDeviceLocation = userLoc && !locatedSearch;
+    clearSearch();
+    if (clearDeviceLocation) return;
+    const requestId = suggestionRequestRef.current;
     if (!navigator.geolocation) { setLocationError("Location isn't available on this device."); return; }
     setLocating(true);
-    setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      p => { setUserLoc({ lat: p.coords.latitude, lng: p.coords.longitude }); setLocating(false); setSort("distance"); setLocatedSearch(false); setQuery(""); },
-      () => { setLocating(false); setLocationError("Couldn't get your location — check your browser/location permissions."); },
+      p => {
+        if (requestId !== suggestionRequestRef.current) return;
+        const point = { lat: p.coords.latitude, lng: p.coords.longitude };
+        setLocating(false);
+        if (!validParkingCoordinate(point)) { setLocationError("Couldn't get a valid location. Please search for a destination."); return; }
+        setUserLoc(point);
+        setSort("distance");
+      },
+      () => {
+        if (requestId !== suggestionRequestRef.current) return;
+        setLocating(false);
+        setLocationError("Couldn't get your location — check your browser/location permissions.");
+      },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
+  useEffect(() => () => {
+    ++suggestionRequestRef.current;
+    clearTimeout(debounceRef.current);
+  }, []);
+
   // Arriving from the landing page: honor whichever action the person picked there.
   useEffect(() => {
-    if (initialLocation) {
+    if (validParkingCoordinate(initialLocation)) {
       // They picked a specific address from the landing page's autocomplete —
       // apply it exactly like picking a suggestion here would.
       setUserLoc(initialLocation);
@@ -2612,68 +3156,86 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     return () => { cancelled = true; };
   }, [selectedEvent?.id]);
 
-  // Calculate every visible driveway-to-destination walk in one route-matrix
-  // request. If Routes is not enabled for the existing Maps key, the listing
-  // still shows a clearly marked straight-line estimate instead of going blank.
+  const candidates = nearbyParkingListings(allListings, {
+    origin: userLoc,
+    query: locatedSearch ? "" : query,
+  }).filter(l => {
+    if (!selectedEvent) return true;
+    return eventListingAccess[String(l.id).replace(/^db-/, "")]?.status !== "blocked";
+  });
+  const preciseCandidates = candidates.filter(l => l.locationPrecision !== "approximate" && validParkingCoordinate(l));
+  const walkingRouteInputKey = JSON.stringify([userLoc?.lat, userLoc?.lng,
+    preciseCandidates.map(l => [l.id, l.lat, l.lng])]);
+  const walkingRoutes = walkingState.key === walkingRouteInputKey ? walkingState.routes : {};
+  const walkingRoutesLoading = Boolean(locatedSearch && placesLoaded && preciseCandidates.length
+    && (walkingState.key !== walkingRouteInputKey || walkingState.loading));
+
+  // Route only nearby, text/event-eligible listings with permitted precise coordinates.
+  // Associate responses with their destination + candidate coordinates so a previous
+  // destination's walking metrics can never appear in a new search.
   useEffect(() => {
     let cancelled = false;
-    if (!locatedSearch || !userLoc || !placesLoaded) {
-      setWalkingRoutes({});
-      setWalkingRoutesLoading(false);
+    if (!locatedSearch || !validParkingCoordinate(userLoc) || !placesLoaded || !preciseCandidates.length) {
+      setWalkingState({ key: walkingRouteInputKey, routes: {}, loading: false });
       return () => { cancelled = true; };
     }
-
-    setWalkingRoutes({});
-    setWalkingRoutesLoading(true);
-    computeWalkingRoutes(allListings, userLoc)
+    setWalkingState({ key: walkingRouteInputKey, routes: {}, loading: true });
+    computeWalkingRoutes(preciseCandidates, userLoc)
       .then(routes => {
-        if (!cancelled) setWalkingRoutes(routes);
+        if (!cancelled) setWalkingState({ key: walkingRouteInputKey, routes, loading: false });
       })
       .catch(() => {
-        if (!cancelled) setWalkingRoutes({});
-      })
-      .finally(() => {
-        if (!cancelled) setWalkingRoutesLoading(false);
+        if (!cancelled) setWalkingState({ key: walkingRouteInputKey, routes: {}, loading: false });
       });
-
     return () => { cancelled = true; };
-  }, [placesLoaded, locatedSearch, userLoc?.lat, userLoc?.lng, walkingRouteInputKey]);
+  }, [placesLoaded, locatedSearch, walkingRouteInputKey]);
 
-  const filtered = allListings
-    .filter(l => locatedSearch || !query || l.address.toLowerCase().includes(query.toLowerCase()) || l.title.toLowerCase().includes(query.toLowerCase()))
-    .filter(l => {
-      if (!selectedEvent) return true;
-      const rawListingId = String(l.id).replace(/^db-/, "");
-      return eventListingAccess[rawListingId]?.status !== "blocked";
-    })
-    .map(l => {
-      const distMiles = userLoc && typeof l.lat === "number" && typeof l.lng === "number"
-        ? milesBetween(userLoc.lat, userLoc.lng, l.lat, l.lng)
-        : null;
-      return {
-        ...l,
-        distMiles,
-        eventAccessStatus: eventListingAccess[String(l.id).replace(/^db-/, "")]?.status || "available",
-        eventAccessNote: eventListingAccess[String(l.id).replace(/^db-/, "")]?.notes || "",
-        walkLabel: buildWalkingLabel({
-          destinationSelected: locatedSearch,
-          loading: walkingRoutesLoading,
-          route: walkingRoutes[String(l.id)],
-          distanceMiles: distMiles,
-        }),
-      };
-    })
-    .sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating : (a.distMiles ?? Infinity) - (b.distMiles ?? Infinity));
-
+  const filtered = candidates.map(l => ({
+    ...l,
+    eventAccessStatus: eventListingAccess[String(l.id).replace(/^db-/, "")]?.status || "available",
+    eventAccessNote: eventListingAccess[String(l.id).replace(/^db-/, "")]?.notes || "",
+    walkLabel: buildWalkingLabel({
+      destinationSelected: locatedSearch,
+      loading: walkingRoutesLoading,
+      route: walkingRoutes[String(l.id)],
+      distanceMiles: l.distMiles,
+      approximateLocation: l.locationPrecision === "approximate",
+    }),
+  })).sort((a, b) => sort === "price" ? a.price - b.price : sort === "rating" ? b.rating - a.rating
+    : (parkingDistanceKm(mapSearchCenter || userLoc, a) ?? Infinity) - (parkingDistanceKm(mapSearchCenter || userLoc, b) ?? Infinity));
+  const emptyState = parkingSearchEmptyState({ query, origin: userLoc, destinationSelected: locatedSearch });
+  const activeMapListing = filtered.find(l => String(l.id) === mapSelectedId) || null;
+  const selectMapListing = (listing) => {
+    const id = listing ? String(listing.id) : null;
+    setMapSelectedId(id);
+    setMapScrollRequest(request => request + 1);
+  };
+  const listingOrderKey = JSON.stringify(filtered.map(listing => String(listing.id)));
+  useLayoutEffect(() => {
+    if (!mapSelectedId || view === "map") return;
+    const column = listingColumnRef.current;
+    const card = listingCardsRef.current.get(mapSelectedId);
+    if (!column || !card || column.clientHeight <= 0 || column.scrollHeight <= column.clientHeight
+      || !["auto", "scroll"].includes(window.getComputedStyle(column).overflowY)) return;
+    // Read committed card positions after selection and map-centre re-sorts.
+    // Move this scrollport only; scrollIntoView can also move the outer page.
+    const bounds = card.getBoundingClientRect();
+    const top = column.getBoundingClientRect().top + column.clientTop;
+    const bottom = top + column.clientHeight;
+    let next = column.scrollTop;
+    if (bounds.top < top || bounds.bottom - bounds.top > column.clientHeight) next += bounds.top - top;
+    else if (bounds.bottom > bottom) next += bounds.bottom - bottom;
+    column.scrollTop = Math.max(0, Math.min(column.scrollHeight - column.clientHeight, next));
+  }, [mapSelectedId, mapScrollRequest, listingOrderKey, view, selected]);
   const distanceLabel = (listing) => listing.walkLabel || (Number.isFinite(listing.distMiles)
-    ? `${(listing.distMiles * 1.60934).toFixed(1)} km from destination`
+    ? `${listing.locationPrecision === "approximate" ? "≈ " : ""}${(listing.distMiles * 1.60934).toFixed(1)} km from ${locatedSearch ? "destination" : "your location"}`
     : "Select a destination for walking time");
 
   const selectedDiscoveryDestination = selectedEvent || selectedRestaurant;
   const parkingWalkMinutes = selectedDiscoveryDestination
     ? filtered.map(listing => {
       const routeMinutes = walkingRoutes[String(listing.id)]?.minutes;
-      return Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
+      return walkingRoutes[String(listing.id)]?.unavailable ? null : Number.isFinite(routeMinutes) ? routeMinutes : estimateWalkingMinutes(listing.distMiles);
     }).filter(Number.isFinite)
     : [];
   const nearestParkingWalkMinutes = parkingWalkMinutes.length ? Math.min(...parkingWalkMinutes) : null;
@@ -2690,7 +3252,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
     ? filtered.find(listing => String(listing.id) === String(selected.id)) || selected
     : null;
 
-  if (selectedListing) return <ListingDetail listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} user={user} />;
+  if (selectedListing) return <ListingDetail onVehicleUpdated={onVehicleUpdated} listing={selectedListing} selectedEvent={selectedEvent} onBack={() => setSelected(null)} onMessage={onMessage} onPreviewRoute={onPreviewRoute} onNavigateToParking={onNavigateToParking} onChangeNavigationApp={onChangeNavigationApp} onRequestSignIn={onRequestSignIn} user={user} />;
 
   return (
     <div className="ps-browse-view" style={{ fontFamily: "'Poppins', sans-serif", display: "flex", flexDirection: "column", height: "calc(100vh - 88px)" }}>
@@ -2700,8 +3262,8 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {/* Row 1: location + search */}
         <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6 }}>
           <div style={{ flex: 1, position: "relative" }}>
-            <input ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
-              style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, outline: "none", color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
+            <input className="ps-parking-search-input" ref={searchInputRef} value={query} onChange={e => handleSearch(e.target.value)} placeholder="Search destination or address…" aria-label="Search by destination, landmark, business, or address"
+              style={{ width: "100%", border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 12px", fontSize: 12, color: C.navy, background: C.warmWhite, boxSizing: "border-box" }} />
             {loadingSug && <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11 }}>⏳</span>}
             {/* Autocomplete dropdown */}
             {suggestions.length === 0 && sugError && !loadingSug && query.length >= 2 && (
@@ -2729,7 +3291,7 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
               </div>
             )}
           </div>
-          <select value={sort} onChange={e => setSort(e.target.value)}
+          <select aria-label="Sort parking results" value={sort} onChange={e => setSort(e.target.value)}
             style={{ flexShrink: 0, border: "1.5px solid "+C.concrete, borderRadius: 20, padding: "6px 8px", fontSize: 11, color: C.navy, cursor: "pointer", background: C.warmWhite }}>
             <option value="distance">Nearest</option>
             <option value="price">Price</option>
@@ -2740,16 +3302,16 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
           <div style={{ fontSize: 11, color: C.red, marginBottom: 6 }}>⚠️ {locationError}</div>
         )}
         {/* Row 2: location button (left) and view toggles, positioned under the sort dropdown (right) */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
           <div>
-            <button onClick={getLocation} title={userLoc ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc)}>
+            <button onClick={getLocation} title={userLoc && !locatedSearch ? "Clear location" : "Use my location"} className="ps-browse-location-button" data-active={Boolean(userLoc && !locatedSearch)}>
               <span>{locating ? "⏳" : "📍"}</span>
-              <span>{locating ? "Locating…" : userLoc ? "Located" : "My location"}</span>
+              <span>{locating ? "Locating…" : userLoc && !locatedSearch ? "Located" : "My location"}</span>
             </button>
           </div>
-          <div style={{ display: "flex", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexShrink: 0, gap: 4 }}>
             {[["split","⊞"],["list","☰"],["map","🗺"]].map(([v,label]) => (
-              <button key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
+              <button className="ps-tap-target" key={v} aria-label={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} title={v === "split" ? "Split map and list view" : v === "list" ? "List view" : "Map view"} onClick={() => setView(v)} style={{ background: view === v ? C.navy : "transparent", color: view === v ? C.white : C.muted, border: "none", borderRadius: 18, padding: "4px 10px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{label}</button>
             ))}
           </div>
         </div>
@@ -2762,28 +3324,33 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
               <em>{selectedEvent ? (selectedEvent.venueName || selectedEvent.address) : selectedRestaurant.address}</em>
             </div>
             <button type="button" onClick={onOpenDiscover}>Choose another</button>
-            {showLongWalkNotice && <p>No ParkShare spaces within a 15-minute walk yet—showing the nearest available spaces.</p>}
+            {showLongWalkNotice && <p>No ParkShare spaces within a 15-minute walk yet based on current estimates—showing nearby spaces within {PARKING_SEARCH_RADIUS_KM} km.</p>}
           </div>
         )}
         {locatedSearch && (
           <div className="ps-walking-route-warning">
-            Walking times are estimates. Pedestrian routes may not include every sidewalk or walking path.
+            Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your destination. Public locations are approximate. Without a walking route, times use straight-line distance and may underestimate the walk.
           </div>
         )}
+        {!locatedSearch && userLoc && <p className="ps-walking-route-warning">Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your location. Public distances are approximate.</p>}
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
+      {hasMore && <div style={{ padding: "8px 12px", background: C.warmWhite, fontSize: 12 }}>
+        Showing {allListings.length} listings. Search and sorting apply to loaded listings. {" "}
+        <button type="button" disabled={listingsLoading} onClick={loadMore}>Load more parking</button>
+      </div>}
       <div className={`ps-browse-content ps-browse-content-${view}`} style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {(listingsLoading || listingsError || allListings.length === 0) ? (
+        {(listingsLoading || listingsError || resolvingDestination || (allListings.length === 0 && !query && !userLoc)) ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
             <div style={{ maxWidth: 360, background: C.white, border: "1.5px solid " + C.concrete, borderRadius: 16, padding: "24px 22px", boxShadow: "0 6px 18px rgba(14,27,46,0.08)" }}>
-              <div style={{ fontSize: 34, marginBottom: 10 }}>{listingsLoading ? "⏳" : listingsError ? "⚠️" : "🅿️"}</div>
+              <div style={{ fontSize: 34, marginBottom: 10 }}>{listingsLoading || resolvingDestination ? "⏳" : listingsError ? "⚠️" : "🅿️"}</div>
               <div style={{ color: C.navy, fontWeight: 800, fontSize: 16, marginBottom: 7 }}>
-                {listingsLoading ? "Loading available driveways…" : listingsError ? "Driveways couldn't be loaded" : "No active driveways yet"}
+                {listingsLoading ? "Loading available driveways…" : resolvingDestination ? "Finding your destination…" : listingsError ? "Driveways couldn't be loaded" : "No active driveways yet"}
               </div>
               <p style={{ color: C.muted, fontSize: 12.5, lineHeight: 1.6, margin: listingsError ? "0 0 14px" : 0 }}>
-                {listingsLoading ? "We're checking ParkShare for available parking." : listingsError ? listingsError : "ParkShare is growing. Please check back soon as new Hosts add their spaces."}
+                {listingsLoading || resolvingDestination ? "We're checking ParkShare for nearby parking." : listingsError ? listingsError : "ParkShare is growing. Please check back soon as new Hosts add their spaces."}
               </p>
               {listingsError && <Btn small variant="outline" onClick={refreshListings}>Try again</Btn>}
             </div>
@@ -2792,16 +3359,22 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
 
         {/* Listing column */}
         {view !== "map" && (
-          <div className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
+          <div ref={listingColumnRef} className="ps-browse-listing-column" style={{ width: view === "split" ? "42%" : "100%", overflowY: "auto", flexShrink: 0, borderRight: view === "split" ? "1px solid "+C.concrete : "none" }}>
             <div className="ps-browse-listing-heading">{selectedEvent ? `Parking near ${selectedEvent.name}` : selectedRestaurant ? `Parking near ${selectedRestaurant.name}` : "Parking near your destination"}</div>
+            {filtered.length === 0 && <ParkingSearchEmptyState state={emptyState} onClear={clearSearch} />}
             {filtered.map(l => (
               <div
                 key={l.id}
-                className={`ps-browse-listing-card${mapHovered?.id === l.id ? " is-selected" : ""}`}
-                onClick={() => setMapHovered(l)}
-                onMouseEnter={() => setMapHovered(l)}
+                ref={node => { if (node) listingCardsRef.current.set(String(l.id), node); else listingCardsRef.current.delete(String(l.id)); }}
+                data-listing-id={l.id}
+                className={`ps-browse-listing-card${activeMapListing?.id === l.id ? " is-selected" : ""}`}
+                onClick={() => setMapSelectedId(String(l.id))}
               >
-                <div className="ps-browse-listing-main">
+                <button type="button" className="ps-browse-listing-main"
+                  aria-label={`Show ${l.title} on map`}
+                  aria-describedby={l.bookingStatus !== "ready" ? `listing-bookability-${l.id}` : undefined}
+                  aria-pressed={activeMapListing?.id === l.id}
+                  onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); }}>
                   <div className="ps-browse-listing-thumb"><ListingThumb listing={l} fontSize={30} /></div>
                   <div className="ps-browse-listing-copy">
                     <strong>{l.title}</strong>
@@ -2812,13 +3385,14 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
                         ? <WalkingTimeLabel label={l.walkLabel} className="ps-browse-card-walk-time" />
                         : <span>{distanceLabel(l)}</span>}
                     </div>
+                    {l.bookingStatus !== "ready" && <span id={`listing-bookability-${l.id}`} className="ps-browse-bookability-note">{l.bookingStatus === "paused" ? "Listing paused — not accepting bookings" : l.bookingStatus === "not_ready" ? "Not bookable yet — Host setup incomplete" : "Booking status needs checking"}</span>}
                     {l.eventAccessStatus === "warning" && <span className="ps-browse-event-access-note">⚠️ Review event-day access</span>}
                   </div>
                   <PriceTag price={l.price} size="sm" />
-                </div>
+                </button>
                 <div className="ps-browse-listing-actions">
-                  <button type="button" onClick={e => { e.stopPropagation(); setMapHovered(l); onPreviewRoute(l); }}>↗ Preview route</button>
-                  <button type="button" onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
+                  <button type="button" onClick={e => { e.stopPropagation(); setMapSelectedId(String(l.id)); onPreviewRoute(l); }}>↗ Preview route</button>
+                  <button type="button" aria-describedby={l.bookingStatus !== "ready" ? `listing-bookability-${l.id}` : undefined} onClick={e => { e.stopPropagation(); setSelected(l); }}>View parking</button>
                 </div>
               </div>
             ))}
@@ -2828,14 +3402,17 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
         {/* Map column */}
         {view !== "list" && (
           <div className="ps-browse-map-column" style={{ flex: 1, padding: 6 }}>
-            <div style={{ height: "100%", borderRadius: 10, overflow: "hidden", border: "1px solid "+C.concrete }}>
+            <div style={{ height: "100%", position: "relative", borderRadius: 10, overflow: "hidden", border: "1px solid "+C.concrete }}>
+              {filtered.length === 0 && <ParkingSearchEmptyState state={emptyState} onClear={clearSearch} overlay />}
               <ListingsMap
                 listings={filtered}
-                selected={mapHovered}
-                onSelect={setMapHovered}
+                selected={activeMapListing}
+                onSelect={selectMapListing}
                 onViewListing={setSelected}
                 onPreviewRoute={onPreviewRoute}
                 userLoc={userLoc}
+                onSearchCenterChange={center => setMapSearchCenter(current =>
+                  current && Math.abs(current.lat - center.lat) < 0.000001 && Math.abs(current.lng - center.lng) < 0.000001 ? current : center)}
               />
             </div>
           </div>
@@ -2846,10 +3423,20 @@ function BrowseView({ onMessage, onPreviewRoute, onNavigateToParking, onChangeNa
   );
 }
 
-// ─── Host Dashboard ───────────────────────────────────────────────────────────
-const LISTING_FEATURE_OPTIONS = ["Covered", "CCTV", "Well-lit", "Gated", "24hr Access"];
+function ParkingSearchEmptyState({ state, onClear, overlay = false }) {
+  return (
+    <div className={`ps-parking-search-empty${overlay ? " is-map-overlay" : ""}`} role="status" aria-live="polite">
+      <strong>{state.title}</strong>
+      <p>{state.message}</p>
+      <button type="button" onClick={onClear}>Clear search</button>
+    </div>
+  );
+}
 
-function EditListingModal({ listing, onClose, onSave }) {
+// ─── Host Dashboard ───────────────────────────────────────────────────────────
+
+
+function EditListingModal({ listing, onClose, onSave, isContextCurrent = () => false, returnFocus }) {
   const [price, setPrice] = useState(String(listing.price));
   const [description, setDescription] = useState(listing.description || "");
   const [features, setFeatures] = useState(listing.features || []);
@@ -2864,6 +3451,21 @@ function EditListingModal({ listing, onClose, onSave }) {
   const [selectedSpots, setSelectedSpots] = useState(initialSelected);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [title,setTitle] = useState(listing.title || "");
+  const [availability,setAvailability] = useState(() => editableListingAvailability(listing.availability,listing.timeZone));
+  const [paused,setPaused] = useState(listing.is_paused === true);
+  const attempt = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; if (attempt.current) attempt.current.active = false; };
+  }, []);
+  const canAct = () => mounted.current && isContextCurrent();
+  const close = () => {
+    if (!canAct()) return;
+    if (attempt.current) attempt.current.active = false;
+    onClose();
+  };
 
   const toggleSpotAt = (i) => setSelectedSpots(prev => prev.map((v, idx) => idx === i ? !v : v));
   const changeTotal = (n) => {
@@ -2878,9 +3480,17 @@ function EditListingModal({ listing, onClose, onSave }) {
   const toggleFeature = (f) => setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f]);
 
   const save = async () => {
+    if (!canAct() || attempt.current?.pending) return;
     setErr("");
+    const rate = validateHourlyRate(price);
+    if (!rate.valid) { setErr(rate.error); return; }
+    if (!title.trim() || title.trim().length > 200) {setErr("Enter a driveway title of at most 200 characters.");return;}
+    if (availability) {const scheduleError = listingScheduleError(availability,listing.timeZone,paused); if(scheduleError){setErr(scheduleError);return;}}
     const rentableCount = selectedSpots.filter(Boolean).length;
     if (rentableCount < 1) { setErr("At least one spot needs to be marked for rent."); return; }
+    const work = { active: true, pending: true };
+    attempt.current = work;
+    const current = () => canAct() && work.active && attempt.current === work;
     setSaving(true);
     // Preserve real geo bounds for spots that existed before (needed for the
     // satellite map view); new spots added here only exist in the simple
@@ -2891,24 +3501,41 @@ function EditListingModal({ listing, onClose, onSave }) {
       bounds: existingSpots[i]?.bounds ?? null,
       forRent: selectedSpots[i],
     }));
-    const ok = await onSave({
-      ...listing,
-      price,
-      description,
-      features,
-      spots: newSpots,
-      spaces: rentableCount,
-    });
-    setSaving(false);
-    if (ok) onClose();
+    try {
+      const ok = await onSave({
+        ...listing,
+        price: rate.value,
+        title: title.trim(),
+        is_paused: paused,
+        availability: availability || undefined,
+        description,
+        features,
+        spots: newSpots,
+        spaces: rentableCount,
+      });
+      if (current() && ok) close();
+    } catch (error) {
+      if (current()) setErr(error?.message || "Couldn't confirm saved changes. Refresh your listing before retrying.");
+    } finally {
+      work.pending = false;
+      if (current()) setSaving(false);
+    }
   };
 
   return (
-    <Modal title={"Edit — " + listing.title} onClose={onClose}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <Modal nativeModal title={"Edit — " + listing.title} onClose={close} returnFocus={returnFocus}>
+      <fieldset disabled={saving} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: "flex", flexDirection: "column", gap: 16 }}>
+        <label htmlFor={`edit-title-${listing.rawId}`} style={{fontSize:12,color:C.navy,fontWeight:600}}>Listing title
+          <input id={`edit-title-${listing.rawId}`} value={title} disabled={saving} maxLength={200} onChange={event=>setTitle(event.target.value)} style={{width:"100%",minHeight:44,boxSizing:"border-box"}} />
+        </label>
+        <label htmlFor={`edit-pause-${listing.rawId}`} className="ps-tap-target" style={{display:"flex",alignItems:"center",gap:10,color:C.navy}}>
+          <input id={`edit-pause-${listing.rawId}`} type="checkbox" checked={paused} disabled={saving} onChange={event=>setPaused(event.target.checked)} />Pause this listing
+        </label>
+        <p style={{fontSize:12,color:C.muted,margin:0}}>Pausing stops new reservations and additional time. Existing reservations and checkouts already in progress keep their booked times. Uncheck to resume using your saved schedule.</p>
+        <ListingAvailabilityEditor value={availability} onChange={setAvailability} paused={paused} disabled={saving} C={C} />
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 }}>Price per hour ($)</label>
-          <input type="number" min="1" value={price} onChange={e => setPrice(e.target.value)}
+          <input type="number" min="1" step="0.01" value={price} onChange={e => { setPrice(e.target.value); setErr(""); }} aria-invalid={Boolean(err && !validateHourlyRate(price).valid)}
             style={{ width: "100%", border: "1.5px solid " + C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif" }} />
         </div>
 
@@ -2921,10 +3548,10 @@ function EditListingModal({ listing, onClose, onSave }) {
         <div>
           <label style={{ fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 8 }}>Features</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {LISTING_FEATURE_OPTIONS.map(f => {
+            {[...new Set([...LISTING_FEATURE_OPTIONS,...features])].map(f => {
               const on = features.includes(f);
               return (
-                <button key={f} onClick={() => toggleFeature(f)} style={{
+                <button key={f} type="button" aria-pressed={on} disabled={saving} onClick={() => toggleFeature(f)} style={{
                   background: on ? C.moss : C.warmWhite, color: on ? C.white : C.navy,
                   border: "1.5px solid " + (on ? C.moss : C.concrete), borderRadius: 20, padding: "6px 14px",
                   fontSize: 12, fontWeight: 700, cursor: "pointer",
@@ -2950,10 +3577,10 @@ function EditListingModal({ listing, onClose, onSave }) {
           </div>
         </div>
 
-        {err && <div style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
+        {err && <div role="alert" style={{ background: C.redLight, color: C.red, fontSize: 12, fontWeight: 600, padding: "8px 12px", borderRadius: 8 }}>{err}</div>}
 
         <Btn variant="amber" full onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Btn>
-      </div>
+      </fieldset>
     </Modal>
   );
 }
@@ -2966,44 +3593,67 @@ function EditListingModal({ listing, onClose, onSave }) {
 // across components; fine at this scale, worth revisiting with a shared
 // cache/context if this page gets hit often enough to matter.
 function useTransactions(user) {
-  const [data, setData] = useState({ spent: [], earned: [], payouts: [] });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const emptyData = () => ({ spent: [], earned: [], payouts: [], payoutsUnavailable: false });
+  const [reloadRevision, setReloadRevision] = useState(0);
+  // A fresh scope for each identity interval also covers A -> B -> A.
+  // Mask old rows during render, before effect cleanup/reset can run. The
+  // Host earnings card uses this hook without remounting its parent.
+  const scope = useMemo(() => ({ userId: user?.id || null, retrying: false, active: false }), [user?.id, reloadRevision]);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const [snapshot, setSnapshot] = useState(() => ({ scope, data: emptyData(), loading: Boolean(scope.userId), error: "" }));
 
   useEffect(() => {
-    if (!user) { setLoading(false); return; }
-    let cancelled = false;
+    setSnapshot({ scope, data: emptyData(), loading: Boolean(scope.userId), error: "" });
+    if (!scope.userId) return;
+    scope.active = true;
+    const controller = new AbortController();
+    let active = true;
+    const isCurrent = () => active && currentScope.current === scope;
 
     (async () => {
-      setLoading(true);
-      setError("");
       try {
         let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!isCurrent()) return;
         let session = sessionData?.session;
+        if (session?.user?.id && session.user.id !== scope.userId) {
+          throw new Error("Your account changed. Please sign in again to load transactions.");
+        }
         if (sessionError || !session?.access_token) {
           const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+          if (!isCurrent()) return;
           if (refreshError) throw refreshError;
           session = refreshedData?.session;
         }
-        if (!session?.access_token) throw new Error("Your session is invalid or expired. Please sign in again.");
+        if (!session?.access_token || session.user?.id !== scope.userId) {
+          throw new Error("Your account changed or session expired. Please sign in again to load transactions.");
+        }
 
         const res = await fetch("/api/transactions", {
           headers: { Authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal,
+          cache: "no-store",
         });
         const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.error || "Couldn't load transactions.");
-        if (!cancelled) setData({ spent: json.spent || [], earned: json.earned || [], payouts: json.payouts || [] });
+        if (!isCurrent()) return;
+        if (!res.ok) throw new Error(json?.error || "Couldn't load transactions.");
+        if (![json?.spent, json?.earned, json?.payouts].every(Array.isArray)) throw new Error("Couldn't load transactions. Please try again.");
+        setSnapshot({ scope, data: { spent: json.spent, earned: json.earned, payouts: json.payouts, payoutsUnavailable: Boolean(json.payoutsUnavailable) }, loading: false, error: "" });
       } catch (err) {
-        if (!cancelled) setError(err.message || "Something went wrong.");
-      } finally {
-        if (!cancelled) setLoading(false);
+        if (isCurrent()) setSnapshot({ scope, data: emptyData(), loading: false, error: err?.message || "Couldn't load transactions." });
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [user]);
+    return () => { active = false; scope.active = false; controller.abort(); };
+  }, [scope]);
 
-  return { data, loading, error };
+  const visible = snapshot.scope === scope ? snapshot : { data: emptyData(), loading: Boolean(scope.userId), error: "" };
+  const retry = () => {
+    if (currentScope.current !== scope || !scope.active || scope.retrying || !scope.userId || visible.loading || !visible.error) return;
+    scope.retrying = true;
+    setReloadRevision(value => value + 1);
+  };
+  return { ...visible, retry };
 }
 
 // Maps the real statuses your backend actually uses (bookings.status /
@@ -3016,6 +3666,7 @@ function transactionStatusLabel(status) {
     case "completed": return { label: "Completed", color: C.moss };
     case "payment_failed": return { label: "Failed", color: C.red };
     case "refunded": return { label: "Refunded", color: C.muted };
+    case "refund_pending": return { label: "Refund pending", color: C.amber };
     case "partially_refunded": return { label: "Partially refunded", color: C.amber };
     case "disputed": return { label: "Disputed", color: C.red };
     case "paid": return { label: "Paid out", color: C.moss };
@@ -3034,11 +3685,11 @@ function money(n) {
 // ─── Transactions tab — full history for both what you've spent and, if
 // you host any listings, what you've earned and been paid out. ────────────
 function TransactionsView({ user }) {
-  const { data, loading, error } = useTransactions(user);
+  const { data, loading, error, retry } = useTransactions(user);
   const [section, setSection] = useState("spent"); // "spent" | "earned" | "payouts"
 
-  const sections = ["spent", "earned", "payouts"];
-  const sectionLabels = { spent: "What you've paid", earned: "What you've earned", payouts: "Payouts" };
+  const sections = user?.role === "driver" ? ["spent"] : ["spent", "earned", "payouts"];
+  const sectionLabels = { spent: "Booking charges (CAD)", earned: "What you've earned", payouts: "Payouts" };
 
   const rows = section === "spent" ? data.spent : section === "earned" ? data.earned : [];
 
@@ -3059,40 +3710,65 @@ function TransactionsView({ user }) {
           ))}
       </div>
 
-      {loading && <p style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
-      {error && <p style={{ fontSize: 13, color: C.red }}>{error}</p>}
+      {section === "spent" && <p style={{ fontSize: 12, color: C.muted }}>Booking totals and refunds are recorded in CAD. For an earlier checkout converted by Stripe, use the Stripe receipt for the amount and currency charged to your payment method.</p>}
+      {loading && <p role="status" style={{ fontSize: 13, color: C.muted }}>Loading…</p>}
+      {error && <div role="alert" style={{ fontSize: 13, color: C.red }}>
+        <p>{error}</p>
+        <button type="button" onClick={retry} style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: "pointer" }}>Retry transactions</button>
+      </div>}
 
       {!loading && !error && section !== "payouts" && rows.length === 0 && (
-        <p style={{ fontSize: 13, color: C.muted }}>Nothing here yet.</p>
+        <div style={{ fontSize: 13, color: C.muted }}>
+          <p>Nothing here yet.</p>
+          {user?.role === "driver" && <FindParkingLink />}
+        </div>
       )}
 
       {!loading && !error && section !== "payouts" && rows.map(t => {
-        const st = transactionStatusLabel(t.status);
-        const amount = section === "earned" ? t.net : t.amount;
+        const dates = section === "spent" ? transactionDateDetails(t) : null;
+        const presentation = hostTransactionPresentation(t);
+        const st = section === "earned" ? { label: presentation.label, color: presentation.isIncome ? C.moss : C.muted } : transactionStatusLabel(t.status);
+        const amount = section === "earned" ? t.earningsState === "needs_review" ? null : hostEarningsContribution(t) : t.amount;
         return (
           <div key={t.id} style={{ background: C.white, border: "1px solid " + C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ fontWeight: 700, color: C.navy, fontSize: 14 }}>{t.description}</div>
                 {t.address && <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>📍 {t.address}</div>}
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>
+                {dates ? <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                  <div>{dates.parking}</div>
+                  <div>{dates.paid}</div>
+                  <div>{dates.zone}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>
+                  <div>Booking #PK-{t.bookingId}</div>
+                </div> : <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}{t.spotLabel ? ` · Spot ${t.spotLabel}` : ""}</div>}
               </div>
               <div style={{ textAlign: "right" }}>
                 <Badge color={st.color}>{st.label}</Badge>
-                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{money(amount)}</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: C.navy, marginTop: 6 }}>{amount == null ? "Under review" : `${money(amount)} CAD`}</div>
+                {section === "spent" && t.refundedAmount != null && (
+                  <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                    {money(t.refundedAmount)} CAD refunded{t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} CAD refund pending</>}
+                  </div>
+                )}
               </div>
             </div>
             {section === "earned" && (
               <div style={{ fontSize: 10, color: C.muted, marginTop: 8, paddingTop: 8, borderTop: "1px solid " + C.concrete }}>
-                {money(t.gross)} charged − {money(t.platformFee)} platform fee = {money(t.net)} to you
-                {t.approximateFeeSplit ? " (fee estimated)" : ""}
+                {t.earningsState === "needs_review" ? "The remaining amount is awaiting review and is excluded from earnings totals." : <>
+                  {money(t.gross)} CAD charged − {money(t.refundedAmount || 0)} CAD refunded − {money(t.platformFee)} CAD retained platform fee = {money(amount)} CAD before Stripe processing fees
+                  {t.approximateFeeSplit ? " (fee estimated)" : ""}
+                  {t.refundPendingAmount > 0 && <> · {money(t.refundPendingAmount)} CAD refund pending</>}
+                </>}
               </div>
             )}
           </div>
         );
       })}
 
-      {!loading && !error && section === "payouts" && data.payouts.length === 0 && (
+      {!loading && !error && section === "payouts" && data.payoutsUnavailable && (
+        <p role="status" style={{ fontSize: 13, color: C.muted }}>Payout history is temporarily unavailable. Your recorded transactions are still available.</p>
+      )}
+      {!loading && !error && section === "payouts" && !data.payoutsUnavailable && data.payouts.length === 0 && (
         <p style={{ fontSize: 13, color: C.muted }}>No payouts yet.</p>
       )}
       {!loading && !error && section === "payouts" && data.payouts.map(p => {
@@ -3114,37 +3790,263 @@ function TransactionsView({ user }) {
   );
 }
 
+function ListingDeletionDialog({ title, busy, onClose, onConfirm }) {
+  const [acknowledged, setAcknowledged] = useState(false);
+  return <Modal nativeModal title="Delete parking listing?" onClose={onClose}>
+    <p style={{ color: C.navy, lineHeight: 1.5 }}>Delete <strong>{title}</strong> from ParkShare?</p>
+    <label style={{ display: "flex", alignItems: "center", gap: 10, color: C.navy, margin: "18px 0" }}>
+      <input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} />
+      <span>I want to delete this listing.</span>
+    </label>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+      <button type="button" onClick={onClose} disabled={busy} style={{ minHeight: 44, padding: "10px 18px", border: 0, borderRadius: 8, background: C.concrete, color: C.navy, fontWeight: 700, cursor: "pointer" }}>Keep listing</button>
+      <button type="button" disabled={!acknowledged || busy} onClick={() => {
+        if (acknowledged && !busy) onConfirm();
+      }} style={{ minHeight: 44, padding: "10px 18px", border: 0, borderRadius: 8, background: C.red, color: C.white, fontWeight: 700, opacity: !acknowledged || busy ? 0.5 : 1, cursor: !acknowledged || busy ? "default" : "pointer" }}>{busy ? "Deleting…" : "Delete listing"}</button>
+    </div>
+  </Modal>;
+}
+
+function useHostListingDeletion(user, onDeleted, onNotice = null) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    if (context.request) context.request.token.active = false;
+    current = { accountId, request: null };
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (latest.current.request) latest.current.request.token.active = false;
+    };
+  }, []);
+  const isCurrent = token => mounted.current && token?.active && latest.current.accountId === accountId && latest.current.request?.token === token;
+  const replace = next => { latest.current = next; setContext(next); };
+  const open = listing => {
+    if (!mounted.current || latest.current !== current || !accountId || !validId(listing?.rawId) || !listing?.id || current.request?.token.pending) return;
+    if (current.request) current.request.token.active = false;
+    // A delete confirmation needs IDs only, never a mutable private listing.
+    replace({ accountId, request: { rawId: listing.rawId, displayId: listing.id, token: { active: true, pending: false } } });
+  };
+  const close = () => {
+    const token = current.request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    token.active = false;
+    replace({ ...latest.current, request: null });
+  };
+  const confirm = async () => {
+    const request = current.request, token = request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    token.pending = true;
+    replace({ ...latest.current });
+    try {
+      const result = await deleteHostListing(supabase, { listingId: request.rawId, hostId: accountId, isContextCurrent: () => isCurrent(token) });
+      if (!isCurrent(token) || result.obsolete) return;
+      if (!result.ok) {
+        if (result.unavailable) onDeleted(request.displayId);
+        if (onNotice) onNotice(result.message, !result.unavailable); else alert(result.message);
+        return;
+      }
+      onDeleted(request.displayId);
+      const message = result.photoCleanupPending ? "Listing deleted. Photo cleanup is queued and will retry automatically." : "Listing deleted.";
+      if (onNotice) onNotice(message, false); else if (result.photoCleanupPending) alert(message);
+    } finally {
+      token.pending = false;
+      if (isCurrent(token)) {
+        token.active = false;
+        replace({ ...latest.current, request: null });
+      }
+    }
+  };
+  return { confirmDeleteId: current.request?.displayId || null,
+    deletingId: current.request?.token.pending ? current.request.displayId : null, open, close, confirm };
+}
+
+async function persistHostListingEdit(updated, accountId, isContextCurrent = () => false) {
+  const rate = validateHourlyRate(updated.price);
+  if (!rate.valid) throw new Error(rate.error);
+  if (!accountId || !validId(updated?.rawId)) throw new Error("Reopen this listing while signed in as its Host.");
+  if (!isContextCurrent()) return null;
+  if (typeof updated.title === "string" && (!updated.title.trim() || updated.title.trim().length > 200)) throw new Error("Enter a driveway title of at most 200 characters.");
+  if (updated.availability) {const error=listingScheduleError(updated.availability,updated.timeZone,updated.is_paused === true); if(error)throw new Error(error);}
+  // Capture the exact editable payload before waiting for authentication.
+  const changes = structuredClone({ price: rate.value, description: updated.description,
+    features: updated.features, spots: updated.spots, spaces: updated.spaces,
+    ...(typeof updated.title === "string" ? {title: updated.title.trim()} : {}),
+    ...(typeof updated.is_paused === "boolean" ? {is_paused: updated.is_paused} : {}),
+    ...(updated.availability ? {availability: updated.availability} : {}) });
+  const listingId = updated.rawId;
+  const { data: authData, error: authError } = await supabase.auth.getSession();
+  if (!isContextCurrent()) return null;
+  if (authError || !authData?.session?.access_token || authData.session.user?.id !== accountId) {
+    throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
+  }
+  if (!isContextCurrent()) return null;
+  const { data: updatedRow, error } = await supabase.from("listings").update(changes)
+    .eq("id", listingId).eq("host_id", accountId)
+    .select("id,title,price,description,features,spots,spaces,availability,is_paused").maybeSingle();
+  if (!isContextCurrent()) return null;
+  if (error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  let data = updatedRow;
+  if (!data) {
+    // HTTP success without a representation cannot prove whether a write
+    // matched. Read once under the same owner; never replay the mutation.
+    const verified = await supabase.from("listings").select("id,title,price,description,features,spots,spaces,availability,is_paused")
+      .eq("id", listingId).eq("host_id", accountId).maybeSingle();
+    if (!isContextCurrent()) return null;
+    const {data: latestAuth, error: latestAuthError} = await supabase.auth.getSession();
+    if (!isContextCurrent()) return null;
+    if (latestAuthError || !latestAuth?.session?.access_token || latestAuth.session.user?.id !== accountId) throw new Error("Your account changed or expired. Sign in and reopen this listing as its Host.");
+    if (verified.error) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+    if (!verified.data) {
+      const missing = new Error("This listing is no longer available. It may already have been deleted.");
+      missing.code = "listing_not_available";
+      throw missing;
+    }
+    if (!listingEditMatches(verified.data, changes)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+    data = verified.data;
+  }
+  if (String(data.id) !== String(listingId)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  if (!listingSettingsMatch(data, changes)) throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  const savedRate = validateHourlyRate(data.price);
+  if (!savedRate.valid || !Number.isInteger(Number(data.spaces)) || Number(data.spaces) < 1 || !Array.isArray(data.features || []) || !Array.isArray(data.spots || [])) {
+    throw new Error("Couldn't confirm saved changes. Refresh your listing before retrying.");
+  }
+  return { price: savedRate.value, description: data.description || "", features: data.features || [], spots: data.spots || [], spaces: Number(data.spaces),
+    ...(typeof data.title === "string" ? {title:data.title} : {}),
+    ...(typeof data.is_paused === "boolean" ? {is_paused:data.is_paused,active:!data.is_paused} : {}),
+    ...(data.availability ? {availability:data.availability} : {}) };
+}
+
+function useHostListingEdit(user, onSaved, onUnavailable = null) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null, revision: 0 }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    if (context.request) context.request.token.active = false;
+    current = { accountId, request: null, revision: context.revision + 1 };
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; if (latest.current.request) latest.current.request.token.active = false; };
+  }, []);
+  const token = current.request?.token;
+  const isCurrent = () => mounted.current && token?.active && latest.current.accountId === accountId && latest.current.request?.token === token;
+  const replace = next => { latest.current = next; setContext(next); };
+  const open = listing => {
+    if (!mounted.current || latest.current !== current || !accountId || !validId(listing?.rawId)) return;
+    const snapshot = structuredClone({ id: listing.id, rawId: listing.rawId, title: listing.title, price: listing.price,
+      description: listing.description || "", features: listing.features || [], spots: listing.spots || [], spaces: listing.spaces || 1,
+      availability: listing.availability, timeZone: listing.timeZone, is_paused: listing.is_paused === true });
+    if (current.request) current.request.token.active = false;
+    replace({ accountId, request: { listing: snapshot, token: { active: true, pending: false } }, revision: current.revision + 1 });
+  };
+  const close = () => {
+    if (!isCurrent()) return;
+    token.active = false;
+    replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+  };
+  const save = async updated => {
+    if (!isCurrent() || token.pending) return false;
+    const request = current.request;
+    if (String(updated?.rawId) !== String(request.listing.rawId)) throw new Error("Reopen the selected listing before saving.");
+    token.pending = true;
+    try {
+      const saved = await persistHostListingEdit({...updated, timeZone:request.listing.timeZone}, accountId, isCurrent);
+      if (!isCurrent() || !saved) return false;
+      onSaved(request.listing.id, saved);
+      token.active = false;
+      replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+      return true;
+    } catch (error) {
+      if (isCurrent() && error?.code === "listing_not_available" && onUnavailable) {
+        onUnavailable(request.listing.id, error.message);
+        token.active = false;
+        replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+      } else if (isCurrent()) throw error;
+      return false;
+    } finally {
+      token.pending = false;
+    }
+  };
+  return { listing: current.request?.listing || null, requestKey: current.revision, open, close, save, isCurrent };
+}
+
 function HostDashboard({ user, setTab }) {
+  const listingJournal = useMemo(() => createHostListingJournal(user?.id), [user?.id]);
+  const [listingNotice, setListingNotice] = useState(null);
+  const showListingNotice = (message, error = false) => setListingNotice({accountId: user?.id, message, error});
+  const listingFeedback = listingNotice?.accountId === user?.id ? listingNotice : null;
   const [dbListings, setDbListings] = useState([]);
   const [dbBookings, setDbBookings] = useState([]);
+  const [hostLoading, setHostLoading] = useState(true);
+  const [hostError, setHostError] = useState("");
+  const [dashboardReload, setDashboardReload] = useState(0);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [hostReviews, setHostReviews] = useState([]);
-  const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
-  const [cancelError, setCancelError] = useState("");
-  const [cancelNotice, setCancelNotice] = useState("");
 
   // ─── Stripe Connect payout status ────────────────────────────────────────
-  // Reads straight from `profiles` so it always reflects the latest state
-  // written by the account.updated webhook, including right after a host
-  // returns from Stripe's hosted onboarding flow.
+  // The authenticated API checks the current Host's connected account.
   const [stripeStatus, setStripeStatus] = useState({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
   const [connectError, setConnectError] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const onboardingAttempt = useRef(null);
+
+  useEffect(() => {
+    const invalidateAttempt = () => {
+      if (onboardingAttempt.current) onboardingAttempt.current.active = false;
+      onboardingAttempt.current = null;
+    };
+    const restoreDashboard = event => {
+      if (!event.persisted) return;
+      // Back from Stripe can restore this component without remounting it.
+      // Discard the old link request and recheck status before another attempt.
+      invalidateAttempt();
+      setConnecting(false);
+      setConnectError("");
+      setDashboardReload(value => value + 1);
+    };
+    window.addEventListener("pagehide", invalidateAttempt);
+    window.addEventListener("pageshow", restoreDashboard);
+    return () => {
+      window.removeEventListener("pagehide", invalidateAttempt);
+      window.removeEventListener("pageshow", restoreDashboard);
+      invalidateAttempt();
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const refreshStripeStatus = async () => {
-    if (!user) return;
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    setStripeStatus({ loading: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
+    setConnectError("");
+    if (!user?.id) return () => { active = false; controller.abort(); };
+    (async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Please sign in again to check payout status.");
-      const res = await fetch("/api/connect-status", { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!active) return;
+      const session = sessionData?.session;
+      if (sessionError || !session?.access_token || session.user?.id !== user.id) throw new Error("Your account changed or session expired. Please sign in again to check payout status.");
+      const res = await fetch("/api/connect-status", { headers: { Authorization: `Bearer ${session.access_token}` }, signal: controller.signal, cache: "no-store" });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Couldn't refresh Stripe status.");
+      if (!active) return;
+      if (!res.ok) throw new Error(data?.error || "Couldn't refresh Stripe status.");
+      if (![data?.connected, data?.chargesEnabled, data?.payoutsEnabled].every(value => typeof value === "boolean")) throw new Error("Couldn't refresh Stripe status. Please try again.");
       setStripeStatus({
         loading: false,
         accountId: data.connected ? "connected" : null,
@@ -3152,15 +4054,21 @@ function HostDashboard({ user, setTab }) {
         payoutsEnabled: !!data.payoutsEnabled,
       });
     } catch (error) {
-      setStripeStatus(s => ({ ...s, loading: false }));
-      setConnectError(error.message || "Couldn't refresh Stripe status.");
+      if (active) {
+        setStripeStatus({ loading: false, unavailable: true, accountId: null, chargesEnabled: false, payoutsEnabled: false });
+        setConnectError(error?.message || "Couldn't refresh Stripe status.");
+      }
     }
-  };
-
-  useEffect(() => { refreshStripeStatus(); }, [user]);
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [user?.id, dashboardReload]);
 
   const connectStripe = async () => {
-    if (!user) return;
+    if (!user?.id || onboardingAttempt.current) return;
+    const attempt = { active: true };
+    onboardingAttempt.current = attempt;
+    const isCurrent = () => attempt.active && onboardingAttempt.current === attempt;
+    let redirecting = false;
     setConnectError("");
     setConnecting(true);
 
@@ -3168,15 +4076,18 @@ function HostDashboard({ user, setTab }) {
       // Stripe onboarding is protected by the same Supabase JWT used for
       // checkout. Refresh once if the locally stored session is stale.
       let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!isCurrent()) return;
       let session = sessionData?.session;
+      if (session?.user?.id && session.user.id !== user.id) throw new Error("Your account changed. Please sign in again to set up payouts.");
 
       if (sessionError || !session?.access_token) {
         const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!isCurrent()) return;
         if (refreshError) throw refreshError;
         session = refreshedData?.session;
       }
 
-      if (!session?.access_token) {
+      if (!session?.access_token || session.user?.id !== user.id) {
         throw new Error("Your session is invalid or expired. Please sign in again.");
       }
 
@@ -3195,48 +4106,78 @@ function HostDashboard({ user, setTab }) {
       } catch {
         // Use the fallback message below when the API returns no JSON body.
       }
+      if (!isCurrent()) return;
 
       if (res.status === 401) {
         throw new Error("Your session is invalid or expired. Please sign in again.");
       }
-      if (!res.ok) throw new Error(data.error || "Couldn't start Stripe onboarding.");
-      if (!data.url) throw new Error("Stripe did not return an onboarding link.");
+      if (!res.ok) throw new Error(data?.error || "Couldn't start Stripe onboarding.");
+      if (!data?.url) throw new Error("Stripe did not return an onboarding link.");
+
+      // A session can change while Stripe creates the link, before React
+      // receives the cross-tab auth update. Recheck before navigating away.
+      const { data: latestData, error: latestError } = await supabase.auth.getSession();
+      if (!isCurrent()) return;
+      if (latestError || latestData?.session?.user?.id !== user.id || !latestData.session.access_token) throw new Error("Your account changed. Please sign in again to set up payouts.");
 
       window.location.assign(data.url);
+      redirecting = true;
     } catch (err) {
-      setConnecting(false);
-      setConnectError(err?.message || "Couldn't start Stripe onboarding.");
+      if (isCurrent()) setConnectError(err?.message || "Couldn't start Stripe onboarding.");
+    } finally {
+      if (isCurrent() && !redirecting) {
+        onboardingAttempt.current = null;
+        setConnecting(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (!user) return;
-
-    supabase
-      .from("listings")
-      .select("*")
-      .eq("host_id", user.id)
-      .then(({ data, error }) => {
-        if (error || !data) return;
+    let active = true;
+    const controller = new AbortController();
+    const listingReadVersion = listingJournal.version;
+    setDbListings([]);
+    setDbBookings([]);
+    setHostReviews([]);
+    setHostError("");
+    setHostLoading(Boolean(user?.id));
+    if (!user?.id) return () => { active = false; controller.abort(); };
+    (async () => {
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!active) return;
+        const session = sessionData?.session;
+        if (sessionError || !session?.access_token || session.user?.id !== user.id) throw new Error("Your account changed or session expired. Please sign in again to load your dashboard.");
+        const response = await fetch("/api/account-bookings?view=host", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal, cache: "no-store",
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!active) return;
+        if (!response.ok) throw new Error(payload?.error || "Couldn't load your dashboard.");
+        if (![payload?.listings, payload?.bookings, payload?.reviews].every(Array.isArray)) throw new Error("Couldn't load your dashboard. Please try again.");
+        const data = payload.listings;
         setDbListings(
-          data.map(row => ({
+          listingJournal.reconcile(data.map(row => ({
             id: "db-" + row.id,
             rawId: row.id,
             title: row.title,
             address: row.address,
             price: Number(row.price),
-            active: true,
+            active: row.is_paused !== true,
+            is_paused: row.is_paused === true,
+            availability: row.availability,
+            timeZone: row.time_zone,
             earnings: 0,
             bookings: 0,
             rating: 5,
-            img: row.img || "🏠",
+            img: "🏠",
             description: row.description || "",
             features: row.features || [],
             spaces: row.spaces || 1,
             spots: row.spots || [],
-          }))
+          })), listingReadVersion)
         );
-
         const listingIds = data.map(row => row.id);
         if (listingIds.length === 0) {
           setHostReviews([]);
@@ -3244,13 +4185,9 @@ function HostDashboard({ user, setTab }) {
         }
 
         const listingTitles = Object.fromEntries(data.map(row => [row.id, row.title]));
-        supabase
-          .from("reviews")
-          .select("*, profiles(name)")
-          .in("listing_id", listingIds)
-          .order("created_at", { ascending: false })
+        await Promise.resolve({ data: payload.reviews, error: null })
           .then(({ data: reviewRows, error: reviewError }) => {
-            if (reviewError || !reviewRows) return;
+            if (!active || reviewError || !reviewRows) return;
             setHostReviews(reviewRows.map(row => ({
               id: row.id,
               listing: listingTitles[row.listing_id] || "Listing",
@@ -3261,13 +4198,9 @@ function HostDashboard({ user, setTab }) {
             })));
           });
 
-        supabase
-          .from("bookings")
-          .select("*, listings(*), profiles(name)")
-          .in("listing_id", listingIds)
-          .order("created_at", { ascending: false })
+        await Promise.resolve({ data: payload.bookings, error: null })
           .then(({ data: bookingRows, error: bookingErr }) => {
-            if (bookingErr || !bookingRows) return;
+            if (!active || bookingErr || !bookingRows) return;
             const now = Date.now();
             setDbBookings(
               bookingRows.map(row => {
@@ -3275,9 +4208,11 @@ function HostDashboard({ user, setTab }) {
                 const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
                 const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
                 const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
-                const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const refundInFlight = Number(row.refund_pending_amount) > 0 || ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+                const refundPending = Boolean(row.cancellation_requested_at) && (refundInFlight || row.refund_total_amount == null && row.refund_status === "succeeded");
+                const refundReviewRequired = Number(row.refund_total_amount) > 0 && Number(row.refund_total_amount) < Number(row.total) || !row.cancellation_requested_at && refundInFlight;
                 const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-                const display = clientBookingDisplay(window.start, scheduled, window.end);
+                const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
                 return {
                   id: "db-" + row.id,
                   rawId: row.id,
@@ -3286,8 +4221,8 @@ function HostDashboard({ user, setTab }) {
                     id: "db-" + row.listing_id,
                     title: row.listings?.title || "Driveway",
                     address: row.listings?.address || "",
-                    img: row.listings?.img || "🏠",
-                    photos: row.listings?.photos || [],
+                    img: "🏠",
+                    photos: [],
                     lat: row.listings?.lat,
                     lng: row.listings?.lng,
                     spots: row.listings?.spots || [],
@@ -3296,6 +4231,7 @@ function HostDashboard({ user, setTab }) {
                   spotLabel: row.spot_label || "",
                   driver: row.profiles?.name || "Renter",
                   vehicle: {
+                    vehicleType: row.vehicle_type || "",
                     vehicleMake: row.vehicle_make || "",
                     vehicleModel: row.vehicle_model || "",
                     vehicleColour: row.vehicle_colour || "",
@@ -3305,12 +4241,16 @@ function HostDashboard({ user, setTab }) {
                   date: display.date,
                   startTime: display.startTime,
                   endTime: display.endTime,
+                  timeZoneLabel: display.timeZoneLabel,
                   duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
                   bookingStart: window.start.toISOString(),
                   bookingEnd: window.end.toISOString(),
-                  total: row.total,
+                  // Host cancellation is allowed strictly before the start.
+                  cancellationDeadline: window.start.getTime() - 1,
+                  total: row.charged_total ?? row.total,
                   status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
-                  canCancel: !refundPending && !cancelled && !completed && window.start.getTime() > now,
+                  refundReviewRequired,
+                  canCancel: !(Number(row.refund_total_amount) > 0) && !refundInFlight && !cancelled && !completed && window.start.getTime() > now,
                 };
               })
             );
@@ -3320,67 +4260,77 @@ function HostDashboard({ user, setTab }) {
             }, {});
             setDbListings(prev => prev.map(listing => ({ ...listing, bookings: counts[listing.rawId] || 0 })));
           });
-      });
-  }, [user]);
+        if (!active) return;
+        // Load authorized Host photographs with bearer-token access.
+        for (const listingRow of data) {
+          fetchPrivateCoverDataUrl(listingRow.id, null, session.access_token, controller.signal)
+            .then(image => {
+              if (!active || !image) return;
+              setDbListings(prev => prev.map(l => l.rawId === listingRow.id ? { ...l, img: image } : l));
+              setDbBookings(prev => prev.map(b => b.listingDetails?.id === "db-" + listingRow.id
+                ? { ...b, listingDetails: { ...b.listingDetails, img: image } } : b));
+            }).catch(() => {});
+        }
+
+      } catch (error) {
+        if (active) {
+          setDbListings([]); setDbBookings([]); setHostReviews([]);
+          setHostError(error?.message || "Couldn't load your dashboard.");
+        }
+      } finally {
+        if (active) setHostLoading(false);
+      }
+    })();
+    return () => { active = false; controller.abort(); };
+  }, [user?.id, dashboardReload]);
 
   const myListings = dbListings;
   // Only future and currently active reservations belong in this card.
-  // Completed/cancelled bookings remain included in lifetime statistics and
-  // transactions, but must never be presented to the host as upcoming work.
-  const upcomingBookings = dbBookings
+  // Completed/cancelled reservations stay findable in history, while only
+  // current reservations contribute to the Upcoming count.
+  const bookingsWithStatus = dbBookings
     .map(booking => ({
       ...booking,
       displayStatus: getBookingDisplayStatus(booking.status, booking.bookingStart, booking.bookingEnd, currentTime),
-    }))
+    }));
+  const upcomingBookings = bookingsWithStatus
     .filter(booking => booking.displayStatus === "Upcoming" || booking.displayStatus === "Active" || booking.displayStatus === "Cancellation pending");
-  const [deletingId, setDeletingId] = useState(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [editingListing, setEditingListing] = useState(null);
+  const bookingHistory = bookingsWithStatus
+    .filter(booking => booking.displayStatus === "Completed" || booking.displayStatus === "Cancelled");
+  const [bookingView, setBookingView] = useState("upcoming");
+  const visibleBookings = bookingView === "history" ? bookingHistory : upcomingBookings;
   const [showAllListings, setShowAllListings] = useState(false);
   const [showAllBookings, setShowAllBookings] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [listingActionId, setListingActionId] = useState(null);
+  const listingActionButtons = useRef(new Map());
   const [bookingActionId, setBookingActionId] = useState(null);
 
-  const deleteListing = async (rawId, displayId) => {
-    setDeletingId(displayId);
-    const { error } = await supabase.from("listings").delete().eq("id", rawId);
-    setDeletingId(null);
-    setConfirmDeleteId(null);
-    if (error) { alert("Couldn't delete listing: " + error.message); return; }
-    setDbListings(prev => prev.filter(l => l.id !== displayId));
-  };
+  const { deletingId, confirmDeleteId, open: openListingDeletion, close: closeListingDeletion,
+    confirm: deleteListing } = useHostListingDeletion(user, displayId => {
+      listingJournal.remove(displayId);
+      setDbListings(prev => prev.filter(l => l.id !== displayId));
+    }, showListingNotice);
 
-  const saveListingEdit = async (updated) => {
-    const { error } = await supabase.from("listings").update({
-      price: Number(updated.price) || 1,
-      description: updated.description,
-      features: updated.features,
-      spots: updated.spots,
-      spaces: updated.spaces,
-    }).eq("id", updated.rawId);
-    if (error) { alert("Couldn't save changes: " + error.message); return false; }
-    setDbListings(prev => prev.map(l => l.id === updated.id ? { ...l, ...updated } : l));
-    return true;
-  };
+  const { listing: editingListing, requestKey: editingKey, open: openListingEdit, close: closeListingEdit,
+    save: saveListingEdit, isCurrent: isListingEditCurrent } = useHostListingEdit(user, (displayId, saved) => {
+      listingJournal.save(displayId, saved);
+      setDbListings(prev => prev.map(l => l.id === displayId ? { ...l, ...saved } : l));
+      showListingNotice("Listing changes saved.");
+    }, (displayId, message) => {
+      listingJournal.hide(displayId);
+      setDbListings(prev => prev.filter(l => l.id !== displayId));
+      showListingNotice(message);
+    });
 
-  const cancelHostBooking = async () => {
-    if (!cancelTarget) return;
-    setCancelBusy(true);
-    setCancelError("");
-    try {
-      const result = await requestBookingCancellation(cancelTarget.rawId, "Cancelled by Host");
+  const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
+    requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
+    confirm: cancelHostBooking } = useBookingCancellation(user, "Cancelled by Host", (bookingId, result) => {
+      if (result.reviewRequired) return;
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === cancelTarget.rawId ? { ...b, status: nextStatus, canCancel: false } : b));
-      setCancelNotice(result.message || "Cancellation received.");
-      setCancelTarget(null);
-    } catch (error) {
-      setCancelError(error.message || "Couldn't cancel this booking.");
-    } finally {
-      setCancelBusy(false);
-    }
-  };
-  const { data: txData, loading: txLoading } = useTransactions(user);
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: result.reviewRequired ? b.canCancel : false } : b));
+    });
+  const { data: txData, loading: txLoading, error: txError, retry: retryTransactions } = useTransactions(user);
 
   const now = new Date();
   const sameMonth = (d, monthsAgo) => {
@@ -3388,12 +4338,16 @@ function HostDashboard({ user, setTab }) {
     const target = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
     return dt.getFullYear() === target.getFullYear() && dt.getMonth() === target.getMonth();
   };
-  const paidEarned = txData.earned.filter(t => t.status === "confirmed" || t.status === "completed");
-  const thisMonthEarned = paidEarned.filter(t => sameMonth(t.date, 0)).reduce((s, t) => s + t.net, 0);
-  const allTimeEarned = paidEarned.reduce((s, t) => s + t.net, 0);
+  const earningsUnderReview = txData.earned.some(t => t.earningsState === "needs_review");
+  const thisMonthEarned = hostEarnedTotal(txData.earned.filter(t => sameMonth(t.date, 0)));
+  const allTimeEarned = hostEarnedTotal(txData.earned);
   const pendingAmount = txData.payouts.filter(p => p.status === "pending" || p.status === "in_transit").reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const avgRating = hostReviews.length ? (hostReviews.reduce((sum, review) => sum + review.rating, 0) / hostReviews.length).toFixed(1) : "—";
   const scrollToDashboardSection = sectionId => {
+    if (sectionId === "host-dashboard-upcoming") {
+      setBookingView("upcoming");
+      setShowAllBookings(false);
+    }
     document.getElementById(sectionId)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -3404,7 +4358,9 @@ function HostDashboard({ user, setTab }) {
       <div className="host-dashboard-hero" style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: "'Poppins', sans-serif", color: C.white, fontSize: 20, fontWeight: 700 }}>Welcome back, {user?.name || "Host"} 👋</div>
-          <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 3 }}>Host since January 2025</div>
+          {user?.createdAt && Number.isFinite(Date.parse(user.createdAt)) && (
+            <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, marginTop: 3 }}>Host since {new Date(user.createdAt).toLocaleDateString("en-CA", { month: "long", year: "numeric", timeZone: "UTC" })}</div>
+          )}
         </div>
         <button onClick={() => setTab?.("List Your Driveway")} className="host-dashboard-add-button" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 42, background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "9px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>+ Add listing</button>
       </div>
@@ -3412,13 +4368,16 @@ function HostDashboard({ user, setTab }) {
       {/* Content-sized responsive grid: overview first, details second. */}
       <div className="host-dashboard-main" style={{ width: "100%", maxWidth: 1240, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(300px, 0.8fr)", gridTemplateRows: "auto auto auto", alignItems: "start", gap: 14, padding: 18, overflow: "visible", boxSizing: "border-box" }}>
 
+      {hostLoading && <p role="status" style={{ gridColumn: "1 / -1", color: C.muted, margin: 0 }}>Loading your dashboard…</p>}
+      {hostError && <div role="alert" style={{ gridColumn: "1 / -1", color: C.red }}>{hostError} <button type="button" onClick={() => setDashboardReload(value => value + 1)}>Try again</button></div>}
+
         {/* Stats row — spans full width */}
         <div className="host-dashboard-stat-grid" style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
           {[
-            { label: "Earned this month", value: txLoading ? "…" : money(thisMonthEarned), icon: "💰", target: "host-dashboard-earnings" },
-            { label: "Upcoming bookings", value: String(upcomingBookings.length), icon: "📅", target: "host-dashboard-upcoming" },
-            { label: "Active listings", value: String(myListings.filter(l => l.active).length), icon: "🏠", target: "host-dashboard-listings" },
-            { label: "Average rating", value: avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐", target: "host-dashboard-reviews" },
+            { label: earningsUnderReview ? "Known earnings this month" : "Earned this month", value: txLoading ? "…" : txError ? "Unavailable" : money(thisMonthEarned), icon: "💰", target: "host-dashboard-earnings" },
+            { label: "Upcoming bookings", value: hostLoading ? "…" : hostError ? "Unavailable" : String(upcomingBookings.length), icon: "📅", target: "host-dashboard-upcoming" },
+            { label: "Active listings", value: hostLoading ? "…" : hostError ? "Unavailable" : String(myListings.filter(l => l.active).length), icon: "🏠", target: "host-dashboard-listings" },
+            { label: "Average rating", value: hostLoading ? "…" : hostError ? "Unavailable" : avgRating === "—" ? "—" : "★ "+avgRating, icon: "⭐", target: "host-dashboard-reviews" },
           ].map(s => (
             <button type="button" key={s.label} className="host-dashboard-stat" onClick={() => scrollToDashboardSection(s.target)} aria-label={`${s.label}: ${s.value}. Jump to section.`} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, padding: "14px 15px", display: "flex", alignItems: "center", gap: 11, minHeight: 88, fontFamily: "inherit", textAlign: "left", cursor: "pointer" }}>
               <div className="host-dashboard-stat-icon" style={{ width: 38, height: 38, borderRadius: 10, background: C.amberLight, display: "grid", placeItems: "center", fontSize: 18, flexShrink: 0 }}>{s.icon}</div>
@@ -3430,37 +4389,46 @@ function HostDashboard({ user, setTab }) {
           ))}
         </div>
 
-        {/* Upcoming Bookings */}
+        {/* Current reservations and retained booking history */}
         <div id="host-dashboard-upcoming" className="host-dashboard-panel host-dashboard-upcoming" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
-          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>📅 Upcoming bookings</div>
-            {upcomingBookings.length > 3 && (
-              <button onClick={() => setShowAllBookings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllBookings ? "Show less" : `View all ${upcomingBookings.length}`}</button>
-            )}
+          <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>{bookingView === "history" ? "📅 Booking history" : "📅 Upcoming bookings"}</div>
+            <button type="button" disabled={hostLoading} onClick={() => setDashboardReload(value => value + 1)} style={{ minHeight: 44, border: "none", background: "none", color: C.navy, fontSize: 10, fontWeight: 700, cursor: hostLoading ? "default" : "pointer" }}>Refresh bookings</button>
           </div>
+          <div role="group" aria-label="Booking view" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "10px 15px" }}>
+            {[{ id: "upcoming", label: "Upcoming" }, { id: "history", label: "Booking history" }].map(view => (
+              <button type="button" key={view.id} aria-pressed={bookingView === view.id} onClick={() => { setBookingView(view.id); setShowAllBookings(false); }} style={{ minHeight: 44, border: "1px solid " + C.concrete, borderRadius: 9, background: bookingView === view.id ? C.navy : C.white, color: bookingView === view.id ? C.white : C.navy, padding: "8px 12px", fontFamily: "inherit", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{view.label}</button>
+            ))}
+          </div>
+          {bookingView === "history" && <p style={{ fontSize: 11, color: C.muted, padding: "0 15px", margin: "0 0 10px" }}>Recent completed and cancelled bookings.{setTab && <> <button type="button" onClick={() => setTab("Transactions")} style={{ minHeight: 44, border: "none", background: "none", padding: 0, color: C.navy, fontFamily: "inherit", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>View charges and refunds in Transactions →</button></>}</p>}
+          {!hostLoading && !hostError && visibleBookings.length > 3 && (
+              <button type="button" onClick={() => setShowAllBookings(v => !v)} style={{ minHeight: 44, border: "none", background: "none", color: C.navy, padding: "4px 15px", fontSize: 10, fontWeight: 700, cursor: "pointer", alignSelf: "flex-end" }}>{showAllBookings ? "Show less" : `View all ${visibleBookings.length}`}</button>
+            )}
           {cancelNotice && <div role="status" style={{ fontSize: 10, color: C.moss, padding: "9px 15px 0" }}>{cancelNotice}</div>}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {upcomingBookings.length === 0 && (
-              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No upcoming bookings.</div>
+            {!hostLoading && !hostError && visibleBookings.length === 0 && (
+              <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>{bookingView === "history" ? "No completed or cancelled bookings yet." : "No upcoming bookings."}</div>
             )}
-            {upcomingBookings.slice(0, showAllBookings ? upcomingBookings.length : 3).map(b => (
+            {!hostLoading && !hostError && visibleBookings.slice(0, showAllBookings ? visibleBookings.length : 3).map(b => (
               <div key={b.id} className="host-dashboard-booking-row" style={{ padding: "13px 15px", borderBottom: "1px solid "+C.concrete }}>
                 <div className="host-dashboard-booking-heading">
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13, color: C.navy }}>{b.driver}</div>
                     <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>{b.listing}</div>
+                    <div style={{ fontSize: 10, color: C.muted, marginTop: 3 }}>Reservation #PK-{b.rawId}</div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, textAlign: "right", flexShrink: 0 }}>
                     <div>
-                      <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: C.mossLight, color: C.moss }}>{b.displayStatus}</div>
-                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{money(b.total)}</div>
+                      <div style={{ display: "inline-flex", fontSize: 9, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: b.displayStatus === "Cancelled" ? C.redLight : C.mossLight, color: b.displayStatus === "Cancelled" ? C.red : C.moss }}>{b.displayStatus}</div>
+                      <div style={{ fontWeight: 800, color: C.navy, fontSize: 13, marginTop: 4 }}>{bookingView === "history" && <span style={{ display: "block", fontSize: 9, fontWeight: 400 }}>Booking total</span>}{money(b.total)} CAD</div>
+                      {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
                     </div>
                     {b.canCancel && b.displayStatus === "Upcoming" && (
                       <div style={{ position: "relative" }}>
                         <button aria-label={`Actions for ${b.driver}'s booking`} aria-expanded={bookingActionId === b.id} onClick={() => setBookingActionId(id => id === b.id ? null : b.id)} className="host-dashboard-more-button">•••</button>
                         {bookingActionId === b.id && (
                           <div className="host-dashboard-action-menu">
-                            <button onClick={() => { setBookingActionId(null); setCancelError(""); setCancelTarget(b); }}>Cancel booking</button>
+                            <button onClick={() => { setBookingActionId(null); openCancellation(b); }}>Cancel booking</button>
                           </div>
                         )}
                       </div>
@@ -3475,6 +4443,7 @@ function HostDashboard({ user, setTab }) {
                   date={b.date}
                   startTime={b.startTime}
                   endTime={b.endTime}
+                  timeZoneLabel={b.timeZoneLabel}
                   duration={b.duration}
                   bookingEnd={b.bookingEnd}
                   isActive={b.displayStatus === "Active"}
@@ -3494,8 +4463,9 @@ function HostDashboard({ user, setTab }) {
               <button onClick={() => setShowAllListings(v => !v)} style={{ minHeight: 34, border: "none", background: "none", color: C.navy, padding: "4px 2px", fontSize: 10, fontWeight: 700, cursor: "pointer" }}>{showAllListings ? "Show less" : "Manage all"}</button>
             )}
           </div>
+          {listingFeedback && <p className="host-dashboard-listing-feedback" role={listingFeedback.error ? "alert" : "status"} style={{padding: "0 15px", color: listingFeedback.error ? C.red : C.navy, fontSize: 13}}>{listingFeedback.message}</p>}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {myListings.length === 0 && (
+            {!hostLoading && !hostError && myListings.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No listings yet.</div>
             )}
             {myListings.slice(0, showAllListings ? myListings.length : 3).map(l => (
@@ -3507,17 +4477,14 @@ function HostDashboard({ user, setTab }) {
                 </div>
                 <span style={{ fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 10, background: l.active ? C.mossLight : C.concrete, color: l.active ? C.moss : C.muted, flexShrink: 0 }}>{l.active ? "Active" : "Paused"}</span>
                 {confirmDeleteId === l.id ? (
-                  <div className="host-dashboard-delete-confirm" style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                    <button onClick={() => deleteListing(l.rawId, l.id)} disabled={deletingId === l.id} style={{ minHeight: 34, background: C.red, color: C.white, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>{deletingId === l.id ? "…" : "Delete"}</button>
-                    <button onClick={() => setConfirmDeleteId(null)} style={{ minHeight: 34, background: C.concrete, color: C.navy, border: "none", borderRadius: 7, padding: "5px 8px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>Keep</button>
-                  </div>
+                  <ListingDeletionDialog title={l.title} busy={deletingId !== null} onConfirm={deleteListing} onClose={closeListingDeletion} />
                 ) : (
                   <div style={{ position: "relative", flexShrink: 0 }}>
-                    <button aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
+                    <button ref={node => { if (node) listingActionButtons.current.set(l.rawId, node); else listingActionButtons.current.delete(l.rawId); }} aria-label={`Actions for ${l.title}`} aria-expanded={listingActionId === l.id} onClick={() => setListingActionId(id => id === l.id ? null : l.id)} className="host-dashboard-more-button">•••</button>
                     {listingActionId === l.id && (
                       <div className="host-dashboard-action-menu">
-                        <button onClick={() => { setListingActionId(null); setEditingListing(l); }}>Edit listing</button>
-                        <button className="danger" onClick={() => { setListingActionId(null); setConfirmDeleteId(l.id); }}>Delete listing</button>
+                        <button onClick={() => { setListingActionId(null); openListingEdit(l); }}>Edit listing</button>
+                        <button className="danger" onClick={() => { setListingActionId(null); openListingDeletion(l); }}>Delete listing</button>
                       </div>
                     )}
                   </div>
@@ -3538,7 +4505,7 @@ function HostDashboard({ user, setTab }) {
           </div>
 
           {/* Stripe Connect payout status — gates whether this host can actually get paid out */}
-          <div style={{ padding: "13px 15px 0" }}>{!stripeStatus.loading && (
+          <div style={{ padding: "13px 15px 0" }}>{!stripeStatus.loading && !stripeStatus.unavailable && (
             stripeStatus.payoutsEnabled ? (
               <div style={{ display: "flex", alignItems: "center", gap: 7, background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 11px", marginBottom: 10 }}>
                 <span style={{ fontSize: 13 }}>✅</span>
@@ -3555,19 +4522,24 @@ function HostDashboard({ user, setTab }) {
                 {connectError && <div style={{ fontSize: 9, color: C.red, marginTop: 6 }}>{connectError}</div>}
               </div>
             )
-          )}</div>
+          )}
+            {stripeStatus.unavailable && <div role="alert" style={{ color: C.red, fontSize: 11, marginBottom: 10 }}>{connectError} <button type="button" onClick={() => setDashboardReload(value => value + 1)}>Try again</button></div>}
+          </div>
 
           <div className="host-dashboard-earnings-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, padding: "0 15px 15px" }}>
             {[
-              { label: "This month", value: txLoading ? "…" : money(thisMonthEarned) },
-              { label: "Pending", value: txLoading ? "…" : money(pendingAmount) },
-              { label: "All time", value: txLoading ? "…" : money(allTimeEarned) },
+              { label: earningsUnderReview ? "Known this month" : "This month", value: txLoading ? "…" : txError ? "Unavailable" : money(thisMonthEarned) },
+              { label: "Pending payouts", value: txLoading ? "…" : txError || txData.payoutsUnavailable ? "Unavailable" : money(pendingAmount) },
+              { label: earningsUnderReview ? "Known all time" : "All time", value: txLoading ? "…" : txError ? "Unavailable" : money(allTimeEarned) },
             ].map(s => (
               <div key={s.label} style={{ background: C.warmWhite, borderRadius: 9, padding: "10px 11px" }}>
                 <div style={{ fontSize: 9, color: C.muted }}>{s.label}</div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: C.navy, marginTop: 3 }}>{s.value}</div>
               </div>
             ))}
+          </div>
+          <div role="status" style={{ fontSize: 10, color: C.muted, padding: "0 15px 12px" }}>
+            {txError ? "Transaction history is temporarily unavailable." : earningsUnderReview ? "Some transactions need review. Totals include verified amounts only, before Stripe processing fees." : "Booking proceeds before Stripe processing fees. Payouts are shown separately."}
           </div>
         </div>
 
@@ -3578,17 +4550,29 @@ function HostDashboard({ user, setTab }) {
             {setTab && <button onClick={() => setTab("Transactions")} style={{ minHeight: 34, background: "none", border: "none", color: C.navy, fontWeight: 700, fontSize: 10, cursor: "pointer" }}>View all →</button>}
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {txLoading && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>Loading…</div>}
-            {!txLoading && txData.earned.length === 0 && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>No transactions yet.</div>}
-            {!txLoading && txData.earned.slice(0, 3).map(t => (
+            {txLoading && <div role="status" style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>Loading…</div>}
+            {!txLoading && txError && <div role="alert" style={{ fontSize: 11, color: C.red, padding: "16px 15px" }}>
+              <p>We couldn't load your recent transactions.</p>
+              <button type="button" onClick={retryTransactions} style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: "pointer" }}>Retry transactions</button>
+            </div>}
+            {!txLoading && !txError && txData.earned.length === 0 && <div style={{ fontSize: 11, color: C.muted, padding: "16px 15px" }}>No transactions yet.</div>}
+            {!txLoading && !txError && txData.earned.slice(0, 3).map(t => {
+              const presentation = hostTransactionPresentation(t);
+              const amount = hostEarningsContribution(t);
+              const showAmount = t.earningsState === "verified" || presentation.isIncome;
+              return (
               <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 15px", borderBottom: "1px solid "+C.concrete }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 600, color: C.navy }}>{t.description}</div>
                   <div style={{ fontSize: 9, color: C.muted, marginTop: 3 }}>{new Date(t.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 12, color: C.moss, whiteSpace: "nowrap" }}>+{money(t.net)}</div>
+                <div role="status" aria-label={`${presentation.label}${showAmount ? ` ${money(amount)}` : ""}`}
+                  style={{ fontWeight: 700, fontSize: 12, color: amount > 0 ? C.moss : amount < 0 ? C.red : C.muted, whiteSpace: "nowrap", textAlign: "right" }}>
+                  {showAmount ? `${amount > 0 ? "+" : ""}${money(amount)}` : presentation.label}
+                  {showAmount && <div style={{ fontSize: 9, fontWeight: 400 }}>{presentation.label}</div>}
+                </div>
               </div>
-            ))}
+            );})}
           </div>
         </div>
 
@@ -3601,7 +4585,7 @@ function HostDashboard({ user, setTab }) {
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {hostReviews.length === 0 && (
+            {!hostLoading && !hostError && hostReviews.length === 0 && (
               <div style={{ fontSize: 11, color: C.muted, textAlign: "center", padding: "24px 15px" }}>No reviews yet. New Driver reviews will appear here.</div>
             )}
             {hostReviews.slice(0, showAllReviews ? hostReviews.length : 3).map(review => (
@@ -3626,18 +4610,23 @@ function HostDashboard({ user, setTab }) {
 
       {editingListing && (
         <EditListingModal
+          key={editingKey}
           listing={editingListing}
-          onClose={() => setEditingListing(null)}
+          onClose={closeListingEdit}
           onSave={saveListingEdit}
+          isContextCurrent={isListingEditCurrent}
+          returnFocus={() => listingActionButtons.current.get(editingListing.rawId)}
         />
       )}
       {cancelTarget && (
         <CancellationModal
+          key={cancellationKey}
           title={`Cancel ${cancelTarget.driver}'s booking?`}
           actor="host"
+          cancellationDeadline={cancelTarget.cancellationDeadline}
           busy={cancelBusy}
           error={cancelError}
-          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onClose={closeCancellation}
           onConfirm={cancelHostBooking}
         />
       )}
@@ -3645,20 +4634,31 @@ function HostDashboard({ user, setTab }) {
   );
 }
 // ─── Messages Inbox ───────────────────────────────────────────────────────────
+function FindParkingLink() {
+  return <a className="ps-find-parking-link" href="/parking">Find parking</a>;
+}
+
 function MessagesView({ onOpenThread, user }) {
   const [dbConvos, setDbConvos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [inboxReload, setInboxReload] = useState(0);
 
   useEffect(() => {
     if (!user) return;
+    const controller = new AbortController();
+    let active = true;
+    setDbConvos([]); setError(""); setLoading(true);
     const load = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw new Error("Please sign in again to view messages.");
-        const res = await fetch("/api/messages", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (!active) return;
+        if (!session?.access_token || session.user?.id !== user.id) throw new Error("Please sign in again to view messages.");
+        const res = await fetch("/api/messages", { headers: { Authorization: `Bearer ${session.access_token}` }, cache: "no-store", signal: controller.signal });
         const data = await res.json().catch(() => ({}));
+        if (!active) return;
         if (!res.ok) throw new Error(data.error || "We couldn't load your conversations right now.");
+        if (!Array.isArray(data.conversations)) throw new Error("We couldn't load your conversations right now.");
         setLoading(false);
         setDbConvos((data.conversations || []).map(c => ({
           id: "db-" + c.listingId,
@@ -3666,40 +4666,53 @@ function MessagesView({ onOpenThread, user }) {
           participantId: c.participantId,
           title: c.title,
           host: c.otherParty,
+          partyRole: c.partyRole,
           hostImg: "🧑",
           preview: c.preview,
         })));
       } catch (err) {
+        if (!active) return;
         setLoading(false);
         setError(err.message || "We couldn't load your conversations right now.");
       }
     };
     load();
-  }, [user]);
+    return () => { active = false; controller.abort(); };
+  }, [user?.id, inboxReload]);
 
   const conversations = dbConvos;
 
   return (
     <div style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 4 }}>Messages</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, margin: 0 }}>Messages</h2>
+        <button type="button" disabled={loading || !user?.id} onClick={() => setInboxReload(value => value + 1)}
+          style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: loading ? "default" : "pointer" }}>
+          {loading ? "Loading inbox…" : error ? "Retry conversations" : "Refresh conversations"}
+        </button>
+      </div>
       <p style={{ color: C.muted, fontSize: 13, marginBottom: 20 }}>Your ParkShare conversations.</p>
-      {loading && <div style={{ color: C.muted, fontSize: 13 }}>Loading conversations…</div>}
+      {loading && <div role="status" style={{ color: C.muted, fontSize: 13 }}>Loading conversations…</div>}
       {error && <div role="alert" style={{ color: C.red, fontSize: 13 }}>{error}</div>}
       {!loading && !error && conversations.length === 0 && (
-        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>No conversations yet.</div>
+        <div style={{ textAlign: "center", color: C.muted, fontSize: 13, marginTop: 24 }}>
+          <p>No conversations yet.</p>
+          {user?.role === "driver" && <FindParkingLink />}
+        </div>
       )}
       {conversations.map(l => (
-        <div key={l.id} onClick={() => onOpenThread(l)} style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "box-shadow 0.15s" }}
+        <button type="button" className="ps-conversation-row" key={messageConversationKey(user?.id, l)} onClick={() => onOpenThread(l)}
+          style={{ width: "100%", textAlign: "left", font: "inherit", background: C.white, border: "1px solid "+C.concrete, borderRadius: 12, padding: "14px 16px", marginBottom: 10, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, transition: "box-shadow 0.15s" }}
           onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 14px rgba(27,42,59,0.08)"}
           onMouseLeave={e => e.currentTarget.style.boxShadow = "none"}>
-          <div style={{ width: 44, height: 44, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{l.hostImg}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>{l.host}</div>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 2 }}>{l.title}</div>
-            <div style={{ fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.preview}</div>
-          </div>
-          <div style={{ fontSize: 16, color: C.muted, flexShrink: 0 }}>›</div>
-        </div>
+          <span aria-hidden="true" style={{ width: 44, height: 44, borderRadius: "50%", background: C.navy, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>{l.hostImg}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontWeight: 700, fontSize: 14, color: C.navy }}>{l.host}</span>
+            <span style={{ display: "block", fontSize: 11, color: C.muted, marginBottom: 2 }}>{l.title}</span>
+            <span style={{ display: "block", fontSize: 12, color: C.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.preview}</span>
+          </span>
+          <span aria-hidden="true" style={{ fontSize: 16, color: C.muted, flexShrink: 0 }}>›</span>
+        </button>
       ))}
     </div>
   );
@@ -3736,21 +4749,26 @@ function DrivewayFrame({ children }) {
 }
 
 // Renter-facing version: shows which spots are for rent, lets the driver pick theirs.
-function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, vehicle = null }) {
-  const labels = ["A", "B", "C", "D"];
+function SpotPicker({ availableCount, chosen, onChoose, spotStates, availableData = null, isRealListing = false, vehicle = null }) {
+  const layout = getListingSpotLayout({
+    spaces: availableCount,
+    spots: Array.isArray(spotStates) ? spotStates.map(forRent => ({ forRent })) : [],
+  });
+  const labels = layout.map(spot => spot.label);
+  const columns = labels.length === 1 ? 1 : 2;
+  const rows = Math.max(1, Math.ceil(labels.length / columns));
   return (
+    <>
     <DrivewayFrame>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`, gap: "3%", width: "86%", height: "90%", maxWidth: "86%", margin: "0 auto", boxSizing: "border-box", overflow: "hidden" }}>
         {labels.map((l, i) => {
-          const hostEnabled = spotStates ? !!spotStates[i] : i < availableCount;
-          // spotStatus is live, time-window-specific data from
-          // /api/listing-availability — undefined while it's still loading
-          // (or for older callers that don't pass it), in which case we
-          // don't want to flash every spot as unavailable for a moment, so
-          // that case defaults to "no live data yet, don't block."
-          const liveFree = spotStatus ? spotStatus[l] !== false : true;
-          const isAvailable = hostEnabled && liveFree;
-          const isChosen = chosen === i;
+          const hostEnabled = layout[i].forRent;
+          // A real Spot A/B/C/D cannot be selected before this exact
+          // booking window is verified by the availability API.
+          const isAvailable = canChooseListingSpot({
+            isRealListing, hostRentable: hostEnabled, availableData, label: l,
+          });
+          const isChosen = chosen === i && isAvailable;
           return (
             <button key={l} className={`ps-spot-picker-bay${isChosen ? " is-selected" : ""}`} disabled={!isAvailable} onClick={() => isAvailable && onChoose(i)} style={{
               borderRadius: 10, cursor: isAvailable ? "pointer" : "default", minWidth: 0, minHeight: 0, width: "100%", height: "100%", boxSizing: "border-box",
@@ -3766,7 +4784,7 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
               justifyContent: isChosen ? "stretch" : "center",
               // Reserve breathing room above the selected label so the
               // 4px orange border can't clip "Spot A" or "Spot B".
-              gap: isChosen ? 1 : 4, padding: isChosen ? "10px 5px 5px" : "3% 3%", overflow: "hidden",
+              gap: isChosen ? 1 : rows > 2 ? 2 : 4, padding: isChosen ? "10px 5px 5px" : "3% 3%", overflow: "hidden",
               fontFamily: "'Poppins', sans-serif", color: C.navy, transition: "all 0.15s",
               boxShadow: isChosen ? "0 3px 10px rgba(226,87,28,0.35)" : "0 2px 6px rgba(0,0,0,0.12)",
             }}>
@@ -3785,20 +4803,25 @@ function SpotPicker({ availableCount, chosen, onChoose, spotStates, spotStatus, 
               ) : isChosen ? (
                 <span className="ps-spot-picker-no-vehicle">Select vehicle</span>
               ) : isAvailable ? (
-                <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: 54, flexShrink: 0, objectFit: "contain" }} />
+                <img src="/car-icon.png" alt="" style={{ width: "44%", maxWidth: rows > 2 ? 32 : 54, flexShrink: 0, objectFit: "contain" }} />
               ) : (
-                <span style={{ fontSize: 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
+                <span style={{ fontSize: rows > 2 ? 24 : 42, flexShrink: 0, lineHeight: 1 }}>🚫</span>
               )}
               {/* Selection is conveyed by the orange bay outline and vehicle.
                   No "Your spot" label stealing height from the car. */}
               {!isChosen && (
-                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{isAvailable ? "Available" : !hostEnabled ? "Not for rent" : "Already booked"}</span>
+                <span style={{ fontSize: 9, fontWeight: 800, textAlign: "center", lineHeight: 1.15, flexShrink: 0, color: isAvailable ? C.moss : C.muted }}>{listingSpotStatusText({ isAvailable, hostEnabled, isRealListing, availableData, label: l })}</span>
               )}
             </button>
           );
         })}
       </div>
     </DrivewayFrame>
+    {layout.length === 0 && <p role="status">No parking spots are configured for this listing.</p>}
+    {Object.values(availableData?.spotState || {}).includes("held") && <p role="status" style={{ color: C.muted, fontSize: 12, lineHeight: 1.5 }}>
+      Checkout in progress means a temporary hold, lasting up to 30 minutes from checkout start. It becomes a booking only after payment is confirmed.
+    </p>}
+    </>
   );
 }
 
@@ -4011,42 +5034,73 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
-  const [drawing, setDrawing] = useState(false);
+  const [draft, setDraft] = useState(null);
+  const [drawError, setDrawError] = useState("");
   const mapRef = useRef(null);
+  const drawingRef = useRef(null);
+  const previewRef = useRef(null);
+  const drawToggle = useRef(null);
+  const instructionsId = useId();
+  const locationKey = `${center.lat}:${center.lng}`;
+  const latest = useRef(null);
+  latest.current = {locationKey, center, spots, maxSpots, onAddSpot};
+  // Keep the camera stable while the draft preview changes or spots are added.
+  const mapCenter = useMemo(() => ({lat: center.lat, lng: center.lng}), [center.lat, center.lng]);
+  if (drawingRef.current && (drawingRef.current.locationKey !== locationKey || spots.length >= maxSpots)) drawingRef.current = null;
+  const drawing = Boolean(draft && drawingRef.current === draft);
+  const firstCorner = drawing ? draft.first : null;
+  const preview = firstCorner ? {north: firstCorner.lat, south: firstCorner.lat, east: firstCorner.lng, west: firstCorner.lng} : null;
+  const changeDraft = next => { drawingRef.current = next; setDraft(next); setDrawError(""); };
+  useEffect(() => { changeDraft(null); }, [locationKey, maxSpots]);
+  useEffect(() => () => { drawingRef.current = null; mapRef.current = null; }, []);
+
+  const chooseCorner = latLng => {
+    const current = drawingRef.current, context = latest.current;
+    if (!current || current.locationKey !== locationKey || current.locationKey !== context.locationKey) return;
+    if (context.spots.length >= context.maxSpots) { changeDraft(null); return; }
+    const point = satelliteSpotPoint(latLng, context.center);
+    if (!point) { setDrawError("Choose a corner close to your confirmed driveway pin."); return; }
+    if (!current.first) { changeDraft({...current, first: point, second: null}); return; }
+    const bounds = satelliteSpotBounds(current.first, point);
+    if (!bounds) { setDrawError("Choose a different opposite corner so the spot has both width and height."); return; }
+    // Invalidate synchronously: repeated/stale map clicks cannot save twice.
+    changeDraft(null);
+    context.onAddSpot(bounds);
+    drawToggle.current?.focus();
+  };
+  const previewCorner = event => {
+    const current = drawingRef.current;
+    if (!current?.first || current.locationKey !== locationKey || latest.current.locationKey !== locationKey) return;
+    const point = satelliteSpotPoint(event.latLng, latest.current.center);
+    const bounds = point && satelliteSpotBounds(current.first, point);
+    // Keep hover out of React updates that replace the map's event listeners
+    // between mouse-down and mouse-up and can lose the finishing click.
+    if (bounds) previewRef.current?.setBounds(bounds);
+  };
 
   const boxStyle = { width: "100%", height: 320, borderRadius: 14, background: "#F4F1E8", display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontSize: 13, textAlign: "center", padding: 16 };
-
   if (!import.meta.env.VITE_GOOGLE_MAPS_API_KEY) return <div style={boxStyle}>Satellite view unavailable — missing Google Maps API key</div>;
   if (loadError) return <div style={boxStyle}>Couldn't load satellite imagery</div>;
   if (!isLoaded) return <div style={boxStyle}>Loading satellite imagery…</div>;
 
-  const onRectangleComplete = (rect) => {
-    const b = rect.getBounds();
-    const ne = b.getNorthEast(), sw = b.getSouthWest();
-    onAddSpot({ north: ne.lat(), south: sw.lat(), east: ne.lng(), west: sw.lng() });
-    rect.setMap(null); // remove the raw drawing-tool rectangle; we render our own below
-    setDrawing(false);
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }} onKeyDown={event => {
+      if (event.key === "Escape" && drawingRef.current) { event.preventDefault(); changeDraft(null); drawToggle.current?.focus(); }
+    }}>
       <div style={{ borderRadius: 14, overflow: "hidden", border: "3px solid " + C.navy, boxShadow: "0 6px 18px rgba(28,43,57,0.18)" }}>
         <GoogleMap
           mapContainerStyle={{ width: "100%", height: 320 }}
-          center={center}
+          center={mapCenter}
           zoom={19}
           mapTypeId="satellite"
-          onLoad={(map) => { mapRef.current = map; }}
-          options={{ disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false }}
+          onLoad={map => { mapRef.current = map; }}
+          onUnmount={() => { drawingRef.current = null; mapRef.current = null; }}
+          onClick={event => chooseCorner(event.latLng)}
+          onMouseMove={previewCorner}
+          options={{ mapTypeId: "satellite", disableDefaultUI: true, zoomControl: true, tilt: 0, clickableIcons: false, keyboardShortcuts: true, disableDoubleClickZoom: drawing, draggableCursor: drawing ? "crosshair" : undefined }}
         >
-          <DrawingManager
-            drawingMode={drawing ? window.google.maps.drawing.OverlayType.RECTANGLE : null}
-            onRectangleComplete={onRectangleComplete}
-            options={{
-              drawingControl: false,
-              rectangleOptions: { fillColor: SPOT_STROKE_RENT, fillOpacity: 0.35, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false, editable: false },
-            }}
-          />
+          {firstCorner && <Marker position={firstCorner} label="1" options={{clickable: false}} />}
+          {preview && <Rectangle bounds={preview} onLoad={rectangle => { previewRef.current = rectangle; }} onUnmount={() => { previewRef.current = null; }} options={{fillColor: SPOT_STROKE_RENT, fillOpacity: 0.2, strokeColor: SPOT_STROKE_RENT, strokeWeight: 2, clickable: false}} />}
           {spots.map((s) => (
             <Rectangle
               key={s.id}
@@ -4056,9 +5110,9 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
                 fillOpacity: 0.35,
                 strokeColor: s.forRent ? SPOT_STROKE_RENT : SPOT_STROKE_PRIVATE,
                 strokeWeight: 2,
-                clickable: true,
+                clickable: !drawing,
               }}
-              onClick={() => onToggleSpot(s.id)}
+              onClick={() => { if (!drawingRef.current) onToggleSpot(s.id); }}
             />
           ))}
           {spots.map((s, i) => {
@@ -4066,27 +5120,35 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
             return (
               <OverlayView key={"lbl-" + s.id} position={{ lat: cLat, lng: cLng }} mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}>
                 <div style={{ transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, pointerEvents: "none" }}>
-                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
+                  <span style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: 11, whiteSpace: "nowrap", color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.7)" }}>
                     Spot {String.fromCharCode(65 + i)} {s.forRent ? "· FOR RENT" : "· PRIVATE"}
                   </span>
-                  <button onClick={() => onRemoveSpot(s.id)} style={{ pointerEvents: "auto", width: 18, height: 18, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
+                  <button type="button" aria-label={`Remove spot ${String.fromCharCode(65 + i)}`} disabled={drawing} onClick={() => { if (!drawingRef.current) onRemoveSpot(s.id); }} style={{ pointerEvents: drawing ? "none" : "auto", width: 44, height: 44, borderRadius: "50%", background: "rgba(28,43,57,0.85)", color: "#fff", border: "none", fontSize: 11, cursor: "pointer", lineHeight: "18px" }}>×</button>
                 </div>
               </OverlayView>
             );
           })}
         </GoogleMap>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 11, color: C.muted }}>Tap a drawn spot to switch it between for-rent and private.</span>
-        <button
-          onClick={() => setDrawing(d => !d)}
-          disabled={spots.length >= maxSpots}
-          style={{
-            flexShrink: 0, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none",
-            borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: spots.length >= maxSpots ? "not-allowed" : "pointer",
-            opacity: spots.length >= maxSpots ? 0.5 : 1, fontFamily: "'Poppins', sans-serif",
+      <p id={instructionsId} role="status" style={{ fontSize: 12, color: C.navy, margin: 0 }}>
+        {drawing
+          ? firstCorner ? "Choose the opposite corner to finish this spot. You can tap the photo, or move the map with its arrow keys and use the map-centre button."
+            : "Choose the first corner of this spot. You can tap the photo, or move the map with its arrow keys and use the map-centre button."
+          : "Start drawing, then tap two opposite corners of each parking space. Tap a saved spot to switch it between for-rent and private."}
+      </p>
+      {drawError && <p role="alert" style={{fontSize: 12, color: C.red, margin: 0}}>{drawError}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 10 }}>
+        {drawing && <button type="button" aria-describedby={instructionsId} onClick={() => chooseCorner(mapRef.current?.getCenter())}
+          style={{minHeight: 44, background: C.white, color: C.navy, border: "1px solid " + C.navy, borderRadius: 8, padding: "8px 14px", fontWeight: 700, cursor: "pointer"}}>
+          {firstCorner ? "Set opposite corner at map centre" : "Set first corner at map centre"}
+        </button>}
+        <button ref={drawToggle} type="button" aria-pressed={drawing} aria-describedby={instructionsId}
+          onClick={() => {
+            if (drawingRef.current) changeDraft(null);
+            else if (latest.current.locationKey === locationKey && latest.current.spots.length < latest.current.maxSpots) changeDraft({locationKey, first: null, second: null});
           }}
-        >
+          disabled={!drawing && spots.length >= maxSpots}
+          style={{ minHeight: 44, background: drawing ? C.navy : C.amber, color: drawing ? "#fff" : C.navy, border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: !drawing && spots.length >= maxSpots ? "not-allowed" : "pointer", fontFamily: "'Poppins', sans-serif" }}>
           {drawing ? "Cancel drawing" : spots.length === 0 ? "✏️ Draw your first spot" : "+ Draw another spot"}
         </button>
       </div>
@@ -4125,20 +5187,59 @@ function PinAdjustMap({ lat, lng, onChange }) {
 function ListDrivewayView({ user }) {
   const [step, setStep] = useState(1);
   const [publishError, setPublishError] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const publication = useMemo(() => createListingPublication({client: supabase, hostId: user?.id}), [user?.id]);
+  const publicationRef = useRef(publication);
+  publicationRef.current = publication;
+  const [publicationPending, setPublicationPending] = useState(() => publication.pending);
+  const [publishedDetails, setPublishedDetails] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
+  useEffect(() => { setPublicationPending(publication.pending); setPublishedDetails(null); setSubmitted(false); setPublishing(false); setPublishError(""); }, [publication]);
+  const photoPreviewUrls = useRef(new Set());
+  useEffect(() => () => {
+    for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+    photoPreviewUrls.current.clear();
+  }, []);
   const [form, setForm] = useState({
     street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false,
     photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
     price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "",
     availability: createAvailabilityPreset("anytime"),
   });
+  const [zoneResult, setZoneResult] = useState(null);
+  const [zoneRetry, setZoneRetry] = useState(0);
+  const locationKey = hasListingCoordinates(form) ? `${form.lat}:${form.lng}` : "";
+  const propertyTimeZone = zoneResult?.key === locationKey ? zoneResult.timeZone : null;
+  useEffect(() => {
+    if (!locationKey) return;
+    const controller = new AbortController();
+    setZoneResult(null);
+    requestPropertyTimeZone(supabase, {lat: form.lat, lng: form.lng}, controller.signal)
+      .then(timeZone => {
+        if (controller.signal.aborted) return;
+        setZoneResult({key: locationKey, timeZone});
+        setForm(current => ({...current, availability: {...normalizeAvailability(current.availability), timezone: timeZone}}));
+      }).catch(error => { if (!controller.signal.aborted) setZoneResult({key: locationKey, error: error.message}); });
+    return () => controller.abort();
+  }, [locationKey, user?.id, zoneRetry]);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSug, setLoadingSug] = useState(false);
   const debounceRef = useRef(null);
-  const update = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const addressRequest = useRef(0);
+  const addressAbort = useRef(null);
+  useEffect(() => () => { clearTimeout(debounceRef.current); addressRequest.current++; addressAbort.current?.abort(); }, []);
+  const update = (k, v) => {
+    if (["street", "city", "region", "postal"].includes(k)) {
+      addressRequest.current++; addressAbort.current?.abort(); clearTimeout(debounceRef.current); setSuggestions([]); setLoadingSug(false);
+      setForm(f => changeListingAddress(f, k, v));
+    } else setForm(f => ({ ...f, [k]: v }));
+  };
   const inputStyle = { width: "100%", border: "1px solid "+C.concrete, borderRadius: 8, padding: "10px 14px", fontSize: 14, color: C.navy, fontFamily: "'Poppins', sans-serif", boxSizing: "border-box", outline: "none" };
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
-  const fullAddress = [form.street, form.city, [form.region, form.postal].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const postalCheck = validateCanadianPostalCode(form.postal);
+  const fullAddress = [form.street, form.city, [form.region, postalCheck.normalized || form.postal.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 
   const searchAddress = (val) => {
     update("street", val);
@@ -4146,24 +5247,34 @@ function ListDrivewayView({ user }) {
     clearTimeout(debounceRef.current);
     if (val.length < 3) { setLoadingSug(false); return; }
     setLoadingSug(true);
+    const requestId = addressRequest.current;
     debounceRef.current = setTimeout(async () => {
+      const controller = new AbortController(); addressAbort.current = controller;
       try {
-        const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" + encodeURIComponent(val), { headers: { "Accept-Language": "en" } });
+        const res = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=5&addressdetails=1&q=" + encodeURIComponent(val), { headers: { "Accept-Language": "en" }, signal: controller.signal });
+        if (!res.ok) throw new Error("Address search unavailable");
         const data = await res.json();
-        setSuggestions(data.map(d => ({
-          label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb, d.address.state].filter(Boolean).join(", "),
+        if (requestId !== addressRequest.current || controller.signal.aborted) return;
+        const seenAddresses = new Set();
+        setSuggestions(data.filter(d => Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lon))).map(d => ({
+          label: [d.address.house_number, d.address.road, d.address.city || d.address.town || d.address.suburb || d.address.village, d.address.state || d.address.state_district].filter(Boolean).join(", "),
           street: [d.address.house_number, d.address.road].filter(Boolean).join(" "),
           city: d.address.city || d.address.town || d.address.suburb || d.address.village || "",
           region: d.address.state || d.address.state_district || "",
           postal: d.address.postcode || "",
           lat: parseFloat(d.lat),
           lng: parseFloat(d.lon),
-        })));
-      } catch (e) { setSuggestions([]); }
-      setLoadingSug(false);
+        })).filter(suggestion => {
+          const address = suggestion.label.normalize("NFKC").trim().replace(/\s+/g, " ").replace(/\s*,\s*/g, ",").toLowerCase();
+          if (!address || seenAddresses.has(address)) return false;
+          seenAddresses.add(address);
+          return true;
+        }));
+      } catch { if (requestId === addressRequest.current) setSuggestions([]); }
+      if (requestId === addressRequest.current) setLoadingSug(false);
     }, 350);
   };
-  const chooseSuggestion = (s) => { setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: s.postal, lat: s.lat, lng: s.lng })); setSuggestions([]); };
+  const chooseSuggestion = (s) => { setZoneRetry(n => n + 1); addressRequest.current++; addressAbort.current?.abort(); clearTimeout(debounceRef.current); setLoadingSug(false); const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng, spots: [] })); setSuggestions([]); };
 
   const submitVerification = () => {
     update("verifying", true);
@@ -4171,13 +5282,35 @@ function ListDrivewayView({ user }) {
   };
 
   const addPhotos = (files) => {
-    Array.from(files).slice(0, 6 - form.photos.length).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = e => setForm(f => ({ ...f, photos: [...f.photos, { name: file.name, url: e.target.result }] }));
-      reader.readAsDataURL(file);
+    setPhotoError("");
+    const selected = Array.from(files || []);
+    const remaining = Math.max(0, MAX_LISTING_PHOTOS - form.photos.length);
+    if (selected.length > remaining) {
+      setPhotoError(`You can upload up to ${MAX_LISTING_PHOTOS} photos per listing.`);
+      return;
+    }
+    for (const file of selected) {
+      const message = validateListingPhoto(file);
+      if (message) { setPhotoError(message); return; }
+    }
+    // Browser object URLs show immediate previews without retaining multi-MB
+    // Base64 strings in React state. The actual File is uploaded on Publish.
+    const drafts = selected.map(file => {
+      const url = URL.createObjectURL(file);
+      photoPreviewUrls.current.add(url);
+      return { name: file.name, url, file };
     });
+    setForm(current => ({ ...current, photos: [...current.photos, ...drafts] }));
   };
-  const removePhoto = (i) => setForm(f => ({ ...f, photos: f.photos.filter((_, idx) => idx !== i) }));
+  const removePhoto = (i) => {
+    const photo = form.photos[i];
+    if (photo?.url) {
+      URL.revokeObjectURL(photo.url);
+      photoPreviewUrls.current.delete(photo.url);
+    }
+    setPhotoError("");
+    setForm(current => ({ ...current, photos: current.photos.filter((_, idx) => idx !== i) }));
+  };
 
   const toggleSpot = (i) => setForm(f => { const s = [...f.selectedSpots]; s[i] = !s[i]; return { ...f, selectedSpots: s }; });
   const setTotalSpots = (n) => setForm(f => {
@@ -4276,9 +5409,10 @@ function ListDrivewayView({ user }) {
   });
   const addAvailabilityException = () => setForm(current => {
     const availability = normalizeAvailability(current.availability);
-    const today = new Date();
-    today.setDate(today.getDate() + 1);
-    const date = today.toISOString().slice(0, 10);
+    // Start tomorrow on the schedule's calendar, not UTC tomorrow. When a
+    // Host is travelling, toISOString() can shift the property's day.
+    const date = addCalendarDays(dateInScheduleTimezone(availability.timezone), 1);
+    if (!date) return current;
     return {
       ...current,
       availability: {
@@ -4294,6 +5428,10 @@ function ListDrivewayView({ user }) {
     };
   });
   const updateAvailabilityException = (id, patch) => setForm(current => {
+    // A cleared/unparseable native date input must not silently disappear
+    // when normalizeAvailability() filters non-ISO exception dates.
+    if (("startDate" in patch && !isCalendarDate(patch.startDate))
+        || ("endDate" in patch && !isCalendarDate(patch.endDate))) return current;
     const availability = normalizeAvailability(current.availability);
     return {
       ...current,
@@ -4316,6 +5454,7 @@ function ListDrivewayView({ user }) {
 
   const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
   const normalizedAvailability = normalizeAvailability(form.availability);
+  const exceptionDateValidation = validateHostAvailabilityExceptions(normalizedAvailability);
   const availabilitySummary = formatAvailabilitySummary(normalizedAvailability);
   const listingFeatures = [
     form.covered && "Covered",
@@ -4327,61 +5466,123 @@ function ListDrivewayView({ user }) {
   ].filter(Boolean);
   const hasPreviewSatelliteSpots = Boolean(
     import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-    && Number.isFinite(Number(form.lat))
-    && Number.isFinite(Number(form.lng))
+    && hasListingCoordinates(form)
     && Array.isArray(form.spots)
     && form.spots.length > 0
     && form.spots.every(s => s?.bounds && ["north", "south", "east", "west"].every(key => Number.isFinite(Number(s.bounds[key])))),
   );
   const previewIssues = [
-    (!form.street || !form.city || !form.region || !form.postal) && { label: "Complete the driveway address", step: 1 },
+    (!form.street.trim() || !form.city.trim() || !form.region.trim()) && { label: "Complete the driveway address", step: 1 },
+    !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
+    !hasListingCoordinates(form) && { label: "Select an address suggestion and confirm the driveway pin", step: 1 },
+    hasListingCoordinates(form) && !propertyTimeZone && { label: zoneResult?.key === locationKey && zoneResult.error || "Confirming the property location…", step: 1 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
-    (!(Number(form.price) > 0)) && { label: "Set an hourly rate", step: 7 },
+    !exceptionDateValidation.valid && { label: exceptionDateValidation.issues[0].error, step: 6 },
+    !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
 
-  const [submitted, setSubmitted] = useState(false);
-
   const publish = async () => {
+    if (publishing) return;
     setPublishError("");
-    if (!user) {
-      setPublishError("Please sign in as a host before publishing your listing.");
+    setUploadProgress("");
+    if (!user || user.role !== "host") {
+      setPublishError("Please sign in with a Host account before publishing your listing.");
       return;
+    }
+    if (!publication.pending) {
+      const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
+      if (!rate.valid) {
+        setPublishError(rate.error);
+        setStep(7);
+        return;
+      }
+      if (!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid) {
+        setPublishError(postalCheck.error || "Complete the driveway address before publishing.");
+        setStep(1);
+        return;
+      }
+      if (!hasListingCoordinates(form)) {
+        setPublishError("Select your driveway from the address suggestions and confirm its map pin before publishing.");
+        setStep(1); return;
+      }
+      if (!propertyTimeZone) {
+        setPublishError(zoneResult?.key === locationKey && zoneResult.error || "Please wait while we confirm the property location.");
+        setStep(1); return;
+      }
+      // Recompute at submit time: a tab kept open overnight may contain past dates.
+      const currentExceptionDates = validateHostAvailabilityExceptions(normalizeAvailability(form.availability));
+      if (!currentExceptionDates.valid) {
+        setPublishError(currentExceptionDates.issues[0].error);
+        setStep(6);
+        return;
+      }
+      if (!form.photos.length) {
+        setPublishError("Add at least one driveway photo before publishing.");
+        return;
+      }
     }
     setPublishing(true);
-    const rentableSpots = rentableSpotCount || 1;
-    const features = listingFeatures;
-    const { error } = await supabase.from("listings").insert({
-      host_id: user.id,
-      title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
-      address: fullAddress,
-      price: Number(form.price) || 12,
-      spaces: rentableSpots,
-      features,
-      description: form.description || "",
-      img: form.photos[0]?.url || "🏠",
-      photos: form.photos.map(p => p.url),
-      lat: form.lat || null,
-      lng: form.lng || null,
-      spots: form.spots || [],
-      availability: normalizedAvailability,
-    });
-    setPublishing(false);
-    if (error) {
-      setPublishError(error.message);
-      return;
+    try {
+      const saved = await publication.publish((photoUrls) => ({
+        title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
+        address: fullAddress,
+        price: Number(form.price),
+        spaces: rentableSpotCount || 1,
+        features: listingFeatures,
+        description: form.description || "",
+        // Keep the existing listing image schema: new listings now persist
+        // short Storage URLs, while historical Base64 listings still render.
+        img: photoUrls[0],
+        photos: photoUrls,
+        lat: form.lat,
+        lng: form.lng,
+        spots: form.spots.length ? form.spots : Array.from({ length: form.totalSpots }, (_, i) => ({ forRent: form.selectedSpots[i] === true, bounds: null })),
+        availability: normalizedAvailability,
+      }), form.photos, (index, total) => {
+        setUploadProgress(`Uploading photo ${index} of ${total}…`);
+      });
+      if (publicationRef.current !== publication) return;
+      setPublishedDetails(saved);
+      for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+      photoPreviewUrls.current.clear();
+      setSubmitted(true);
+    } catch (error) {
+      if (publicationRef.current !== publication) return;
+      setPublishError(error?.message || "Unable to publish this listing. Please try again.");
+    } finally {
+      if (publicationRef.current === publication) {
+        setPublicationPending(publication.pending);
+        setUploadProgress("");
+        setPublishing(false);
+      }
     }
-    setSubmitted(true);
   };
 
   const resetAll = () => {
-    setSubmitted(false); setStep(1);
+    for (const url of photoPreviewUrls.current) URL.revokeObjectURL(url);
+    photoPreviewUrls.current.clear();
+    setPhotoError("");
+    setUploadProgress("");
+    setSubmitted(false); setPublishedDetails(null); setStep(1);
     setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
 
+  if (publicationPending && !submitted) {
+    return (
+      <div style={{padding: 28, maxWidth: 560, margin: "0 auto", fontFamily: "Poppins, sans-serif"}}>
+        <h2 style={{color: C.navy}}>Check your listing publication</h2>
+        <p>Your previous publication has not been confirmed. Checking again safely resumes the same request and reuses its uploaded photos.</p>
+        <p>Check the result before editing or publishing another driveway. You can also view your Host Dashboard.</p>
+        {publishError && <p role="alert" style={{color: C.red}}>{publishError}</p>}
+        <Btn variant="amber" onClick={publish} disabled={publishing}>{publishing ? "Checking…" : "Check publication"}</Btn>
+      </div>
+    );
+  }
+
   if (submitted) {
-    const rentable = form.selectedSpots.filter(Boolean).length;
+    const rentable = publishedDetails.spaces;
     return (
       <div style={{ padding: 28, textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 500, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
@@ -4396,7 +5597,7 @@ function ListDrivewayView({ user }) {
           />
         </div>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
-        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{fullAddress}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(form.price)}/hr</strong>.</p>
+        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{publishedDetails.address}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(publishedDetails.price)}/hr</strong>.</p>
         <Btn onClick={resetAll}>List another driveway</Btn>
       </div>
     );
@@ -4442,20 +5643,39 @@ function ListDrivewayView({ user }) {
             <div style={{ flex: 1 }}><label style={labelStyle}>City</label><input style={inputStyle} placeholder="Vaughan" value={form.city} onChange={e => update("city", e.target.value)} /></div>
             <div style={{ flex: 1 }}><label style={labelStyle}>Province</label><input style={inputStyle} placeholder="Ontario" value={form.region} onChange={e => update("region", e.target.value)} /></div>
           </div>
-          <div><label style={labelStyle}>Postal code</label><input style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1" value={form.postal} onChange={e => update("postal", e.target.value)} /></div>
-          {form.street && form.city && form.region && form.postal && suggestions.length === 0 && (
-                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>✓ Address confirmed: {fullAddress}</div>
+          <div>
+            <label htmlFor="host-listing-postal-code" style={labelStyle}>Postal code</label>
+            <input
+              id="host-listing-postal-code" type="text" inputMode="text" autoComplete="postal-code" autoCapitalize="characters"
+              style={{ ...inputStyle, maxWidth: 200 }} placeholder="L4J 1A1"
+              maxLength={8} value={form.postal} aria-describedby="host-listing-postal-help"
+              aria-invalid={Boolean(form.postal.trim()) && !postalCheck.valid}
+              onChange={e => update("postal", e.target.value.toUpperCase().slice(0, 8))}
+              onBlur={() => { if (postalCheck.valid && form.postal !== postalCheck.normalized) update("postal", postalCheck.normalized); }}
+            />
+            <p id="host-listing-postal-help" role={form.postal.trim() && !postalCheck.valid ? "alert" : undefined}
+              style={{ fontSize: 12, color: form.postal.trim() && !postalCheck.valid ? C.red : C.muted, marginTop: 6 }}>
+              {form.postal.trim() && !postalCheck.valid ? postalCheck.error : "Canadian format: A1A 1A1. Postal format is checked; street address is not verified."}
+            </p>
+          </div>
+          {form.street && form.city && form.region && postalCheck.valid && suggestions.length === 0 && (
+                <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: C.moss, fontWeight: 600 }}>Address details entered (not independently verified): {fullAddress}</div>
               )}
-              {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
+              {hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && (
                 <div>
                   <label style={labelStyle}>Fine-tune pin location</label>
                   <p style={{ fontSize: 12, color: C.muted, margin: "0 0 8px" }}>Drag the pin if the satellite view doesn't line up with your driveway.</p>
-                  <PinAdjustMap lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm(f => ({ ...f, lat, lng }))} />
+                  <PinAdjustMap lat={form.lat} lng={form.lng} onChange={({ lat, lng }) => setForm(f => ({ ...f, lat, lng, spots: [] }))} />
                 </div>
               )}
+          {hasListingCoordinates(form) && <p role="status" style={{ color: zoneResult?.error ? C.red : C.muted, fontSize: 12 }}>
+            {propertyTimeZone ? `Booking times use ${propertyTimeZone} local time.` : zoneResult?.key === locationKey && zoneResult.error || "Confirming the property location…"}
+          </p>}
+          {hasListingCoordinates(form) && zoneResult?.key === locationKey && zoneResult.error && <button type="button" onClick={() => setZoneRetry(n => n + 1)}>Check location again</button>}
+          {!hasListingCoordinates(form) && <p role="status" style={{ color: C.muted, fontSize: 12 }}>Select your driveway from the address suggestions to place its map pin. If you edit the address, select a matching suggestion again.</p>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-            <Btn onClick={() => setStep(2)} disabled={!form.street || !form.city || !form.region || !form.postal}>Continue →</Btn>
+            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid || !hasListingCoordinates(form) || !propertyTimeZone}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -4499,6 +5719,7 @@ function ListDrivewayView({ user }) {
       {/* Step 3: Photos */}
       {step === 3 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {photoError && <div role="alert" style={{ background: C.redLight, color: C.red, borderRadius: 8, padding: 11, fontSize: 12 }}>{photoError}</div>}
           <div>
             <label style={{ ...labelStyle, marginBottom: 4 }}>Photos of your driveway ({form.photos.length}/6)</label>
             <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, margin: 0 }}>
@@ -4550,7 +5771,7 @@ function ListDrivewayView({ user }) {
                 <span style={{ fontSize: 24 }} aria-hidden="true">📷</span>
                 <span>{form.photos.length === 0 ? "Add cover photo" : "Add another photo"}</span>
                 {form.photos.length === 0 && <small style={{ color: C.muted, fontSize: 9, fontWeight: 600, lineHeight: 1.35 }}>Street-to-house view<br/><strong style={{ color: C.moss }}>(Required to publish)</strong></small>}
-                <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => addPhotos(e.target.files)} />
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple style={{ display: "none" }} onChange={e => { addPhotos(e.target.files); e.target.value = ""; }} />
               </label>
             )}
           </div>
@@ -4627,7 +5848,7 @@ function ListDrivewayView({ user }) {
       {/* Step 4: Spot template */}
       {step === 4 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {form.lat && form.lng && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
+          {hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
             <SpotMapBoundary fallback={
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -4645,7 +5866,7 @@ function ListDrivewayView({ user }) {
               </>
             }>
               <label style={{ ...labelStyle, marginBottom: 0 }}>Mark your parking spots on the aerial photo</label>
-              <p style={{ fontSize: 12, color: C.muted, margin: "6px 0" }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Draw a box over each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
+              <p style={{ fontSize: 12, color: C.muted, margin: "6px 0" }}>This is the actual satellite view of your driveway at <strong>{fullAddress}</strong>. Choose two opposite corners to mark each space you want to rent out — leave the ones you still need for your own car unmarked or set to private.</p>
               <DrivewaySpotSatelliteMap
                 center={{ lat: form.lat, lng: form.lng }}
                 spots={form.spots}
@@ -4654,7 +5875,7 @@ function ListDrivewayView({ user }) {
                 onRemoveSpot={removeSatelliteSpot}
                 maxSpots={8}
               />
-              <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.selectedSpots.filter(Boolean).length} of {form.spots.length || 0} marked spot{form.spots.length !== 1 ? "s" : ""} available for rent</div>
+              <div role="status" style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.spots.length ? `${form.spots.filter(spot => spot.forRent).length} of ${form.spots.length} marked spot${form.spots.length !== 1 ? "s" : ""} available for rent` : "No spots marked yet"}</div>
             </SpotMapBoundary>
           ) : (
             <>
@@ -4675,7 +5896,7 @@ function ListDrivewayView({ user }) {
             <Btn variant="pill" onClick={() => setStep(3)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <button onClick={() => setStep(5)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-              <Btn onClick={() => setStep(5)} disabled={form.selectedSpots.filter(Boolean).length === 0}>Continue →</Btn>
+              <Btn onClick={() => setStep(5)} disabled={(hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? form.spots.filter(spot => spot.forRent) : form.selectedSpots.filter(Boolean)).length === 0}>Continue →</Btn>
             </div>
           </div>
         </div>
@@ -4684,14 +5905,7 @@ function ListDrivewayView({ user }) {
       {/* Step 5: Details */}
       {step === 5 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div><label style={labelStyle}>Features</label>
-            {[{key:"covered",label:"Covered / garage"},{key:"cctv",label:"CCTV / security camera"},{key:"lighting",label:"Well-lit at night"},{key:"snowRemoval",label:"Snow removal in winter"},{key:"evCharging",label:"EV charging available"},{key:"gated",label:"Gated access"}].map(({key,label}) => (
-              <label key={key} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom:8 }}>
-                <input type="checkbox" checked={form[key]} onChange={e => update(key, e.target.checked)} />
-                <span style={{ fontSize:14, color:C.navy }}>{label}</span>
-              </label>
-            ))}
-          </div>
+          <ListingFeatureFields form={form} onChange={update} C={C} />
           <div><label style={labelStyle}>Description (optional)</label><textarea style={{ ...inputStyle, resize:"vertical", minHeight:80 }} placeholder="Anything useful for drivers to know…" value={form.description} onChange={e => update("description", e.target.value)} /></div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
             <Btn variant="pill" onClick={() => setStep(4)}>← Back</Btn>
@@ -4785,7 +5999,7 @@ function ListDrivewayView({ user }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
               <div>
                 <div style={{ color: C.navy, fontSize: 12, fontWeight: 800 }}>Special dates & exceptions</div>
-                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours.</div>
+                <div style={{ color: C.muted, fontSize: 10, marginTop: 2 }}>Block a vacation, open a special date, or use different hours. Choose dates from today through {exceptionDateValidation.latest || "the next 12 calendar months"}, in this driveway's local time.</div>
               </div>
               <button type="button" onClick={addAvailabilityException} style={{ border: 0, borderRadius: 8, padding: "7px 9px", background: C.navy, color: C.white, fontFamily: "'Poppins', sans-serif", fontSize: 10, fontWeight: 800, cursor: "pointer" }}>+ Add exception</button>
             </div>
@@ -4797,9 +6011,14 @@ function ListDrivewayView({ user }) {
                 {normalizedAvailability.exceptions.map(exception => (
                   <div key={exception.id} style={{ background: C.warmWhite, border: "1px solid " + C.concrete, borderRadius: 10, padding: 10 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      <label style={labelStyle}>From<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
-                      <label style={labelStyle}>To<input type="date" style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
+                      <label style={labelStyle}>From<input type="date" min={exceptionDateValidation.today || undefined} max={exceptionDateValidation.latest || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.startDate} onChange={e => updateAvailabilityException(exception.id, { startDate: e.target.value, endDate: exception.endDate < e.target.value ? e.target.value : exception.endDate })} /></label>
+                      <label style={labelStyle}>To<input type="date" min={exception.startDate > (exceptionDateValidation.today || "") ? exception.startDate : (exceptionDateValidation.today || undefined)} max={exceptionDateValidation.latest || undefined} style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.endDate} onChange={e => updateAvailabilityException(exception.id, { endDate: e.target.value })} /></label>
                     </div>
+                    {!validateHostExceptionDates(exception, exceptionDateValidation.today).valid && (
+                      <p role="alert" style={{ color: C.red, fontSize: 11, fontWeight: 700, margin: "6px 0" }}>
+                        {validateHostExceptionDates(exception, exceptionDateValidation.today).error}
+                      </p>
+                    )}
                     <label style={{ ...labelStyle, marginTop: 8 }}>On these dates
                       <select style={{ ...inputStyle, marginTop: 4, padding: "7px 8px", fontSize: 11 }} value={exception.type} onChange={e => updateAvailabilityException(exception.id, { type: e.target.value })}>
                         <option value="unavailable">Not available</option>
@@ -4828,7 +6047,7 @@ function ListDrivewayView({ user }) {
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability)}>Continue →</Btn>
+            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability) || !exceptionDateValidation.valid}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -4840,18 +6059,19 @@ function ListDrivewayView({ user }) {
             <label style={labelStyle}>Hourly rate (CAD)</label>
             <div style={{ position:"relative" }}>
               <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", color:C.muted }}>$</span>
-              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" placeholder="e.g. 12" value={form.price} onChange={e => update("price", e.target.value)} />
+              <input style={{ ...inputStyle, paddingLeft:28 }} type="number" min="1" max="200" step="0.01" placeholder="e.g. 12" value={form.price} aria-invalid={Boolean(form.price && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid)} onChange={e => update("price", e.target.value)} />
             </div>
             <p style={{ fontSize:12, color:C.muted, marginTop:6 }}>Driveways in your area average $11–$18/hr.</p>
+            {form.price !== "" && !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && <p role="alert" style={{ fontSize: 12, color: C.red, marginTop: 6 }}>{validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).error}</p>}
           </div>
-          {form.price && (
+          {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && (
             <ParkerTip pose="success">
               This driveway could earn its owner over <strong>{money(form.price * 20 * form.selectedSpots.filter(Boolean).length * 12)}</strong> this year, based on ~20 hrs booked per month per rentable spot. <em style={{ opacity: 0.75, fontStyle: "normal", fontWeight: 500 }}>(Estimate only.)</em>
             </ParkerTip>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <Btn variant="pill" onClick={() => setStep(6)}>← Back</Btn>
-            <Btn variant="amber" onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
+            <Btn variant="amber" disabled={!validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid} onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
           </div>
         </div>
       )}
@@ -4919,7 +6139,7 @@ function ListDrivewayView({ user }) {
               {/* Driver listing header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 6 }}>
                 <h3 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, lineHeight: 1.3, margin: 0, flex: 1 }}>{form.street ? `Driveway at ${form.street}` : "New driveway listing"}</h3>
-                {Number(form.price) > 0 ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Rate not set</span>}
+                {validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid ? <PriceTag price={form.price} size="lg" /> : <span style={{ color: C.red, fontSize: 11, fontWeight: 800 }}>Invalid rate</span>}
               </div>
               <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.5, margin: "0 0 12px" }}>📍 {fullAddress || "Address not completed"}</p>
 
@@ -5000,9 +6220,10 @@ function ListDrivewayView({ user }) {
           </div>
 
           {publishError && <div role="alert" style={{ color: C.red, fontSize: 12.5, fontWeight: 700 }}>{publishError}</div>}
+          {uploadProgress && <div role="status" style={{ color: C.moss, fontSize: 12.5, fontWeight: 700 }}>{uploadProgress}</div>}
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <Btn variant="pill" onClick={() => setStep(7)}>← Back to edit</Btn>
+            <Btn variant="pill" disabled={publishing} onClick={() => setStep(7)}>← Back to edit</Btn>
             <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
           </div>
         </div>
@@ -5014,6 +6235,10 @@ function ListDrivewayView({ user }) {
 // ─── My Bookings ──────────────────────────────────────────────────────────────
 function clientBookingWindow(booking) {
   let start;
+  const canonical = booking.scheduled_starts_at ? new Date(booking.scheduled_starts_at) : null;
+  if (canonical && Number.isFinite(canonical.getTime())) {
+    start = canonical;
+  } else {
   const dateOnly = String(booking.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/)?.[0];
   if (dateOnly && booking.start_hour !== null && booking.start_hour !== undefined && booking.start_hour !== "") {
     const hour = Number(booking.start_hour);
@@ -5023,12 +6248,16 @@ function clientBookingWindow(booking) {
   } else {
     start = new Date(booking.paid_at || booking.created_at);
   }
+  }
   const end = new Date(start.getTime() + Number(booking.hours || 0) * 3600 * 1000);
   return { start, end };
 }
 
-function clientBookingDisplay(start, scheduled, end = start) {
-  const timeZone = scheduled ? "UTC" : undefined;
+function clientBookingDisplay(start, scheduled, end = start, propertyTimeZone = null) {
+  let timeZone = propertyTimeZone || "UTC";
+  let verifiedZone = Boolean(propertyTimeZone);
+  try { new Intl.DateTimeFormat("en-CA", { timeZone }).format(0); }
+  catch { timeZone = "UTC"; verifiedZone = false; }
   const dateOptions = { year: "numeric", month: "short", day: "numeric" };
   const timeOptions = { hour: "numeric", minute: "2-digit", hour12: true };
   if (timeZone) {
@@ -5039,45 +6268,165 @@ function clientBookingDisplay(start, scheduled, end = start) {
     date: start.toLocaleDateString("en-CA", dateOptions),
     startTime: start.toLocaleTimeString("en-CA", timeOptions),
     endTime: end.toLocaleTimeString("en-CA", timeOptions),
+    timeZoneLabel: verifiedZone ? `${timeZone} local time` : "UTC (property time zone unavailable)",
   };
 }
 
-async function requestBookingCancellation(bookingId, reason) {
+async function requestBookingCancellation(bookingId, reason, expectedAccountId, isContextCurrent = () => false, cancellationDeadline) {
+  if (!validId(bookingId) || !expectedAccountId) throw new Error("Choose a booking while signed in.");
+  if (!isContextCurrent()) return null;
+  const initialDeadlineError = cancellationDeadlineError(cancellationDeadline);
+  if (initialDeadlineError) throw new Error(initialDeadlineError);
   let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (!isContextCurrent()) return null;
   let session = sessionData?.session;
+  if (session?.user?.id && session.user.id !== expectedAccountId) throw new Error("Your account changed. Reopen this booking before cancelling.");
   if (sessionError || !session?.access_token) {
     const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+    if (!isContextCurrent()) return null;
     if (refreshError) throw refreshError;
     session = refreshedData?.session;
   }
-  if (!session?.access_token) throw new Error("Your session is invalid or expired. Please sign in again.");
+  if (!session?.access_token || session.user?.id !== expectedAccountId) throw new Error("Your session changed or expired. Please sign in and reopen this booking.");
+  if (!isContextCurrent()) return null;
 
+  // The API remains responsible for authorization, eligibility and refund
+  // idempotency. This guard prevents a new POST from an obsolete UI intent.
+  const finalDeadlineError = cancellationDeadlineError(cancellationDeadline);
+  if (finalDeadlineError) throw new Error(finalDeadlineError);
   const response = await fetch("/api/cancel-booking", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ bookingId, reason }),
+    body: JSON.stringify(typeof reason === "object" ? { bookingId, ...reason } : { bookingId, reason }),
   });
   const data = await response.json().catch(() => ({}));
+  if (!isContextCurrent()) return null;
   if (!response.ok) throw new Error(data.error || "Couldn't cancel this booking.");
   return data;
 }
 
-function CancellationModal({ title, actor, busy, error, onClose, onConfirm }) {
+function useBookingCancellation(user, reason, onCancelled) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null, notice: "", revision: 0 }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    if (context.request) context.request.token.active = false;
+    current = { accountId, request: null, notice: "", revision: context.revision + 1 };
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (latest.current.request) latest.current.request.token.active = false;
+    };
+  }, []);
+  const isCurrent = token => mounted.current && token?.active && latest.current.accountId === accountId && latest.current.request?.token === token;
+  const replace = next => { latest.current = next; setContext(next); };
+  const open = booking => {
+    if (!mounted.current || latest.current !== current || !accountId || !validId(booking?.rawId) || current.request?.token.pending) return;
+    if (current.request) current.request.token.active = false;
+    // Retain only immutable confirmation fields, record ID and optional deadline.
+    const target = { rawId: booking.rawId, driver: booking.driver, listing: { title: booking.listing?.title }, cancellationDeadline: booking.cancellationDeadline };
+    replace({ accountId, request: { target, token: { active: true, pending: false }, error: "" }, notice: "", revision: current.revision + 1 });
+  };
+  const close = () => {
+    const token = current.request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    token.active = false;
+    replace({ ...latest.current, request: null, revision: latest.current.revision + 1 });
+  };
+  const confirm = async selectedReason => {
+    const request = current.request, token = request?.token;
+    if (!isCurrent(token) || token.pending) return;
+    // Lock before the first await, including clicks before React re-renders.
+    token.pending = true;
+    const patch = error => {
+      if (isCurrent(token)) replace({ ...latest.current, request: { ...latest.current.request, error } });
+    };
+    patch("");
+    try {
+      const bookingId = request.target.rawId;
+      const result = await requestBookingCancellation(bookingId, selectedReason || reason, accountId, () => isCurrent(token), request.target.cancellationDeadline);
+      if (!isCurrent(token) || !result) return;
+      onCancelled(bookingId, result);
+      token.active = false;
+      replace({ ...latest.current, request: null, notice: result.message || "Cancellation received.", revision: latest.current.revision + 1 });
+    } catch (error) {
+      patch(error?.message || "Couldn't cancel this booking.");
+    } finally {
+      token.pending = false;
+      if (isCurrent(token)) patch(latest.current.request.error);
+    }
+  };
+  return { target: current.request?.target || null, busy: Boolean(current.request?.token.pending), error: current.request?.error || "",
+    notice: current.notice, requestKey: current.revision, open, close, confirm };
+}
+
+function CancellationModal({ title, actor, busy, error, onClose, onConfirm, cancellationDeadline }) {
+  const [reasonCode, setReasonCode] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [, refreshDeadline] = useState(0);
+  useEffect(() => {
+    if (busy || !Number.isFinite(cancellationDeadline)) return;
+    let timer;
+    const schedule = () => {
+      const remaining = cancellationDeadline - Date.now() + 1;
+      if (remaining > 0) timer = window.setTimeout(refresh, Math.min(remaining, 2147483647));
+    };
+    const refresh = () => {
+      window.clearTimeout(timer);
+      refreshDeadline(value => value + 1);
+      schedule();
+    };
+    schedule();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [cancellationDeadline, busy]);
+  const reasons = CANCELLATION_REASONS[actor] || [];
+  const selectedReason = reasons.find(reason => reason.code === reasonCode);
+  const needsExplanation = selectedReason?.explanation;
+  const deadlineError = busy ? "" : cancellationDeadlineError(cancellationDeadline);
+  const deadlineNotice = !deadlineError ? "" : actor === "host"
+    ? "Host cancellations must be requested before the booking starts. Contact support for help with this booking."
+    : Number.isFinite(cancellationDeadline)
+      ? "Driver cancellations need at least one hour of notice for an automatic refund. Contact support for help with this booking."
+      : deadlineError;
   return (
     <Modal title={title} onClose={onClose}>
+      {busy ? <p role="status" style={{ color: C.navy, fontSize: 13 }}>Checking your cancellation request. Please wait for confirmation.</p> : deadlineError ? <div role="alert" style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{deadlineNotice}</div> : <>
       <p style={{ color: C.navy, fontSize: 13, lineHeight: 1.6, marginTop: 0 }}>
-        {actor === "host"
+        {selectedReason?.payer === "review" ? "Your report will go to ParkShare support for review. Selecting this reason does not cancel the booking or issue a refund." : actor === "host"
           ? "The Driver will receive a full refund, including the ParkShare service fee."
           : "Because this scheduled booking starts at least one hour from now, you'll receive a full refund, including the ParkShare service fee."}
       </p>
-      <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>
-      {error && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+      <label style={{display:"block",fontSize:13}}>Cancellation reason
+        <select value={reasonCode} disabled={busy} onChange={event => setReasonCode(event.target.value)} style={{display:"block",width:"100%",minHeight:44,margin:"8px 0"}}>
+          <option value="">Choose a reason</option>
+          {reasons.map(reason => <option key={reason.code} value={reason.code}>{reason.label}</option>)}
+        </select>
+      </label>
+      {(needsExplanation || selectedReason?.payer === "review") && <label style={{display:"block",fontSize:13}}>Explanation{needsExplanation ? " (required)" : " (optional)"}
+        <textarea value={explanation} maxLength={1000} disabled={busy} onChange={event => setExplanation(event.target.value)} style={{display:"block",width:"100%",boxSizing:"border-box",minHeight:70,margin:"8px 0"}} />
+      </label>}
+      {selectedReason && <p style={{fontSize:12,lineHeight:1.55}}>{selectedReason.payer === "review" ? "ParkShare must verify the problem before deciding who covers the processing fee. This submits a support request; your booking remains active." : selectedReason.payer === "host" ? "The Host covers Stripe’s original processing fee. A ParkShare exception requires staff approval." : "ParkShare covers the original Stripe processing fee for this eligible free cancellation."}</p>}
+      {selectedReason?.payer !== "review" && <p style={{ color: C.muted, fontSize: 12, lineHeight: 1.55 }}>Stripe usually returns card refunds within 5–10 business days.</p>}
+      </>}
+      {error && !deadlineError && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display: "flex", gap: 10 }}>
         <Btn variant="ghost" onClick={onClose} disabled={busy}>Keep booking</Btn>
-        <Btn variant="outline" full onClick={onConfirm} disabled={busy}>{busy ? "Cancelling…" : "Confirm cancellation"}</Btn>
+        <Btn variant="outline" full onClick={() => onConfirm({reasonCode, explanation})} disabled={Boolean(busy || deadlineError || !selectedReason || needsExplanation && explanation.trim().length < 3)}>{busy ? "Submitting…" : selectedReason?.payer === "review" ? "Request support review" : "Confirm cancellation"}</Btn>
       </div>
     </Modal>
   );
@@ -5087,10 +6436,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [dbBookings, setDbBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [cancelTarget, setCancelTarget] = useState(null);
-  const [cancelBusy, setCancelBusy] = useState(false);
-  const [cancelError, setCancelError] = useState("");
-  const [cancelNotice, setCancelNotice] = useState("");
+  const [bookingReload, setBookingReload] = useState(0);
   const [expandedPastBookings, setExpandedPastBookings] = useState({});
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -5104,14 +6450,29 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("bookings")
-      .select("*, listings(*, profiles(name))")
-      .eq("renter_id", user.id)
-      .order("created_at", { ascending: false })
-      .then(({ data, error }) => {
+    const controller = new AbortController();
+    let active = true;
+    setDbBookings([]);
+    setLoadError("");
+    setLoading(true);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        if (!active) return;
+        let data = null;
+        let error = null;
+        try {
+          if (!session?.access_token || session.user?.id !== user.id) throw new Error("Session changed");
+          const response = await fetch("/api/account-bookings?view=driver", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            signal: controller.signal,
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error("Bookings unavailable");
+          const payload = await response.json();
+          data = payload.bookings;
+        } catch (err) { error = err; }
+        if (!active) return;
         setLoading(false);
-        if (error || !data) {
+        if (error || !Array.isArray(data)) {
           setLoadError("We couldn't load your bookings right now. Please try again.");
           return;
         }
@@ -5122,9 +6483,11 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             const cancelled = ["cancelled", "canceled", "refunded", "payment_failed"].includes(String(row.status).toLowerCase());
             const completed = !cancelled && (row.status === "completed" || window.end.getTime() <= now);
             const active = !cancelled && !completed && window.start.getTime() <= now && now < window.end.getTime();
-            const refundPending = ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+            const refundInFlight = Number(row.refund_pending_amount) > 0 || ["pending", "requires_action"].includes(String(row.refund_status || "").toLowerCase());
+            const refundPending = Boolean(row.cancellation_requested_at) && (refundInFlight || row.refund_total_amount == null && row.refund_status === "succeeded");
+            const refundReviewRequired = Number(row.refund_total_amount) > 0 && Number(row.refund_total_amount) < Number(row.total) || !row.cancellation_requested_at && refundInFlight;
             const scheduled = Boolean(String(row.booking_date || "").match(/^\d{4}-\d{2}-\d{2}/) && row.start_hour !== null && row.start_hour !== undefined && row.start_hour !== "");
-            const display = clientBookingDisplay(window.start, scheduled, window.end);
+            const display = clientBookingDisplay(window.start, scheduled, window.end, row.property_time_zone);
             return ({
             id: "db-" + row.id,
             rawId: row.id, // kept unprefixed so it can be matched against
@@ -5135,8 +6498,8 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               id: "db-" + row.listing_id,
               title: row.listings?.title || "Driveway",
               address: row.listings?.address || "",
-              img: row.listings?.img || "🏠",
-              photos: row.listings?.photos || [],
+              img: "🏠",
+              photos: [],
               lat: row.listings?.lat,
               lng: row.listings?.lng,
               spots: row.listings?.spots || [],
@@ -5149,13 +6512,17 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             date: display.date,
             startTime: display.startTime,
             endTime: display.endTime,
+            timeZoneLabel: display.timeZoneLabel,
             duration: row.hours + " hr" + (row.hours === 1 ? "" : "s"),
             bookingStart: window.start.toISOString(),
             bookingEnd: window.end.toISOString(),
             bookingIsScheduled: scheduled,
+            propertyTimeZone: row.property_time_zone || null,
+            cancellationDeadline: window.start.getTime() - 60 * 60 * 1000,
             spotLabel: row.spot_label || "",
-            total: row.total,
+            total: row.charged_total ?? row.total,
             vehicle: {
+              vehicleType: row.vehicle_type || "",
               vehicleMake: row.vehicle_make || "",
               vehicleModel: row.vehicle_model || "",
               vehicleColour: row.vehicle_colour || "",
@@ -5165,11 +6532,26 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             status: cancelled ? "Cancelled" : refundPending ? "Cancellation pending" : completed ? "Completed" : active ? "Active" : "Upcoming",
             active,
             canReview: completed,
-            canCancel: !refundPending && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
+            refundReviewRequired,
+            canCancel: !(Number(row.refund_total_amount) > 0) && !refundInFlight && !cancelled && !completed && !active && scheduled && window.start.getTime() - now >= 60 * 60 * 1000,
           });})
         );
+        for (const row of data) {
+          if (!["confirmed", "completed"].includes(String(row.status))) continue;
+          fetchPrivateCoverDataUrl(row.listing_id, row.id, session.access_token, controller.signal)
+            .then(image => {
+              if (active && image) setDbBookings(prev => prev.map(b => b.rawId === row.id
+                ? { ...b, listing: { ...b.listing, img: image } } : b));
+            }).catch(() => {});
+        }
+      }).catch(() => {
+        if (!active) return;
+        setDbBookings([]);
+        setLoading(false);
+        setLoadError("We couldn't load your bookings right now. Please try again.");
       });
-  }, [user]);
+    return () => { active = false; controller.abort(); };
+  }, [user?.id, bookingReload]);
 
   // Scroll to and briefly highlight the booking a "View My Reservation"
   // email link pointed at, once it's actually loaded.
@@ -5185,26 +6567,23 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewed, setReviewed] = useState({});
 
-  const cancelDriverBooking = async () => {
-    if (!cancelTarget) return;
-    setCancelBusy(true);
-    setCancelError("");
-    try {
-      const result = await requestBookingCancellation(cancelTarget.rawId, "Cancelled by Driver");
+  const { target: cancelTarget, busy: cancelBusy, error: cancelError, notice: cancelNotice,
+    requestKey: cancellationKey, open: openCancellation, close: closeCancellation,
+    confirm: cancelDriverBooking } = useBookingCancellation(user, "Cancelled by Driver", (bookingId, result) => {
+      if (result.reviewRequired) return;
       const nextStatus = result.bookingStatus === "refunded" ? "Cancelled" : "Cancellation pending";
-      setDbBookings(prev => prev.map(b => b.rawId === cancelTarget.rawId ? { ...b, status: nextStatus, canCancel: false } : b));
-      setCancelNotice(result.message || "Cancellation received.");
-      setCancelTarget(null);
-    } catch (error) {
-      setCancelError(error.message || "Couldn't cancel this booking.");
-    } finally {
-      setCancelBusy(false);
-    }
-  };
+      setDbBookings(prev => prev.map(b => b.rawId === bookingId ? { ...b, status: nextStatus, canCancel: result.reviewRequired ? b.canCancel : false } : b));
+    });
 
   return (
     <div className="ps-driver-bookings" style={{ padding: "24px 20px", fontFamily: "'Poppins', sans-serif", maxWidth: 680, margin: "0 auto" }}>
-      <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 20 }}>My bookings</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, margin: 0 }}>My bookings</h2>
+        <button type="button" disabled={loading || !user?.id} onClick={() => setBookingReload(value => value + 1)}
+          style={{ minHeight: 44, padding: "8px 12px", border: "1px solid " + C.navy, borderRadius: 8, background: C.white, color: C.navy, fontWeight: 600, cursor: loading ? "default" : "pointer" }}>
+          {loading ? "Loading bookings…" : loadError ? "Retry bookings" : "Refresh bookings"}
+        </button>
+      </div>
       <div className="ps-booking-date-filter" role="group" aria-labelledby="booking-date-filter-title">
         <div className="ps-booking-date-filter-heading">
           <strong id="booking-date-filter-title">Filter by date</strong>
@@ -5224,16 +6603,21 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
               aria-describedby={invalidDateRange ? "booking-date-filter-help booking-date-filter-error" : "booking-date-filter-help"} />
           </label>
         </div>
-        <small id="booking-date-filter-help">Filter by booking start date. Includes both dates.</small>
+        <small id="booking-date-filter-help">Filter by the displayed booking start date. Includes both dates.</small>
         {invalidDateRange && <p id="booking-date-filter-error" className="ps-booking-date-filter-error" role="alert">Choose an end date on or after the start date.</p>}
       </div>
       {!loading && !loadError && hasDateFilter && !invalidDateRange && (
         <p className="ps-booking-filter-results" role="status">Showing {bookings.length} of {dbBookings.length} bookings</p>
       )}
       {cancelNotice && <div role="status" style={{ background: C.mossLight, color: C.moss, border: "1px solid "+C.moss, borderRadius: 9, padding: "9px 12px", fontSize: 12, marginBottom: 12 }}>{cancelNotice}</div>}
-      {loading && <p style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
+      {loading && <p role="status" style={{ color: C.muted, fontSize: 13 }}>Loading your bookings…</p>}
       {loadError && <p role="alert" style={{ color: C.red, fontSize: 13 }}>{loadError}</p>}
-      {!loading && !loadError && dbBookings.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>You don't have any bookings yet. Browse available driveways to get started.</p>}
+      {!loading && !loadError && dbBookings.length === 0 && (
+        <div style={{ color: C.muted, fontSize: 13 }}>
+          <p>You don't have any bookings yet. Browse available driveways to get started.</p>
+          <FindParkingLink />
+        </div>
+      )}
       {!loading && !loadError && dbBookings.length > 0 && hasDateFilter && !invalidDateRange && bookings.length === 0 && (
         <p className="ps-booking-filter-empty">No bookings found for these dates. Adjust the dates or select Clear to see all bookings.</p>
       )}
@@ -5242,7 +6626,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
         const displayStatus = getBookingDisplayStatus(b.status, b.bookingStart, b.bookingEnd, currentTime);
         const hasEnded = displayStatus === "Completed";
         const isPast = displayStatus === "Completed" || displayStatus === "Cancelled";
-        const isExpanded = !isPast || isHighlighted || Boolean(expandedPastBookings[b.id]);
+        const isExpanded = !isPast || (expandedPastBookings[b.id] ?? isHighlighted);
         const isRideshareEligible = !hasEnded && (displayStatus === "Upcoming" || displayStatus === "Active");
         const isActive = displayStatus === "Active" && !hasEnded;
         const canReview = displayStatus === "Completed";
@@ -5261,7 +6645,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
                 )}
                 {isActive && <Btn small variant="primary" onClick={() => onExtend?.(b.rawId)}>⏱ Add time</Btn>}
                 <Btn small variant="outline" onClick={() => onMessage(b.listing)}>💬 Message host</Btn>
-                {b.canCancel && !hasEnded && <Btn small variant="outline" onClick={() => { setCancelError(""); setCancelTarget(b); }}>Cancel booking</Btn>}
+                {b.canCancel && !hasEnded && !cancellationDeadlineError(b.cancellationDeadline, currentTime) && <Btn small variant="outline" onClick={() => { openCancellation(b); }}>Cancel booking</Btn>}
                 {canReview && !reviewed[b.id] && (
                   <Btn small variant="moss" onClick={() => setReviewTarget(b)}>⭐ Review</Btn>
                 )}
@@ -5291,18 +6675,21 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
           <div className="ps-driver-booking-summary" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div className="ps-driver-booking-summary-copy">
               <div style={{ fontWeight: 700, color: C.navy, fontSize: 15, marginBottom: 3 }}>{b.listing.title}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.navy, lineHeight: 1.5, overflowWrap: "anywhere" }}>Reservation #PK-{b.rawId}</div>
             </div>
             <div className="ps-driver-booking-status" style={{ textAlign: "right", position: "relative", zIndex: 1 }}>
               <Badge color={displayStatus === "Upcoming" || displayStatus === "Active" ? C.moss : C.navy}>{displayStatus}</Badge>
-              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>{money(b.total)}</div>
+              <div style={{ fontWeight: 800, color: C.amber, fontSize: 18, marginTop: 8 }}>Booking total: {money(b.total)} CAD</div>
+              {b.refundReviewRequired && <p style={{ fontSize: 11, color: C.muted }}>Refund recorded or processing. <a href="/contact">Contact support</a> with cancellation or refund questions.</p>}
 
             </div>
           </div>
           {isPast ? (
             <div className="ps-past-booking-overview">
-              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}`}>
+              <div className="ps-past-booking-schedule" aria-label={`Reservation date ${b.date}, starts ${b.startTime}, ends ${b.endTime}, duration ${b.duration}, ${b.timeZoneLabel}`}>
                 <strong>{b.date}</strong>
                 <span>{b.startTime} – {b.endTime} <span className="ps-past-booking-duration">· {b.duration}</span></span>
+                <span>{b.timeZoneLabel}</span>
               </div>
               <button
                 type="button"
@@ -5321,6 +6708,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
             date={b.date}
             startTime={b.startTime}
             endTime={b.endTime}
+            timeZoneLabel={b.timeZoneLabel}
             duration={b.duration}
             bookingEnd={b.bookingEnd}
             isActive={displayStatus === "Active"}
@@ -5357,6 +6745,7 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 
       {reviewTarget && (
         <ReviewModal
+          key={`${user?.id}:${reviewTarget.id}`}
           booking={reviewTarget}
           onClose={() => setReviewTarget(null)}
           onSubmit={() => { setReviewed(r => ({ ...r, [reviewTarget.id]: true })); setReviewTarget(null); }}
@@ -5365,11 +6754,13 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
       )}
       {cancelTarget && (
         <CancellationModal
+          key={cancellationKey}
           title={`Cancel ${cancelTarget.listing.title}?`}
           actor="driver"
+          cancellationDeadline={cancelTarget.cancellationDeadline}
           busy={cancelBusy}
           error={cancelError}
-          onClose={() => { if (!cancelBusy) setCancelTarget(null); }}
+          onClose={closeCancellation}
           onConfirm={cancelDriverBooking}
         />
       )}
@@ -5378,56 +6769,34 @@ function MyBookingsView({ onMessage, onExtend, onNavigateToParking, onChangeNavi
 }
 
 function ReviewModal({ booking, onClose, onSubmit, user }) {
-  const [rating, setRating] = useState(5);
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
+  const reviewTextId = useId();
   const numericId = String(booking.listing.id).startsWith("db-") ? Number(String(booking.listing.id).slice(3)) : null;
-
-  const submit = async () => {
-    if (!text.trim()) return;
-    setError("");
-
-    if (numericId !== null && user) {
-      setSubmitting(true);
-      const { error: err } = await supabase.from("reviews").insert({
-        listing_id: numericId,
-        user_id: user.id,
-        rating,
-        text: text.trim(),
-      });
-      setSubmitting(false);
-      if (err) {
-        setError(err.message);
-        return;
-      }
-    }
-
-    onSubmit();
-  };
+  const { draft: { rating, text }, error, submitting, change, submit, cancel } =
+    useReviewSubmission(user, numericId, booking.id, onSubmit, true);
+  const close = () => { if (cancel()) onClose(); };
 
   return (
-    <Modal title={"Review "+booking.listing.title} onClose={onClose}>
+    <Modal title={"Review "+booking.listing.title} onClose={close}>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 8 }}>Your rating</div>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div role="group" aria-label="Your rating" style={{ display: "flex", gap: 6 }}>
           {[1,2,3,4,5].map(n => (
-            <button key={n} onClick={() => setRating(n)} style={{ background:"none", border:"none", fontSize:28, cursor:"pointer", color: n <= rating ? C.amber : C.concrete, padding:0 }}>★</button>
+            <button key={n} type="button" aria-label={`${n} ${n === 1 ? "star" : "stars"} out of 5`} aria-pressed={rating === n}
+              onClick={() => change({ rating: n })} disabled={submitting} style={{ background:"none", border:"none", fontSize:28, cursor:"pointer", color: n <= rating ? C.amber : C.concrete, padding:0 }}>★</button>
           ))}
         </div>
       </div>
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</div>
-        <textarea
-          value={text} onChange={e => setText(e.target.value)}
+        <label htmlFor={reviewTextId} style={{ display: "block", fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 6 }}>Your review</label>
+        <textarea id={reviewTextId}
+          value={text} onChange={e => change({ text: e.target.value })} disabled={submitting} maxLength={1500}
           placeholder="Share your experience with this driveway…"
           style={{ width:"100%", border:"1px solid "+C.concrete, borderRadius:8, padding:"10px 14px", fontSize:13, resize:"vertical", minHeight:90, fontFamily:"'Poppins', sans-serif", color:C.navy, outline:"none", boxSizing:"border-box" }}
         />
       </div>
-      {error && <div style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
+      {error && <div role="alert" style={{ color: C.red, fontSize: 12, marginBottom: 12 }}>{error}</div>}
       <div style={{ display:"flex", gap:10 }}>
-        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="ghost" onClick={close}>Cancel</Btn>
         <Btn variant="moss" full onClick={submit} disabled={!text.trim() || submitting}>{submitting ? "Submitting…" : "Submit review"}</Btn>
       </div>
     </Modal>
@@ -5435,7 +6804,76 @@ function ReviewModal({ booking, onClose, onSubmit, user }) {
 }
 
 // ─── Driver Profile ──────────────────────────────────────────────────────────
-function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText }) {
+// Booking-only vehicle editor is shared by Hosts and Drivers.
+function BookingVehicleForm({ user, onSaved, onCancel }) {
+  const accountId = user?.id || null;
+  const [form, setForm] = useState(() => Object.fromEntries(["vehicleType", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].map(key => [key, user?.[key] || ""])));
+  const [errors, setErrors] = useState({});
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const lifetime = useRef({accountId, active:true});
+  const attempt = useRef(null);
+  if (lifetime.current.accountId !== accountId) {
+    lifetime.current.active = false;
+    if (attempt.current) attempt.current.active = false;
+    attempt.current = null;
+    lifetime.current = {accountId, active:true};
+  }
+  const owner = lifetime.current;
+  const canAct = () => owner.active && lifetime.current === owner;
+  useEffect(() => {
+    owner.active = true;
+    return () => {
+      owner.active = false;
+      if (attempt.current?.owner === owner) attempt.current.active = false;
+    };
+  }, [accountId]);
+  const update = (field, value) => {
+    if (!canAct() || attempt.current?.pending) return;
+    setForm(current => ({...current, [field]:value, ...(field === "vehicleMake" ? {vehicleModel:""} : {})}));
+    setErrors(current => ({...current,[field]:"",...(field === "vehicleMake" ? {vehicleModel:""} : {})}));
+    setSaveError("");
+  };
+  const save = async event => {
+    event.preventDefault();
+    if (!canAct() || attempt.current?.pending) return;
+    const validation = validateBookingVehicle(form);
+    setErrors(validation.errors); setSaveError("");
+    if (!validation.valid) return;
+    const work = {owner,active:true,pending:true};
+    attempt.current = work;
+    const isCurrent = () => canAct() && work.active && attempt.current === work;
+    setSaving(true);
+    try {
+      const saved = await saveBookingVehicle({client:supabase,vehicle:validation.vehicle,accountId,isCurrent});
+      if (isCurrent() && saved) onSaved?.(saved);
+    } catch (error) {
+      if (isCurrent()) {
+        if (error.fieldErrors) setErrors(error.fieldErrors);
+        setSaveError(error.message || "Unable to save your vehicle. Please try again.");
+      }
+    } finally {
+      work.pending = false;
+      if (isCurrent()) { attempt.current = null; setSaving(false); }
+    }
+  };
+  return (
+    <form className="ps-booking-vehicle-form" onSubmit={save} aria-label="Save a booking vehicle" aria-busy={saving}>
+      <h4>Add or update your vehicle</h4>
+      <p>Saved as your primary vehicle for this and future bookings.</p>
+      <VehicleProfileFields vehicle={form} required disabled={saving} idPrefix="booking-vehicle" errors={errors}
+        onUpdate={update} onMakeChange={value => update("vehicleMake", value)}
+        helpText="Vehicle details are shared with the Host for your booking." />
+      {saveError && <p className="ps-booking-vehicle-error" role="alert">{saveError}</p>}
+      <div className="ps-booking-vehicle-form-actions">
+        <button type="submit" disabled={saving}>{saving ? "Saving vehicle…" : "Save vehicle"}</button>
+        <button type="button" disabled={saving} onClick={() => {if (canAct() && !attempt.current?.pending) onCancel?.();}}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onUpdate, onMakeChange, helpText, disabled = false, required = false }) {
   const errorFor = field => errors[errorPrefix ? `${errorPrefix}.${field}` : field];
   const errorId = field => `${idPrefix}-${field}-error`;
   const describedBy = field => errorFor(field) ? errorId(field) : undefined;
@@ -5443,8 +6881,19 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
   return (
     <div className="ps-profile-vehicle-fields">
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>Recommended</span></label>
-        <select
+        <label htmlFor={`${idPrefix}-type`}>Vehicle type <span>Optional</span></label>
+        <select id={`${idPrefix}-type`} value={vehicle.vehicleType || ""} disabled={disabled}
+          onChange={event => onUpdate("vehicleType", event.target.value)}
+          aria-invalid={Boolean(errorFor("vehicleType"))} aria-describedby={describedBy("vehicleType")}>
+          <option value="">Not specified</option>
+          {Object.entries(VEHICLE_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        {errorFor("vehicleType") && <small id={errorId("vehicleType")} role="alert">{errorFor("vehicleType")}</small>}
+      </div>
+      <div className="ps-profile-field">
+        <label htmlFor={`${idPrefix}-make`}>Vehicle make <span>{required ? "Required" : "Recommended"}</span></label>
+        <select required={required}
+          disabled={disabled}
           id={`${idPrefix}-make`}
           value={vehicle.vehicleMake || ""}
           onChange={event => onMakeChange(event.target.value)}
@@ -5458,12 +6907,12 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
 
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-model`}>Vehicle model <span>Recommended</span></label>
-        <select
+        <label htmlFor={`${idPrefix}-model`}>Vehicle model <span>{required ? "Required" : "Recommended"}</span></label>
+        <select required={required}
           id={`${idPrefix}-model`}
           value={vehicle.vehicleModel || ""}
           onChange={event => onUpdate("vehicleModel", event.target.value)}
-          disabled={!vehicle.vehicleMake}
+          disabled={disabled || !vehicle.vehicleMake}
           aria-invalid={Boolean(errorFor("vehicleModel"))}
           aria-describedby={describedBy("vehicleModel")}
         >
@@ -5474,8 +6923,9 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
 
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-colour`}>Vehicle colour <span>Recommended</span></label>
-        <select
+        <label htmlFor={`${idPrefix}-colour`}>Vehicle colour <span>{required ? "Required" : "Recommended"}</span></label>
+        <select required={required}
+          disabled={disabled}
           id={`${idPrefix}-colour`}
           value={vehicle.vehicleColour || ""}
           onChange={event => onUpdate("vehicleColour", event.target.value)}
@@ -5489,8 +6939,9 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
       </div>
 
       <div className="ps-profile-field">
-        <label htmlFor={`${idPrefix}-license-plate`}>License plate number <span>Recommended</span></label>
-        <input
+        <label htmlFor={`${idPrefix}-license-plate`}>License plate number <span>{required ? "Required" : "Recommended"}</span></label>
+        <input required={required}
+          disabled={disabled}
           id={`${idPrefix}-license-plate`}
           autoCapitalize="characters"
           autoComplete="off"
@@ -5508,10 +6959,58 @@ function VehicleProfileFields({ vehicle, idPrefix, errorPrefix = "", errors, onU
   );
 }
 
+async function persistDriverProfile(profile, accountId, isCurrent) {
+  const body = JSON.stringify(profile);
+  const currentSession = async () => {
+    const { data, error } = await supabase.auth.getSession();
+    if (!isCurrent()) return null;
+    const session = data?.session;
+    if (error || !session?.access_token || session.user?.id !== accountId) {
+      throw new Error("Your account changed or expired. Sign in again to confirm your profile.");
+    }
+    return session;
+  };
+  const session = await currentSession();
+  if (!session || !isCurrent()) return null;
+  const response = await fetch("/api/profile", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body,
+  });
+  if (!isCurrent()) return null;
+  const payload = await response.json().catch(() => ({}));
+  if (!isCurrent()) return null;
+  if (!response.ok) {
+    const error = new Error(payload.error || "Couldn't confirm your saved profile. Sign in again to check before retrying.");
+    if (payload.errors && typeof payload.errors === "object" && !Array.isArray(payload.errors)) error.fieldErrors = payload.errors;
+    throw error;
+  }
+  const returned = payload.profile;
+  const fields = ["name", "phone", "vehicleDetails", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"];
+  if (!returned || !fields.every(field => typeof returned[field] === "string") || !Array.isArray(returned.guestVehicles)) {
+    throw new Error("Couldn't confirm your saved profile. Sign in again to check before retrying.");
+  }
+  const validated = validateDriverProfile(returned);
+  if (!validated.valid) throw new Error("Couldn't confirm your saved profile. Sign in again to check before retrying.");
+  try {
+    // Avoid refreshing a different account after a delayed PATCH response.
+    if (!await currentSession() || !isCurrent()) return null;
+    const { data, error } = await supabase.auth.refreshSession();
+    if (!isCurrent()) return null;
+    if (error || !data?.session?.access_token || data.session.user?.id !== accountId) throw new Error("Session changed");
+    if (!await currentSession() || !isCurrent()) return null;
+  } catch {
+    if (!isCurrent()) return null;
+    throw new Error("Your profile was saved, but we couldn't confirm your current session. Sign in again to confirm the saved details.");
+  }
+  return validated.normalised;
+}
+
 function DriverProfileView({ user, onProfileUpdated }) {
   const [form, setForm] = useState({
     name: user?.name || "",
     phone: user?.phone || "",
+    vehicleType: user?.vehicleType || "",
     vehicleMake: user?.vehicleMake || "",
     vehicleModel: user?.vehicleModel || "",
     vehicleColour: user?.vehicleColour || "",
@@ -5525,32 +7024,56 @@ function DriverProfileView({ user, onProfileUpdated }) {
   const [primaryOpen, setPrimaryOpen] = useState(true);
   const [openGuestIds, setOpenGuestIds] = useState({});
   const completion = getDriverProfileCompletion(form);
+  const accountId = user?.id || null;
+  const lifetime = useRef({ accountId, active: true });
+  const attempt = useRef(null);
+  if (lifetime.current.accountId !== accountId) {
+    lifetime.current.active = false;
+    if (attempt.current) attempt.current.active = false;
+    attempt.current = null;
+    lifetime.current = { accountId, active: true };
+  }
+  const owner = lifetime.current;
+  const canAct = () => Boolean(accountId) && owner.active && lifetime.current === owner;
+  useEffect(() => {
+    owner.active = true;
+    setSaving(false);
+    return () => {
+      owner.active = false;
+      if (attempt.current?.owner === owner) { attempt.current.active = false; attempt.current = null; }
+    };
+  }, [accountId]);
 
   useEffect(() => {
+    if (attempt.current?.pending) return;
     setForm({
       name: user?.name || "",
       phone: user?.phone || "",
+      vehicleType: user?.vehicleType || "",
       vehicleMake: user?.vehicleMake || "",
       vehicleModel: user?.vehicleModel || "",
       vehicleColour: user?.vehicleColour || "",
       licensePlate: user?.licensePlate || "",
       guestVehicles: Array.isArray(user?.guestVehicles) ? user.guestVehicles : [],
     });
-  }, [user?.id, user?.name, user?.phone, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
+  }, [user?.id, user?.name, user?.phone, user?.vehicleType, user?.vehicleMake, user?.vehicleModel, user?.vehicleColour, user?.licensePlate, user?.guestVehicles]);
 
   const update = (field, value) => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({ ...current, [field]: value }));
     setErrors(current => ({ ...current, [field]: "" }));
     setSaved(false);
   };
 
   const updateVehicleMake = value => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({ ...current, vehicleMake: value, vehicleModel: "" }));
     setErrors(current => ({ ...current, vehicleMake: "", vehicleModel: "" }));
     setSaved(false);
   };
 
   const updateGuestVehicle = (index, field, value) => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({
       ...current,
       guestVehicles: current.guestVehicles.map((vehicle, vehicleIndex) =>
@@ -5562,6 +7085,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   const updateGuestVehicleMake = (index, value) => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({
       ...current,
       guestVehicles: current.guestVehicles.map((vehicle, vehicleIndex) =>
@@ -5577,11 +7101,12 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   const addGuestVehicle = () => {
+    if (!canAct() || attempt.current?.pending) return;
     if (form.guestVehicles.length >= MAX_GUEST_VEHICLES) return;
     const id = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setForm(current => ({
       ...current,
-      guestVehicles: [...current.guestVehicles, { id, vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
+      guestVehicles: [...current.guestVehicles, { id, vehicleType: "", vehicleMake: "", vehicleModel: "", vehicleColour: "", licensePlate: "" }],
     }));
     setOpenGuestIds(current => ({ ...current, [id]: true }));
     setErrors(current => ({ ...current, guestVehicles: "" }));
@@ -5589,18 +7114,20 @@ function DriverProfileView({ user, onProfileUpdated }) {
   };
 
   const removeGuestVehicle = index => {
+    if (!canAct() || attempt.current?.pending) return;
     setForm(current => ({ ...current, guestVehicles: current.guestVehicles.filter((_, vehicleIndex) => vehicleIndex !== index) }));
     setErrors({});
     setSaved(false);
   };
 
   const save = async () => {
+    if (!canAct() || attempt.current?.pending) return;
     const validation = validateDriverProfile(form);
     setErrors(validation.errors);
     setSaveError("");
     setSaved(false);
     if (!validation.valid) {
-      if (["vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
+      if (["vehicleType", "vehicleMake", "vehicleModel", "vehicleColour", "licensePlate"].some(field => validation.errors[field])) {
         setPrimaryOpen(true);
       }
       const guestIndexes = Object.keys(validation.errors)
@@ -5616,49 +7143,30 @@ function DriverProfileView({ user, onProfileUpdated }) {
       return;
     }
 
+    const work = { owner, active: true, pending: true };
+    attempt.current = work;
+    const isCurrent = () => canAct() && work.active && attempt.current === work;
     setSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Your session expired. Please sign in again.");
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(validation.normalised),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (payload.errors) setErrors(payload.errors);
-        throw new Error(payload.error || "Unable to save your profile.");
-      }
-
-      // The server updates Supabase Auth metadata with the service-role
-      // client. Refresh the browser session so its persisted user object
-      // immediately receives those new values as well. Without this, an
-      // ordinary page refresh can temporarily restore the pre-save profile
-      // until the Driver signs out and back in.
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) console.warn("Unable to refresh profile session:", refreshError);
-
-      const nextUser = {
-        ...user,
-        ...payload.profile,
-        profileComplete: payload.completion?.complete || false,
-      };
-      setForm(payload.profile);
-      onProfileUpdated(nextUser);
+      const profile = await persistDriverProfile(validation.normalised, accountId, isCurrent);
+      if (!isCurrent() || !profile) return;
+      const profileComplete = getDriverProfileCompletion(profile).complete;
+      setForm(profile);
+      onProfileUpdated({ id: accountId, ...profile, profileComplete });
       setSaved(true);
     } catch (error) {
-      setSaveError(error.message || "Unable to save your profile right now.");
+      if (isCurrent()) {
+        if (error?.fieldErrors) setErrors(error.fieldErrors);
+        setSaveError(error?.message || "Couldn't confirm your saved profile. Sign in again to check before retrying.");
+      }
     } finally {
-      setSaving(false);
+      work.pending = false;
+      if (isCurrent()) { attempt.current = null; setSaving(false); }
     }
   };
 
   return (
-    <main className="ps-driver-profile-page">
+    <div className="ps-driver-profile-page">
       <section className="ps-driver-profile-intro">
         <div>
           <div className="ps-profile-eyebrow">DRIVER PROFILE</div>
@@ -5680,6 +7188,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
               id="driver-profile-name"
               name="name"
               autoComplete="name"
+              disabled={saving}
               value={form.name}
               onChange={event => update("name", event.target.value)}
               aria-invalid={Boolean(errors.name)}
@@ -5703,6 +7212,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
               inputMode="tel"
               autoComplete="tel"
               placeholder="416-555-0100"
+              disabled={saving}
               value={form.phone}
               onChange={event => update("phone", event.target.value)}
               aria-invalid={Boolean(errors.phone)}
@@ -5726,6 +7236,7 @@ function DriverProfileView({ user, onProfileUpdated }) {
             {primaryOpen && (
               <div id="primary-vehicle-fields" className="ps-vehicle-accordion-body">
                 <VehicleProfileFields
+                  disabled={saving}
                   vehicle={form}
                   idPrefix="driver-profile-primary"
                   errors={errors}
@@ -5755,15 +7266,15 @@ function DriverProfileView({ user, onProfileUpdated }) {
                   </button>
                   {isOpen && (
                     <div id={`guest-vehicle-${vehicle.id}`} className="ps-guest-vehicle-body">
-                      <VehicleProfileFields vehicle={vehicle} idPrefix={`driver-profile-guest-${index}`} errorPrefix={`guestVehicles.${index}`} errors={errors} onUpdate={(field, value) => updateGuestVehicle(index, field, value)} onMakeChange={value => updateGuestVehicleMake(index, value)} helpText="Only the Host for a booking using this vehicle will see these details." />
-                      <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)}>Remove guest vehicle</button>
+                      <VehicleProfileFields disabled={saving} vehicle={vehicle} idPrefix={`driver-profile-guest-${index}`} errorPrefix={`guestVehicles.${index}`} errors={errors} onUpdate={(field, value) => updateGuestVehicle(index, field, value)} onMakeChange={value => updateGuestVehicleMake(index, value)} helpText="Only the Host for a booking using this vehicle will see these details." />
+                      <button type="button" className="ps-remove-guest-vehicle" onClick={() => removeGuestVehicle(index)} disabled={saving}>Remove guest vehicle</button>
                     </div>
                   )}
                 </div>
               );
             })}
             {errors.guestVehicles && <small className="ps-guest-vehicle-error" role="alert">{errors.guestVehicles}</small>}
-            <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
+            <button type="button" className="ps-add-guest-vehicle" onClick={addGuestVehicle} disabled={saving || form.guestVehicles.length >= MAX_GUEST_VEHICLES}>
               + Add guest vehicle{form.guestVehicles.length >= MAX_GUEST_VEHICLES ? ` (maximum ${MAX_GUEST_VEHICLES})` : ""}
             </button>
           </div>
@@ -5786,143 +7297,371 @@ function DriverProfileView({ user, onProfileUpdated }) {
           <button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save profile"}</button>
         </div>
       </section>
-    </main>
+    </div>
   );
 }
 
 // ─── Sign In Modal ────────────────────────────────────────────────────────────
-function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true }) {
+function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth = true, signupRole = null, recoveryAccountId = null, onRecoveryComplete = () => {} }) {
   const [screen, setScreen] = useState(initialScreen); // landing | signin | signup | role | disclaimer | recovery | recoverySuccess
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState(emptyAuthForm);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [pendingUser, setPendingUser] = useState(null);
   const [agreed, setAgreed] = useState(false);
   const [authSuccess, setAuthSuccess] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [recoveryInvalid, setRecoveryInvalid] = useState(initialScreen === "recovery" && !recoveryAccountId);
+  const recoveryOwner = useRef({ accountId:recoveryAccountId, valid:Boolean(recoveryAccountId) });
+  const emailBusy = resendLoading || resetLoading;
+  const emailAttempt = useRef(null);
+  const emailRevision = useRef(0);
+  const lastAuthEmailAt = useRef({ resend: null, reset: null });
+  const invalidateEmailAttempt = () => {
+    if (emailAttempt.current) emailAttempt.current.active = false;
+    emailAttempt.current = null;
+  };
 
-  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const credentialAttempt = useRef(null);
+  const authModalActive = useRef(true);
+  const authContext = useRef({ screen, active: true });
+  if (authContext.current.screen !== screen) {
+    authContext.current.active = false;
+    if (credentialAttempt.current) { credentialAttempt.current.active = false; credentialAttempt.current = null; setLoading(false); }
+    invalidateEmailAttempt(); emailRevision.current++;
+    setResendLoading(false); setResetLoading(false);
+    authContext.current = { screen, active: true };
+  }
+  const owner = authContext.current;
+  const emailVersion = emailRevision.current;
+  const canAct = () => authModalActive.current && owner.active && authContext.current === owner;
+  const invalidateCredentialAttempt = () => {
+    if (credentialAttempt.current) credentialAttempt.current.active = false;
+    credentialAttempt.current = null;
+  };
+  const invalidateRecovery = () => {
+    recoveryOwner.current.valid = false;
+    invalidateCredentialAttempt();
+    setLoading(false); setForm(emptyAuthForm()); setConfirmPassword(""); setErrors({});
+    setRecoveryInvalid(true); setAuthError(RECOVERY_SESSION_CHANGED); setScreen("recovery");
+  };
+  useEffect(() => {
+    if (initialScreen !== "recovery") return;
+    if (!recoveryAccountId || recoveryOwner.current.accountId !== recoveryAccountId) {
+      invalidateRecovery(); return;
+    }
+    // No Auth reads inside the callback. Retire queued writes immediately,
+    // even before React renders the account change, and never revive A→B→A.
+    const {data} = supabase.auth.onAuthStateChange((event, session) => {
+      if (!authModalActive.current || !recoveryOwner.current.valid) return;
+      if (event === "SIGNED_OUT" || session?.user?.id !== recoveryAccountId) invalidateRecovery();
+    });
+    return () => data?.subscription?.unsubscribe();
+  }, [initialScreen, recoveryAccountId]);
+  useEffect(() => {
+    authModalActive.current = true;
+    authContext.current.active = true;
+    setLoading(false); setResendLoading(false); setResetLoading(false);
+    return () => {
+      authModalActive.current = false;
+      authContext.current.active = false;
+      invalidateCredentialAttempt(); invalidateEmailAttempt();
+    };
+  }, []);
+  const closeDialog = () => {
+    if (!canAct()) return;
+    authModalActive.current = false;
+    owner.active = false;
+    invalidateCredentialAttempt(); invalidateEmailAttempt(); emailRevision.current++;
+    setResendLoading(false); setResetLoading(false); setResendMessage(""); setAuthSuccess("");
+    setLoading(false); setForm(emptyAuthForm()); setConfirmPassword(""); setPendingUser(null);
+    setAgreed(false); setErrors({}); setAuthError("");
+    onClose();
+  };
+  const upd = (k, v) => {
+    if (!canAct() || screen === "recovery" && !recoveryOwner.current.valid || ["signin", "recovery"].includes(screen) && credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
+    if (k === "email" && v !== form.email) {
+      emailRevision.current++;
+      invalidateEmailAttempt(); setResendMessage(""); setAuthSuccess(""); setAuthError("");
+    }
+    setForm(f => ({ ...f, [k]: v }));
+  };
   const iS = (err) => ({ width: "100%", border: "1.5px solid " + (err ? C.red : C.concrete), borderRadius: 10, padding: "11px 14px", fontSize: 14, color: C.navy, outline: "none", boxSizing: "border-box", fontFamily: "'Poppins', sans-serif", background: err ? C.redLight : C.white });
   const lS = { fontSize: 12, color: C.muted, fontWeight: 600, display: "block", marginBottom: 5 };
 
   const validate = () => {
-    const e = {};
-    if (screen === "signup" && !form.name.trim()) e.name = "Name required";
-    if (!form.email.includes("@")) e.email = "Enter a valid email";
-    if (form.password.length < 6) e.password = "Min 6 characters";
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const nextErrors = validateAuthForm(form, screen);
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const [authError, setAuthError] = useState("");
 
+  // Auth screens never inherit credentials, validation or errors from each other.
+  // Keep role/disclaimer navigation separate so an in-progress signup survives.
+  const openAuthScreen = target => {
+    if (!canAct()) return;
+    owner.active = false;
+    invalidateCredentialAttempt(); invalidateEmailAttempt(); emailRevision.current++;
+    const nextOwner = { screen: target, active: true };
+    authContext.current = nextOwner;
+    setLoading(false); setResendLoading(false); setResetLoading(false);
+    setForm(emptyAuthForm());
+    setConfirmPassword("");
+    setErrors({});
+    setAuthError("");
+    setAuthSuccess("");
+    setResendMessage("");
+    setPendingUser(null);
+    setAgreed(false);
+    setScreen(target);
+    return nextOwner;
+  };
+
+  const requestAuthEmail = async (kind, rawEmail, requestOwner = owner, revision = emailVersion) => {
+    const ownsView = () => authModalActive.current && requestOwner.active && authContext.current === requestOwner && emailRevision.current === revision;
+    if (!ownsView() || !["signin", "verify"].includes(requestOwner.screen) || credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
+    const message = value => kind === "resend" ? setResendMessage(value) : setAuthError(value);
+    const email = String(rawEmail || "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (kind === "resend") message("Enter the email address you used to register.");
+      else { setErrors({ email: "Enter a valid email first" }); setAuthSuccess(""); }
+      return;
+    }
+    const previous = lastAuthEmailAt.current[kind];
+    if (typeof previous === "number" && Date.now() - previous < 60_000) {
+      message("Please wait a minute before requesting another email.");
+      return;
+    }
+    const attempt = { active: true, pending: true };
+    emailAttempt.current = attempt;
+    const current = () => ownsView() && attempt.active && emailAttempt.current === attempt;
+    setResendLoading(kind === "resend"); setResetLoading(kind === "reset");
+    setResendMessage("");
+    if (kind === "reset") setAuthError("");
+    setAuthSuccess(""); setErrors({});
+    try {
+      const result = kind === "resend"
+        ? await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: window.location.origin } })
+        : await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+      if (result?.error) throw result.error;
+      if (result?.error !== null || !result.data || typeof result.data !== "object" || Array.isArray(result.data)) {
+        throw new Error("We couldn't confirm the email request. Please check your inbox before trying again.");
+      }
+      // Keep confirmed request spacing even if its view was retired while
+      // waiting. This ref is local to this modal, not server idempotency.
+      lastAuthEmailAt.current[kind] = Date.now();
+      if (!current()) return;
+      if (kind === "resend") setResendMessage("If this account still needs verification, a fresh confirmation link has been sent. Check your inbox and spam folder.");
+      else setAuthSuccess("If this account can use password recovery, check your inbox for a reset link.");
+    } catch (error) {
+      if (current()) message(error?.message || "Unable to request the email. Please check your inbox before trying again.");
+    } finally {
+      attempt.pending = false;
+      if (current()) { setResendLoading(false); setResetLoading(false); emailAttempt.current = null; }
+    }
+  };
+  const resendConfirmation = () => requestAuthEmail("resend", screen === "verify" ? pendingUser?.email : form.email);
+
   const submit = async () => {
+    if (!canAct() || credentialAttempt.current?.pending || emailAttempt.current?.pending) return;
     if (!validate()) return;
     setAuthError("");
     setAuthSuccess("");
-    setLoading(true);
 
     if (screen === "signin") {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: form.email,
-        password: form.password,
-      });
-      setLoading(false);
-      if (error) {
-        setAuthError(error.message);
-        return;
+      const attempt = { active: true, pending: true };
+      credentialAttempt.current = attempt;
+      const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
+      const credentials = { email: form.email, password: form.password };
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword(credentials);
+        if (!current()) return;
+        if (error) throw error;
+        const accountId = data?.user?.id;
+        if (!accountId || !data?.session?.access_token || data.session.user?.id !== accountId) throw new Error("Couldn't confirm your sign-in. Please try again.");
+        const checkSession = async () => {
+          const { data: latest, error: sessionError } = await supabase.auth.getSession();
+          if (!current()) return false;
+          if (sessionError || !latest?.session?.access_token || latest.session.user?.id !== accountId) throw new Error("Your session changed. Please sign in again.");
+          return true;
+        };
+        if (!await checkSession()) return;
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("id, name, role")
+          .eq("id", accountId)
+          .single();
+        if (!current()) return;
+        if (profileErr || !profile || profile.id !== accountId || !["driver", "host"].includes(profile.role)) throw new Error("Signed in, but couldn't load your profile. Please sign in again.");
+        if (!await checkSession() || !current()) return;
+        attempt.active = false;
+        credentialAttempt.current = null;
+        setLoading(false);
+        onAuth(buildAppUser(profile, data.user));
+        if (closeOnAuth) closeDialog();
+      } catch (error) {
+        if (current()) setAuthError(error?.message || "Unable to sign in right now. Please try again.");
+      } finally {
+        attempt.pending = false;
+        if (current()) { setLoading(false); credentialAttempt.current = null; }
       }
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("id, name, role")
-        .eq("id", data.user.id)
-        .single();
-      if (profileErr || !profile) {
-        setAuthError("Signed in, but couldn't load your profile.");
-        return;
-      }
-      onAuth(buildAppUser(profile, data.user));
-      if (closeOnAuth) onClose();
       return;
     }
 
-    setLoading(false);
-    // Collect role and legal consent before creating the auth record. This
-    // prevents abandoned signup flows from leaving orphaned auth users.
-    setPendingUser({ name: form.name.trim(), email: form.email.trim(), password: form.password, role: null });
-    setScreen("role");
+    // Collect role and consent before the Auth write; retire the old signup
+    // form immediately while keeping only the draft needed by the next step.
+    const draft = { name: form.name.trim(), email: form.email.trim(), password: form.password, role: null };
+    openAuthScreen("role");
+    setPendingUser(draft);
   };
 
-  const pickRole = (role) => {
-    setPendingUser(u => ({ ...u, role }));
-    setScreen("disclaimer");
+  const pickRole = role => {
+    if (!canAct() || screen !== "role" || !pendingUser || !["driver", "host"].includes(role) || credentialAttempt.current?.pending) return;
+    const draft = { ...pendingUser, role };
+    openAuthScreen("disclaimer");
+    setPendingUser(draft);
+  };
+  const backFromAuth = () => {
+    if (!canAct()) return;
+    if (screen === "disclaimer") {
+      if (credentialAttempt.current?.pending) return;
+      const draft = pendingUser;
+      openAuthScreen("role");
+      setPendingUser(draft);
+    } else openAuthScreen("landing");
   };
 
   const finalizeSignup = async () => {
-    if (!agreed || !pendingUser) return;
-    setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: pendingUser.email,
-      password: pendingUser.password,
-      options: { data: { name: pendingUser.name, role: pendingUser.role, legal_agreed_at: new Date().toISOString() } },
-    });
-    setLoading(false);
-    if (error) {
-      setAuthError(error.message);
-      return;
+    if (!canAct() || screen !== "disclaimer" || credentialAttempt.current?.pending || emailAttempt.current?.pending || !agreed || !pendingUser || !["driver", "host"].includes(pendingUser.role)) return;
+    const registration = { ...pendingUser };
+    const registrationErrors = validateAuthForm(registration, "signup");
+    if (Object.keys(registrationErrors).length) { setAuthError(Object.values(registrationErrors).join(". ")); return; }
+    const attempt = { active: true, pending: true };
+    credentialAttempt.current = attempt;
+    const current = () => canAct() && attempt.active && credentialAttempt.current === attempt;
+    let signupAccepted = false;
+    let signupReplied = false;
+    setAuthError(""); setLoading(true);
+    try {
+      const result = await supabase.auth.signUp({
+        email: registration.email,
+        password: registration.password,
+        options: { data: { name: registration.name, role: registration.role, legal_agreed_at: new Date().toISOString() } },
+      });
+      signupReplied = true;
+      if (!current()) return;
+      const outcome = signupOutcome(result?.data, result?.error);
+      if (outcome.kind === "error") throw new Error(outcome.message);
+      if (outcome.kind === "pending") {
+        // Obfuscated duplicate registrations and unconfirmed signups share
+        // generic guidance; neither proves a new account or email was created.
+        openAuthScreen("verify");
+        setPendingUser({ ...registration, password: "" });
+        return;
+      }
+      signupAccepted = true;
+      const data = result.data;
+      const accountId = data?.user?.id;
+      if (typeof accountId !== "string" || !accountId || !data?.session?.access_token || data.session.user?.id !== accountId) throw new Error("Unconfirmed signup session");
+      const checkSession = async () => {
+        const { data: latest, error } = await supabase.auth.getSession();
+        if (!current()) return false;
+        if (error || !latest?.session?.access_token || latest.session.user?.id !== accountId) throw new Error("Signup session changed");
+        return true;
+      };
+      if (!await checkSession()) return;
+      // Read the owning, server-created profile. Browser code has no profile
+      // INSERT/UPDATE grant, and signup metadata does not authorize this role.
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("id, name, role")
+        .eq("id", accountId)
+        .single();
+      if (!current()) return;
+      if (error || !profile || profile.id !== accountId || !["driver", "host"].includes(profile.role)) throw new Error("Signup profile unavailable");
+      if (!await checkSession() || !current()) return;
+      const appUser = buildAppUser(profile, data.user);
+      openAuthScreen("landing");
+      if (closeOnAuth) { authModalActive.current = false; authContext.current.active = false; }
+      onAuth(appUser);
+      if (closeOnAuth) onClose();
+    } catch (error) {
+      if (!current()) return;
+      if (signupAccepted) {
+        // Don't ask for another account creation after Auth accepted it.
+        // Clear the draft secret and recover through normal sign-in instead.
+        openAuthScreen("signin");
+        setForm({ ...emptyAuthForm(), email: registration.email });
+        setAuthError("Sign-up was accepted, but we couldn't finish loading your account. Please sign in to continue.");
+      } else {
+        setAuthError(signupReplied ? error?.message || "Unable to confirm sign-up. Please sign in or try again." : "Unable to reach sign-up. Please check your email before trying again.");
+      }
+    } finally {
+      attempt.pending = false;
+      if (current()) { setLoading(false); credentialAttempt.current = null; }
     }
-    if (!data.session) {
-      setScreen("verify");
-      return;
-    }
-    // The auth trigger creates this profile with server-owned role and account
-    // fields. Browser code deliberately has no INSERT/UPDATE permission on the
-    // profiles table.
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, name, role")
-      .eq("id", data.user.id)
-      .single();
-    if (profileError || !profile) {
-      setAuthError("Your account was created, but we couldn't load your profile. Please sign in again.");
-      return;
-    }
-    onAuth(buildAppUser(profile, data.user));
-    if (closeOnAuth) onClose();
   };
 
-  const resetPassword = async () => {
-    setAuthError("");
-    setAuthSuccess("");
-    if (!form.email.includes("@")) { setErrors({ email: "Enter your email first" }); return; }
-    setErrors({});
-    const { error } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: window.location.origin });
-    if (error) setAuthError(error.message);
-    else setAuthSuccess("Password reset email sent. Check your inbox.");
+  const resetPassword = emailOverride => requestAuthEmail("reset", typeof emailOverride === "string" ? emailOverride : form.email);
+  const openVerificationSignIn = () => {
+    if (!canAct() || screen !== "verify") return null;
+    const email = pendingUser?.email || "";
+    const nextOwner = openAuthScreen("signin");
+    if (!nextOwner) return null;
+    setForm({ ...emptyAuthForm(), email });
+    return { email, owner: nextOwner, revision: emailRevision.current };
+  };
+  const resetFromVerification = () => {
+    if (!canAct() || emailAttempt.current?.pending || credentialAttempt.current?.pending) return;
+    const target = openVerificationSignIn();
+    if (target) return requestAuthEmail("reset", target.email, target.owner, target.revision);
   };
 
   const updatePassword = async () => {
+    if (!canAct() || screen !== "recovery" || !recoveryOwner.current.valid || recoveryOwner.current.accountId !== recoveryAccountId || credentialAttempt.current?.pending) return;
     const recoveryErrors = {};
-    if (form.password.length < 6) recoveryErrors.password = "Min 6 characters";
+    const passwordError = validateNewPassword(form.password);
+    if (passwordError) recoveryErrors.password = passwordError;
     if (!confirmPassword) recoveryErrors.confirmPassword = "Confirm your new password";
     else if (form.password !== confirmPassword) recoveryErrors.confirmPassword = "Passwords do not match";
     setErrors(recoveryErrors);
     if (Object.keys(recoveryErrors).length) return;
 
+    const attempt = { active: true, pending: true };
+    credentialAttempt.current = attempt;
+    const current = () => canAct() && recoveryOwner.current.valid && attempt.active && credentialAttempt.current === attempt;
+    const password = form.password;
     setAuthError("");
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: form.password });
-    setLoading(false);
-    if (error) {
-      setAuthError(error.message);
-      return;
+    try {
+      const result = await updateRecoveryPasswordForAccount({ password, expectedAccountId:recoveryAccountId, isCurrent:current });
+      if (!current()) return;
+      if (result?.error) throw result.error;
+      if (result?.data?.user?.id !== recoveryAccountId) throw new Error("We couldn't confirm your password update. Try signing in with your new password before requesting another reset.");
+      // Clear both password fields and retire queued recovery submits before
+      // React commits the success screen. A sent SDK call cannot be cancelled.
+      openAuthScreen("recoverySuccess");
+      onRecoveryComplete();
+    } catch (error) {
+      if (current()) {
+        if (error?.code === "recovery_session_changed") invalidateRecovery();
+        else setAuthError(error?.message || "Unable to update your password right now. Please try again.");
+      }
+    } finally {
+      attempt.pending = false;
+      if (current()) { setLoading(false); credentialAttempt.current = null; }
     }
-    setScreen("recoverySuccess");
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(26,42,107,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, padding: 20, fontFamily: "'Poppins', sans-serif" }}>
-      <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", overflow: "hidden" }}>
+    <NativeDialog onClose={closeDialog} title={{ landing: "Sign in or create a ParkShare account", signin: "Sign in to ParkShare", signup: "Create a ParkShare account", role: "Choose your ParkShare role", disclaimer: "ParkShare terms and privacy", verify: "Confirm your ParkShare email", recovery: "Reset your ParkShare password", recoverySuccess: "ParkShare password updated" }[screen] || "ParkShare account"}
+      className="ps-auth-dialog" style={{ position: "fixed", inset: 0, margin: "auto", width: "calc(100% - 40px)", maxWidth: 400, maxHeight: "calc(100dvh - 40px)", overflowY: "auto", border: 0, padding: 0, background: C.white, borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", fontFamily: "'Poppins', sans-serif" }}>
+      <div style={{ background: C.white, borderRadius: 20, width: "100%", maxWidth: 400, overflow: "hidden" }}>
 
         {/* Modal header */}
         <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", padding: "24px 24px 18px", textAlign: "center", position: "relative" }}>
@@ -5932,19 +7671,17 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
             {screen === "landing" && "Welcome — sign in or create an account"}
             {screen === "signin" && "Welcome back!"}
-            {screen === "signup" && "Create your free account"}
+            {screen === "signup" && (signupRole === "host" ? "Create your free Host account" : "Create your free account")}
             {screen === "role" && "How will you use ParkShare?"}
             {screen === "disclaimer" && "Before you continue"}
-            {screen === "verify" && "Check your email"}
+            {screen === "verify" && "Check email or sign in"}
             {screen === "recovery" && "Choose a new password"}
             {screen === "recoverySuccess" && "Password updated"}
           </div>
           {screen !== "landing" && screen !== "role" && screen !== "recovery" && screen !== "recoverySuccess" && (
-            <button onClick={() => { setScreen(screen === "disclaimer" ? "role" : "landing"); setErrors({}); }} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
+            <button type="button" onClick={backFromAuth} disabled={screen === "disclaimer" && loading} style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 15 }}>←</button>
           )}
-          {screen !== "role" && screen !== "disclaimer" && (
-            <button onClick={onClose} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
-          )}
+          <button type="button" aria-label="Close sign-in dialog" onClick={closeDialog} style={{ position: "absolute", top: 14, right: 14, background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: C.white, fontSize: 17 }}>×</button>
         </div>
 
         <div style={{ padding: "22px 24px 26px" }}>
@@ -5961,34 +7698,63 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                   sizes="(min-width: 700px) 128px, 120px"
                 />
               </div>
-              <button onClick={() => setScreen("signup")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Create free account</button>
-              <button onClick={() => setScreen("signin")} style={{ background: "transparent", color: C.navy, border: "2px solid "+C.concrete, borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
+              <button onClick={() => openAuthScreen("signup")} style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 700, cursor: "pointer" }}>Create free account</button>
+              <button onClick={() => openAuthScreen("signin")} style={{ background: "transparent", color: C.navy, border: "2px solid "+C.concrete, borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>Sign in</button>
               <div style={{ textAlign: "center", fontSize: 12, color: C.muted, marginTop: 4 }}>Join the ParkShare community.</div>
             </div>
           )}
 
           {/* Sign in */}
           {screen === "signin" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label style={lS}>Email</label><input style={iS(errors.email)} type="email" placeholder="you@example.com" value={form.email} onChange={e => upd("email", e.target.value)} />{errors.email && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}</div>
-              <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="Your password" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
-              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              {authSuccess && <div style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
-              <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
-              <button onClick={resetPassword} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Forgot password?</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button onClick={() => { setScreen("signup"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
-            </div>
+            <form onSubmit={event => { event.preventDefault(); void submit(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="ps-signin-email" style={lS}>Email</label>
+                <input id="ps-signin-email" disabled={loading || emailBusy} name="email" autoComplete="username" type="email" required
+                  style={iS(errors.email)} placeholder="you@example.com" value={form.email}
+                  onChange={event => upd("email", event.target.value)}
+                  aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "ps-signin-email-error" : undefined} />
+                {errors.email && <div id="ps-signin-email-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-signin-password" style={lS}>Password</label>
+                <input id="ps-signin-password" disabled={loading || emailBusy} name="password" autoComplete="current-password" type="password" required
+                  style={iS(errors.password)} placeholder="Your password" value={form.password}
+                  onChange={event => upd("password", event.target.value)}
+                  aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signin-password-error" : undefined} />
+                {errors.password && <div id="ps-signin-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
+              </div>
+              {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              {isUnconfirmedEmailError(authError) && (
+                <button type="button" onClick={resendConfirmation} disabled={loading || emailBusy}
+                  style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, fontSize: 12, cursor: resendLoading ? "default" : "pointer" }}>
+                  {resendLoading ? "Sending…" : "Resend confirmation email"}
+                </button>
+              )}
+              {resendMessage && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{resendMessage}</div>}
+              {authSuccess && <div role="status" style={{ color: C.moss, fontSize: 12, textAlign: "center" }}>{authSuccess}</div>}
+              <button type="submit" disabled={loading || emailBusy} style={{ background: loading ? C.concrete : C.navy, color: loading ? C.muted : C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Signing in…" : "Sign in"}</button>
+              <button type="button" onClick={resetPassword} disabled={loading || emailBusy} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>{resetLoading ? "Requesting reset…" : "Forgot password?"}</button>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>No account? <button type="button" onClick={() => openAuthScreen("signup")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign up free</button></div>
+            </form>
           )}
 
           {/* Password recovery */}
           {screen === "recovery" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <form onSubmit={event => { event.preventDefault(); void updatePassword(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5, textAlign: "center" }}>Enter and confirm the new password you want to use for your ParkShare account.</div>
-              <div><label style={lS}>New password</label><input style={iS(errors.password)} type="password" placeholder="At least 6 characters" value={form.password} onChange={e => upd("password", e.target.value)} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
-              <div><label style={lS}>Confirm new password</label><input style={iS(errors.confirmPassword)} type="password" placeholder="Re-enter your new password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && updatePassword()} />{errors.confirmPassword && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.confirmPassword}</div>}</div>
-              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              <button onClick={updatePassword} disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
-            </div>
+              <div>
+                <label htmlFor="ps-recovery-password" style={lS}>New password</label>
+                <input id="ps-recovery-password" name="password" style={iS(errors.password)} type="password" autoComplete="new-password" minLength={MIN_NEW_PASSWORD_LENGTH} required disabled={loading || recoveryInvalid} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`} value={form.password} onChange={e => upd("password", e.target.value)} aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-recovery-password-error" : undefined} />
+                {errors.password && <div id="ps-recovery-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-recovery-confirm-password" style={lS}>Confirm new password</label>
+                <input id="ps-recovery-confirm-password" name="confirmPassword" style={iS(errors.confirmPassword)} type="password" autoComplete="new-password" required disabled={loading || recoveryInvalid} placeholder="Re-enter your new password" value={confirmPassword} onChange={e => { if (canAct() && recoveryOwner.current.valid && !credentialAttempt.current?.pending) setConfirmPassword(e.target.value); }} aria-invalid={Boolean(errors.confirmPassword)} aria-describedby={errors.confirmPassword ? "ps-recovery-confirm-password-error" : undefined} />
+                {errors.confirmPassword && <div id="ps-recovery-confirm-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.confirmPassword}</div>}
+              </div>
+              {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              <button type="submit" disabled={loading || recoveryInvalid} style={{ background: loading || recoveryInvalid ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Updating password…" : "Update password"}</button>
+            </form>
           )}
 
           {/* Password recovery complete */}
@@ -5997,20 +7763,43 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               <div style={{ fontSize: 32, color: C.moss }}>✓</div>
               <div style={{ fontWeight: 700, fontSize: 16, color: C.navy }}>Your password has been updated.</div>
               <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.5 }}>You can now continue using ParkShare with your new password.</div>
-              <button onClick={onClose} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Continue</button>
+              <button type="button" onClick={closeDialog} style={{ background: C.navy, color: C.white, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", marginTop: 4 }}>Continue</button>
             </div>
           )}
 
           {/* Sign up */}
           {screen === "signup" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div><label style={lS}>Full name</label><input style={iS(errors.name)} placeholder="Jane Smith" value={form.name} onChange={e => upd("name", e.target.value)} />{errors.name && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.name}</div>}</div>
-              <div><label style={lS}>Email</label><input style={iS(errors.email)} type="email" placeholder="you@example.com" value={form.email} onChange={e => upd("email", e.target.value)} />{errors.email && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}</div>
-              <div><label style={lS}>Password</label><input style={iS(errors.password)} type="password" placeholder="At least 6 characters" value={form.password} onChange={e => upd("password", e.target.value)} onKeyDown={e => e.key === "Enter" && submit()} />{errors.password && <div style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}</div>
-              {authError && <div style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
-              <button onClick={submit} disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Creating account…" : "Create account →"}</button>
-              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>Already have an account? <button onClick={() => { setScreen("signin"); setErrors({}); }} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign in</button></div>
-            </div>
+            <form onSubmit={event => { event.preventDefault(); void submit(); }} noValidate style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label htmlFor="ps-signup-name" style={lS}>Full name</label>
+                <input id="ps-signup-name" name="name" autoComplete="name" required
+                  style={iS(errors.name)} placeholder="Jane Smith" value={form.name}
+                  onChange={event => upd("name", event.target.value)}
+                  aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? "ps-signup-name-error" : undefined} />
+                {errors.name && <div id="ps-signup-name-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.name}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-signup-email" style={lS}>Email</label>
+                <input id="ps-signup-email" name="email" type="email" autoComplete="email" required
+                  style={iS(errors.email)} placeholder="you@example.com" value={form.email}
+                  onChange={event => upd("email", event.target.value)}
+                  aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? "ps-signup-email-error" : undefined} />
+                {errors.email && <div id="ps-signup-email-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.email}</div>}
+              </div>
+              <div>
+                <label htmlFor="ps-signup-password" style={lS}>Password</label>
+                <input id="ps-signup-password" name="password" type="password" autoComplete="new-password"
+                  minLength={MIN_NEW_PASSWORD_LENGTH} required
+                  style={iS(errors.password)} placeholder={`At least ${MIN_NEW_PASSWORD_LENGTH} characters`}
+                  value={form.password} onChange={event => upd("password", event.target.value)}
+                  aria-invalid={Boolean(errors.password)} aria-describedby={errors.password ? "ps-signup-password-error" : "ps-signup-password-hint"} />
+                <div id="ps-signup-password-hint" style={{ fontSize: 11, color: C.muted, marginTop: 3 }}>Use 12 or more characters. Avoid common passwords and patterns; try several unrelated words.</div>
+                {errors.password && <div id="ps-signup-password-error" role="alert" style={{ color: C.red, fontSize: 11, marginTop: 3 }}>{errors.password}</div>}
+              </div>
+              {authError && <div role="alert" style={{ color: C.red, fontSize: 12, textAlign: "center" }}>{authError}</div>}
+              <button type="submit" disabled={loading} style={{ background: loading ? C.concrete : C.amber, color: loading ? C.muted : C.navy, border: "none", borderRadius: 12, padding: 13, fontSize: 14, fontWeight: 700, cursor: loading ? "default" : "pointer", marginTop: 4 }}>{loading ? "Creating account…" : "Create account →"}</button>
+              <div style={{ textAlign: "center", fontSize: 12, color: C.muted }}>Already have an account? <button type="button" onClick={() => openAuthScreen("signin")} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>Sign in</button></div>
+            </form>
           )}
 
           {/* Role picker */}
@@ -6022,7 +7811,7 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
               {[
                 { role: "driver", icon: "🚗", title: "Find a driveway", sub: "Browse and book private driveways near you by the hour" },
                 { role: "host", icon: "🏠", title: "List my driveway", sub: "Earn money renting out your empty driveway to drivers" },
-              ].map(r => (
+              ].filter(r => signupRole !== "host" || r.role === "host").map(r => (
                 <button key={r.role} onClick={() => pickRole(r.role)} style={{ background: C.white, border: "2px solid "+C.concrete, borderRadius: 16, padding: "16px 14px", cursor: "pointer", textAlign: "left", display: "flex", gap: 14, alignItems: "center" }}>
                   <div style={{ width: 52, height: 52, borderRadius: 14, background: "linear-gradient(135deg, "+C.navy+", #33465A)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>{r.icon}</div>
                   <div>
@@ -6054,11 +7843,11 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
                   ParkShare is not liable for damage, injury, disputes, or losses connected to a booking, to the fullest extent the law allows.
                 </p>
                 <p style={{ margin: 0 }}>
-                  This is a summary. <a href="/?legal=liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
+                  This is a summary. <a href="/liability" target="_blank" rel="noopener noreferrer" style={{ color: C.navy, fontWeight: 700 }}>Read the full Disclaimer of Liability →</a>
                 </p>
               </div>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer" }}>
-                <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: C.navy, cursor: "pointer" }} />
+                <input type="checkbox" checked={agreed} disabled={loading} onChange={e => { if (canAct() && !credentialAttempt.current?.pending) setAgreed(e.target.checked); }} style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: C.navy, cursor: "pointer" }} />
                 <span style={{ fontSize: 12.5, color: C.navy, lineHeight: 1.5 }}>
                   I have read and agree to the Disclaimer of Liability and ParkShare's Terms and Privacy Policy as a {pendingUser?.role === "host" ? "Host" : "Driver"}.
                 </span>
@@ -6070,70 +7859,105 @@ function SignInModal({ onClose, onAuth, initialScreen = "landing", closeOnAuth =
 
           {screen === "verify" && (
             <div style={{ textAlign: "center" }}>
-              <p style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>We sent a confirmation link to <strong>{pendingUser?.email}</strong>. Confirm it, then return here to sign in.</p>
-              <button onClick={onClose} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Done</button>
+              <p role="status" style={{ color: C.navy, fontSize: 14, lineHeight: 1.6 }}>If <strong>{pendingUser?.email}</strong> is eligible for a new account, check your inbox for a confirmation link.</p>
+              <p role="note" style={{ color: C.navy, fontSize: 13, lineHeight: 1.6 }}><strong>Already registered?</strong> Sign in to your existing account, or reset your password. Repeating sign-up does not create another account.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <button type="button" onClick={resendConfirmation} disabled={loading || emailBusy} style={{ background: C.navy, color: C.white, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: resendLoading ? "default" : "pointer" }}>{resendLoading ? "Sending…" : "Resend confirmation email"}</button>
+                {resendMessage && <div role="status" style={{ fontSize: 12, color: C.moss }}>{resendMessage}</div>}
+                <button type="button" onClick={openVerificationSignIn} style={{ background: C.amber, color: C.navy, border: 0, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Sign in to existing account</button>
+                <button type="button" onClick={resetFromVerification} disabled={emailBusy} style={{ background: C.white, color: C.navy, border: "1px solid " + C.concrete, borderRadius: 12, padding: "12px 22px", fontWeight: 700, cursor: "pointer" }}>Reset password</button>
+              </div>
             </div>
           )}
 
         </div>
       </div>
-    </div>
+    </NativeDialog>
   );
 }
 
+function NativeDialog({ children, onClose, title, className, style, returnFocus }) {
+  const dialogRef = React.useRef(null);
+  const useDialogLayoutEffect = typeof document === "undefined" ? React.useEffect : React.useLayoutEffect;
+  const controlsFor = dialog => [...dialog.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")]
+    .filter(control => control.tabIndex >= 0 && !control.matches(":disabled")
+      && !control.closest("[hidden], [inert]") && control.getClientRects().length > 0);
+  const keepFocusInside = dialog => {
+    if (!dialog.contains(dialog.ownerDocument.activeElement)) controlsFor(dialog)[0]?.focus({ preventScroll: true });
+  };
+  useDialogLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = dialog.ownerDocument.activeElement;
+    // Native modality places the panel in the top layer and makes the page inert.
+    dialog.showModal();
+    keepFocusInside(dialog);
+    return () => {
+      dialog.close();
+      const requested = returnFocus?.();
+      const target = requested?.isConnected ? requested : opener;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+    };
+  }, []);
+  // Screen/form changes can remove the focused control; preserve valid input focus.
+  useDialogLayoutEffect(() => { keepFocusInside(dialogRef.current); });
+  return <dialog ref={dialogRef} className={className} style={style} aria-label={title} aria-modal="true"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const dialog = event.currentTarget, controls = controlsFor(dialog);
+      const first = controls[0], last = controls.at(-1), active = dialog.ownerDocument.activeElement;
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (active === last || active === dialog || !dialog.contains(active))) {
+        event.preventDefault(); first.focus();
+      }
+    }}>{children}</dialog>;
+}
+
 // ─── Header ───────────────────────────────────────────────────────────────────
-// ─── Floating Parker Help Assistant ────────────────────────────────────────────
-function FloatingParkerHelp({ onHelpClick, onContactClick }) {
+// ─── Parker Help Assistant ─────────────────────────────────────────────────────
+function ParkerHelp({ onHelpClick, onContactClick }) {
   const [open, setOpen] = useState(false);
   const [activeQ, setActiveQ] = useState(null);
-  const [pos, setPos] = useState(null); // { right, bottom } in px; null = default corner
-  const dragState = useRef({ dragging: false, moved: false, startX: 0, startY: 0, startRight: 16, startBottom: 16 });
+  const panelId = useId();
+  const trigger = useRef(null);
+  const backButton = useRef(null);
+  const topicButtons = useRef([]);
+  const focusAfterChange = useRef(null);
 
-  const BTN_SIZE = 60;
+  useEffect(() => {
+    const target = focusAfterChange.current;
+    focusAfterChange.current = null;
+    if (!open || target === null) return;
+    (target === "answer" ? backButton.current : topicButtons.current[target])?.focus();
+  }, [open, activeQ]);
 
-  const clampPos = (right, bottom) => {
-    const maxRight = window.innerWidth - BTN_SIZE;
-    const maxBottom = window.innerHeight - BTN_SIZE;
-    return { right: Math.min(Math.max(right, 0), maxRight), bottom: Math.min(Math.max(bottom, 0), maxBottom) };
+  const closeHelp = () => {
+    setOpen(false);
+    setActiveQ(null);
+    focusAfterChange.current = null;
+    trigger.current?.focus();
   };
 
-  const onPointerDown = (e) => {
-    const current = pos || { right: 16, bottom: 16 };
-    dragState.current = {
-      dragging: true, moved: false,
-      startX: e.clientX, startY: e.clientY,
-      startRight: current.right, startBottom: current.bottom,
-    };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-
-  const onPointerMove = (e) => {
-    const d = dragState.current;
-    if (!d.dragging) return;
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
-    if (d.moved) {
-      setPos(clampPos(d.startRight - dx, d.startBottom - dy));
-    }
-  };
-
-  const onPointerUp = () => {
-    dragState.current.dragging = false;
-  };
-
-  const handleClick = () => {
-    if (dragState.current.moved) { dragState.current.moved = false; return; }
-    setOpen(o => !o);
-  };
-
-  const corner = pos || { right: 16, bottom: 16 };
-  const panelOnLeft = corner.right > (typeof window !== "undefined" ? window.innerWidth - 340 : 340);
-
+  // Reserve space in document flow: help must never sit over maps, reviews or cards.
   return (
-    <div style={{ position: "fixed", right: corner.right, bottom: corner.bottom, zIndex: 1500, fontFamily: "'Poppins', sans-serif" }}>
+    <div className="ps-parker-help" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 60px", alignItems: "center", gap: 16, width: "100%", maxWidth: 1180, boxSizing: "border-box", padding: "20px 24px", margin: "0 auto", fontFamily: "'Poppins', sans-serif" }} onKeyDown={event => {
+      if (event.key === "Escape" && open) { event.preventDefault(); closeHelp(); }
+    }}>
+      <div style={{ minWidth: 0, color: C.navy }}>
+        <strong>Need a hand?</strong>
+        <div style={{ fontSize: 13 }}>Ask Parker for help with ParkShare.</div>
+      </div>
+      <button ref={trigger} type="button" aria-label="ParkShare help" aria-expanded={open} aria-controls={panelId}
+        onClick={() => { if (open) closeHelp(); else setOpen(true); }}
+        style={{ width: 60, height: 60, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white,
+          boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px " + C.navy, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 0, overflow: "hidden", touchAction: "manipulation" }}>
+        <img src={PARKER.icon} alt="Parker help" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+      </button>
       {open && (
-        <div style={{ width: 300, maxWidth: "calc(100vw - 32px)", maxHeight: "70vh", overflowY: "auto", background: C.white, borderRadius: 18, boxShadow: "0 16px 48px rgba(0,0,0,0.25)", marginBottom: 12, border: "2px solid " + C.navy, marginLeft: panelOnLeft ? 0 : "auto", marginRight: panelOnLeft ? "auto" : 0 }}>
+        <div id={panelId} role="region" aria-label="Ask Parker" style={{ gridColumn: "1 / -1", justifySelf: "end", width: "100%", minWidth: 0, maxWidth: 540, boxSizing: "border-box", background: C.white, borderRadius: 18, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "2px solid " + C.navy }}>
           <div style={{ background: "linear-gradient(135deg, " + C.navy + ", #33465A)", padding: "14px 16px", display: "flex", alignItems: "center", gap: 10, borderRadius: "16px 16px 0 0", position: "relative", zIndex: 1 }}>
             <div style={{ width: 68, height: 68, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white, boxShadow: "0 0 0 2px " + C.navy, overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 2 }}>
               <img src={PARKER.icon} alt="Parker" style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
@@ -6142,7 +7966,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
               <div style={{ color: C.white, fontWeight: 700, fontSize: 14 }}>Ask Parker</div>
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 11 }}>Your ParkShare helper</div>
             </div>
-            <button onClick={() => { setOpen(false); setActiveQ(null); }} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 26, height: 26, cursor: "pointer", color: C.white, fontSize: 14, flexShrink: 0 }}>×</button>
+            <button type="button" aria-label="Close Parker help" onClick={closeHelp} style={{ marginLeft: "auto", background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "50%", width: 44, height: 44, cursor: "pointer", color: C.white, fontSize: 14, flexShrink: 0 }}>×</button>
           </div>
 
           <div style={{ padding: "14px 16px" }}>
@@ -6151,7 +7975,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Hi, I'm Parker! What can I help with?</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {HELP_TOPICS.map((t, i) => (
-                    <button key={i} onClick={() => setActiveQ(i)} style={{ textAlign: "left", background: C.warmWhite, border: "1.5px solid " + C.concrete, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: C.navy, fontWeight: 600, cursor: "pointer" }}>
+                    <button key={i} ref={node => { topicButtons.current[i] = node; }} type="button" onClick={() => { focusAfterChange.current = "answer"; setActiveQ(i); }} style={{ textAlign: "left", background: C.warmWhite, border: "1.5px solid " + C.concrete, borderRadius: 10, padding: "10px 12px", fontSize: 12.5, color: C.navy, fontWeight: 600, cursor: "pointer" }}>
                       {t.q}
                     </button>
                   ))}
@@ -6162,7 +7986,7 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
               </>
             ) : (
               <div>
-                <button onClick={() => setActiveQ(null)} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: 0, marginBottom: 10 }}>← Back to topics</button>
+                <button ref={backButton} type="button" onClick={() => { focusAfterChange.current = activeQ; setActiveQ(null); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, cursor: "pointer", padding: 0, marginBottom: 10 }}>← Back to topics</button>
                 <div style={{ fontWeight: 700, color: C.navy, fontSize: 13, marginBottom: 8 }}>{HELP_TOPICS[activeQ].q}</div>
                 <div style={{ background: C.mossLight, border: "1px solid " + C.moss, borderRadius: 10, padding: "12px 14px", color: C.navy, fontSize: 13, lineHeight: 1.5 }}>
                   {HELP_TOPICS[activeQ].a}
@@ -6178,21 +8002,6 @@ function FloatingParkerHelp({ onHelpClick, onContactClick }) {
           </div>
         </div>
       )}
-
-      <button
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClick={handleClick}
-        style={{
-          width: BTN_SIZE, height: BTN_SIZE, borderRadius: "50%", background: C.amber, border: "3px solid " + C.white,
-          boxShadow: "0 6px 20px rgba(0,0,0,0.3), 0 0 0 2px " + C.navy, cursor: "grab",
-          display: "flex", alignItems: "center", justifyContent: "center", padding: 0, overflow: "hidden",
-          marginLeft: "auto", touchAction: "none", userSelect: "none",
-        }} aria-label="ParkShare help">
-        <img src={PARKER.icon} alt="Parker help" draggable={false} style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
-      </button>
     </div>
   );
 }
@@ -6211,12 +8020,15 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
       <div className="ps-footer-v2-inner">
         <div className="ps-footer-v2-brand">
           <button className="ps-footer-v2-logo" onClick={onAboutClick} aria-label="About ParkShare">
-            <img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" />
+            <img src="/brand/parkshare-footer-480.webp" srcSet="/brand/parkshare-footer-480.webp 480w, /brand/parkshare-footer-960.webp 960w" sizes="(max-width: 820px) 180px, 220px" width="1440" height="615" alt="ParkShare" loading="lazy" decoding="async" />
           </button>
           <p>Share your space. Find your place.</p>
           <div className="ps-footer-v2-social" aria-label="ParkShare social channels">
             <a href="https://www.instagram.com/myparkshare/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Instagram" title="Instagram" style={socialIconStyle}>◎</a>
-            <a href="https://www.facebook.com/ParkerParksHere/" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on Facebook" title="Facebook" style={socialIconStyle}>f</a>
+            {/* BUG-005141: the supplied Facebook destination has not been independently verified.
+                Keep the icon in the footer, but never send visitors to an unconfirmed page.
+                Restore a real <a> only after the official public page is confirmed. */}
+            <span aria-label="ParkShare Facebook link being verified" title="Facebook link being verified" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>f</span>
             <a href="https://www.youtube.com/@ParkerParksHere" target="_blank" rel="noopener noreferrer" aria-label="ParkShare on YouTube" title="YouTube" style={socialIconStyle}>▶</a>
             <span aria-label="X link coming soon" title="X link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>𝕏</span>
             <span aria-label="LinkedIn link coming soon" title="LinkedIn link coming soon" aria-disabled="true" style={{ ...socialIconStyle, opacity: 0.45, cursor: "default" }}>in</span>
@@ -6253,7 +8065,7 @@ function HomeFooter({ onLegalClick, onContactClick, onTrustClick, onAboutClick, 
         <div className="ps-footer-v2-powered" aria-label="Powered by ESKA Technologies">
           <span>Powered by</span>
           <span className="ps-footer-v2-powered-logo">
-            <img src="/parker/parker-eska-logo.png" alt="ESKA Technologies" />
+            <img src="/brand/eska-footer.webp" width="400" height="76" alt="ESKA Technologies" loading="lazy" decoding="async" />
           </span>
         </div>
       </div>
@@ -6333,8 +8145,8 @@ function DiscoverNav({ tab, onTabChange, signedIn = false }) {
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
   const tabs = user?.role === "host"
-    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions"]
-    : ["Browse", "Discover", "My Bookings", "Messages", "Profile", "List Your Driveway", "Host Dashboard", "Transactions"];
+    ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions", "Profile"]
+    : ["Browse", "Discover", "My Bookings", "Messages", "Transactions", "Profile"];
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -6344,7 +8156,18 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
 
   return (
     <header className={`ps-header${dashboardMobileHeader ? " ps-header-dashboard" : ""}`} style={{ background: C.navy, fontFamily: "'Poppins', sans-serif", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }}>
-      <style>{`
+      <a className="ps-skip-link" href="#main-content" onClick={event => {
+        const content = document.getElementById("main-content");
+        if (!content) return;
+        event.preventDefault();
+        // Keep the target below the current desktop/mobile sticky header.
+        const headerHeight = event.currentTarget.closest("header")?.getBoundingClientRect().height || 0;
+        content.style.scrollMarginTop = `${Math.ceil(headerHeight) + 8}px`;
+        content.focus({ preventScroll: true });
+        content.scrollIntoView({ block: "start", behavior: "instant" });
+      }}>Skip to main content</a>
+      {/* Authored static CSS: preserve raw selectors/quotes across SSR hydration. */}
+      <style dangerouslySetInnerHTML={{__html: `
         /* One header system for every public ParkShare page. */
         .ps-mobile-header-row { display: none !important; }
         .ps-dashboard-mobile-header-row { display: none !important; }
@@ -6451,7 +8274,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
             margin-bottom: 2px;
           }
         }
-      `}</style>
+      `}} />
       {dashboardMobileHeader && (
         <div className="ps-dashboard-mobile-header-row">
           <button onClick={onLogoClick} aria-label="ParkShare home" style={{ width: 190, maxWidth: "62vw", minHeight: 44, padding: 0, border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "flex-start" }}>
@@ -6663,7 +8486,7 @@ function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, on
           {tabs.map(t => t === "Discover" ? (
             <DiscoverNav key={t} tab={tab} signedIn onTabChange={nextTab => { setDashboardMenuOpen(false); onTabChange(nextTab); }} />
           ) : (
-            <button key={t} aria-label={t === "Profile" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && !user.profileComplete ? "Profile •" : t}</button>
+            <button key={t} aria-label={t === "Profile" && user.role === "driver" && !user.profileComplete ? "Profile — setup incomplete" : t} onClick={() => { setDashboardMenuOpen(false); onTabChange(t); }} style={{ flexShrink: 0, minHeight: 36, background: tab === t ? C.amber : "transparent", color: tab === t ? C.navy : "rgba(255,255,255,0.8)", border: "2px solid " + (tab === t ? C.white : "rgba(255,255,255,0.35)"), borderRadius: 20, padding: "5px 13px", fontSize: 11, fontWeight: tab === t ? 700 : 500, cursor: "pointer", whiteSpace: "nowrap" }}>{t === "Profile" && user.role === "driver" && !user.profileComplete ? "Profile •" : t}</button>
           ))}
         </div>
       )}
@@ -6798,6 +8621,25 @@ function FoundingHostsCard({ onShowAuth }) {
   );
 }
 
+function NotFoundPage() {
+  return (
+    <div style={{minHeight: "100vh", background: C.warmWhite, color: C.navy, fontFamily: "'Poppins', sans-serif"}}>
+      <header style={{background: C.navy, padding: 24, textAlign: "center"}}>
+        <a href="/" aria-label="ParkShare home"><img src="/brand/parkshare-william-parker-logo.webp" alt="ParkShare" style={{width: "100%", maxWidth: 300, height: "auto"}} /></a>
+      </header>
+      <main id="main-content" tabIndex={-1} style={{maxWidth: 640, margin: "0 auto", padding: "56px 24px"}}>
+        <p style={{fontWeight: 800}}>404</p>
+        <h1>Page not found</h1>
+        <p>That address does not lead to a ParkShare page. You can find parking or return to the homepage.</p>
+        <nav aria-label="Find your way" style={{display: "flex", flexWrap: "wrap", gap: 12, marginTop: 24}}>
+          <a href="/parking" style={{display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 20px", background: C.amber, color: C.navy, border: "2px solid " + C.navy, borderRadius: 10, fontWeight: 700}}>Find Parking</a>
+          <a href="/" style={{display: "inline-flex", alignItems: "center", minHeight: 44, padding: "0 20px", color: C.navy, border: "2px solid " + C.navy, borderRadius: 10, fontWeight: 700}}>Home</a>
+        </nav>
+      </main>
+    </div>
+  );
+}
+
 function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onLegalClick, onContactClick, onTrustClick, onHostClick, onDriverClick, onAboutClick, onHelpClick }) {
   return (
     <div className="ps-landing-page ps-home-v2">
@@ -6814,6 +8656,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* Section 1 — Hero */}
       <section className="ps-home-v2-hero">
@@ -6828,14 +8671,18 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
         </div>
         <div className="ps-home-v2-hero-art">
           <div className="ps-home-v2-parker-card">
-            <ResponsiveMascot
-              family="william-parker-v2"
-              name="ParkShare_William_Parker_01_Joint_Greeting_Wave"
-              alt="William and Parker welcoming ParkShare Drivers and Hosts"
-              className="ps-mascot-home-hero"
-              hero
-              sizes="(max-width: 600px) 82vw, 340px"
-            />
+            <picture style={{display: "contents"}}>
+              <source type="image/avif" srcSet={HOME_HERO_AVIF_SRC_SET} sizes={HOME_HERO_IMAGE.sizes} />
+              <img
+                {...HOME_HERO_IMAGE}
+                alt="William and Parker welcoming ParkShare Drivers and Hosts"
+                className="ps-responsive-mascot ps-mascot-home-hero"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                draggable={false}
+              />
+            </picture>
           </div>
         </div>
       </section>
@@ -6950,6 +8797,7 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
       </section>
 
       {/* Section 7 — Footer */}
+      </main>
       <HomeFooter
         hostFirst
         onLegalClick={onLegalClick}
@@ -6972,9 +8820,9 @@ function LandingPage({ onSearchAddress, onUseLocation, tab, onTabChange, onLogoC
 function LegalDoc({ eyebrow, title, accent, updated, children }) {
   return (
     <section style={{ marginBottom: 56 }}>
-      <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>{eyebrow}</div>
+      <div style={{ color: "#8A6100", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>{eyebrow}</div>
       <div style={{ display: "inline-block", background: C.amber, color: C.navy, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white, borderRadius: 10, padding: "8px 18px", marginBottom: 4 }}>
-        <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.white }}>{accent}</span></h1>
+        <h1 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 24, margin: 0, lineHeight: 1.2 }}>{title} <span style={{ color: C.navy }}>{accent}</span></h1>
       </div>
       <p style={{ color: C.muted, fontSize: 12.5, margin: "10px 0 20px" }}>Last updated: {updated}</p>
       {children}
@@ -7005,7 +8853,8 @@ function LegalCallout({ children }) {
   return <div style={{ background: C.mossLight, borderLeft: "3px solid " + C.moss, padding: "10px 14px", borderRadius: 6, fontSize: 13, color: C.navy, margin: "10px 0" }}>{children}</div>;
 }
 
-function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+function LegalPage({ section = "terms", onLegalClick, tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onContactClick, onTrustClick, onAboutClick, onHelpClick, onHostClick, onDriverClick }) {
+  const activeSection = ["terms", "privacy", "payments", "liability"].includes(section) ? section : "terms";
   const UPDATED = "August 22, 2026";
   const nav = [
     ["terms", "Terms of Service"],
@@ -7028,13 +8877,14 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px", fontFamily: "'Poppins', sans-serif" }}>
         <div id="legal-documents" style={{ background: C.white, border: "2px solid " + C.navy, boxShadow: "0 0 0 2px " + C.white + ", 0 2px 10px rgba(28,43,57,0.08)", borderRadius: 14, padding: "18px 20px", marginBottom: 32, scrollMarginTop: 90 }}>
-          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>On this page</div>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: C.muted, fontWeight: 700, marginBottom: 10 }}>Legal documents</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {nav.map(([id, label]) => (
-              <a key={id} href={"#" + id} style={{ color: C.navy, textDecoration: "none", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <a key={id} href={getRouteForState("legal", "Browse", id).path} aria-current={activeSection === id ? "page" : undefined} style={{ color: C.navy, textDecoration: "none", fontWeight: 600, fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ width: 7, height: 7, borderRadius: "50%", background: C.hazard, flexShrink: 0 }} />
                 {label}
               </a>
@@ -7042,7 +8892,7 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
         </div>
 
-        <div id="terms" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "terms" && (<div id="terms" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 1 of 4" title="Terms of" accent="Service" updated={UPDATED}>
             <LegalH2>1. Agreement to Terms</LegalH2>
             <LegalP>ParkShare is a product developed and operated by ESKA Technologies Inc. ("ESKA Technologies," "we," "us," or "our"). These Terms of Service ("Terms") govern your access to and use of the ParkShare website, mobile application, and related services (collectively, the "Platform"). By creating an account, browsing listings, booking a parking space, or listing your driveway, you agree to be bound by these Terms.</LegalP>
@@ -7118,11 +8968,11 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>These Terms are governed by the laws of Ontario, Canada, without regard to conflict of law principles.</LegalP>
 
             <LegalH2>16. Contact</LegalH2>
-            <LegalP>Questions about these Terms: <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
+            <LegalP>Questions about these Terms: <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="privacy" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "privacy" && (<div id="privacy" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 2 of 4" title="Privacy" accent="Policy" updated={UPDATED}>
             <LegalP>This Privacy Policy explains how ESKA Technologies Inc., the developer and operator of ParkShare ("we," "us," or "our"), collects, uses, shares, and protects your personal information when you use the ParkShare website and mobile application (the "Platform").</LegalP>
 
@@ -7157,10 +9007,10 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>We use encrypted data transmission (HTTPS) and secure authentication practices. No system is completely secure, and we cannot guarantee absolute security.</LegalP>
 
             <LegalH2>7. Your Rights and Choices</LegalH2>
-            <LegalP>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink> to exercise these rights.</LegalP>
+            <LegalP>You may have the right to access, correct, or delete your personal information, and to withdraw consent for location tracking. Contact <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink> to exercise these rights.</LegalP>
 
             <LegalH2>8. Account Deletion</LegalH2>
-            <LegalP>Request account deletion via <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>. We will delete or anonymize your information within 90 days, except where retention is legally required.</LegalP>
+            <LegalP>Request account deletion via <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>. We will delete or anonymize your information within 90 days, except where retention is legally required.</LegalP>
 
             <LegalH2>9. Children's Privacy</LegalH2>
             <LegalP>The Platform is not intended for anyone under 18. We do not knowingly collect information from children. If we learn that we have collected information from a child under 18, we will delete it.</LegalP>
@@ -7172,11 +9022,11 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>We may update this Privacy Policy from time to time. Material changes will be reflected with a new "Last updated" date.</LegalP>
 
             <LegalH2>12. Contact Us</LegalH2>
-            <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink></LegalP>
+            <LegalP>ESKA Technologies Inc.<br />Developer and operator of ParkShare<br />Vaughan, Ontario<br /><LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink></LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="payments" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "payments" && (<div id="payments" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 3 of 4" title="Payment Processing" accent="Agreement" updated={UPDATED}>
             <LegalP>This Agreement explains how payments, fees, and payouts work on the ParkShare Platform, and forms part of the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink>. By making a booking or listing a driveway on ParkShare, you agree to this Agreement.</LegalP>
 
@@ -7215,11 +9065,11 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>ParkShare's liability with respect to payment processing is limited as set out in the <LegalLink href="#terms">Terms of Service</LegalLink> and <LegalLink href="#liability">Liability Disclaimer</LegalLink>. ParkShare is not liable for errors, delays, or failures caused by Stripe, banking networks, or other third-party financial infrastructure outside our control.</LegalP>
 
             <LegalH2>12. Contact</LegalH2>
-            <LegalP>Payment-related questions can be directed to <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>.</LegalP>
+            <LegalP>Payment-related questions can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
 
-        <div id="liability" style={{ scrollMarginTop: 90 }}>
+        {activeSection === "liability" && (<div id="liability" style={{ scrollMarginTop: 90 }}>
           <LegalDoc eyebrow="Legal document 4 of 4" title="Disclaimer of" accent="Liability" updated={UPDATED}>
             <LegalP>This Disclaimer of Liability supplements the ParkShare <LegalLink href="#terms">Terms of Service</LegalLink> and applies to all use of the ParkShare Platform. By using ParkShare, you acknowledge and agree to the following.</LegalP>
 
@@ -7269,12 +9119,13 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
             <LegalP>By creating an account, listing a space, or booking a parking spot, you confirm that you have read, understood, and agree to this Disclaimer of Liability, and that all risk of damage, loss, towing, or injury connected to a booking is your responsibility as described above.</LegalP>
 
             <LegalH2>9. Contact</LegalH2>
-            <LegalP>Questions about this Disclaimer can be directed to <LegalLink href="mailto:Support@myparkshare.ca">Support@myparkshare.ca</LegalLink>.</LegalP>
+            <LegalP>Questions about this Disclaimer can be directed to <LegalLink href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</LegalLink>.</LegalP>
           </LegalDoc>
-        </div>
+        </div>)}
       </div>
 
-      <HomeFooter onLegalClick={(section = "terms") => document.getElementById(section)?.scrollIntoView({ block: "start" })} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
+      </main>
+      <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
 }
@@ -7283,26 +9134,29 @@ function LegalPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
 // Legal page, with a simple form. Reached via the footer's "Contact Us"
 // button. Form has no backend wired up yet — see the TODO on handleSubmit.
 // ─────────────────────────────────────────────────────────────────────────────
-function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled }) {
+function ContactField({ label, name, value, onChange, type = "text", textarea, options, error, disabled, required = false }) {
+  const fieldId = useId();
+  const errorId = `${fieldId}-error`;
+  const accessibility = {id: fieldId, required, "aria-invalid": Boolean(error), "aria-describedby": error ? errorId : undefined};
   const fieldStyle = {
     width: "100%", padding: "10px 12px", borderRadius: 8, fontSize: 14,
-    border: "2px solid " + (error ? C.hazard : C.concrete), fontFamily: "'Poppins', sans-serif",
+    border: "2px solid " + (error ? C.red : C.concrete), fontFamily: "'Poppins', sans-serif",
     color: C.navy, background: C.white, outline: "none", boxSizing: "border-box",
   };
   return (
     <div style={{ marginBottom: 16 }}>
-      <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
+      <label htmlFor={fieldId} style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: C.navy, marginBottom: 6 }}>{label}</label>
       {options ? (
-        <select name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
+        <select {...accessibility} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle}>
           <option value="">Select a topic</option>
           {options.map(option => <option key={option} value={option}>{option}</option>)}
         </select>
       ) : textarea ? (
-        <textarea name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
+        <textarea {...accessibility} name={name} value={value} onChange={onChange} disabled={disabled} rows={5} style={{ ...fieldStyle, resize: "vertical" }} />
       ) : (
-        <input type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
+        <input {...accessibility} type={type} name={name} value={value} onChange={onChange} disabled={disabled} style={fieldStyle} />
       )}
-      {error && <div style={{ color: C.hazard, fontSize: 12, marginTop: 4, fontWeight: 600 }}>{error}</div>}
+      {error && <div id={errorId} className="ps-form-field-error">{error}</div>}
     </div>
   );
 }
@@ -7361,6 +9215,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
     <div className="ps-trust-page" style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={onHostClick} onAboutClick={onAboutClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       <section id="trust" className="ps-trust-v2-hero">
         <div className="ps-trust-v2-hero-copy">
@@ -7391,7 +9246,7 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         {TRUST_SECTIONS.map((s) => <button key={s.id} onClick={() => s.id === "privacy" ? onLegalClick?.("privacy") : scrollTo(s.id)}><span>{s.icon}</span>{s.title}</button>)}
       </nav>
 
-      <main className="ps-trust-v2-content">
+      <div className="ps-trust-v2-content">
         <section id="community" className="ps-trust-v2-intro">
           <div className="ps-trust-v2-eyebrow">A MARKETPLACE BUILT ON CLEAR EXPECTATIONS</div>
           <h2>Safety works better when everyone knows their part.</h2>
@@ -7476,8 +9331,9 @@ function TrustPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           <div className="ps-trust-v2-closing-actions"><button className="ps-trust-v2-primary" onClick={onDriverClick}>Find Parking</button><button className="ps-trust-v2-closing-dark" onClick={onHostClick}>Become a Host</button></div>
           <button className="ps-trust-v2-legal-link" onClick={onLegalClick}>Review ParkShare Legal &amp; T/C →</button>
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -7519,6 +9375,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut}
         onHostClick={onHostClick} onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       <section id="about" className="ps-about-hero">
         <div className="ps-about-hero-copy">
@@ -7552,7 +9409,7 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
         ))}
       </nav>
 
-      <main className="ps-about-content">
+      <div className="ps-about-content">
         <section className="ps-about-intro">
           <P>Every day, parking spaces sit empty while Drivers search for somewhere convenient to park — near work, transit, events, hospitals, restaurants, campuses and neighbourhood destinations.</P>
           <P>At the same time, homeowners and property owners already have parking space that may be unused for hours at a time.</P>
@@ -7686,8 +9543,9 @@ function AboutPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut,
           </div>
           <button className="ps-about-trust-link" onClick={onTrustClick}>Learn About Trust &amp; Safety →</button>
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick}
         onAboutClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
@@ -7794,6 +9652,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
     <div style={{ minHeight: "100vh", background: C.warmWhite }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
       <Header tab={tab} onTabChange={onTabChange} onLogoClick={onLogoClick} user={user} onShowAuth={onShowAuth} onSignOut={onSignOut} onHostClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} onAboutClick={onAboutClick} onTrustClick={onTrustClick} onHelpClick={onHelpClick} />
+      <main id="main-content" tabIndex={-1}>
 
       {/* Hero */}
       <div className="ps-host-hero" style={{ maxWidth: 460, margin: "0 auto", background: C.navy, padding: "32px 24px 26px", textAlign: "center" }}>
@@ -8098,6 +9957,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </section>
       </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -8229,6 +10089,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       {/* 1 — Hero */}
       <section className="ps-driver-v2-hero">
@@ -8264,7 +10125,7 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
         ))}
       </nav>
 
-      <main className="ps-driver-v2-main">
+      <div className="ps-driver-v2-main">
         {/* 2 — Find Parking That Fits Your Plans */}
         <section id="find" className="ps-driver-v2-find">
           <div className="ps-driver-v2-intro">
@@ -8453,8 +10314,9 @@ function DriverPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut
             draggable={false}
           />
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -9095,6 +10957,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         onTrustClick={onTrustClick}
         onHelpClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="ps-help-hero">
         <div className="ps-help-hero-copy">
@@ -9130,7 +10993,7 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         </div>
       </section>
 
-      <main className="ps-help-shell">
+      <div className="ps-help-shell">
         {searching ? (
           <div className="ps-help-search-results">
             <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600, margin: "0 0 12px" }}>
@@ -9228,8 +11091,9 @@ function HelpPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
             </div>
           </section>
         </div>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={onContactClick} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={() => scrollTo("help-topics")} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -9242,7 +11106,24 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState("");
 
+  const formElement = useRef(null);
+  const validationFocus = useRef(null);
+  useEffect(() => {
+    const shouldFocus = validationFocus.current;
+    validationFocus.current = null;
+    if (shouldFocus) formElement.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [errors]);
+  const submissionContext = useRef(null);
+  useEffect(() => {
+    const context = { active: true, busy: false, complete: false };
+    submissionContext.current = context;
+    setIsSubmitting(false);
+    return () => { context.active = false; };
+  }, []);
+
   const handleChange = (e) => {
+    const context = submissionContext.current;
+    if (!context?.active || context.busy || context.complete) return;
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
     setErrors(current => ({ ...current, [name]: "" }));
@@ -9251,7 +11132,9 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting || sent) return;
+    const context = submissionContext.current;
+    const current = () => Boolean(context?.active && submissionContext.current === context);
+    if (!current() || context.busy || context.complete) return;
 
     const errs = {};
     if (!form.name.trim()) errs.name = "Please enter your name.";
@@ -9259,8 +11142,9 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
     if (!form.helpType) errs.helpType = "Please select what you need help with.";
     if (!form.message.trim()) errs.message = "Please enter a message.";
     setErrors(errs);
-    if (Object.keys(errs).length) return;
+    if (Object.keys(errs).length) { validationFocus.current = true; return; }
 
+    context.busy = true;
     setIsSubmitting(true);
     setSubmissionError("");
     try {
@@ -9270,12 +11154,18 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         body: JSON.stringify(form),
       });
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || "We couldn't send your message right now. Please try again.");
+      if (!current()) return;
+      if (!response.ok) throw new Error(result?.error || "We couldn't send your message right now. Please try again.");
+      if (result?.ok !== true) {
+        throw new Error("We couldn't confirm whether your message was sent. Please check with ParkShare Support before sending it again.");
+      }
+      context.complete = true;
       setSent(true);
     } catch (error) {
-      setSubmissionError(error.message || "We couldn't send your message right now. Please try again.");
+      if (current()) setSubmissionError(error?.message || "We couldn't confirm whether your message was sent. Please check with ParkShare Support before sending it again.");
     } finally {
-      setIsSubmitting(false);
+      context.busy = false;
+      if (current()) setIsSubmitting(false);
     }
   };
 
@@ -9332,6 +11222,7 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         onTrustClick={onTrustClick}
         onHelpClick={onHelpClick}
       />
+      <main id="main-content" tabIndex={-1}>
 
       <section className="ps-contact-hero">
         <div className="ps-contact-hero-copy">
@@ -9351,13 +11242,13 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
         </div>
       </section>
 
-      <main className="ps-contact-shell">
+      <div className="ps-contact-shell">
         <section className="ps-contact-details">
           <div>
             <h2>Reach ParkShare Support</h2>
             <p>For questions about parking, hosting, accounts, payments or reservations.</p>
           </div>
-          <a href="mailto:info@myparkshare.ca">info@myparkshare.ca</a>
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
         </section>
 
         <section className="ps-contact-form-card">
@@ -9367,13 +11258,14 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
               <strong>Thanks, {form.name}.</strong><br />Your message has been sent to ParkShare Support. We’ll get back to you as soon as we can.
             </div>
           ) : (
-            <form onSubmit={handleSubmit} noValidate>
+            <form ref={formElement} onSubmit={handleSubmit} noValidate>
+              {Object.values(errors).some(Boolean) && <div className="ps-form-error-summary" role="alert"><strong>Please correct the following:</strong><ul>{Object.entries(errors).filter(([, message]) => message).map(([field, message]) => <li key={field}>{message}</li>)}</ul></div>}
               {submissionError && <div className="ps-contact-status error" role="alert">{submissionError}</div>}
-              <ContactField label="Name" name="name" value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
-              <ContactField label="Email" name="email" type="email" value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
-              <ContactField label="What can we help with?" name="helpType" value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
+              <ContactField label="Name" name="name" required value={form.name} onChange={handleChange} error={errors.name} disabled={isSubmitting} />
+              <ContactField label="Email" name="email" type="email" required value={form.email} onChange={handleChange} error={errors.email} disabled={isSubmitting} />
+              <ContactField label="What can we help with?" name="helpType" required value={form.helpType} onChange={handleChange} options={helpTypes} error={errors.helpType} disabled={isSubmitting} />
               <ContactField label="Reservation number — optional" name="reservationNumber" value={form.reservationNumber} onChange={handleChange} disabled={isSubmitting} />
-              <ContactField label="Message" name="message" value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
+              <ContactField label="Message" name="message" required value={form.message} onChange={handleChange} textarea error={errors.message} disabled={isSubmitting} />
               <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
                 <label>Website<input name="website" value={form.website} onChange={handleChange} tabIndex={-1} autoComplete="off" /></label>
               </div>
@@ -9381,8 +11273,9 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
             </form>
           )}
         </section>
-      </main>
+      </div>
 
+      </main>
       <HomeFooter onLegalClick={onLegalClick} onContactClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); }} onTrustClick={onTrustClick} onAboutClick={onAboutClick} onHelpClick={onHelpClick} onHostClick={onHostClick} onDriverClick={onDriverClick} />
     </div>
   );
@@ -9394,10 +11287,47 @@ function ContactPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOu
 // wired up the same way. Only needs a bookingId — everything else (listing,
 // current end time, price) is looked up server-side in create-extend-session.js,
 // same division of responsibility as the original PaymentModal/checkout flow.
-function ExtendSessionModal({ bookingId, onClose }) {
+// Keep only an anonymous email request across its first sign-in. Every later
+// identity change clears it before children render. Context identity also
+// rejects old open/close callbacks, including A -> B -> A transitions.
+function useExtensionRequest(user) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, bookingId: null }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    current = { accountId, bookingId: context.accountId === null ? context.bookingId : null };
+    // This adjusts this component's own state, so React retries the render
+    // before committing children with a previous account's request.
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const select = useCallback(value => {
+    if (latest.current !== current) return;
+    const bookingId = validId(value);
+    setContext(previous => previous === current && previous.bookingId !== bookingId ? { ...previous, bookingId } : previous);
+  }, [current]);
+  const isCurrent = useCallback(() => latest.current === current, [current]);
+  return { bookingId: current.bookingId, select, isCurrent };
+}
+
+function ExtendSessionModal({ bookingId, user, isContextCurrent, onClose }) {
   const [addedHours, setAddedHours] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const attemptContext = useRef(null);
+
+  useEffect(() => {
+    const context = { active: true, busy: false };
+    attemptContext.current = context;
+    setAddedHours(1); setLoading(false); setError("");
+    return () => { context.active = false; };
+  }, [user?.id, bookingId, isContextCurrent]);
+
+  const close = () => {
+    if (attemptContext.current) attemptContext.current.active = false;
+    onClose();
+  };
 
   const options = [
     { hours: 0.5, label: "+30 min" },
@@ -9407,55 +11337,63 @@ function ExtendSessionModal({ bookingId, onClose }) {
   ];
 
   const extend = async () => {
+    const context = attemptContext.current;
+    const current = () => Boolean(context?.active && attemptContext.current === context && isContextCurrent());
+    if (!current() || context.busy) return;
+    context.busy = true;
+    const ownerId = user?.id;
+    const requestedBookingId = validId(bookingId);
+    const requestedHours = addedHours;
+    let redirecting = false;
     setError("");
     setLoading(true);
     try {
-      // Same auth pattern as payWithStripe() in PaymentModal — send the
-      // current Supabase JWT so the server can verify who's asking, and
-      // that they actually own this booking.
+      if (!ownerId || !requestedBookingId) throw new Error("Please sign in and reopen the booking you want to extend.");
       let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!current()) return;
       let session = sessionData?.session;
-
+      if (session?.user?.id && session.user.id !== ownerId) throw new Error("Your account changed. Reopen the booking after signing in.");
       if (sessionError || !session?.access_token) {
         const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+        if (!current()) return;
         if (refreshError) throw refreshError;
         session = refreshedData?.session;
       }
-      if (!session?.access_token) {
-        throw new Error("Your session is invalid or expired. Please sign in again.");
-      }
+      if (!session?.access_token || session.user?.id !== ownerId) throw new Error("Your account changed or session expired. Please sign in again.");
 
+      // Capture the original booking/duration. Never replay a POST: an
+      // already-submitted request may issue a hold even if this UI closes.
       const res = await fetch("/api/create-extend-session", {
         method: "POST",
+        cache: "no-store",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ bookingId: Number(bookingId), addedHours }),
+        body: JSON.stringify({ bookingId: requestedBookingId, addedHours: requestedHours }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!current()) return;
+      if (res.status === 401) throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
+      if (!res.ok) throw new Error(data?.error || "Couldn't start checkout. Please try again.");
+      if (!data?.url) throw new Error("Stripe checkout did not return a payment link.");
 
-      let data = {};
-      try { data = await res.json(); } catch { /* fall through to the generic error below */ }
-
-      if (res.status === 401) {
-        throw new Error("Your session is invalid or expired. Please sign out and sign in again.");
-      }
-      if (!res.ok) {
-        throw new Error(data.error || "Couldn't start checkout. Please try again.");
-      }
-      if (!data.url) {
-        throw new Error("Stripe checkout did not return a payment link.");
-      }
-
-      window.location.assign(data.url); // hand off to Stripe's hosted checkout page
+      // Recheck storage even before React receives a cross-tab auth update.
+      const { data: latestData, error: latestError } = await supabase.auth.getSession();
+      if (!current()) return;
+      if (latestError || !latestData?.session?.access_token || latestData.session.user?.id !== ownerId) throw new Error("Your account changed. Reopen the booking after signing in.");
+      window.location.assign(data.url);
+      redirecting = true;
     } catch (err) {
-      setError(err.message || "Something went wrong.");
-      setLoading(false);
+      if (current()) setError(err?.message || "Couldn't start checkout. Please try again.");
+    } finally {
+      if (!redirecting) context.busy = false;
+      if (current() && !redirecting) setLoading(false);
     }
   };
 
   return (
-    <Modal title="Add Additional Time" onClose={onClose}>
+    <Modal title="Add Additional Time" onClose={close}>
       <p style={{ fontSize: 13, color: C.muted, marginTop: -4, marginBottom: 16 }}>
         Extend your current session. You'll be charged the listing's current rate for the extra time.
       </p>
@@ -9486,21 +11424,217 @@ function ExtendSessionModal({ bookingId, onClose }) {
   );
 }
 
+function CheckoutCancellation({ holdId, user, extension = false }) {
+  const [message, setMessage] = useState("");
+  const [retry, setRetry] = useState(0);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!holdId || !user?.id) return;
+    let active = true;
+    const controller = new AbortController();
+    setFailed(false);
+    setMessage("Checking your unpaid checkout hold…");
+    const release = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (!active) return;
+        if (error || !session?.access_token || session.user?.id !== user.id) throw new Error("Sign in again to release your unpaid checkout hold.");
+        const response = await fetch(extension ? "/api/cancel-extension-checkout" : "/api/cancel-booking-checkout", {
+          method: "POST", cache: "no-store", signal: controller.signal,
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ holdId }),
+        });
+        const data = await response.json();
+        if (!active) return;
+        if (!response.ok || !["released", "not_found"].includes(data?.status)) throw new Error("Couldn't verify cancellation. Check My Bookings and Transactions before trying again.");
+        setMessage(data.status === "released"
+          ? "Your unpaid checkout was cancelled and its temporary spot hold was released."
+          : "No active checkout hold was found for this account. Check My Bookings and Transactions for the current status.");
+        window.dispatchEvent(new Event("parkshare:availability-changed"));
+      } catch (error) {
+        if (!active) return;
+        setFailed(true);
+        setMessage(error.message || "Couldn't verify checkout cancellation. Check your booking status.");
+      }
+    };
+    release();
+    return () => { active = false; controller.abort(); };
+  }, [holdId, user?.id, retry, extension]);
+  if (!holdId) return null;
+  return <div role="status" style={{ padding: "12px 16px", color: C.navy, background: C.amberLight, fontSize: 13 }}>
+    {user ? message : "Sign in to release your unpaid checkout hold. Otherwise it expires automatically within 30 minutes of starting checkout."}
+    {failed && <button type="button" onClick={() => setRetry(value => value + 1)} style={{ marginLeft: 12 }}>Retry cancellation</button>}
+  </div>;
+}
+
+// Return URLs describe navigation, not a verified payment/fulfilment result.
+// Only authenticated booking, transaction and payout views establish status.
+function CheckoutReturnNotice({ kind, onDismiss }) {
+  const notices = {
+    "booking-return": {
+      title: "Check your booking status",
+      message: "Returning from checkout does not confirm your booking. Check My Bookings for the reservation. If it is still processing, refresh bookings shortly. Check Transactions before trying another payment.",
+      links: [["/my-bookings", "Refresh bookings"], ["/transactions", "View transactions"]],
+    },
+    "booking-exit": {
+      title: "You left booking checkout",
+      message: "This page cannot confirm whether a charge was made. Check My Bookings and Transactions before starting checkout again.",
+      links: [["/my-bookings", "View bookings"], ["/transactions", "View transactions"]],
+    },
+    "extension-return": {
+      title: "Check your additional time",
+      message: "Additional time is confirmed when the updated end time appears in My Bookings. If it is still processing, refresh bookings shortly. Check Transactions before trying another payment.",
+      links: [["/my-bookings", "Refresh bookings"], ["/transactions", "View transactions"]],
+    },
+    "extension-exit": {
+      title: "You left additional-time checkout",
+      message: "This page cannot confirm whether a charge was made or time was added. Check your booking end time and Transactions before trying again.",
+      links: [["/my-bookings", "View bookings"], ["/transactions", "View transactions"]],
+    },
+    "connect-return": {
+      title: "Check your payout setup",
+      message: "Returning from Stripe does not confirm that setup is complete. Check the payout status in your Host Dashboard and finish any remaining steps there.",
+      links: [["/host-dashboard", "Refresh payout status"]],
+    },
+    "connect-refresh": {
+      title: "Review your payout setup",
+      message: "Check your current payout status in your Host Dashboard. If setup is incomplete, use the setup button there to continue with Stripe.",
+      links: [["/host-dashboard", "Refresh payout status"]],
+    },
+  };
+  const notice = Object.hasOwn(notices, kind) ? notices[kind] : null;
+  if (!notice) return null;
+  return (
+    <div role="status" style={{ background: C.amberLight, borderBottom: "1px solid " + C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontSize: 13, padding: "12px 16px", display: "flex", justifyContent: "center", alignItems: "flex-start", gap: 12 }}>
+      <div style={{ maxWidth: 800 }}>
+        <strong>{notice.title}</strong>
+        <p style={{ margin: "5px 0 8px", lineHeight: 1.5 }}>{notice.message}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 18px" }}>
+          {notice.links.map(([href, label]) => <a key={href} href={href} style={{ color: C.navy, fontWeight: 700 }}>{label}</a>)}
+        </div>
+      </div>
+      <button type="button" aria-label="Dismiss checkout return notice" onClick={onDismiss} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer", minWidth: 32, minHeight: 32 }}>✕</button>
+    </div>
+  );
+}
+
+// Retain only the immutable fields needed by the chooser and map apps.
+function navigationDestination(listing) {
+  if (!listing || typeof listing !== "object") return null;
+  return { id: listing.id, title: listing.title, address: listing.address, lat: listing.lat, lng: listing.lng,
+    ...(listing.locationPrecision === "approximate" ? { locationPrecision: "approximate" } : {}) };
+}
+
+function useParkingNavigation(user, preferredProvider, onPreferredProvider) {
+  const accountId = user?.id || null;
+  const [context, setContext] = useState(() => ({ accountId, request: null, revision: 0 }));
+  let current = context;
+  if (context.accountId !== accountId) {
+    current = { accountId, request: null, revision: context.revision + 1 };
+    // Adjust this component's own state before committing children with a
+    // previous identity's destination. Anonymous previews are cleared too.
+    setContext(current);
+  }
+  const latest = useRef(current);
+  latest.current = current;
+  const replace = useCallback(request => {
+    if (latest.current !== current) return false;
+    const next = { ...current, request, revision: current.revision + 1 };
+    // Invalidate old callbacks immediately, including two clicks before the
+    // next render, an old chooser close, and a queued provider selection.
+    latest.current = next;
+    setContext(next);
+    return true;
+  }, [current]);
+  const show = useCallback((listing, mode) => {
+    const destination = navigationDestination(listing);
+    return destination ? replace({ listing: destination, mode }) : false;
+  }, [replace]);
+  const preview = useCallback(listing => show(listing, "preview"), [show]);
+  const changeApp = useCallback(listing => show(listing, "navigate"), [show]);
+  const navigate = useCallback(listing => {
+    if (latest.current !== current) return false;
+    const destination = navigationDestination(listing);
+    if (!destination) return false;
+    if (!hasNavigationDestination(destination)) return replace({ listing: destination, mode: "navigate" });
+    const available = getAvailableNavigationProviders().some(provider => provider.id === preferredProvider);
+    if (preferredProvider && available) {
+      if (!replace(null)) return false;
+      return openNavigation(destination, preferredProvider);
+    }
+    return replace({ listing: destination, mode: "navigate" });
+  }, [current, preferredProvider, replace]);
+  const choose = useCallback(provider => {
+    if (latest.current !== current || !current.request?.listing) return false;
+    if (!getAvailableNavigationProviders().some(option => option.id === provider)) return false;
+    const destination = current.request.listing;
+    if (!hasNavigationDestination(destination)) return false;
+    if (!replace(null)) return false;
+    savePreferredNavigationProvider(provider);
+    onPreferredProvider(provider);
+    return openNavigation(destination, provider);
+  }, [current, replace, onPreferredProvider]);
+  const close = useCallback(() => replace(null), [replace]);
+  // Browser Back/Forward is a trusted global clear, registered once. It must
+  // always close the latest request, rather than an initial-render closure.
+  const clear = useCallback(() => {
+    const next = { ...latest.current, request: null, revision: latest.current.revision + 1 };
+    latest.current = next;
+    setContext(next);
+  }, []);
+  return { request: current.request, requestKey: current.revision, preview, navigate, changeApp, choose, close, clear };
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const initialRouteRef = useRef(getRouteFromPath(window.location.pathname));
+  const entryLocation = typeof window === "undefined" ? {pathname: "/", search: ""} : window.location;
+  const initialRouteRef = useRef(getRouteFromPath(entryLocation.pathname));
   const [screen, setScreen] = useState(initialRouteRef.current.screen);
   const [tab, setTab] = useState(initialRouteRef.current.tab || "Browse");
   const [legalSection, setLegalSection] = useState(initialRouteRef.current.anchor || "terms");
-  const [messageThread, setMessageThread] = useState(null);
-  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(window.location.search));
+  const [messageThreadState, setMessageThreadState] = useState(null);
+  const [messageBookingId, setMessageBookingId] = useState(() => parseMessageBookingId(entryLocation.search));
   const [user, setUser] = useState(null);
+  const [signOutNotice, setSignOutNotice] = useState(null);
+  const [showRefundManager, setShowRefundManager] = useState(false);
+  useEffect(() => setShowRefundManager(false), [user?.id]);
+  const signOutAttempt = useRef(null);
+  const signOutAccount = useRef(user?.id || null);
+  signOutAccount.current = user?.id || null;
+  useEffect(() => {
+    setSignOutNotice(notice => notice && user?.id && notice.accountId !== user.id ? null : notice);
+    const attempt = signOutAttempt.current;
+    if (attempt && user?.id && user.id !== attempt.accountId) {
+      attempt.active = false; signOutAttempt.current = null; setSignOutNotice(null);
+    }
+  }, [user?.id]);
+  useEffect(() => () => {
+    if (signOutAttempt.current) signOutAttempt.current.active = false;
+    signOutAttempt.current = null;
+  }, []);
+  const messageScope = useMemo(() => ({accountId: user?.id || null}), [user?.id]);
+  const messageScopeRef = useRef(messageScope);
+  messageScopeRef.current = messageScope;
+  const setMessageThread = useCallback(listing => {
+    if (messageScopeRef.current !== messageScope) return;
+    setMessageThreadState(listing ? {scope: messageScope, listing} : null);
+  }, [messageScope]);
+  useEffect(() => { setMessageThreadState(current => current?.scope === messageScope ? current : null); }, [messageScope]);
+  const messageThread = messageThreadState?.scope === messageScope ? messageThreadState.listing : null;
   const [showAuth, setShowAuth] = useState(false);
   const [authInitialScreen, setAuthInitialScreen] = useState("landing");
+  const [hostOnboardingAccount, setHostOnboardingAccount] = useState(null);
+  const [hostAuthIntent, setHostAuthIntent] = useState(false);
+  const [authRecoveryRevision, setAuthRecoveryRevision] = useState(0);
+  const [authRecoveryAccountId, setAuthRecoveryAccountId] = useState(null);
+  const [authRecoveryCompletedRevision, setAuthRecoveryCompletedRevision] = useState(0);
   const [browseKey, setBrowseKey] = useState(0);
-  const [checkoutBanner, setCheckoutBanner] = useState(null); // "success" | "cancelled" | null
-  const [connectBanner, setConnectBanner] = useState(null); // "success" | "refresh" | null
-  const [extendBookingId, setExtendBookingId] = useState(null); // set when arriving via an "Add Additional Time" email link
+  const [checkoutBanner, setCheckoutBanner] = useState(null); // unverified booking/extension return notice
+  // Capture before the navigation-only return handler removes query flags.
+  const [checkoutHoldToCancel] = useState(() => cancelledCheckoutHold(entryLocation.search));
+  const [extensionHoldToCancel] = useState(() => cancelledExtensionCheckoutHold(entryLocation.search));
+  const [connectBanner, setConnectBanner] = useState(null); // unverified payout setup return notice
+  const { bookingId: extendBookingId, select: setExtendBookingId, isCurrent: isExtensionContextCurrent } = useExtensionRequest(user);
   const [viewBookingId, setViewBookingId] = useState(null); // set when arriving via a "View My Reservation" email link
   const [browseAutoFocus, setBrowseAutoFocus] = useState(false);
   const [browseAutoLocate, setBrowseAutoLocate] = useState(false);
@@ -9508,46 +11642,20 @@ export default function App() {
   const [browseInitialQuery, setBrowseInitialQuery] = useState("");
   const [browseInitialEvent, setBrowseInitialEvent] = useState(null);
   const [browseInitialRestaurant, setBrowseInitialRestaurant] = useState(null);
-  const [navigationRequest, setNavigationRequest] = useState(null);
   const [preferredNavigationProvider, setPreferredNavigationProvider] = useState(() => getPreferredNavigationProvider());
+  const { request: navigationRequest, requestKey: navigationRequestKey, preview: previewParkingRoute, navigate: navigateToParking, changeApp: changeNavigationApp, choose: chooseNavigationProvider, close: closeNavigationRequest, clear: clearNavigationRequest } = useParkingNavigation(user, preferredNavigationProvider, setPreferredNavigationProvider);
   const navigationAnchorRef = useRef(initialRouteRef.current.anchor || null);
 
   const moveToRoute = (nextScreen, nextTab = tab, anchor = null, { replace = false } = {}) => {
     const route = getRouteForState(nextScreen, nextTab, anchor);
     const method = replace ? "replaceState" : "pushState";
-    if (window.location.pathname !== route.path || replace) {
+    if (route.path && (window.location.pathname !== route.path || replace)) {
       window.history[method]({ parkShareRoute: true }, "", route.path);
     }
     navigationAnchorRef.current = route.anchor || anchor;
     setScreen(route.screen);
     setTab(route.tab || nextTab || "Browse");
     if (route.screen === "legal") setLegalSection(route.anchor || "terms");
-  };
-
-  const previewParkingRoute = (listing) => {
-    if (listing) setNavigationRequest({ listing, mode: "preview" });
-  };
-
-  const navigateToParking = (listing) => {
-    if (!listing) return;
-    const availableProviders = getAvailableNavigationProviders().map(provider => provider.id);
-    if (preferredNavigationProvider && availableProviders.includes(preferredNavigationProvider)) {
-      openNavigation(listing, preferredNavigationProvider);
-      return;
-    }
-    setNavigationRequest({ listing, mode: "navigate" });
-  };
-
-  const changeNavigationApp = (listing) => {
-    if (listing) setNavigationRequest({ listing, mode: "navigate" });
-  };
-
-  const chooseNavigationProvider = (provider) => {
-    if (!navigationRequest?.listing) return;
-    savePreferredNavigationProvider(provider);
-    setPreferredNavigationProvider(provider);
-    openNavigation(navigationRequest.listing, provider);
-    setNavigationRequest(null);
   };
 
   // Restore the selected ParkShare page when the browser Back/Forward buttons
@@ -9561,7 +11669,7 @@ export default function App() {
       setLegalSection(route.anchor || "terms");
       setMessageThread(null);
       setMessageBookingId(parseMessageBookingId(window.location.search));
-      setNavigationRequest(null);
+      clearNavigationRequest();
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -9598,44 +11706,43 @@ export default function App() {
       setScreen("app");
       setTab("Browse");
     } else if (params.get("legal")) {
-      const section = params.get("legal") === "privacy" ? "privacy" : "terms";
+      const section = ["terms", "privacy", "payments", "liability"].includes(params.get("legal")) ? params.get("legal") : "terms";
       navigationAnchorRef.current = section;
       setLegalSection(section);
       setScreen("legal");
       window.history.replaceState({ parkShareRoute: true }, "", getRouteForState("legal", "Browse", section).path);
     } else if (params.has("booking_success")) {
-      setCheckoutBanner("success");
+      setCheckoutBanner("booking-return");
       setScreen("app");
       setTab("My Bookings");
       window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.has("booking_cancelled")) {
-      setCheckoutBanner("cancelled");
+      setCheckoutBanner("booking-exit");
       setScreen("app");
       setTab("Browse");
       window.history.replaceState({ parkShareRoute: true }, "", "/parking");
     } else if (params.has("extension_success")) {
-      setCheckoutBanner("extension-success");
+      setCheckoutBanner("extension-return");
       setScreen("app");
       setTab("My Bookings");
       window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.has("extension_cancelled")) {
-      setCheckoutBanner("extension-cancelled");
+      setCheckoutBanner("extension-exit");
       setScreen("app");
       setTab("My Bookings");
       window.history.replaceState({ parkShareRoute: true }, "", "/my-bookings");
     } else if (params.get("stripe_onboarding") === "return") {
       // Stripe's account_onboarding return_url (set in api/connect-onboarding.js)
-      // — the account.updated webhook may take a few seconds to land, but
-      // HostDashboard re-reads the profile on mount so it'll pick up the
-      // latest status shortly after.
-      setConnectBanner("success");
+      // is a navigation return, not proof that setup finished. The Host
+      // Dashboard checks the authenticated account through connect-status.
+      setConnectBanner("connect-return");
       setScreen("app");
       setTab("Host Dashboard");
       window.history.replaceState({ parkShareRoute: true }, "", "/host-dashboard");
     } else if (params.get("stripe_onboarding") === "refresh") {
-      // Stripe's refresh_url — the onboarding link expired or was abandoned;
-      // send them back to the dashboard so they can restart it.
-      setConnectBanner("refresh");
+      // Stripe's refresh_url is a hint to review setup; the URL alone
+      // cannot establish whether a link expired or setup is incomplete.
+      setConnectBanner("connect-refresh");
       setScreen("app");
       setTab("Host Dashboard");
       window.history.replaceState({ parkShareRoute: true }, "", "/host-dashboard");
@@ -9662,56 +11769,97 @@ export default function App() {
 
   const handleAuth = (u) => {
     setUser(u);
+    if (hostAuthIntent && screen === "host") {
+      if (u.role === "host") moveToRoute("app", "List Your Driveway");
+      else setHostOnboardingAccount(u);
+      return;
+    }
     if (messageBookingId) {
       setScreen("app");
       setTab("Browse");
       return;
     }
     const requestedRoute = getRouteForState(screen, tab, legalSection);
-    if (screen === "app" && requestedRoute.private) return;
+    // Signing in from the parking detail must not reset the selected
+    // driveway/spot/schedule or navigate away before checkout.
+    if (screen === "app" && (tab === "Browse" || requestedRoute.private)) return;
     moveToRoute("app", u.role === "host" ? "Host Dashboard" : (u.profileComplete ? "Browse" : "Profile"));
   };
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setCheckoutBanner(null);
-    setConnectBanner(null);
-    setMessageThread(null);
-    setMessageBookingId(null);
-    moveToRoute("app", "Browse");
+    if (!user?.id || signOutAccount.current !== user.id || signOutAttempt.current) return;
+    const attempt = { accountId:user.id, active:true };
+    signOutAttempt.current = attempt;
+    const current = () => attempt.active && signOutAttempt.current === attempt && (!signOutAccount.current || signOutAccount.current === attempt.accountId);
+    const readSession = async () => {
+      const result = await supabase.auth.getSession();
+      if (result?.error || !result?.data || !("session" in result.data)) throw new Error("Session unavailable");
+      const session = result.data.session;
+      if (session !== null && (typeof session?.user?.id !== "string" || !session.user.id.trim())) throw new Error("Session unavailable");
+      return session;
+    };
+    const accountChanged = () => setSignOutNotice({accountId:attempt.accountId,kind:"error",message:"Your account changed. Refresh this page before signing out.",canRetry:false});
+    setSignOutNotice({accountId:attempt.accountId,kind:"pending",message:"Signing out…"});
+    let submitted = false;
+    try {
+      let session = await readSession();
+      if (!current()) return;
+      if (session && session.user.id !== attempt.accountId) { accountChanged(); return; }
+      if (session) {
+        submitted = true;
+        // Preserve the existing SDK/global scope; never erase shared storage
+        // ourselves or turn a failed revocation into a successful sign-out.
+        const result = await supabase.auth.signOut();
+        if (!current()) return;
+        if (!result || result.error) throw new Error("Sign-out unavailable");
+        session = await readSession();
+        if (!current()) return;
+        if (session && session.user.id !== attempt.accountId) { accountChanged(); return; }
+        if (session) throw new Error("Session still active");
+      }
+      setSignOutNotice(null);
+      setUser(null);
+      setCheckoutBanner(null);
+      setConnectBanner(null);
+      setMessageThread(null);
+      setMessageBookingId(null);
+      moveToRoute("app", "Browse");
+    } catch {
+      if (!current()) return;
+      let session;
+      try { session = await readSession(); } catch { /* An unreadable session is not proof of sign-out. */ }
+      if (!current()) return;
+      if (session && session.user.id !== attempt.accountId) { accountChanged(); return; }
+      const removed = submitted && session === null;
+      setSignOutNotice({accountId:attempt.accountId,kind:"error",showSignedOut:!session,
+        canRetry:Boolean(session),message:removed
+          ? "You're signed out on this browser, but sign-out on other devices could not be confirmed."
+          : session ? "We couldn't sign you out. Please try again."
+          : "We couldn't confirm sign-out. Refresh this page and check your account before trying again."});
+    } finally {
+      if (signOutAttempt.current === attempt) signOutAttempt.current = null;
+    }
   };
 
-  // Restore session on page load / refresh, and react to future sign-outs
-  // (e.g. token expiry) from anywhere in the app.
-  useEffect(() => {
-    let active = true;
-
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session || !active) return;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, name, role")
-        .eq("id", session.user.id)
-        .single();
-      if (profile && active) {
-        setUser(buildAppUser(profile, session.user));
-      }
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setAuthInitialScreen("recovery");
-        setShowAuth(true);
-      }
-      if (!session) setUser(null);
-    });
-
-    return () => {
-      active = false;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
+  // INITIAL_SESSION restores the saved session. SIGNED_IN / SIGNED_OUT
+  // also arrive across tabs. Defer Supabase reads outside the auth callback
+  // to avoid client deadlocks, and invalidate stale profile queries.
+  useEffect(() => createAuthSessionSynchronizer({
+    client: supabase,
+    buildUser: buildAppUser,
+    onUser: (nextUser) => setUser(nextUser),
+    onRecovery: ({ accountId }) => {
+      // A mounted dialog owns its screen and pending requests. Replace it
+      // for every recovery event, including another link opened during recovery.
+      setAuthRecoveryRevision(revision => revision + 1);
+      setAuthRecoveryAccountId(accountId);
+      setHostAuthIntent(false);
+      setHostOnboardingAccount(null);
+      setAuthInitialScreen("recovery");
+      setShowAuth(true);
+    },
+    onProfileUnavailable: () => console.warn("[auth] Profile unavailable after cross-tab session update"),
+  }), [authRecoveryCompletedRevision]);
 
   const navigateToScreen = (nextScreen, anchor = null) => {
     setMessageBookingId(null);
@@ -9750,6 +11898,41 @@ export default function App() {
     setMessageBookingId(null);
     setMessageThread(null);
     moveToRoute("app", "Browse", null, { replace: true });
+  };
+
+  const requireHost = (content) => {
+    if (user?.role === "host") return content;
+    return (
+      <div role="alert" style={{ padding: "60px 24px", textAlign: "center", fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
+        <h3 style={{ color: C.navy, fontSize: 20 }}>Host account required</h3>
+        <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }}>
+          Only registered Hosts can list driveways, manage Host bookings or access Host transactions.
+          {user ? " Your current account is a Driver account." : " Please register or sign in as a Host."}
+        </p>
+        <button type="button" onClick={() => user ? changeTab("Browse") : setShowAuth(true)}
+          style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
+          {user ? "Return to parking search" : "Sign in / Join free"}
+        </button>
+      </div>
+    );
+  };
+
+  const requireDriver = (content) => {
+    if (user?.role === "driver") return content;
+    return (
+      <div role="alert" style={{ padding: "60px 24px", textAlign: "center", color: C.navy }}>
+        <h3>{user ? "Driver account required" : "Sign in required"}</h3>
+        <p>{user ? "Vehicle profiles are available to Driver accounts." : "Sign in to view and manage your profile and vehicle details."}</p>
+        <button type="button" onClick={() => {
+          if (user) { changeTab("Host Dashboard"); return; }
+          setAuthInitialScreen("signin");
+          setShowAuth(true);
+        }}
+          style={{ background: C.amber, color: C.navy, border: "none", borderRadius: 12, padding: "12px 22px", cursor: "pointer", fontWeight: 700 }}>
+          {user ? "Return to Host Dashboard" : "Sign in"}
+        </button>
+      </div>
+    );
   };
 
   const requireAuth = (content, msg) => {
@@ -9804,9 +11987,20 @@ export default function App() {
     setBrowseKey(key => key + 1);
     enterApp("Browse");
   };
-  // Host page CTA: straight into the listing flow if already signed in,
-  // otherwise open sign-up first (role selection happens in that flow).
-  const handleHostGetStarted = () => { if (user) enterApp("List Your Driveway"); else setShowAuth(true); };
+  // Keep the Host destination through signup/sign-in; Drivers explicitly
+  // choose an account handoff before leaving their current session.
+  const openHostAuth = (initialScreen = "signup") => {
+    setHostOnboardingAccount(null);
+    setHostAuthIntent(true);
+    setAuthInitialScreen(initialScreen);
+    setAuthRecoveryRevision(revision => revision + 1);
+    setShowAuth(true);
+  };
+  const handleHostGetStarted = () => {
+    if (!user) { openHostAuth(); return; }
+    if (user.role !== "host") { setHostOnboardingAccount(user); return; }
+    enterApp("List Your Driveway");
+  };
   // Driver page CTA: Browse doesn't require sign-in, so this can go straight in.
   const handleFindParking = () => {
     setBrowseAutoFocus(false);
@@ -9822,7 +12016,20 @@ export default function App() {
 
   return (
     <>
-      {screen === "landing" ? (
+      {/* Sign-out feedback */}
+      {signOutNotice && (signOutNotice.accountId === user?.id || !user && signOutNotice.showSignedOut) && (
+        <div role={signOutNotice.kind === "error" ? "alert" : "status"} aria-live={signOutNotice.kind === "error" ? "assertive" : "polite"} style={{position:"fixed",bottom:16,left:16,right:16,zIndex:12000,maxWidth:560,margin:"0 auto",padding:16,borderRadius:12,background:C.navy,color:C.white,boxShadow:"0 4px 24px rgba(0,0,0,0.25)",fontSize:13,lineHeight:1.5}}>
+          <div>{signOutNotice.message}</div>
+          {signOutNotice.kind === "error" && <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+            {signOutNotice.canRetry && user?.id === signOutNotice.accountId && <button type="button" onClick={handleSignOut} style={{minHeight:44,padding:"8px 14px",border:0,borderRadius:8,background:C.amber,color:C.navy,fontWeight:700,cursor:"pointer"}}>Retry sign out</button>}
+            <button type="button" onClick={() => setSignOutNotice(null)} style={{minHeight:44,padding:"8px 14px",border:"1px solid rgba(255,255,255,0.5)",borderRadius:8,background:"transparent",color:C.white,cursor:"pointer"}}>Dismiss</button>
+          </div>}
+        </div>
+      )}
+      {/* End sign-out feedback */}
+      {user && (user.role === "host" || user.isParkShareStaff) && screen === "app" && <button type="button" onClick={() => setShowRefundManager(true)} style={{position:"fixed",bottom:80,right:16,zIndex:100,minHeight:44,padding:12,borderRadius:8,background:C.navy,color:C.white}}>Manage refunds</button>}
+      {showRefundManager && user && (user.role === "host" || user.isParkShareStaff) && <Modal title="Refund management" onClose={() => setShowRefundManager(false)}><React.Suspense fallback={<p role="status">Loading refund management…</p>}><RefundManager key={user.id} user={user} client={supabase}/></React.Suspense></Modal>}
+      {screen === "not-found" ? <NotFoundPage /> : screen === "landing" ? (
         <LandingPage
           onSearchAddress={handleLandingSearch}
           onUseLocation={handleLandingLocation}
@@ -9842,6 +12049,8 @@ export default function App() {
         />
       ) : screen === "legal" ? (
         <LegalPage
+          section={legalSection}
+          onLegalClick={openLegal}
           tab={tab}
           onTabChange={changeTab}
           onLogoClick={goHome}
@@ -9953,81 +12162,60 @@ export default function App() {
         <div style={{ minHeight: "100vh", background: C.warmWhite }}>
           <style>{`@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');`}</style>
           <Header tab={tab} onTabChange={changeTab} onLogoClick={goHome} user={user} onShowAuth={() => setShowAuth(true)} onSignOut={handleSignOut} onHostClick={openHost} onAboutClick={openAbout} onTrustClick={openTrust} onHelpClick={openHelp} />
+          <main id="main-content" tabIndex={-1}>
           {driverProfileCompletion && !driverProfileCompletion.complete && tab !== "Profile" && (
             <div className="ps-profile-reminder" role="status">
               <span><strong>Complete your Driver profile</strong> · {driverProfileCompletion.completed} of {driverProfileCompletion.total} details ready</span>
               <button type="button" onClick={() => changeTab("Profile")}>Complete profile →</button>
             </div>
           )}
-          {checkoutBanner === "success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>🎉 Payment received — your booking is confirmed! It'll show up below in a moment.</span>
-              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {checkoutBanner === "cancelled" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>Checkout was cancelled — no charge was made.</span>
-              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {checkoutBanner === "extension-success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>✓ Additional time purchased — your booking has been extended.</span>
-              <button onClick={() => setCheckoutBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {checkoutBanner === "extension-cancelled" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px" }}>Additional-time checkout was cancelled — no charge was made.</div>
-          )}
-          {connectBanner === "success" && (
-            <div style={{ background: C.mossLight, borderBottom: "1px solid "+C.moss, color: C.moss, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>🎉 Stripe account connected! It may take a moment to finish verifying.</span>
-              <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.moss, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
-          {connectBanner === "refresh" && (
-            <div style={{ background: C.amberLight, borderBottom: "1px solid "+C.amber, color: C.navy, fontFamily: "'Poppins', sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", padding: "10px 16px", display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-              <span>That Stripe setup link expired — tap "Connect with Stripe" below to try again.</span>
-              <button onClick={() => setConnectBanner(null)} style={{ background: "none", border: "none", color: C.navy, fontWeight: 700, cursor: "pointer" }}>✕</button>
-            </div>
-          )}
+          <CheckoutCancellation key={user?.id || "anonymous"} holdId={checkoutHoldToCancel} user={user} />
+          <CheckoutCancellation key={`extension-${user?.id || "anonymous"}`} holdId={extensionHoldToCancel} user={user} extension />
+          <CheckoutReturnNotice kind={checkoutBanner} onDismiss={() => setCheckoutBanner(null)} />
+          <CheckoutReturnNotice kind={connectBanner} onDismiss={() => setConnectBanner(null)} />
           {tab === "Browse" && (messageBookingId
-            ? <EmailMessageListing bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
-            : <BrowseView key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
+            ? <EmailMessageListing onVehicleUpdated={vehicle => setUser(current => current?.id === vehicle.id ? { ...current, ...vehicle } : current)} key={JSON.stringify([user?.id, messageBookingId])} bookingId={messageBookingId} user={user} onMessage={setMessageThread} onBack={closeEmailListing} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} />
+            : <BrowseView onVehicleUpdated={vehicle => setUser(current => current?.id === vehicle.id ? { ...current, ...vehicle } : current)} key={browseKey} onMessage={setMessageThread} onPreviewRoute={previewParkingRoute} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} onOpenDiscover={() => changeTab("Discover")} onRequestSignIn={() => { setAuthInitialScreen("signin"); setShowAuth(true); }} user={user} autoFocusSearch={browseAutoFocus} autoLocate={browseAutoLocate} initialLocation={browseInitialLocation} initialQuery={browseInitialQuery} initialEvent={browseInitialEvent} initialRestaurant={browseInitialRestaurant} />)}
           {["Discover", "Restaurants", "Events & Festivals"].includes(tab) && <DiscoverView mode={tab === "Restaurants" ? "restaurants" : tab === "Events & Festivals" ? "events" : null} onModeChange={changeTab} onFindParking={handleDiscoverFindParking} onBrowseParking={handleFindParking} />}
-          {tab === "Messages" && requireAuth(<MessagesView onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
-          {tab === "Profile" && requireAuth(<DriverProfileView user={user} onProfileUpdated={setUser} />, "Sign in to manage your profile.")}
-          {tab === "List Your Driveway" && <ListDrivewayView user={user} />}
-          {tab === "My Bookings" && requireAuth(<MyBookingsView onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
-          {tab === "Host Dashboard" && requireAuth(<HostDashboard user={user} setTab={changeTab} />, "Sign in to access your host dashboard.")}
-          {tab === "Transactions" && requireAuth(<TransactionsView user={user} />, "Sign in to view your transactions.")}
-          {messageThread && <MessagingPanel listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
-          {tab !== "Profile" && <FloatingParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
+          {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
+          {tab === "Profile" && user?.role === "host" && <HostProfileView key={user.id} user={user} client={supabase} onProfileUpdated={profile => setUser(current => current?.id === profile.id && current.role === "host" ? { ...current, ...profile } : current)} />}
+          {tab === "Profile" && user?.role !== "host" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
+          {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
+          {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
+          {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
+          {tab === "Transactions" && requireAuth(user?.role === "driver"
+            ? <TransactionsView key={"driver:" + user?.id} user={user} />
+            : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}
+          {tab !== "Profile" && <ParkerHelp onHelpClick={openHelp} onContactClick={openContact} />}
+          </main>
+          {messageThread && <MessagingPanel key={messageConversationKey(user?.id, messageThread)} listing={messageThread} onClose={() => setMessageThread(null)} user={user} />}
           <HomeFooter onLegalClick={openLegal} onContactClick={openContact} onTrustClick={openTrust} onAboutClick={openAbout} onHelpClick={openHelp} onHostClick={openHost} onDriverClick={openDriver} />
         </div>
       )}
-      {showAuth && <SignInModal initialScreen={authInitialScreen} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); }} onAuth={handleAuth} />}
-      {messageBookingId && !user && <SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} />}
+      {screen === "host" && hostOnboardingAccount && <HostOnboarding key={hostOnboardingAccount.id} accountId={hostOnboardingAccount.id} auth={supabase.auth} onClose={() => setHostOnboardingAccount(null)} onReady={openHostAuth} />}
+      {showAuth && <DeferredAuth key={authRecoveryRevision} Dialog={NativeDialog}><SignInModal key={authRecoveryRevision} initialScreen={authInitialScreen} recoveryAccountId={authRecoveryAccountId} onRecoveryComplete={() => setAuthRecoveryCompletedRevision(revision => revision + 1)} signupRole={hostAuthIntent ? "host" : null} onClose={() => { setShowAuth(false); setAuthInitialScreen("landing"); setAuthRecoveryAccountId(null); setHostAuthIntent(false); }} onAuth={handleAuth} /></DeferredAuth>}
+      {!showAuth && messageBookingId && !user && <DeferredAuth Dialog={NativeDialog}><SignInModal initialScreen="signin" closeOnAuth={false} onClose={closeEmailListing} onAuth={handleAuth} /></DeferredAuth>}
       {navigationRequest && (
         <NavigationChooser
+          key={navigationRequestKey}
           request={navigationRequest}
           preferredProvider={preferredNavigationProvider}
           onChoose={chooseNavigationProvider}
-          onClose={() => setNavigationRequest(null)}
+          onClose={closeNavigationRequest}
         />
       )}
-      {extendBookingId && (
+      {extendBookingId && !showAuth && (
         user ? (
-          <ExtendSessionModal bookingId={extendBookingId} onClose={() => setExtendBookingId(null)} />
+          <ExtendSessionModal key={JSON.stringify([user.id, extendBookingId])} bookingId={extendBookingId} user={user} isContextCurrent={isExtensionContextCurrent} onClose={() => setExtendBookingId(null)} />
         ) : (
           // Arrived from an email link while signed out — ask them to sign
           // in first, then hand straight back to the extend modal rather
           // than losing which booking they clicked through for.
-          <SignInModal onClose={() => setExtendBookingId(null)} onAuth={(u) => { handleAuth(u); }} />
+          <DeferredAuth Dialog={NativeDialog}><SignInModal initialScreen="signin" closeOnAuth={false} onClose={() => setExtendBookingId(null)} onAuth={handleAuth} /></DeferredAuth>
         )
       )}
     </>
   );
 }
+
 

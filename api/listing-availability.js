@@ -1,53 +1,82 @@
 // GET /api/listing-availability?listingId=123&hours=1
-//   or  ?listingId=123&hours=2&bookingDate=2026-07-25&startHour=14
+//   or  ?listingId=123&hours=2&bookingDate=2026-07-25&startHour=14&endHour=16
 //
 // Public, no auth required. Checks both Host-defined schedule rules and
 // overlapping confirmed bookings/holds for the requested time window.
 
 import { supabaseAdmin, checkAvailability, checkAllSpotAvailability, jsonMethod, getSessionWindow } from "./_lib.js";
-import { isListingAvailableForWindow } from "../src/lib/listingAvailability.js";
-
-function rentableSpotLabels(listing) {
-  if (Array.isArray(listing.spots) && listing.spots.length > 0) {
-    return listing.spots
-      .map((spot, index) => spot?.forRent ? String.fromCharCode(65 + index) : null)
-      .filter(Boolean);
-  }
-  const count = Math.max(1, Math.min(8, Number(listing.spaces) || 1));
-  return Array.from({ length: count }, (_, index) => String.fromCharCode(65 + index));
-}
+import { isListingAvailableForWindow, formatAvailabilityForDate } from "../src/lib/listingAvailability.js";
+import { resolveLocalBookingStart, resolveLocalBookingWindow } from "./_booking-local-time.js";
+import { isValidBookingDuration } from "./_booking-rules.js";
+import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "no-store");
   if (!jsonMethod(req, res, "GET")) return;
 
   const listingId = Number(req.query?.listingId);
-  const hours = Number(req.query?.hours) || 1;
+  const hours = req.query?.hours == null ? 1 : Number(req.query.hours);
   const bookingDate = req.query?.bookingDate ? String(req.query.bookingDate).slice(0, 40) : "";
   const startHour = req.query?.startHour !== undefined && req.query.startHour !== ""
     ? Number(req.query.startHour)
     : null;
+  const endHour = req.query?.endHour != null && req.query.endHour !== "" ? Number(req.query.endHour) : null;
 
-  if (!Number.isInteger(listingId)) {
+  if (!Number.isSafeInteger(listingId) || listingId <= 0) {
     return res.status(400).json({ error: "Missing or invalid listingId." });
+  }
+  if (!isValidBookingDuration(hours, { scheduled: !!bookingDate })) {
+    return res.status(400).json({ code: "invalid_booking_duration", error: "Choose a booking length from 1 to 744 hours (31 days), in 15-minute increments." });
   }
 
   try {
     const { data: listing, error } = await supabaseAdmin
       .from("listings")
-      .select("id, spaces, spots, availability")
+      .select("id, spaces, spots, availability, time_zone, is_paused")
       .eq("id", listingId)
       .single();
     if (error || !listing) return res.status(404).json({ error: "Listing not found." });
 
+    if (listing.is_paused === true) return res.status(200).json({available:false, spacesTotal:listing.spaces || 1, spacesFree:0, hostScheduleOpen:false, reason:"listing_paused", spotStatus:Object.fromEntries(getListingSpotLayout(listing).filter(spot=>spot.forRent).map(spot=>[spot.label,false]))});
+    // Availability MUST use exactly the same property-local resolver as
+    // checkout; otherwise a Driver may be offered the wrong parking interval.
+    let scheduledStartsAt = null;
+    if (bookingDate) {
+      if (startHour === null) return res.status(400).json({ error: "Choose a start time." });
+      if (!listing.time_zone) return res.status(409).json({
+        error: "This driveway's time zone must be verified before future bookings can be checked."
+      });
+      try {
+        if (endHour !== null) {
+          const window = resolveLocalBookingWindow({bookingDate, startHour, endHour, timeZone: listing.time_zone});
+          if (!isValidBookingDuration(window.hours, {scheduled: true}) || Math.abs(window.hours - hours) > 1e-9) {
+            return res.status(400).json({code: "invalid_scheduled_window", error: "Refresh the page and review the selected times and parking duration."});
+          }
+          scheduledStartsAt = window.start.toISOString();
+        } else {
+          // Older duration-only availability callers explicitly request elapsed
+          // hours. New selected-clock-window callers send both endpoints.
+          scheduledStartsAt = resolveLocalBookingStart({bookingDate, startHour, timeZone: listing.time_zone}).toISOString();
+        }
+      } catch (error) {
+        return res.status(400).json({ error: error.message || "Invalid scheduled time." });
+      }
+      if (new Date(scheduledStartsAt).getTime() <= Date.now()) {
+        return res.status(400).json({ error: "Choose a future scheduled start." });
+      }
+    } else if (startHour !== null || endHour !== null) {
+      return res.status(400).json({ error: "Start hour requires a scheduled date." });
+    }
     const { start, end } = getSessionWindow({
       paid_at: new Date().toISOString(),
       booking_date: bookingDate,
       start_hour: startHour,
+      scheduled_starts_at: scheduledStartsAt,
       hours,
     });
 
-    const labels = rentableSpotLabels(listing);
-    const hostScheduleOpen = isListingAvailableForWindow(listing.availability, start, end);
+    const labels = getListingSpotLayout(listing).filter(spot => spot.forRent).map(spot => spot.label);
+    const hostScheduleOpen = isListingAvailableForWindow(listing.availability, start, end, listing.time_zone);
     if (!hostScheduleOpen) {
       const spotStatus = Object.fromEntries(labels.map(label => [label, false]));
       return res.status(200).json({
@@ -56,14 +85,15 @@ export default async function handler(req, res) {
         spacesFree: 0,
         hostScheduleOpen: false,
         reason: "host_schedule",
+        hostScheduleLabel: formatAvailabilityForDate(listing.availability, start, listing.time_zone),
         spotStatus,
       });
     }
 
     const result = await checkAvailability(listingId, listing.spaces || 1, start, end);
-    const spotStatus = await checkAllSpotAvailability(listingId, labels, start, end);
+    const { spotStatus, spotState } = await checkAllSpotAvailability(listingId, labels, start, end, { includeStates: true });
 
-    return res.status(200).json({ ...result, hostScheduleOpen: true, spotStatus });
+    return res.status(200).json({ ...result, hostScheduleOpen: true, spotStatus, spotState });
   } catch (err) {
     console.error("listing-availability error:", err);
     return res.status(500).json({ error: "Couldn't check availability." });

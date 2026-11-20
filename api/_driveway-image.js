@@ -2,11 +2,11 @@
 // booking flow (SpotPicker in src/App.jsx), server-side, using real data
 // for this specific booking — NOT a screenshot. The visual graphic itself
 // (garage, driveway, grass) is the same static public/driveway-template.png
-// used everywhere else in the app; this draws the 4 spot boxes on top of it
+// used everywhere else in the app; this draws the listing's physical bays
 // exactly where the frontend positions them, so the two never look
 // noticeably different.
 //
-// IMPORTANT: the box positions below (computeBoxes) are copied math from
+// IMPORTANT: the box positions below (computeEmailSpotBoxes) are copied math from
 // DRIVEWAY_PAVEMENT / SpotPicker in src/App.jsx. If that layout is ever
 // changed, this needs to be updated to match, or the email's diagram will
 // drift out of sync with what the app actually shows.
@@ -18,6 +18,7 @@ import { readFileSync } from "fs";
 import path from "path";
 import { hasDrivewayVehicle } from "../src/lib/drivewayCar.js";
 import { premiumVehicleBuffer } from "./_premium-vehicle.js";
+import { getListingSpotLayout } from "../src/lib/listingSpotLayout.js";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "public", "driveway-template.png");
 const IMG_W = 1065;
@@ -30,7 +31,8 @@ const COLORS = {
   muted: "#71695A",
 };
 
-function computeBoxes() {
+export function computeEmailSpotBoxes(count) {
+  if (!Number.isSafeInteger(count) || count < 1 || count > 8) return [];
   const pavTop = 0.16 * IMG_H;
   const pavLeft = 0.23 * IMG_W;
   const pavRight = 0.76 * IMG_W;
@@ -55,22 +57,21 @@ function computeBoxes() {
 
   const colGap = 0.03 * gridW;
   const rowGap = 0.03 * gridH;
-  const cellW = (gridW - colGap) / 2;
-  const cellH = (gridH - rowGap) / 2;
+  const columns = count === 1 ? 1 : 2;
+  const rows = Math.ceil(count / columns);
+  const cellW = (gridW - colGap * (columns - 1)) / columns;
+  const cellH = (gridH - rowGap * (rows - 1)) / rows;
 
-  const labels = ["A", "B", "C", "D"];
   const boxes = [];
-  for (let row = 0; row < 2; row++) {
-    for (let col = 0; col < 2; col++) {
-      const i = row * 2 + col;
-      boxes.push({
-        label: labels[i],
-        x: gridLeft + col * (cellW + colGap),
-        y: gridTop + row * (cellH + rowGap),
-        w: cellW,
-        h: cellH,
-      });
-    }
+  for (let i = 0; i < count; i++) {
+    const row = Math.floor(i / columns), col = i % columns;
+    boxes.push({
+      label: String.fromCharCode(65 + i),
+      x: gridLeft + col * (cellW + colGap),
+      y: gridTop + row * (cellH + rowGap),
+      w: cellW,
+      h: cellH,
+    });
   }
   return boxes;
 }
@@ -130,29 +131,24 @@ function pixelLabel(text, centerX, y, pixelSize, color) {
 
 // The number of rental spots is not a physical spot index. If the host made
 // Spot B rentable and Spot A private, a capacity of 1 MUST NOT label A open.
-export function deriveEmailSpotStates(listing = {}, chosenIndex = -1) {
-  const configured = Array.isArray(listing?.spots) ? listing.spots : [];
-  if (configured.length) return Array.from({ length: 4 }, (_, i) => configured[i]?.forRent === true);
-  const capacity = Math.min(4, Math.max(1, Number(listing?.spaces) || 1));
-  const chosen = Number.isInteger(chosenIndex) && chosenIndex >= 0 && chosenIndex < 4 ? chosenIndex : -1;
-  const result = Array(4).fill(false);
-  if (chosen >= 0) result[chosen] = true;
-  let remaining = capacity - (chosen >= 0 ? 1 : 0);
-  for (let i = 0; i < 4 && remaining > 0; i++) {
-    if (!result[i]) { result[i] = true; remaining--; }
-  }
-  return result;
+export function deriveEmailSpotStates(listing = {}) {
+  return getListingSpotLayout(listing).map(spot => spot.forRent);
 }
 
 /**
- * @param {boolean[]} spotStates - 4 booleans from deriveEmailSpotStates(),
+ * @param {boolean[]} spotStates - 1-8 booleans from deriveEmailSpotStates(),
  *   respecting the Host's configured rentable bays and this booking's spot.
- * @param {number|null} chosenIndex - 0-3, which spot this booking picked.
+ * @param {number|null} chosenIndex - 0-7, which physical bay this booking picked.
  * @param {object|null} vehicle - Stripe-confirmed vehicle snapshot, including colour.
  * @returns {Promise<Buffer>} PNG image buffer.
  */
 export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = null) {
-  const boxes = computeBoxes();
+  const boxes = computeEmailSpotBoxes(Array.isArray(spotStates) ? spotStates.length : 0);
+  // Unknown/changed legacy layouts must use the existing text fallback,
+  // rather than inventing bays or highlighting a different physical spot.
+  if (!boxes.length || !Number.isInteger(chosenIndex) || !boxes[chosenIndex]) {
+    throw new Error("Booking spot is not present in the listing layout");
+  }
 
   const rects = boxes.map((b, i) => {
     const isChosen = chosenIndex === i;
@@ -161,23 +157,23 @@ export async function renderParkingSpotImage(spotStates, chosenIndex, vehicle = 
     const stroke = isChosen ? COLORS.hazard : isAvailable ? COLORS.moss : "#B0AA9C";
     const strokeWidth = isChosen ? 10 : 4;
     const cx = b.x + b.w / 2;
-    // Keep every selected A-D label inside the orange outline, with the
+    // Keep every selected A-H label inside the orange outline, with the
     // same left nudge as the website. The car has the remaining bay height.
-    const label = pixelLabel(`SPOT ${b.label}`, cx - (isChosen ? 4 : 0), b.y + b.h * (isChosen ? 0.055 : 0.16), isChosen ? 3.7 : 4.2, COLORS.navy);
+    const label = pixelLabel(`SPOT ${b.label}`, cx - (isChosen ? 4 : 0), b.y + b.h * (isChosen ? 0.055 : 0.16), isChosen ? Math.min(3.7, b.h * .01) : Math.min(4.2, b.h * .014), COLORS.navy);
     const status = isChosen
       ? ""
       : isAvailable
-        ? pixelLabel("AVAILABLE", cx, b.y + b.h * 0.83, 2.9, COLORS.moss)
-        : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, 3.2, COLORS.muted)
-          + pixelLabel("RENT", cx, b.y + b.h * 0.85, 3.2, COLORS.muted);
+        ? pixelLabel("FOR RENT", cx, b.y + b.h * 0.83, Math.min(2.9, b.h * .009), COLORS.moss)
+        : pixelLabel("NOT FOR", cx, b.y + b.h * 0.78, Math.min(3.2, b.h * .009), COLORS.muted)
+          + pixelLabel("RENT", cx, b.y + b.h * 0.85, Math.min(3.2, b.h * .009), COLORS.muted);
 
     // The actual PNG/WebP vehicle asset is composited AFTER the spot labels.
     // No footer inside the selected bay, matching the approved spot picker.
     const symbol = isChosen && hasDrivewayVehicle(vehicle)
       ? ""
       : isAvailable
-        ? `<g><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="19" fill="${COLORS.moss}" opacity=".88"/>${pixelLabel("P", cx, b.y + b.h * 0.58 - 12, 3.6, "#FFFFFF")}</g>`
-        : `<g fill="none" stroke="#B6AFA3" stroke-width="7" stroke-linecap="round"><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="25"/><path d="M${cx - 16} ${b.y + b.h * 0.58 - 16}L${cx + 16} ${b.y + b.h * 0.58 + 16}"/></g>`;
+        ? `<g><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="${Math.min(19, b.h * .05)}" fill="${COLORS.moss}" opacity=".88"/>${pixelLabel("P", cx, b.y + b.h * 0.58 - Math.min(12, b.h * .03), Math.min(3.6, b.h * .009), "#FFFFFF")}</g>`
+        : `<g fill="none" stroke="#B6AFA3" stroke-width="${Math.min(7, b.h * .02)}" stroke-linecap="round"><circle cx="${cx}" cy="${b.y + b.h * 0.58}" r="${Math.min(25, b.h * .07)}"/><path d="M${cx - Math.min(16, b.h * .045)} ${b.y + b.h * 0.58 - Math.min(16, b.h * .045)}L${cx + Math.min(16, b.h * .045)} ${b.y + b.h * 0.58 + Math.min(16, b.h * .045)}"/></g>`;
 
     return `
       <rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="14" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" />

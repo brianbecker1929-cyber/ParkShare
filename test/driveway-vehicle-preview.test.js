@@ -70,7 +70,8 @@ test("spot selection expands saved vehicle cards and blocks confirmation until s
   assert.match(app, /Select your vehicle to preview it in the driveway/);
   assert.match(app, /role="radiogroup" aria-label="Select your parking vehicle"/);
   assert.match(app, /getBookableVehicles\(user \|\| \{\}\)/);
-  assert.match(app, /disabled=\{chosenSpot === null \|\| !selectedVehicle \|\| selectedAvailability\?\.available === false\}/);
+  assert.match(app, /disabled=\{!chosenSpotAvailable \|\| !selectedVehicle \|\| vehicleEditorOpen\}/);
+  assert.match(app, /const chosenSpotAvailable = bookingReady && !durationError && chosenSpot !== null && canChooseListingSpot/);
   assert.match(app, /!selectedVehicle \? "Select a vehicle to continue"/);
 });
 
@@ -78,8 +79,8 @@ test("the selected car carries from spot confirmation to checkout and remains sw
   const app = await read("../src/App.jsx");
   assert.match(app, /selectedVehicleId=\{selectedVehicleId\}/);
   assert.match(app, /onVehicleChange=\{setSelectedVehicleId\}/);
-  assert.match(app, /function PaymentModal\(\{[^\n]*selectedVehicleId, onVehicleChange \}\)/);
-  assert.match(app, /onClick=\{\(\) => \{ onVehicleChange\(vehicle.id\); setChangeVehicleOpen\(false\); \}\}/);
+  assert.match(app, /function PaymentModal\(\{[^\n]*selectedVehicleId, onVehicleChange(?:, availableData = null)? \}\)/);
+  assert.match(app, /onClick=\{\(\) => \{ if \(!canAct\(\) \|\| checkoutAttempt.current\?\.busy\) return; onVehicleChange\(vehicle.id\); setChangeVehicleOpen\(false\); \}\}/);
   assert.match(app, /<SpotPicker[^\n]*vehicle=\{selectedVehicle\}/);
   assert.match(app, /vehicleId: selectedVehicle.id/);
 });

@@ -1,6 +1,9 @@
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { getSessionWindow, windowsOverlap } from "./_booking-rules.js";
+import { trustedStripeReturnOrigin } from "./_trusted-stripe-origin.js";
+import { deploymentAppUrl } from "./_deployment-app-url.js";
+import { countOccupiedSpots } from "./_booking-capacity.js";
 
 export { getSessionWindow } from "./_booking-rules.js";
 
@@ -73,11 +76,14 @@ export async function requireUser(req, res) {
 }
 
 export function getOrigin(req) {
-  const configured = process.env.APP_URL?.replace(/\/$/, "");
-  if (configured) return configured;
-  const forwardedProto = req.headers["x-forwarded-proto"] || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-  return `${forwardedProto}://${host}`;
+  // Stripe Checkout and Stripe Connect redirect origins must never be chosen
+  // by untrusted request headers, which may be spoofed at some proxy layers.
+  return trustedStripeReturnOrigin({
+    appUrl: deploymentAppUrl(process.env),
+    vercelUrl: process.env.VERCEL_URL,
+    nodeEnv: process.env.NODE_ENV,
+    requestHost: req?.headers?.host,
+  });
 }
 
 export function jsonMethod(req, res, method = "POST") {
@@ -103,11 +109,9 @@ export function jsonMethod(req, res, method = "POST") {
 // derived from start + hours, never from a separately-stored end_hour, so
 // there's one single source of truth for duration.
 //
-// KNOWN LIMITATION: booking_date/start_hour have no timezone attached
-// anywhere in the schema, so this treats them as UTC (Node's default when
-// parsing a date string with no offset on a server). Revisit this once the
-// advance-booking date/time picker UI actually exists and we know what
-// timezone it's collecting in.
+// New booked sessions prefer scheduled_starts_at (canonical UTC). Historical
+// paid sessions without that field keep their old UTC interpretation until
+// individually reconciled. See PR #159 and its release checklist.
 // Capacity-based availability check — this is the ONE place that decides
 // whether a listing has a free spot for a given time window. Used both to
 // show a live "X available now" count to renters browsing, and to enforce
@@ -122,24 +126,21 @@ export function jsonMethod(req, res, method = "POST") {
 // UI is a renter preference, not something this system can authoritatively
 // track per-letter.
 export async function checkAvailability(listingId, spaces, start, end) {
-  // Bounded to bookings that could plausibly overlap `end` — mirrors the
-  // same 31-day reasoning used in send-reminders.js, keeps this a cheap
-  // query even as the table grows. Widen if MAX_HOURS in
-  // create-checkout-session.js ever grows past 31 days.
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
+  // Include all confirmed scheduled bookings, even if paid months earlier.
+// A paid_at recency cutoff misses legitimate future holds. Index the booked
+// session_range for scale after the coordinated database migration.
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    .not("paid_at", "is", null);
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
     .from("booking_holds")
-    .select("id, starts_at, ends_at")
+    .select("id, starts_at, ends_at, spot_label")
     .eq("listing_id", listingId)
     .gt("expires_at", new Date().toISOString())
     .lt("starts_at", end.toISOString())
@@ -151,7 +152,7 @@ export async function checkAvailability(listingId, spaces, start, end) {
     return windowsOverlap(w.start, w.end, start, end);
   });
 
-  const spacesTaken = overlapping.length + (holds || []).length;
+  const spacesTaken = countOccupiedSpots(overlapping, holds || []);
   const spacesFree = Math.max(0, Number(spaces) - spacesTaken);
   return { available: spacesFree > 0, spacesTotal: Number(spaces), spacesTaken, spacesFree };
 }
@@ -176,15 +177,13 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
   const label = String(spotLabel || "").trim().toUpperCase();
   if (!label) return { available: true, spotLabel: label }; // no letter requested -> nothing to conflict with
 
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
 
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    .not("paid_at", "is", null);
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
@@ -218,22 +217,20 @@ export async function checkSpotAvailability(listingId, spotLabel, start, end) {
 //
 // Returns e.g. { A: true, B: false, C: true, D: true } — true means that
 // letter has no conflicting confirmed booking for this window.
-export async function checkAllSpotAvailability(listingId, labels, start, end) {
+export async function checkAllSpotAvailability(listingId, labels, start, end, { includeStates = false } = {}) {
   const wantedLabels = labels.map((l) => String(l).trim().toUpperCase());
 
-  const since = new Date(Math.min(start.getTime(), Date.now()) - 31 * 24 * 3600 * 1000).toISOString();
   const { data: bookings, error } = await supabaseAdmin
     .from("bookings")
-    .select("id, hours, paid_at, booking_date, start_hour, spot_label")
+    .select("id, hours, paid_at, booking_date, start_hour, scheduled_starts_at, spot_label")
     .eq("listing_id", listingId)
     .eq("status", "confirmed")
-    .not("paid_at", "is", null)
-    .gte("paid_at", since);
+    .not("paid_at", "is", null);
   if (error) throw error;
 
   const { data: holds, error: holdsError } = await supabaseAdmin
     .from("booking_holds")
-    .select("spot_label")
+    .select("spot_label, expires_at")
     .eq("listing_id", listingId)
     .gt("expires_at", new Date().toISOString())
     .lt("starts_at", end.toISOString())
@@ -247,14 +244,20 @@ export async function checkAllSpotAvailability(listingId, labels, start, end) {
   const takenLabels = new Set(
     overlapping.map((b) => String(b.spot_label || "").trim().toUpperCase()).filter(Boolean)
   );
+  const bookedLabels = new Set(takenLabels);
+  const heldLabels = new Set();
   for (const hold of holds || []) {
     const heldLabel = String(hold.spot_label || "").trim().toUpperCase();
-    if (heldLabel) takenLabels.add(heldLabel);
+    if (heldLabel) { takenLabels.add(heldLabel); heldLabels.add(heldLabel); }
   }
 
   const status = {};
   for (const label of wantedLabels) {
     status[label] = !takenLabels.has(label);
   }
-  return status;
+  if (!includeStates) return status;
+  const spotState = Object.fromEntries(wantedLabels.map(label => [label,
+    bookedLabels.has(label) ? "booked" : heldLabels.has(label) ? "held" : "available",
+  ]));
+  return { spotStatus: status, spotState };
 }

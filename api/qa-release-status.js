@@ -1,0 +1,67 @@
+// QA-only release readiness. Never returns credentials or customer data.
+import { supabaseAdmin } from "./_lib.js";
+import {resolveListingTimeZone} from "./_listing-time-zone.js";
+import {deploymentAppUrl} from "./_deployment-app-url.js";
+const QA_URLS = new Set([
+  "https://biydlfekindgaslgktsx.supabase.co",
+  "https://heqxirlsorcztsawaldg.supabase.co",
+]);
+const RECOVERY_URL = "https://heqxirlsorcztsawaldg.supabase.co";
+const REVIEW_BRANCH = "fix/bug-005672-005673-recovery-nov12";
+const REVIEW_APP_URL = "https://parkshare-qa-git-fix-bug-005672-005673-60a133-eska-technologies.vercel.app";
+const CLOCK_CHANGE_REVIEW_BRANCH = "fix/bug-005823-clock-change-nov18";
+const CLOCK_CHANGE_REVIEW_APP_URL = "https://parkshare-qa-clock-change-review-eska-technologies.vercel.app";
+export default async function handler(req, res) {
+  res.setHeader("Cache-Control", "private, no-store");
+  if (!QA_URLS.has(process.env.SUPABASE_URL) || (process.env.VERCEL_PROJECT_ID && process.env.VERCEL_PROJECT_ID !== "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC")) return res.status(404).json({ error: "Not found" });
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  let appUrl;
+  try { appUrl = deploymentAppUrl(process.env)?.replace(/\/$/, ""); } catch { appUrl = null; }
+  const expectedReviewAppUrl = process.env.VERCEL_GIT_COMMIT_REF === CLOCK_CHANGE_REVIEW_BRANCH
+    ? CLOCK_CHANGE_REVIEW_APP_URL
+    : process.env.VERCEL_GIT_COMMIT_REF === REVIEW_BRANCH ? REVIEW_APP_URL : null;
+  const reviewBranch = expectedReviewAppUrl !== null;
+  const recoveryPreview = process.env.VERCEL_ENV === "preview"
+    && process.env.VERCEL_PROJECT_ID === "prj_HKX5OcxoBCUDEwqeDNsPD2vh87wC"
+    && process.env.SUPABASE_URL === RECOVERY_URL;
+  const checks = {
+    // The review build must not silently fall back to the older QA backend.
+    qaDatabase: process.env.VITE_SUPABASE_URL === process.env.SUPABASE_URL
+      && (!reviewBranch || process.env.SUPABASE_URL === RECOVERY_URL),
+    stripeTestMode: /^(sk|rk)_test_/.test(process.env.STRIPE_SECRET_KEY || ""),
+    webhookConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
+    emailConfigured: Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM),
+    mapsConfigured: Boolean(process.env.VITE_GOOGLE_MAPS_API_KEY),
+    qaLinks: reviewBranch
+      ? recoveryPreview && appUrl === expectedReviewAppUrl
+      : appUrl === "https://parkshare-qa.vercel.app" || (
+        recoveryPreview && appUrl === "https://parkshare-qa-git-qa-recovery-preflight-oct27-eska-technologies.vercel.app"
+      ),
+  };
+  const {error} = await supabaseAdmin.from("listings").select("id,time_zone,is_paused", {count:"exact",head:true});
+  checks.schemaReady = !error;
+  const cleanupSchema = await supabaseAdmin.from("listing_photo_cleanup").select("object_path", {head:true});
+  checks.photoCleanupReady = !cleanupSchema.error && Boolean(process.env.CRON_SECRET);
+  // Probe schema/permissions without aggregating archived HTML/CID payloads.
+  // HEAD suppresses the response body but an unbounded data query still runs.
+  const reminders = await supabaseAdmin.from("booking_reminder_deliveries").select("id,payload,lease_until,provider_id,sent_at", {head:true}).limit(0);
+  checks.remindersReady = !reminders.error && (reminders.status === 200 || reminders.status === 206) && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
+  const refundEmails = await supabaseAdmin.from("refund_email_deliveries").select("id,payload,sent_at,blocked_at", {head:true}).limit(0);
+  checks.refundNotificationsReady = !refundEmails.error && (refundEmails.status === 200 || refundEmails.status === 206) && checks.emailConfigured && Boolean(process.env.CRON_SECRET);
+  const ledgerSchema = await supabaseAdmin.from("payment_refunds").select("refund_id", {head:true});
+  const bookingLedger = await supabaseAdmin.from("bookings").select("application_state,checkout_rejection_reason,refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
+  const extensionLedger = await supabaseAdmin.from("booking_extensions").select("application_state,refund_ledger_revision,refund_total_amount,refund_pending_amount", {head:true});
+  checks.refundLedgerReady = !ledgerSchema.error && !bookingLedger.error && !extensionLedger.error;
+  const publicParking = await supabaseAdmin.rpc("public_parking_page", {p_before_id: 1});
+  checks.boundedPublicParkingReady = !publicParking.error;
+  try {
+    checks.propertyTimezoneLookupReady = resolveListingTimeZone({lat:43.65,lng:-79.38}) === "America/Toronto"
+      && resolveListingTimeZone({lat:46.77,lng:23.59}) === "Europe/Bucharest";
+  } catch { checks.propertyTimezoneLookupReady = false; }
+  const publishingGuard = await supabaseAdmin.rpc("listing_timezone_assignment_ready");
+  checks.propertyTimezoneGuardReady = !publishingGuard.error && publishingGuard.data === true;
+  const publication = await supabaseAdmin.rpc("listing_publication_ready");
+  checks.listingPublicationReady = !publication.error && publication.data === true;
+  const ready = Object.values(checks).every(Boolean);
+  return res.status(ready ? 200 : 503).json({ ready, commit: process.env.VERCEL_GIT_COMMIT_SHA || null, checks });
+}

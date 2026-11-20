@@ -1,10 +1,13 @@
 import { VEHICLE_COLOURS, VEHICLE_MODELS } from "./vehicleOptions.js";
 
+import {normaliseVehicleType} from "./vehicleTypes.js";
+
 const PHONE_DIGIT_MINIMUM = 10;
 export const MAX_GUEST_VEHICLES = 5;
 
 function vehicleFields(vehicle = {}) {
   return {
+    vehicleType: normaliseVehicleType(vehicle.vehicleType ?? vehicle.vehicle_type),
     vehicleMake: String(vehicle.vehicleMake || vehicle.vehicle_make || "").trim(),
     vehicleModel: String(vehicle.vehicleModel || vehicle.vehicle_model || "").trim(),
     vehicleColour: String(vehicle.vehicleColour || vehicle.vehicle_colour || "").trim(),
@@ -89,6 +92,7 @@ export function normaliseDriverProfile(profile = {}) {
   return {
     name: String(profile.name || "").trim(),
     phone: String(profile.phone || "").trim(),
+    vehicleType: normaliseVehicleType(profile.vehicleType ?? profile.vehicle_type),
     vehicleMake,
     vehicleModel,
     vehicleColour,
@@ -104,6 +108,7 @@ export function getBookableVehicles(profile = {}) {
     id: "primary",
     type: "primary",
     label: "Primary vehicle",
+    vehicleType: normalised.vehicleType,
     vehicleMake: normalised.vehicleMake,
     vehicleModel: normalised.vehicleModel,
     vehicleColour: normalised.vehicleColour,
@@ -145,6 +150,8 @@ export function getDriverProfileCompletion(profile = {}) {
 export function validateDriverProfile(profile = {}) {
   const normalised = normaliseDriverProfile(profile);
   const errors = {};
+  const rawType = profile.vehicleType ?? profile.vehicle_type;
+  if (rawType && !normaliseVehicleType(rawType)) errors.vehicleType = "Select a valid vehicle type.";
 
   if (normalised.name.length < 2) errors.name = "Enter your full name.";
   if (normalised.name.length > 80) errors.name = "Keep your name under 80 characters.";
@@ -174,6 +181,8 @@ export function validateDriverProfile(profile = {}) {
     const vehicle = vehicleFields(rawVehicle);
     if (!vehicle.vehicleMake && !vehicle.vehicleModel && !vehicle.vehicleColour && !vehicle.licensePlate) return;
     const prefix = `guestVehicles.${index}`;
+    const rawType = rawVehicle.vehicleType ?? rawVehicle.vehicle_type;
+    if (rawType && !normaliseVehicleType(rawType)) errors[`${prefix}.vehicleType`] = "Select a valid vehicle type.";
     if (!VEHICLE_MODELS[vehicle.vehicleMake]) errors[`${prefix}.vehicleMake`] = "Select the guest vehicle make.";
     if (!vehicle.vehicleModel) errors[`${prefix}.vehicleModel`] = "Select the guest vehicle model.";
     if (VEHICLE_MODELS[vehicle.vehicleMake] && !VEHICLE_MODELS[vehicle.vehicleMake].includes(vehicle.vehicleModel)) {

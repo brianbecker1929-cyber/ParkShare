@@ -166,6 +166,30 @@ function matchingException(availability, date) {
   return [...availability.exceptions].reverse().find(exception => date >= exception.startDate && date <= exception.endDate) || null;
 }
 
+// Describe the same property-local day and exception used by enforcement.
+// This is a schedule hint, not a claim that a bay is free for the whole stay.
+export function formatAvailabilityForDate(input, instantValue, propertyTimeZone) {
+  if (typeof propertyTimeZone !== "string" || !propertyTimeZone.trim()) return null;
+  const instant = new Date(instantValue);
+  if (!Number.isFinite(instant.getTime())) return null;
+  try {
+    const parts = localParts(instant, propertyTimeZone);
+    const availability = normalizeAvailability(input);
+    const exception = matchingException(availability, parts.date);
+    const day = exception
+      ? { enabled: exception.type !== "unavailable", windows: exception.type === "available-all-day" ? allDay() : exception.windows }
+      : availability.weekly[parts.dayKey];
+    const date = new Intl.DateTimeFormat("en-CA", { timeZone: propertyTimeZone, year: "numeric", month: "short", day: "numeric" }).format(instant);
+    const zone = `(${propertyTimeZone} local time)`;
+    const hours = daySummary(day);
+    return hours === "Closed"
+      ? `The Host is unavailable on ${date} ${zone}.`
+      : `Host hours on ${date}: ${hours} ${zone}.`;
+  } catch {
+    return null; // Never guess using the server or browser clock's time zone.
+  }
+}
+
 function isInstantAvailable(availability, instant) {
   const parts = localParts(instant, availability.timezone);
   const exception = matchingException(availability, parts.date);
@@ -178,8 +202,19 @@ function isInstantAvailable(availability, instant) {
   return Boolean(day?.enabled && isMinuteInsideWindows(parts.minuteOfDay, day.windows));
 }
 
-export function isListingAvailableForWindow(input, startValue, endValue) {
+export function isListingAvailableForWindow(input, startValue, endValue, propertyTimeZone = null) {
   const availability = normalizeAvailability(input);
+  // A Host may configure a driveway while travelling: the historical
+  // availability.timezone can reflect their browser, not the property.
+  // New booking checks must use the server-verified property timezone when
+  // available, while keeping legacy callers compatible until migration.
+  if (propertyTimeZone !== null && propertyTimeZone !== undefined) {
+    if (typeof propertyTimeZone !== "string" || !propertyTimeZone.trim()) {
+      throw new RangeError("A verified property timezone is required.");
+    }
+    new Intl.DateTimeFormat("en-US", { timeZone: propertyTimeZone });
+    availability.timezone = propertyTimeZone;
+  }
   const start = new Date(startValue);
   const end = new Date(endValue);
   if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || end <= start) return false;

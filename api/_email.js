@@ -1,4 +1,5 @@
 // api/_email.js
+import { deploymentAppUrl } from "./_deployment-app-url.js";
 //
 // Shared email sending helper, used by stripe-webhook.js (booking
 // confirmation) and send-reminders.js (halfway + ending reminders).
@@ -20,13 +21,35 @@ import hostBookingTemplate from "./emails/templates/_host-booking.template.js";
 import endingReminderTemplate from "./emails/templates/_reminder-ending.template.js";
 import halfwayReminderTemplate from "./emails/templates/_reminder-halfway.template.js";
 import extensionConfirmedTemplate from "./emails/templates/_extension-confirmed.template.js";
+import hostExtensionConfirmedTemplate from "./emails/templates/_host-extension-confirmed.template.js";
+import refundConfirmedTemplate from "./emails/templates/_refund-confirmed.template.js";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "ParkShare <onboarding@resend.dev>";
 
-export async function sendEmail({ to, cc, subject, html, attachments }) {
+// Keep customer Reply-To optional: booking and reminder messages retain their
+// existing behavior, while contact-form messages can be answered with Reply.
+export function buildEmailPayload({ to, cc, subject, html, attachments, replyTo }) {
+  return {
+    from: EMAIL_FROM,
+    to: [to],
+    cc: cc ? [cc] : undefined,
+    reply_to: replyTo || undefined,
+    subject,
+    html,
+    attachments: attachments && attachments.length ? attachments : undefined,
+  };
+}
+
+export async function sendEmail({ to, cc, subject, html, attachments, replyTo }, options) {
+  return sendEmailPayload(buildEmailPayload({ to, cc, subject, html, attachments, replyTo }), options);
+}
+
+// The reminder worker persists this exact payload before its first attempt.
+// Provider retries must reuse both the same key and the same request body.
+export async function sendEmailPayload(payload, { idempotencyKey } = {}) {
   if (!RESEND_API_KEY) {
-    console.error("[_email] RESEND_API_KEY is not set — skipping send:", subject);
+    console.error("[_email] RESEND_API_KEY is not set — skipping send:", payload.subject);
     return { skipped: true };
   }
 
@@ -35,15 +58,10 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
     headers: {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
-    body: JSON.stringify({
-      from: EMAIL_FROM,
-      to: [to],
-      cc: cc ? [cc] : undefined,
-      subject,
-      html,
-      attachments: attachments && attachments.length ? attachments : undefined,
-    }),
+    signal: AbortSignal.timeout(20_000),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
@@ -53,6 +71,46 @@ export async function sendEmail({ to, cc, subject, html, attachments }) {
   return res.json();
 }
 
+
+// Preserve production email URLs by default, while routing all QA emails to
+// the separate APP_URL. This also rewrites legacy absolute links in template
+// HTML and passed-in booking URLs, so QA messages cannot link to live bookings.
+const LIVE_EMAIL_ORIGIN = "https://www.myparkshare.ca";
+
+function emailOrigin() {
+  const configured = deploymentAppUrl(process.env)?.trim();
+  if (!configured) return LIVE_EMAIL_ORIGIN;
+  let url;
+  try {
+    url = new URL(configured);
+  } catch {
+    throw new Error("APP_URL must be an absolute HTTPS website origin");
+  }
+  if (url.protocol !== "https:" || !url.hostname || url.username || url.password
+      || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("APP_URL must be an HTTPS origin without credentials, paths or query parameters");
+  }
+  return url.origin;
+}
+
+// Deliberately omit message content, names, addresses and contact details.
+// The recipient signs in to the existing participant-scoped conversation.
+export function messageNotificationHtml({bookingId} = {}) {
+  const path = Number.isSafeInteger(bookingId) && bookingId > 0
+    ? `/parking?message_booking=${bookingId}` : '/messages';
+  const href = escapeBookingHtml(emailOrigin() + path);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>New ParkShare message</title></head><body style="font-family:Arial,sans-serif;color:#0E1B2E;background:#FAF7F0;padding:24px"><main style="max-width:560px;margin:auto;background:#fff;padding:24px"><h1 style="font-size:24px">New ParkShare message</h1><p>You have a new message on ParkShare.</p><p><a href="${href}" style="color:#0E1B2E;font-weight:bold">Open your messages</a></p><p>Sign in to read and reply securely. The message is available in your ParkShare account.</p><p style="font-size:12px">This is an automatic notification. Replies to this email are not monitored.</p></main></body></html>`;
+}
+
+function renderEnvironmentEmail(template, variables) {
+  const html = fillTemplate(template, variables);
+  const origin = emailOrigin();
+  if (origin === LIVE_EMAIL_ORIGIN) return html;
+  // Apply to footer CTA, booking/extension/reminder buttons, host dashboard,
+  // email header and other hosted images in the shared ticket templates.
+  return html.replaceAll(LIVE_EMAIL_ORIGIN, origin)
+    .replace(/>www\.myparkshare\.ca<\/a>/g, `>${new URL(origin).host}</a>`);
+}
 
 function escapeBookingHtml(value) {
   return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -83,7 +141,7 @@ function mapBlock({ spotImageSrc, spotImageCid }, alt) {
 }
 function spotLabel(value) {
   const label = String(value || "").trim().toUpperCase();
-  return /^[A-D]$/.test(label) ? `Spot ${label}` : "Spot not specified";
+  return /^[A-H]$/.test(label) ? `Spot ${label}` : "Spot not specified";
 }
 function bookingNumber({ confirmationNumber, bookingId }) {
   return confirmationNumber || (bookingId != null ? `PK-${bookingId}` : "Not provided");
@@ -107,6 +165,7 @@ function driverTicketFields(args) {
     LOCATION_ID: e(args.locationId || "Not provided"),
     SPOT_LABEL: e(label),
     CONFIRMATION_NUMBER: e(bookingNumber(args)),
+    TIME_ZONE_LABEL: e(args.timeZoneLabel || "Time zone not provided"),
     SESSION_START_TIME: e(args.startTimeStr || "Not provided"),
     ENTRY_DATE_FULL: e(args.entryDateFull || ""),
     SESSION_END_TIME: e(args.endTimeStr || "Not provided"),
@@ -133,7 +192,7 @@ export function hostBookingNotificationHtml(args) {
   const car = [vehicle.vehicle_make || vehicle.vehicleMake, vehicle.vehicle_model || vehicle.vehicleModel].filter(Boolean).join(" ") || "Vehicle not specified";
   const colour = vehicle.vehicle_colour || vehicle.vehicleColour || "Colour not specified";
   const plate = String(vehicle.license_plate || vehicle.licensePlate || "Not provided").toUpperCase();
-  return fillTemplate(hostBookingTemplate, {
+  return renderEnvironmentEmail(hostBookingTemplate, {
     BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
     HOST_PORTRAIT_URL: e(portraitUrl(args, true)),
     HOST_NAME: e(args.hostName || "Host"),
@@ -144,6 +203,7 @@ export function hostBookingNotificationHtml(args) {
     AMOUNT_CHARGED: e(args.amountCharged || "Not provided"),
     // Older callers may pass combined labels; new sends use separate times
     // and dates so both columns stay compact, including overnight bookings.
+    TIME_ZONE_LABEL: e(args.timeZoneLabel || "Time zone not provided"),
     HOST_START_TIME: e(args.startTimeStr || args.startLabel || "Not provided"),
     HOST_START_DATE: e(args.entryDateFull || ""),
     HOST_END_TIME: e(args.endTimeStr || args.endLabel || "Not provided"),
@@ -156,14 +216,58 @@ export function hostBookingNotificationHtml(args) {
   });
 }
 export function confirmationEmailHtml(args) {
-  return fillTemplate(confirmationTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(confirmationTemplate, driverTicketFields(args));
 }
 export function halfwayReminderHtml(args) {
-  return fillTemplate(halfwayReminderTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(halfwayReminderTemplate, driverTicketFields(args));
 }
 export function endingReminderHtml(args) {
-  return fillTemplate(endingReminderTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(endingReminderTemplate, driverTicketFields(args));
 }
 export function extensionConfirmedHtml(args) {
-  return fillTemplate(extensionConfirmedTemplate, driverTicketFields(args));
+  return renderEnvironmentEmail(extensionConfirmedTemplate, driverTicketFields(args));
+}
+
+export function hostExtensionConfirmedHtml(args) {
+  return renderEnvironmentEmail(hostExtensionConfirmedTemplate, {
+    ...driverTicketFields(args),
+    HOST_NAME: escapeBookingHtml(args.hostName || "Host"),
+    DRIVER_NAME: escapeBookingHtml(args.driverName || "ParkShare Driver"),
+    HOST_PORTRAIT_URL: escapeBookingHtml(portraitUrl(args, true)),
+    HOST_DASHBOARD_URL: "https://www.myparkshare.ca/host-dashboard",
+  });
+}
+
+export function refundConfirmedHtml(args) {
+  const e = escapeBookingHtml;
+  const host = args.audience === "host";
+  const amount = `$${(args.amountCents / 100).toFixed(2)}`;
+  return renderEnvironmentEmail(refundConfirmedTemplate, {
+    REFUND_HEADLINE: e(args.headline || "Refund confirmed"),
+    REFUND_HEADER_TOP: e(args.headerTop || "REFUND"),
+    REFUND_HEADER_BOTTOM: e(args.headerBottom || "CONFIRMED"),
+    REFUND_CONTEXT: e(args.refundContext || "This receipt covers only the refund listed below."),
+    // Preserve literal template-looking text in the recorded reason.
+    REFUND_REASON: e(args.refundReason || "").replace(/\[/g,"&#91;").replace(/\]/g,"&#93;"),
+    BOOKING_LOGO_URL: e(signatureLogoUrl(args)),
+    PORTRAIT_URL: e(portraitUrl(args, host)),
+    PORTRAIT_ALT: host ? "William supporting ParkShare Hosts" : "Parker supporting ParkShare Drivers",
+    RECIPIENT_NAME: e(args.recipientName || (host ? "Host" : "Driver")),
+    REFUND_AMOUNT: e(amount), REFUND_REFERENCE: e(args.refundId),
+    BOOKING_NUMBER: e(`PK-${args.bookingId}`),
+    PROPERTY_ADDRESS: e(args.address || "Parking address unavailable"),
+    SPOT_LABEL: e(/^[A-H]$/.test(args.spotLabel || "") ? `Spot ${args.spotLabel}` : "Spot not specified"),
+    VEHICLE_DETAILS: e(args.vehicleDetails || "Vehicle not specified"),
+    SESSION_START: e(args.sessionStart), SESSION_END: e(args.sessionEnd), TIME_ZONE_LABEL: e(args.timeZoneLabel),
+    REFUND_MESSAGE: e(host
+      ? `Stripe has confirmed a ${amount} CAD refund to the Driver for ${args.extension ? "an extension payment on" : "the original payment for"} this booking.`
+      : `Stripe has confirmed your ${amount} CAD refund for ${args.extension ? "an extension payment on" : "the original payment for"} this booking.`),
+    BOOKING_OUTCOME: e(args.bookingOutcome),
+    PAYMENT_NOTE: e(host
+      ? "The amount above is the customer refund, not a Host payout statement. Other charges are separate. Check Transactions for the reconciled earnings."
+      : "The refund is returning to the original payment method. Your bank determines when it appears. This receipt covers only the refund above; other charges, including paid extensions, are separate."),
+    BOOKING_URL: args.rejected ? "https://www.myparkshare.ca/transactions" : host ? "https://www.myparkshare.ca/host-dashboard" : "https://www.myparkshare.ca/my-bookings",
+    BOOKING_ACTION_LABEL: args.rejected ? "View Transactions" : "View Booking",
+    SUPPORT_EMAIL: e(args.supportEmail),
+  });
 }

@@ -15,6 +15,7 @@ test("normalises Driver profile fields", () => {
     {
       name: "Test Driver",
       phone: "416-555-0100",
+      vehicleType: "",
       vehicleMake: "",
       vehicleModel: "",
       vehicleColour: "",
