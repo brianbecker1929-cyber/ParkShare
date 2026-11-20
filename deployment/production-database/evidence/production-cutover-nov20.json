@@ -429,19 +429,23 @@
   },
   "qa": {
     "unchanged": true,
-    "temporaryHoldRejected": true,
-    "mainMergePending": true,
-    "reason": "No authorization to change QA auto-deployment settings; release built directly from approved commit."
+    "mainMergePending": false,
+    "reason": "The authorized temporary QA build/domain hold prevented the merge-triggered QA build; it was CANCELED. Both settings were immediately restored and verified; QA alias unchanged.",
+    "temporaryHoldAuthorizedAndCompleted": true,
+    "settingsRestored": true,
+    "activeDeployment": "dpl_DiHRRhYpGoiptZwKJ5zRzd6ausTD",
+    "temporaryHoldInitiallyRejected": true
   },
   "completedChecksUtc": "2026-11-20T12:13:30Z",
   "production": {
     "domain": "https://www.myparkshare.ca",
-    "deployment": "dpl_HCkWVBW9PqnPMbLYzkP4p6uXebmY",
-    "commit": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+    "deployment": "dpl_4hLdbgdJ4pebZizbzf5RokGeH3fq",
+    "commit": "f936888d22ae74e70cd0b89e6367a36b95578113",
     "state": "READY",
-    "branch": "release/production-candidate-nov18",
-    "mainBranchCommit": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
-    "mainMergePending": true
+    "branch": "main",
+    "mainBranchCommit": "f936888d22ae74e70cd0b89e6367a36b95578113",
+    "mainMergePending": false,
+    "initialDirectDeployment": "dpl_HCkWVBW9PqnPMbLYzkP4p6uXebmY"
   },
   "publicChecks": [
     {
@@ -536,11 +540,56 @@
     "listingAction": "Validate existing listing locations and assign legitimate trusted zones; do not guess or rewrite paid bookings.",
     "liveHostAndStripeEligibility": "Not independently verified in this cutover",
     "controlledLiveBookingAndRefund": "Not performed; needs its own financial test scope",
-    "gitMainMerge": "PR #260 remains draft/unmerged to avoid the QA project's automatic main-branch deployment. Temporary QA ignore-build/domain-assignment change was rejected by automatic review; that change did not run."
+    "gitMainMerge": "Complete: PR #260 merged as f936888d22ae74e70cd0b89e6367a36b95578113; identical approved file tree; new main production deployment READY."
   },
   "automaticReview": {
     "fullCodeExport": "Rejected; completed narrower body-fingerprint/metadata comparison instead.",
-    "qaDeploymentHold": "Rejected; no QA configuration changed; deployed approved commit directly to production.",
+    "qaDeploymentHold": "Initial request rejected; later explicitly authorized by Brian. Temporary hold applied, merge completed, triggered QA build CANCELED, both settings restored and verified.",
     "promotionCheck": "Initial promotion request rejected pending endpoint verification; expected origin auth guards then verified in browser. A later request reported deployment already current; domain mapping independently confirmed."
-  }
+  },
+  "currentProductionPaused": false,
+  "postMergePublicChecks": {
+    "checked_at_utc": "2026-11-20T13:02:41.038065+00:00",
+    "checks": [
+      {
+        "path": "/",
+        "expected": 200,
+        "status": 200,
+        "passed": true,
+        "noindex_header": null,
+        "noindex_meta": false
+      },
+      {
+        "path": "/api/public-parking?cursor=1",
+        "expected": 200,
+        "status": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/private-listing-location?listingId=1",
+        "expected": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "path": "/api/send-reminders",
+        "expected": 401,
+        "status": 401,
+        "passed": true
+      },
+      {
+        "path": "/api/create-checkout-session",
+        "expected": 405,
+        "status": 405,
+        "passed": true
+      },
+      {
+        "path": "/api/qa-release-status",
+        "expected": 404,
+        "status": 404,
+        "passed": true
+      }
+    ]
+  },
+  "postMergeRuleEvidence": "main-merge-check-correction-nov20.json"
 }

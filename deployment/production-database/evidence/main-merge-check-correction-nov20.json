@@ -1,15 +1,19 @@
 {
-  "status": "prepared_not_applied",
+  "status": "applied_and_merged",
+  "completedDate": "2026-11-20",
   "ruleset": {
     "id": 21821185,
     "name": "Protect main",
-    "enforcement": "active"
+    "enforcement": "active",
+    "updatedAt": "2026-11-20T07:59:59.453-05:00"
   },
-  "reason": "GitHub rejected merging PR #260: Required status check \"Vercel\" is expected.",
+  "authorization": "Correct the permanent GitHub rule to require Vercel – parkshare-project and Vercel – parkshare-qa, preserving test and all other protections, then retry the merge. Temporary QA build/domain hold and restoration separately approved.",
   "pullRequest": 260,
-  "head": "d1e665dc779a5b456fc029bf98ca595da72ac674",
-  "base": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
-  "currentRequiredChecks": [
+  "approvedHead": "d1e665dc779a5b456fc029bf98ca595da72ac674",
+  "priorMain": "8c80feab4596e238eb46f585de5b8e1f2cf4b433",
+  "mergeCommit": "f936888d22ae74e70cd0b89e6367a36b95578113",
+  "verifiedIdenticalTree": "8a54500a75042a831c12148bc012e238ca0c0b04",
+  "beforeRequiredChecks": [
     {
       "context": "Vercel",
       "integration_id": 8329
@@ -18,7 +22,10 @@
       "context": "test"
     }
   ],
-  "proposedRequiredChecks": [
+  "currentRequiredChecks": [
+    {
+      "context": "test"
+    },
     {
       "context": "Vercel – parkshare-project",
       "integration_id": 8329
@@ -26,26 +33,49 @@
     {
       "context": "Vercel – parkshare-qa",
       "integration_id": 8329
-    },
-    {
-      "context": "test"
     }
   ],
-  "preserved": "test, active enforcement, source integration 8329, PR requirements, delete/force-push protection, default-branch scope and empty bypass list",
+  "allOtherRuleFieldsPreserved": true,
+  "noBypassActorsAdded": true,
+  "noSyntheticStatusesCreated": true,
   "qaControls": {
-    "temporaryHoldAppliedAndUiVerified": true,
-    "mergeFailed": true,
+    "temporaryHold": {
+      "commandForIgnoringBuildStep": "exit 0",
+      "autoAssignCustomDomains": false
+    },
+    "appliedAt": "2026-11-20T13:00:39.829Z",
+    "holdUiVerified": true,
+    "mergeTriggeredDeployment": {
+      "id": "dpl_E6PE89ihwnX1SFpokaDw3HmiRe7n",
+      "state": "CANCELED"
+    },
     "restored": {
       "commandForIgnoringBuildStep": null,
       "autoAssignCustomDomains": true
     },
+    "restoredAt": "2026-11-20T13:01:27.976Z",
     "restorationUiVerified": true,
+    "activeAlias": "parkshare-qa.vercel.app",
     "activeDeploymentUnchanged": "dpl_DiHRRhYpGoiptZwKJ5zRzd6ausTD"
   },
   "production": {
-    "unchangedDeployment": "dpl_HCkWVBW9PqnPMbLYzkP4p6uXebmY",
-    "commit": "d1e665dc779a5b456fc029bf98ca595da72ac674",
-    "online": true
+    "domain": "https://www.myparkshare.ca",
+    "deployment": "dpl_4hLdbgdJ4pebZizbzf5RokGeH3fq",
+    "commit": "f936888d22ae74e70cd0b89e6367a36b95578113",
+    "state": "READY",
+    "source": "main",
+    "sameFilesAsApprovedHead": true,
+    "allFivePublicAndProjectAliasesConfirmed": true,
+    "noFurtherDatabaseMigrationExecuted": true,
+    "postMergeHttpChecks": 6,
+    "errorFatalLogGroups": 0,
+    "errorFatalLogScope": "New deployment, recent 15-minute scan at approximately 13:03 UTC",
+    "postMergeWorkflow": {
+      "name": "test",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/brianbecker1929-cyber/ParkShare/actions/runs/44740627394/job/136303079826"
+    }
   },
   "beforeRuleset": {
     "id": 21821185,
@@ -117,7 +147,7 @@
       }
     }
   },
-  "proposedRuleset": {
+  "afterRuleset": {
     "id": 21821185,
     "name": "Protect main",
     "target": "branch",
@@ -163,15 +193,15 @@
           "do_not_enforce_on_create": false,
           "required_status_checks": [
             {
+              "context": "test"
+            },
+            {
               "context": "Vercel – parkshare-project",
               "integration_id": 8329
             },
             {
               "context": "Vercel – parkshare-qa",
               "integration_id": 8329
-            },
-            {
-              "context": "test"
             }
           ]
         }
@@ -179,7 +209,7 @@
     ],
     "node_id": "RRS_lACqUmVwb3NpdG9yec5NPnMSzgFM9wE",
     "created_at": "2026-08-29T16:29:51.546-04:00",
-    "updated_at": "2026-08-29T16:47:33.628-04:00",
+    "updated_at": "2026-11-20T07:59:59.453-05:00",
     "bypass_actors": [],
     "current_user_can_bypass": "never",
     "_links": {
