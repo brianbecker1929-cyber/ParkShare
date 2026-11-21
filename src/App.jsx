@@ -331,11 +331,48 @@ const INITIAL_THREADS = {
 // Renders the host's actual first uploaded photo when there is one, falling
 // back to the simple emoji icon for listings that don't have a photo yet.
 function ListingThumb({ listing, size, fontSize, style }) {
+  const [failedImage, setFailedImage] = useState(null);
   const isPhoto = isListingImageUrl(listing.img);
-  if (isPhoto) {
-    return <img src={listing.img} alt={listing.title || "Driveway"} loading="lazy" decoding="async" style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
+  if (isPhoto && failedImage !== listing.img) {
+    return <img src={listing.img} alt={listing.title || "Driveway"} loading="lazy" decoding="async" onError={() => setFailedImage(listing.img)} style={{ width: size ?? "100%", height: size ?? "100%", objectFit: "cover", ...style }} />;
   }
-  return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{listing.img}</span>;
+  return <span style={{ fontSize: fontSize ?? size, lineHeight: 1, ...style }}>{isListingImageUrl(listing.img) ? "🏠" : listing.img || "🏠"}</span>;
+}
+
+function ListingPhotoGallery({listing}) {
+  const [gallery, setGallery] = useState(null);
+  const [selectedPhoto, setSelectedPhoto] = useState(0);
+  const [enlarged, setEnlarged] = useState(false);
+  const trigger = useRef(null);
+  const initial = [listing.img, ...(Array.isArray(listing.photos) ? listing.photos : [])].filter(isListingImageUrl);
+  const fallback = [...new Set(initial)].slice(0,MAX_LISTING_PHOTOS);
+  const photos = gallery?.id === listing.id ? gallery.photos : fallback;
+  const photo = photos[Math.min(selectedPhoto,photos.length - 1)];
+  useEffect(() => {
+    setSelectedPhoto(0); setEnlarged(false);
+    if (!/^\/api\/listing-photo\?listingId=[1-9]\d*$/.test(listing.img || '')) return;
+    const controller = new AbortController();
+    const id = String(listing.id).replace(/^db-/, '');
+    fetch(`/api/listing-photos?listingId=${encodeURIComponent(id)}`,{signal:controller.signal})
+      .then(async response => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!controller.signal.aborted && Array.isArray(data.photos)) setGallery({id:listing.id,photos:data.photos.filter(isListingImageUrl).slice(0,MAX_LISTING_PHOTOS)});
+      }).catch(() => {});
+    return () => controller.abort();
+  },[listing.id,listing.img]);
+  return <section aria-label="Driveway photos" style={{marginBottom:20}}>
+    <div style={{background:`linear-gradient(135deg, ${C.navy}, #33465A)`,borderRadius:14,height:240,display:'flex',alignItems:'center',justifyContent:'center',fontSize:80,overflow:'hidden',position:'relative'}}>
+      <ListingThumb listing={{...listing,img:photo || '🏠'}} fontSize={80} />
+      {photo && <button ref={trigger} type="button" onClick={() => setEnlarged(true)} aria-label="Enlarge driveway photo" style={{position:'absolute',right:12,bottom:12,border:0,borderRadius:8,padding:'9px 12px',background:C.white,color:C.navy,fontWeight:700,cursor:'pointer'}}>View photo</button>}
+    </div>
+    {photos.length > 1 && <div aria-label="Choose a driveway photo" style={{display:'flex',gap:8,marginTop:8,overflowX:'auto'}}>
+      {photos.map((src,index) => <button key={src} type="button" aria-label={`View photo ${index + 1} of ${photos.length}`} aria-pressed={src === photo} onClick={() => setSelectedPhoto(index)} style={{width:72,height:60,flexShrink:0,padding:0,overflow:'hidden',borderRadius:8,border:`3px solid ${src === photo ? C.amber : C.concrete}`,cursor:'pointer'}}><ListingThumb listing={{...listing,img:src}} /></button>)}
+    </div>}
+    {enlarged && photo && <Modal nativeModal title="Driveway photo" returnFocus={() => trigger.current} onClose={() => setEnlarged(false)}>
+      <ListingThumb listing={{...listing,img:photo}} style={{width:'100%',height:'auto',maxHeight:'65dvh',objectFit:'contain'}} />
+    </Modal>}
+  </section>;
 }
 
 function Badge({ children, color = C.moss }) {
@@ -459,6 +496,7 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
 
   const providers = getAvailableNavigationProviders();
   const isPreview = request.mode === "preview";
+  const approximate = request.listing.locationPrecision === "approximate";
   const destinationAvailable = hasNavigationDestination(request.listing);
   const descriptions = {
     waze: "Live traffic, road reports, and driving guidance",
@@ -471,10 +509,10 @@ function NavigationChooser({ request, preferredProvider, onChoose, onClose }) {
       <div className="ps-navigation-chooser">
         {destinationAvailable ? <p>
           {isPreview
-            ? "Choose an app to preview the parking area. For public listings this is an approximate route; exact directions are available from your confirmed booking."
+            ? approximate ? "Choose an app to preview an approximate route to this parking area." : "Choose an app to preview the route to this driveway's exact location."
             : "Choose your preferred navigation app. Your parking location is ready to open."}
         </p> : <p id="navigation-location-error" role="alert">
-          {isPreview ? "An approximate route preview is unavailable for this listing because its map location is missing. Choose another listing, or use exact directions from a confirmed booking."
+          {isPreview ? "A route preview is unavailable for this listing because its map location is missing. Choose another listing."
             : "Directions are unavailable because this reservation's location is missing. Please contact ParkShare support."}
         </p>}
         <div className="ps-navigation-destination">
@@ -2016,19 +2054,17 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
     <div style={{ padding: 24, fontFamily: "'Poppins', sans-serif", maxWidth: 580, margin: "0 auto" }}>
       <button onClick={onBack} style={{ background: C.amber, border: "2px solid "+C.navy, boxShadow: "0 0 0 2px " + C.white, color: C.navy, fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 16, padding: "5px 13px", borderRadius: 8 }}>← Back to Listings</button>
 
-      <div style={{ background: "linear-gradient(135deg, "+C.navy+", #33465A)", borderRadius: 14, height: 170, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 80, marginBottom: 20, overflow: "hidden" }}>
-        <ListingThumb listing={listing} fontSize={80} />
-      </div>
+      <ListingPhotoGallery listing={listing} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
         <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 20, margin: 0, flex: 1 }}>{listing.title}</h2>
         <PriceTag price={listing.price} size="lg" />
       </div>
-      <p style={{ color: C.muted, fontSize: 12, marginBottom: listing.walkLabel ? 7 : 10 }}>📍 {listing.address}{listing.walkLabel ? "" : ` · ${listing.distance}`}</p>
+      <p style={{ color: C.muted, fontSize: 12, marginBottom: listing.walkLabel ? 7 : 10 }}>📍 {listing.address || "Address unavailable"}{listing.walkLabel ? "" : ` · ${listing.distance}`}</p>
       {listing.walkLabel && <WalkingTimeLabel label={listing.walkLabel} className="ps-listing-detail-walk-time" />}
 
       <div style={{ marginBottom: 14 }}>
-        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>↗ Preview approximate route</Btn>
+        <Btn small variant="outline" onClick={() => onPreviewRoute(listing)}>{listing.locationPrecision === "approximate" ? "Preview approximate route" : "Preview route"}</Btn>
       </div>
 
       {!bookingReady && <div className="ps-listing-bookability-notice" role={bookingReadiness.status === "unknown" ? "alert" : "status"}>
@@ -2071,7 +2107,7 @@ function ListingDetail({ listing, selectedEvent, onBack, onMessage, onPreviewRou
  {typeof listing.lat === "number" && typeof listing.lng === "number" && (
         <SpotMapBoundary fallback={null}>
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>📍 Approximate parking area</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>{listing.locationPrecision === "approximate" ? "📍 Approximate parking area" : "📍 Driveway location"}</div>
             <ListingSatelliteView lat={listing.lat} lng={listing.lng} spots={(listing.spots || []).filter(hasValidBounds)} />
           </div>
         </SpotMapBoundary>
@@ -2464,10 +2500,10 @@ function useAllListings() {
         title: row.title, address: row.address,
         price: row.price, rating: row.rating || 0, reviewCount: row.reviewCount || 0,
         spaces: row.spaces, features: row.features || [], description: "",
-        img: "🏠", photos: [], distance: "—",
+        img: isListingImageUrl(row.img) ? row.img : "🏠", photos: (row.photos || []).filter(isListingImageUrl), distance: "—",
         lat: row.lat, lng: row.lng, spots: row.spots || [], availability: null,
         host: row.host || "ParkShare Host", hostImg: "🧑",
-        locationPrecision: "approximate",
+        locationPrecision: row.locationPrecision,
       }));
       setDbListings(current => append ? [...current, ...rows.filter(row => !current.some(old => old.id === row.id))] : rows);
       setNextCursor(payload.nextCursor || null);
@@ -3329,10 +3365,10 @@ function BrowseView({ onVehicleUpdated, onMessage, onPreviewRoute, onNavigateToP
         )}
         {locatedSearch && (
           <div className="ps-walking-route-warning">
-            Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your destination. Public locations are approximate. Without a walking route, times use straight-line distance and may underestimate the walk.
+            Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your destination. Without a walking route, times use straight-line distance and may underestimate the walk.
           </div>
         )}
-        {!locatedSearch && userLoc && <p className="ps-walking-route-warning">Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your location. Public distances are approximate.</p>}
+        {!locatedSearch && userLoc && <p className="ps-walking-route-warning">Showing parking within {PARKING_SEARCH_RADIUS_KM} km of your location. Distances use the listed driveway's map pin.</p>}
       </div>
 
       {/* Content — fills all remaining height, no scroll */}
@@ -5722,6 +5758,7 @@ function ListDrivewayView({ user }) {
           {photoError && <div role="alert" style={{ background: C.redLight, color: C.red, borderRadius: 8, padding: 11, fontSize: 12 }}>{photoError}</div>}
           <div>
             <label style={{ ...labelStyle, marginBottom: 4 }}>Photos of your driveway ({form.photos.length}/6)</label>
+            <p style={{fontSize:12,color:C.muted,lineHeight:1.5,margin:'4px 0 12px'}}>Your driveway photos, full street address and map location are visible to people browsing ParkShare before they book. Keep gate codes and other private access details out of your public photos.</p>
             <p style={{ fontSize: 12, color: C.muted, lineHeight: 1.55, margin: 0 }}>
               Help Drivers recognize the property and know exactly where to park before they arrive.
             </p>
@@ -8993,7 +9030,8 @@ function LegalPage({ section = "terms", onLegalClick, tab, onTabChange, onLogoCl
             <LegalCallout>We do not sell your personal information to third parties.</LegalCallout>
 
             <LegalH2>3. How We Share Your Information</LegalH2>
-            <LegalP><strong>Between Hosts and Drivers:</strong> limited information needed to fulfil a reservation—including name, listing address, access instructions, messages, and the vehicle details and license plate selected for that booking—is shared to facilitate the booking.</LegalP>
+            <LegalP><strong>Public listings:</strong> driveway photos, listing titles, street addresses and map locations are visible to people browsing ParkShare before booking.</LegalP>
+            <LegalP><strong>Between Hosts and Drivers:</strong> limited information needed to fulfil a reservation—including name, access instructions, messages, and the vehicle details and license plate selected for that booking—is shared to facilitate the booking.</LegalP>
             <LegalP><strong>Service providers:</strong> Stripe (payments), Supabase (authentication/database), Vercel (hosting), Google Maps / OpenStreetMap (mapping).</LegalP>
             <LegalP><strong>Legal requirements:</strong> we may disclose information if required by law or to protect rights, property, or safety.</LegalP>
 

@@ -59,7 +59,7 @@ function detailHarness({count=4,flags,fetcher,bookability='ready',clock}={}){
   useRef:initial=>{const n=cursor++;return slots[n]||(slots[n]={current:initial});},
   useMemo:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((value,i)=>value!==old.deps[i]))slots[n]={deps,value:fn()};return slots[n].value;},
   useEffect:(fn,deps)=>{const n=cursor++,old=slots[n];if(!old||deps.some((value,i)=>value!==old.deps[i])){slots[n]={deps,cleanup:old?.cleanup};effects.push(()=>{slots[n].cleanup?.();slots[n].cleanup=fn();});}}};
- for(const name of ['ListingThumb','PriceTag','WalkingTimeLabel','Badge','Btn','EventDestinationSummary','SpotMapBoundary','ListingSatelliteView','RidesharePickupCard','Modal','MiniCalendar','SpotPicker','VehicleBadge','ReviewsSection','PaymentModal','BookingVehicleForm'])values[name]=function Component(){return null;};
+ for(const name of ['ListingThumb','ListingPhotoGallery','PriceTag','WalkingTimeLabel','Badge','Btn','EventDestinationSummary','SpotMapBoundary','ListingSatelliteView','RidesharePickupCard','Modal','MiniCalendar','SpotPicker','VehicleBadge','ReviewsSection','PaymentModal','BookingVehicleForm'])values[name]=function Component(){return null;};
  const Detail=new Function(...Object.keys(values),compiledDetail.code+';return ListingDetail;')(...Object.values(values));
  function render(changes={}){Object.assign(props,changes);let guard=0;do{dirty=false;cursor=0;tree=Detail(props);for(const fn of effects.splice(0))fn();assert.ok(++guard<15,'Effects settle');}while(dirty);return tree;}
  const find=predicate=>{const hit=walk(render()).find(predicate);assert.ok(hit,'Expected live control');return hit;};render();
