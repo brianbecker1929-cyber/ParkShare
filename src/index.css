@@ -4912,8 +4912,6 @@ button, input, select, textarea { font: inherit; }
   .ps-browse-listing-card .ps-browse-listing-main > span { align-self: flex-start; }
   .ps-driver-booking-summary { flex-direction: column; }
   .ps-driver-booking-summary > div:last-child { text-align: left !important; }
-  .ps-driver-booking-card.is-past .ps-driver-booking-summary { flex-direction: row; }
-  .ps-driver-booking-card.is-past .ps-driver-booking-status { text-align: right !important; }
 }
 
 @media (max-width: 350px) {
@@ -8821,6 +8819,33 @@ div:has(> button[aria-label="ParkShare help"])
 .ps-driver-booking-card.is-past .ps-driver-booking-summary-copy { flex: 1; overflow-wrap: anywhere; }
 .ps-driver-booking-card.is-past .ps-driver-booking-status { flex-shrink: 0; }
 .ps-driver-booking-card.is-past .ps-driver-booking-status > div { margin-top: 4px !important; }
+/* A phone cannot fit a full booking total beside the property title. */
+@media (max-width: 620px) {
+  .ps-driver-booking-card .ps-driver-booking-summary,
+  .ps-driver-booking-card.is-past .ps-driver-booking-summary {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px;
+  }
+  .ps-driver-booking-card .ps-driver-booking-summary-copy,
+  .ps-driver-booking-card.is-past .ps-driver-booking-summary-copy {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+  }
+  .ps-driver-booking-card .ps-driver-booking-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    gap: 4px;
+    text-align: left !important;
+    overflow-wrap: anywhere;
+  }
+  .ps-driver-booking-card .ps-driver-booking-status > div { margin-top: 0 !important; }
+}
 .ps-past-booking-overview {
   display: flex;
   align-items: center;
