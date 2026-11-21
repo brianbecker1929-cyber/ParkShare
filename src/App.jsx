@@ -364,7 +364,7 @@ function ListingPhotoGallery({listing}) {
   return <section aria-label="Driveway photos" style={{marginBottom:20}}>
     <div style={{background:`linear-gradient(135deg, ${C.navy}, #33465A)`,borderRadius:14,height:240,display:'flex',alignItems:'center',justifyContent:'center',fontSize:80,overflow:'hidden',position:'relative'}}>
       <ListingThumb listing={{...listing,img:photo || '🏠'}} fontSize={80} />
-      {photo && <button ref={trigger} type="button" onClick={() => setEnlarged(true)} aria-label="Enlarge driveway photo" style={{position:'absolute',right:12,bottom:12,border:0,borderRadius:8,padding:'9px 12px',background:C.white,color:C.navy,fontWeight:700,cursor:'pointer'}}>View photo</button>}
+      {photo && <button ref={trigger} type="button" onClick={() => setEnlarged(true)} aria-label="Enlarge driveway photo" style={{position:'absolute',right:12,bottom:12,border:0,borderRadius:8,padding:'9px 12px',background:C.white,color:C.navy,fontSize:14,lineHeight:1.2,minHeight:44,fontWeight:700,cursor:'pointer'}}>View photo</button>}
     </div>
     {photos.length > 1 && <div aria-label="Choose a driveway photo" style={{display:'flex',gap:8,marginTop:8,overflowX:'auto'}}>
       {photos.map((src,index) => <button key={src} type="button" aria-label={`View photo ${index + 1} of ${photos.length}`} aria-pressed={src === photo} onClick={() => setSelectedPhoto(index)} style={{width:72,height:60,flexShrink:0,padding:0,overflow:'hidden',borderRadius:8,border:`3px solid ${src === photo ? C.amber : C.concrete}`,cursor:'pointer'}}><ListingThumb listing={{...listing,img:src}} /></button>)}
