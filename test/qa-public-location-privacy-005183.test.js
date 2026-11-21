@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { PUBLIC_DISCOVERY_COLUMNS, publicDiscoveryListing, approximateParkingCoordinate } from "../src/lib/publicDiscovery.js";
+import { PUBLIC_DISCOVERY_COLUMNS, publicDiscoveryListing, publicParkingCoordinate } from "../src/lib/publicDiscovery.js";
 
 test("public discovery projection excludes confidential database columns", () => {
-  for (const column of ["host_id","address","photos","img","description","profiles","reviews","email","user_id"]) {
+  for (const column of ["host_id","photos","img","description","profiles","reviews","email","user_id"]) {
     assert.equal(PUBLIC_DISCOVERY_COLUMNS.split(",").includes(column), false, column);
   }
 });
 
-test("public listing does not reveal street addresses, exact coordinates, or identities", () => {
+test("public listing shows driveway images and exact location while retaining account and arrival privacy", () => {
   const result = publicDiscoveryListing({
     id: 5, host_id: "host-uuid", address: "123 Main St, Toronto",
     title: "123 Main St Driveway", description: "The blue door at 123 Main St",
@@ -19,22 +19,25 @@ test("public listing does not reveal street addresses, exact coordinates, or ide
     features:["at 123 Main St"], photos:["gps-exif"],
   });
   assert.deepEqual(result,{
-    id:5,title:"Private parking available",
-    address:"Approximate location — full address after confirmed booking",
-    price:12,spaces:2,features:[],description:"",img:null,photos:[],
-    spots:[],lat:43.82,lng:-79.42,rating:0,reviewCount:0,
-    host:"ParkShare Host",bookingStatus:"unknown",locationPrecision:"approximate",
+    id:5,title:"123 Main St Driveway",
+    address:"123 Main St, Toronto",
+    price:12,spaces:2,features:[],description:"",img:"/api/listing-photo?listingId=5",photos:["/api/listing-photo?listingId=5"],
+    spots:[],lat:43.824194,lng:-79.418116,rating:0,reviewCount:0,
+    host:"ParkShare Host",bookingStatus:"unknown",locationPrecision:"exact",
   });
   const encoded=JSON.stringify(result);
-  for(const privateValue of ["123 Main St","host-uuid","reviewer-uuid","43.824194","-79.418116"]) {
+  for(const privateValue of ["host-uuid","reviewer-uuid","The blue door","gps-exif"]) {
     assert.equal(encoded.includes(privateValue),false);
   }
 });
 
-test("invalid coordinates never become public exact points", () => {
-  assert.equal(approximateParkingCoordinate(null),null);
-  assert.equal(approximateParkingCoordinate(""),null);
-  assert.equal(approximateParkingCoordinate("not-a-coordinate"),null);
+test("invalid coordinates never become invented map points", () => {
+  assert.equal(publicParkingCoordinate(null,90),null);
+  assert.equal(publicParkingCoordinate("",90),null);
+  assert.equal(publicParkingCoordinate("not-a-coordinate",90),null);
+  assert.equal(publicParkingCoordinate(91,90),null);
+  assert.equal(publicParkingCoordinate(-181,180),null);
+  assert.equal(publicParkingCoordinate(43.824194,90),43.824194);
 });
 
 test("public endpoint does not select sensitive columns or return raw Supabase records", async () => {

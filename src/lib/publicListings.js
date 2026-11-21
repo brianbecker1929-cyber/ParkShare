@@ -14,6 +14,14 @@ export function publicListingCoverUrl(listingId) {
   return `/api/listing-cover?listingId=${id}`;
 }
 
+// Public listing previews use an image-only endpoint. Never put original
+// Base64 data or private Storage object paths in the discovery response.
+export function publicDrivewayPhotoUrl(listingId, photo = 0) {
+  const id = Number(listingId);
+  if (!Number.isSafeInteger(id) || id <= 0 || !Number.isInteger(photo) || photo < 0 || photo > 5) return null;
+  return `/api/listing-photo?listingId=${id}${photo ? `&photo=${photo}` : ''}`;
+}
+
 export function embeddedPhotoData(value) {
   if (typeof value !== "string" || value.length > 14 * 1024 * 1024) return null;
   const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(value);

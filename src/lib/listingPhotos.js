@@ -12,7 +12,8 @@ export function isListingImageUrl(value) {
   if (typeof value !== "string") return false;
   return /^data:image\/(?:jpeg|png|webp);base64,/i.test(value)
     || /^https:\/\/[^\s]+$/i.test(value)
-    || /^\/api\/listing-cover\?listingId=[1-9]\d*$/.test(value);
+    || /^\/api\/listing-cover\?listingId=[1-9]\d*$/.test(value)
+    || /^\/api\/listing-photo\?listingId=[1-9]\d*(?:&photo=[1-5])?$/.test(value);
 }
 
 export const ALLOWED_LISTING_PHOTO_TYPES = Object.freeze({

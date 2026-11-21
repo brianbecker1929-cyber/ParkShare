@@ -12,8 +12,8 @@ test("anonymous parking uses server projection, not raw Supabase or photos", asy
   const browse = app.slice(app.indexOf("function useAllListings()"),app.indexOf("function EventSubmissionForm("));
   assert.match(browse, /fetchPublicParkingPage\(/);
   assert.doesNotMatch(browse, /\.from\("listings"\)/);
-  assert.match(browse, /img: "🏠"/);
-  assert.match(browse, /locationPrecision: "approximate"/);
+  assert.match(browse, /img: isListingImageUrl\(row.img\)/);
+  assert.match(browse, /locationPrecision: row.locationPrecision/);
 });
 
 test("cover URLs use safe identifiers and cannot be arbitrary redirects", () => {

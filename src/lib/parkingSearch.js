@@ -1,4 +1,4 @@
-// Browse radius is measured from privacy-safe public coordinates, not a walking route.
+// Browse radius is measured from the listed driveway coordinates, not a walking route.
 export const PARKING_SEARCH_RADIUS_KM = 5;
 const MILES_TO_KM = 1.60934;
 
@@ -39,7 +39,7 @@ export function parkingSearchEmptyState({ query, origin, destinationSelected }) 
     return { title: "No parking matches your search", message: `No listings match “${query.trim()}”${origin ? ` within ${PARKING_SEARCH_RADIUS_KM} km of your location` : ""}. Choose a destination suggestion or try another search.` };
   }
   if (origin) {
-    return { title: "No parking nearby", message: `No listed parking was found within ${PARKING_SEARCH_RADIUS_KM} km of ${destinationSelected ? "this destination" : "your location"}. Try another destination or clear your search. Public locations and distances are approximate.` };
+    return { title: "No parking nearby", message: `No listed parking was found within ${PARKING_SEARCH_RADIUS_KM} km of ${destinationSelected ? "this destination" : "your location"}. Try another destination or clear your search.` };
   }
   return { title: "No parking matches your search", message: "Try another destination or clear your search." };
 }

@@ -4,7 +4,7 @@
 
 ## Drivers
 
-Review the listing, vehicle suitability, available times, Host instructions and the price before booking. Maps, current availability, payment and account features require JavaScript. Exact private parking details are provided through the authorized booking flow.
+Review the driveway photos, full street address, map location, vehicle suitability, available times and price before booking. Maps, current availability, payment and account features require JavaScript. Private access instructions and reservation details are provided through the authorized booking flow.
 
 ## Hosts
 
