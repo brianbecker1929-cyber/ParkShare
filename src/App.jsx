@@ -1,3 +1,6 @@
+import OwnershipDocumentStep from "./components/OwnershipDocumentStep.jsx";
+import HostApplicationsView from "./components/HostApplicationsView.jsx";
+import {canReviewHostApplications,submitHostApplication} from "./lib/hostApplication.js";
 import {CANCELLATION_REASONS} from "./lib/cancellationReasons.js";
 import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
 import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
@@ -255,6 +258,7 @@ function buildAppUser(profile, authUser) {
     email: authUser?.email || "",
     createdAt: authUser?.created_at || null,
     isParkShareStaff: authUser?.app_metadata?.parkshare_staff === true,
+    canReviewHostApplications: canReviewHostApplications(authUser),
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
@@ -4492,7 +4496,8 @@ function HostDashboard({ user, setTab }) {
         </div>
 
         {/* My Listings */}
-        <div id="host-dashboard-listings" className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
+        <HostApplicationsView key={user.id} client={supabase} user={user} compact />
+      <div id="host-dashboard-listings" className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
           <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>🏠 Your listings</div>
             {myListings.length > 3 && (
@@ -5227,7 +5232,7 @@ function ListDrivewayView({ user }) {
   const [photoError, setPhotoError] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const [publishing, setPublishing] = useState(false);
-  const publication = useMemo(() => createListingPublication({client: supabase, hostId: user?.id}), [user?.id]);
+  const publication = useMemo(() => createListingPublication({client: supabase, hostId: user?.id, submit: submitHostApplication, receiptPrefix: "parkshare:host-application"}), [user?.id]);
   const publicationRef = useRef(publication);
   publicationRef.current = publication;
   const [publicationPending, setPublicationPending] = useState(() => publication.pending);
@@ -5240,7 +5245,7 @@ function ListDrivewayView({ user }) {
     photoPreviewUrls.current.clear();
   }, []);
   const [form, setForm] = useState({
-    street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false,
+    street: "", city: "", region: "", postal: "", ownershipApplicationId: null,
     photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
     price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "",
     availability: createAvailabilityPreset("anytime"),
@@ -5280,6 +5285,7 @@ function ListDrivewayView({ user }) {
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
   const postalCheck = validateCanadianPostalCode(form.postal);
   const fullAddress = [form.street, form.city, [form.region, postalCheck.normalized || form.postal.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  useEffect(() => { setForm(current => ({...current,ownershipApplicationId:null})); }, [fullAddress, locationKey]);
 
   const searchAddress = (val) => {
     update("street", val);
@@ -5315,11 +5321,6 @@ function ListDrivewayView({ user }) {
     }, 350);
   };
   const chooseSuggestion = (s) => { setZoneRetry(n => n + 1); addressRequest.current++; addressAbort.current?.abort(); clearTimeout(debounceRef.current); setLoadingSug(false); const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng, spots: [] })); setSuggestions([]); };
-
-  const submitVerification = () => {
-    update("verifying", true);
-    setTimeout(() => setForm(f => ({ ...f, verifying: false, verified: true })), 1600);
-  };
 
   const addPhotos = (files) => {
     setPhotoError("");
@@ -5517,7 +5518,7 @@ function ListDrivewayView({ user }) {
     !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
     !hasListingCoordinates(form) && { label: "Select an address suggestion and confirm the driveway pin", step: 1 },
     hasListingCoordinates(form) && !propertyTimeZone && { label: zoneResult?.key === locationKey && zoneResult.error || "Confirming the property location…", step: 1 },
-    !form.verified && { label: "Complete ownership verification", step: 2 },
+    !form.ownershipApplicationId && { label: "Upload private ownership proof", step: 2 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
@@ -5538,8 +5539,8 @@ function ListDrivewayView({ user }) {
       return;
     }
     if (!publication.pending) {
-      if (!form.verified) {
-        setPublishError("Complete ownership verification before publishing.");
+      if (!form.ownershipApplicationId) {
+        setPublishError("Upload private ownership proof before publishing.");
         setStep(2);
         return;
       }
@@ -5577,6 +5578,7 @@ function ListDrivewayView({ user }) {
     setPublishing(true);
     try {
       const saved = await publication.publish((photoUrls) => ({
+        applicationId: form.ownershipApplicationId,
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
         price: Number(form.price),
@@ -5617,17 +5619,17 @@ function ListDrivewayView({ user }) {
     setPhotoError("");
     setUploadProgress("");
     setSubmitted(false); setPublishedDetails(null); setStep(1);
-    setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
+    setForm({ street: "", city: "", region: "", postal: "", ownershipApplicationId: null, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
 
   if (publicationPending && !submitted) {
     return (
       <div style={{padding: 28, maxWidth: 560, margin: "0 auto", fontFamily: "Poppins, sans-serif"}}>
-        <h2 style={{color: C.navy}}>Check your listing publication</h2>
-        <p>Your previous publication has not been confirmed. Checking again safely resumes the same request and reuses its uploaded photos.</p>
-        <p>Check the result before editing or publishing another driveway. You can also view your Host Dashboard.</p>
+        <h2 style={{color: C.navy}}>Check your application</h2>
+        <p>Your previous application has not been confirmed. Check again to safely resume the same request using its uploaded photos.</p>
+        <p>Check the result before submitting another application. You can also view your Host Dashboard.</p>
         {publishError && <p role="alert" style={{color: C.red}}>{publishError}</p>}
-        <Btn variant="amber" onClick={publish} disabled={publishing}>{publishing ? "Checking…" : "Check publication"}</Btn>
+        <Btn variant="amber" onClick={publish} disabled={publishing}>{publishing ? "Checking…" : "Check application"}</Btn>
       </div>
     );
   }
@@ -5641,26 +5643,26 @@ function ListDrivewayView({ user }) {
             src="/william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
             srcSet="/william-v3/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v3/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
             sizes="110px"
-            alt="William celebrating a newly listed parking space"
+            alt="William thanking you for your Host application"
             style={{ height: 110, width: "auto", marginBottom: 16 }}
             loading="eager"
             decoding="async"
           />
         </div>
-        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
-        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{publishedDetails.address}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(publishedDetails.price)}/hr</strong>.</p>
-        <Btn onClick={resetAll}>List another driveway</Btn>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>Application submitted</h2>
+        <p style={{ color: C.muted, marginBottom: 24 }}>Your application for <strong>{publishedDetails.address}</strong> has been received. Your listing is not live yet. ParkShare staff must approve it, and Stripe payment setup must be complete, before it can be published.</p>
+        <p><a href="/host-dashboard">View your application and payment setup in the Host Dashboard →</a></p>
+        <Btn onClick={resetAll}>Apply for another driveway</Btn>
       </div>
     );
   }
 
   const steps = [{ label: "Location", num: 1 }, { label: "Verify", num: 2 }, { label: "Photos", num: 3 }, { label: "Spots", num: 4 }, { label: "Details", num: 5 }, { label: "Availability", num: 6 }, { label: "Pricing", num: 7 }, { label: "Preview", num: 8 }];
-  const docTypes = [{ v: "tax", l: "Property tax bill" }, { v: "mortgage", l: "Mortgage statement" }, { v: "utility", l: "Utility bill" }, { v: "license", l: "Driver's license" }, { v: "bank", l: "Bank statement" }];
 
   return (
     <div style={{ padding: "24px 28px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 6 }}>List your driveway</h2>
-      <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Earn extra income from your empty driveway. We verify ownership to keep the marketplace trustworthy.</p>
+      <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Complete every step to apply. ParkShare staff must approve your application before your driveway can go live.</p>
 
       {/* Progress */}
       <div style={{ display: "flex", gap: 0, marginBottom: 10 }}>
@@ -5730,33 +5732,14 @@ function ListDrivewayView({ user }) {
         </div>
       )}
 
-      {/* Step 2: Ownership verification */}
+      {/* Step 2: Private ownership proof; approval happens after the complete application is submitted. */}
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>To protect renters, we confirm you own or manage this property before your listing goes live.</p>
-          <div><label style={labelStyle}>Proof of ownership document</label>
-            <select style={inputStyle} value={form.docType} onChange={e => update("docType", e.target.value)}>
-              {docTypes.map(d => <option key={d.v} value={d.v}>{d.l}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Upload document</label>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, border: "1.5px dashed "+C.concrete, borderRadius: 10, padding: "14px 16px", cursor: "pointer", background: C.warmWhite }}>
-              <span style={{ fontSize: 20 }}>📄</span>
-              <span style={{ fontSize: 13, color: form.ownerFileName ? C.navy : C.muted, fontWeight: form.ownerFileName ? 700 : 400 }}>{form.ownerFileName || "Choose a file (PDF or image)…"}</span>
-              <input type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={e => e.target.files[0] && update("ownerFileName", e.target.files[0].name)} />
-            </label>
-          </div>
-          {!form.verified ? (
-            <Btn variant="amber" onClick={submitVerification} disabled={!form.ownerFileName || form.verifying} full>
-              {form.verifying ? "Verifying…" : "Submit for verification"}
-            </Btn>
-          ) : (
-            <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.moss, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>✅ Ownership verified</div>
-          )}
+          <OwnershipDocumentStep key={`${user.id}:${fullAddress}:${locationKey}`} client={supabase} hostId={user.id} address={fullAddress} lat={form.lat} lng={form.lng}
+            applicationId={form.ownershipApplicationId} onUploaded={id => setForm(current => ({...current,ownershipApplicationId:id}))} />
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <Btn variant="pill" onClick={() => setStep(1)}>← Back</Btn>
-            <Btn onClick={() => goToStep(3)} disabled={!form.verified}>Continue →</Btn>
+            <Btn onClick={() => goToStep(3)} disabled={!form.ownershipApplicationId}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -6126,7 +6109,7 @@ function ListDrivewayView({ user }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div role="status" style={{ background: C.amberLight, border: "1.5px solid " + C.amber, borderRadius: 12, padding: "12px 14px", color: C.navy }}>
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 3 }}>👀 Preview mode — your listing is not live yet</div>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: C.muted }}>Review the same listing details Drivers will use to decide whether to book. Nothing is published until you press <strong style={{ color: C.navy }}>Publish listing</strong>.</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: C.muted }}>Review the same listing details Drivers will use to decide whether to book. Your listing stays private after you submit. ParkShare staff must approve it before it can go live. Send your completed application using <strong style={{ color: C.navy }}>Submit application</strong>.</div>
           </div>
 
           {previewIssues.length > 0 && (
@@ -6268,7 +6251,7 @@ function ListDrivewayView({ user }) {
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
             <Btn variant="pill" disabled={publishing} onClick={() => goToStep(7)}>← Back to edit</Btn>
-            <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
+            <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Submitting…" : "Submit application"}</Btn>
           </div>
         </div>
       )}
@@ -8188,9 +8171,10 @@ function DiscoverNav({ tab, onTabChange, signedIn = false }) {
 
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
-  const tabs = user?.role === "host"
+  const roleTabs = user?.role === "host"
     ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions", "Profile"]
     : ["Browse", "Discover", "My Bookings", "Messages", "Transactions", "Profile"];
+  const tabs = user?.canReviewHostApplications ? [...roleTabs, "Host approvals"] : roleTabs;
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -12225,9 +12209,10 @@ export default function App() {
           {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && user?.role === "host" && <HostProfileView key={user.id} user={user} client={supabase} onProfileUpdated={profile => setUser(current => current?.id === profile.id && current.role === "host" ? { ...current, ...profile } : current)} />}
           {tab === "Profile" && user?.role !== "host" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
-          {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
+          {tab === "List Your Driveway" && requireHost(<ListDrivewayView key={user?.id} user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
+          {tab === "Host approvals" && requireAuth(user?.canReviewHostApplications ? <HostApplicationsView key={user.id} client={supabase} user={user} review /> : <p role="alert">Sign in with the ParkShare approval account to review Host applications.</p>, "Sign in to review Host applications.")}
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key={"driver:" + user?.id} user={user} />
             : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}

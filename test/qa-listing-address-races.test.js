@@ -7,7 +7,7 @@ import {createAvailabilityPreset,normalizeAvailability} from '../src/lib/listing
 const app=readFileSync(new URL('../src/App.jsx',import.meta.url),'utf8');
 const root=app.indexOf('function ListDrivewayView(');
 const update=app.slice(app.indexOf('  const update = ',root),app.indexOf('  const inputStyle = ',root));
-const search=app.slice(app.indexOf('  const searchAddress = ',root),app.indexOf('  const submitVerification = ',root));
+const search=app.slice(app.indexOf('  const searchAddress = ',root),app.indexOf('  const addPhotos = ',root));
 const deferred=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {resolve,promise};};
 function harness(){
  let form={street:'Original',city:'Toronto',region:'ON',postal:'M5V 2T6',lat:43.65,lng:-79.38,spots:[{forRent:true}],availability:createAvailabilityPreset()},suggestions=[],loading=false;

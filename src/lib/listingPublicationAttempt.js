@@ -6,9 +6,9 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 // A tab-scoped receipt survives reload without storing a token or photo blobs.
 // Keep it until the server confirms a result. A retry uses the exact saved body.
 export function createListingPublication({client,hostId,storage,fetcher=fetch,
-  upload=uploadListingPhotos,remove=removeUploadedListingPhotos,
+  upload=uploadListingPhotos,remove=removeUploadedListingPhotos,submit=publishHostListing,receiptPrefix="parkshare:listing-publication",
   randomId=()=>globalThis.crypto.randomUUID()}){
-  const key=`parkshare:listing-publication:${hostId}`;
+  const key=`${receiptPrefix}:${hostId}`;
   let pending=null,inFlight=null,recoveryError=null;
   try{
     storage=storage===undefined?globalThis.sessionStorage:storage;
@@ -37,7 +37,7 @@ export function createListingPublication({client,hostId,storage,fetcher=fetch,
     }
     const receipt=pending;
     try{
-      const listing=await publishHostListing(client,receipt.payload,fetcher,hostId);
+      const listing=await submit(client,receipt.payload,fetcher,hostId);
       clear();
       return {...listing,address:receipt.payload.address,price:receipt.payload.price,
         spaces:receipt.payload.spots.filter(spot=>spot.forRent).length};

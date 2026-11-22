@@ -60,8 +60,7 @@ test('HTTP replay returns committed publication without revalidating now-past da
 test('HTTP conflict and deletion results cannot authorize cleanup or reinsertion',async()=>{
  for(const [code,status] of [['P0061',409],['P0062',410]]){const result=await routeResult({rpc:async()=>({error:{code}})});assert.equal(result.code,status);assert.notEqual(result.body.safeToDiscard,true);}
 });
-test('validation rejection is committed before cleanup is allowed; a racing success is returned instead',async()=>{
- for(const saved of [{rejected:true,error:'Past date'},{id:55,timeZone:'America/Toronto',replayed:true}]){
-  let calls=0;const result=await routeResult({resolve:()=> 'America/Toronto',rpc:async(name,args)=>{calls++;if(calls===1)return {data:null};assert.equal(args.p_rejection,'Past date');return {data:saved};}});assert.equal(calls,2);assert.equal(result.code,saved.rejected?400:200);assert.equal(result.body.safeToDiscard===true,Boolean(saved.rejected));
- }
+test('old publish requests are blocked after replay lookup without inserts or photo cleanup',async()=>{
+ let calls=0;const result=await routeResult({rpc:async(name,args)=>{calls++;assert.equal(args.p_listing,null);assert.equal(args.p_rejection,null);return {data:null};}});
+ assert.equal(calls,1);assert.equal(result.code,409);assert.equal(result.body.code,'host_application_required');assert.notEqual(result.body.safeToDiscard,true);
 });

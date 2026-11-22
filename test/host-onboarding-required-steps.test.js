@@ -22,11 +22,11 @@ function text(node){return typeof node==='string'||typeof node==='number'?String
 function harness({mapKey=''}={}){
   const state=[],refs=[],published=[];let stateCursor=0,refCursor=0;
   const journal={pending:false,publish:async()=>{published.push(true);throw Error('No real publication in this test');}};
-  const deps={React,MAP_KEY:mapKey,C:{},supabase:{},createListingPublication:()=>journal,
+  const deps={submitHostApplication:()=>{},React,MAP_KEY:mapKey,C:{},supabase:{},createListingPublication:()=>journal,
     hasListingCoordinates,changeListingAddress,validateCanadianPostalCode,AVAILABILITY_DAYS,createAvailabilityPreset,normalizeAvailability,
     formatAvailabilitySummary,hasAnyAvailability,validateHostAvailabilityExceptions,validateHourlyRate,NEW_LISTING_MAX_HOURLY_RATE_CAD,
     MAX_LISTING_PHOTOS:6,PriceTag:'price-tag',DrivewaySpotPreview:'spot-preview',Btn:'button',Badge:'span',ParkerTip:'aside',PinAdjustMap:'pin-map',SpotMapBoundary:'map-boundary',
-    DrivewaySpotSatelliteMap:'satellite-picker',DrivewaySpotMap:'spot-picker',ListingFeatureFields:'feature-fields',ListingSatelliteView:'satellite-preview',
+    DrivewaySpotSatelliteMap:'satellite-picker',DrivewaySpotMap:'spot-picker',ListingFeatureFields:'feature-fields',OwnershipDocumentStep:'ownership-proof',ListingSatelliteView:'satellite-preview',
     money:value=>`$${Number(value).toFixed(2)}`,useEffect:()=>{},useCallback:fn=>fn,useMemo:fn=>fn(),
     useState:initial=>{const i=stateCursor++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return [state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value;}];},
     useRef:initial=>{const i=refCursor++;return refs[i]??=( {current:initial} );}};
@@ -38,7 +38,7 @@ function harness({mapKey=''}={}){
   return {render,get,set,published,form:patch=>set('form',{...get('form'),...patch}),
     button:label=>{const found=nodes(render(),n=>n.type==='button'&&text(n)===label)[0];assert.ok(found,`Button ${label}`);return found;},
     ready(){this.form({street:'123 Test Street',city:'Toronto',region:'Ontario',postal:'M5V 2T6',lat:43.65,lng:-79.38,
-      verified:true,ownerFileName:'synthetic.pdf',photos:[{name:'driveway.jpg',url:'blob:synthetic'}],price:'4'});set('zoneResult',{key:'43.65:-79.38',timeZone:'America/Toronto'});}};
+      ownershipApplicationId:'00000000-0000-4000-8000-000000000001',photos:[{name:'driveway.jpg',url:'blob:synthetic'}],price:'4'});set('zoneResult',{key:'43.65:-79.38',timeZone:'America/Toronto'});}};
 }
 
 test('all eight screens have no beta skip or duplicate default-availability shortcut',()=>{
@@ -52,9 +52,9 @@ test('location cannot advance without an address, selected map coordinates and c
   h.ready();next=h.button('Continue →');assert.equal(next.props.disabled,false);next.props.onClick();assert.equal(h.get('step'),2);
 });
 test('verification cannot be bypassed through Continue or preview publication',async()=>{
-  const h=harness();h.ready();h.form({verified:false});h.set('step',2);
+  const h=harness();h.ready();h.form({ownershipApplicationId:null});h.set('step',2);
   const next=h.button('Continue →');assert.equal(next.props.disabled,true);next.props.onClick();assert.equal(h.get('step'),2);
-  h.set('step',8);const publish=h.button('Publish listing');assert.equal(publish.props.disabled,true);await publish.props.onClick();assert.equal(h.get('step'),2);assert.deepEqual(h.published,[]);
+  h.set('step',8);const publish=h.button('Submit application');assert.equal(publish.props.disabled,true);await publish.props.onClick();assert.equal(h.get('step'),2);assert.deepEqual(h.published,[]);
 });
 test('photos and rentable spaces are mandatory before advancing',()=>{
   const h=harness();h.ready();h.form({photos:[]});h.set('step',3);let next=h.button('Continue →');assert.equal(next.props.disabled,true);next.props.onClick();assert.equal(h.get('step'),3);
@@ -70,5 +70,5 @@ test('invalid availability and price cannot advance; corrected required steps re
   h.form({availability:unavailable});let next=h.button('Continue →');assert.equal(next.props.disabled,true);next.props.onClick();assert.equal(h.get('step'),6);
   h.form({availability:createAvailabilityPreset()});h.button('Continue →').props.onClick();assert.equal(h.get('step'),7);
   h.form({price:'0'});next=h.button('Preview listing →');assert.equal(next.props.disabled,true);next.props.onClick();assert.equal(h.get('step'),7);
-  h.form({price:'4'});h.button('Preview listing →').props.onClick();assert.equal(h.get('step'),8);assert.equal(h.button('Publish listing').props.disabled,false);
+  h.form({price:'4'});h.button('Preview listing →').props.onClick();assert.equal(h.get('step'),8);assert.equal(h.button('Submit application').props.disabled,false);
 });

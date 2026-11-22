@@ -1,6 +1,7 @@
 export const SITE_ORIGIN = "https://www.myparkshare.ca";
 
 const ROUTES = [
+  {path:"/host-applications",screen:"app",tab:"Host approvals",title:"Host Application Approvals | ParkShare",description:"Privately review ParkShare Host applications.",private:true},
   {
     path: "/",
     screen: "landing",
