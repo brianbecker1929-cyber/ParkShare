@@ -20,16 +20,23 @@ before(async()=>{
  create table public.listings(id bigserial primary key,host_id uuid references public.profiles(id),title text,address text,price numeric,spaces integer,features text[],img text,lat double precision,lng double precision,created_at timestamptz default now(),spots jsonb,photos jsonb,description text,availability jsonb,time_zone text,is_paused boolean default false);
  create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
  create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text,metadata jsonb);
- grant usage on schema public,auth,storage,parkshare_private to service_role;grant all on all tables in schema public,auth,storage to service_role;grant usage on all sequences in schema public to service_role;
+ grant usage on schema public,auth,storage,parkshare_private to service_role;grant all on all tables in schema public,storage to service_role;grant usage on all sequences in schema public to service_role;
  insert into auth.users(id,email,email_confirmed_at) values('${HOST}','host@example.invalid',now()),('${OTHER}','other@example.invalid',now()),('${STAFF}','info@myparkshare.ca',now());
  insert into public.profiles(id,name,email,role,stripe_account_id,stripe_onboarding_complete,stripe_charges_enabled,stripe_payouts_enabled) values('${HOST}','Synthetic Host','host@example.invalid','host','acct_synthetic',true,true,true),('${OTHER}','Synthetic Other','other@example.invalid','host',null,false,false,false),('${STAFF}','Synthetic Reviewer','info@myparkshare.ca','driver',null,false,false,false);
  insert into public.listings(host_id,title,address)values('${HOST}','Legacy preserved','Legacy');`);
  await db.exec('begin;'+readFileSync(new URL('../../supabase/migrations/20261122163447_host_listing_applications_staff_approval.sql',import.meta.url),'utf8')+'commit;');
+ await db.exec('begin;'+readFileSync(new URL('../../supabase/migrations/20261122164153_host_application_service_identity_access.sql',import.meta.url),'utf8')+'commit;');
 });
 after(async()=>{await db?.close();});beforeEach(async()=>{await db.exec('begin');});afterEach(async()=>{await db.exec('rollback');});
 test('new private document bucket and staff application tables are inaccessible to browser roles',async()=>{
  const b=(await db.query("select public from storage.buckets where id='host-ownership-documents'")).rows[0];assert.equal(b.public,false);
  for(const role of ['anon','authenticated']){const q=(await db.query(`select has_table_privilege('${role}','parkshare_private.host_listing_applications','SELECT') as table_read,has_function_privilege('${role}','public.host_listing_application(text,uuid,uuid,jsonb)','EXECUTE') as execute,has_table_privilege('${role}','public.listings','INSERT') as insert`)).rows[0];assert.deepEqual(q,{table_read:false,execute:false,insert:false});}
+});
+test('service-only application RPC verifies identities without granting service_role raw Auth table access',async()=>{
+ assert.equal((await db.query("select has_table_privilege('service_role','auth.users','SELECT') allowed")).rows[0].allowed,false);
+ await db.exec('set local role service_role');
+ try{assert.deepEqual(await rpc('list',HOST),[]);assert.deepEqual(await rpc('list',STAFF,null,{review:true,status:'submitted'}),[]);}
+ finally{await db.exec('reset role');}
 });
 test('draft and submitted applications never create public listings; incomplete proof is rejected',async()=>{
  const a=await draft();await denied(()=>rpc('submit',HOST,a.id,{propertyKey:KEY,requestId:REQUEST,hash:HASH,listing:payload()}),'22023');
