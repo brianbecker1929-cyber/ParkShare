@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {canReviewHostApplications} from '../src/lib/hostApplication.js';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {normaliseDriverProfile,getDriverProfileCompletion} from '../src/lib/driverProfile.js';
@@ -7,7 +8,7 @@ const source=await readFile(process.env.QA_ACCOUNT_HYDRATION_SOURCE||new URL('..
 const createAuthSessionSynchronizer=new Function(source.replace('export function','function')+';return createAuthSessionSynchronizer;')();
 const app=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
 const builderStart=app.indexOf('function buildAppUser('),builderEnd=app.indexOf('// Guards the new satellite',builderStart);
-const buildAppUser=new Function('normaliseDriverProfile','getDriverProfileCompletion',app.slice(builderStart,builderEnd)+';return buildAppUser;')(normaliseDriverProfile,getDriverProfileCompletion);
+const buildAppUser=new Function('canReviewHostApplications','normaliseDriverProfile','getDriverProfileCompletion',app.slice(builderStart,builderEnd)+';return buildAppUser;')(canReviewHostApplications,normaliseDriverProfile,getDriverProfileCompletion);
 const session=(id='A',metadata={})=>({access_token:'synthetic-'+id,user:{id,email:id+'@example.invalid',user_metadata:metadata}});
 const profile=(id='A',role='driver')=>({data:{id,name:'Synthetic '+id,role},error:null});
 const later=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});promise.catch(()=>{});return {promise,resolve,reject};};

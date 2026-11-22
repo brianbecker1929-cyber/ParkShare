@@ -105,7 +105,7 @@ test('a failed initial read has an explicit reload path, while a non-Host compon
 
 test('Host Profile navigation and the real root callback preserve identity/role isolation', async () => {
   const app = await readFile(process.env.QA_HOST_PROFILE_APP || new URL('../src/App.jsx', import.meta.url), 'utf8');
-  const start = app.indexOf('  const tabs =', app.indexOf('function Header(')), end = app.indexOf('  // The compact', start);
+  const start = app.indexOf('  const roleTabs =', app.indexOf('function Header(')), end = app.indexOf('  // The compact', start);
   const tabs = new Function('user', app.slice(start, end) + ';return tabs;');
   assert.ok(tabs(user()).includes('Profile')); assert.ok(tabs(user('A', 'driver')).includes('Profile'));
   const tag = app.match(/<HostProfileView\b[\s\S]*?\/>/)[0], built = await transform('function Parent(){return ' + tag + ';}', {loader: 'jsx'});

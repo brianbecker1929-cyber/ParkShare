@@ -1,7 +1,6 @@
 // Host-only publishing: timezone and ownership are derived on the server.
 import {jsonMethod,requireUser,supabaseAdmin} from './_lib.js';
 import {resolveListingTimeZone} from './_listing-time-zone.js';
-import {hostListingRow} from './_host-listing.js';
 import {listingPublicationIdentity} from './_listing-publication.js';
 export default async function handler(req,res){
   res.setHeader('Cache-Control','private, no-store');
@@ -31,16 +30,8 @@ export default async function handler(req,res){
       :res.status(listing.replayed?200:201).json({listing});
     const existing=await publish(null);
     if(existing)return respond(existing);
-    let row;
-    try{
-      const timeZone=resolveListingTimeZone(req.body);
-      row=hostListingRow(req.body,user.id,timeZone,process.env.SUPABASE_URL||process.env.VITE_SUPABASE_URL);
-    }catch(error){
-      if(error instanceof RangeError)return respond(await publish(null,error.message));
-      throw error;
-    }
-    const listing=await publish(row);
-    return respond(listing);
+    return res.status(409).json({error:'New listings require a completed application and ParkShare staff approval. Refresh the page to submit your application.',code:'host_application_required'});
+
   }catch(error){
     if(error?.code==='P0061')return res.status(409).json({error:'This publication request belongs to different listing details. Check your Host Dashboard before continuing.'});
     if(error?.code==='P0062')return res.status(410).json({error:'This listing was already published and has since been deleted. It will not be published again.',publicationDeleted:true});

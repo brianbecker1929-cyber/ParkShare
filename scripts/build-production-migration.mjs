@@ -6,6 +6,9 @@ const root=new URL('../',import.meta.url),base=new URL('deployment/production-da
 // Runtime integration source: accepted QA + clock-change repair + durable alerts.
 // Package-only commits follow this immutable application source.
 const SOURCE_COMMIT='1e959342d56c5b15118e73edd51d3d14ea3691fa';
+// Keep the approved November 18 cutover package immutable. Later additive
+// migrations ship separately and must not be folded into its historical replay.
+const LAST_CUTOVER_MIGRATION='20261118235959_';
 const sha=s=>createHash('sha256').update(s).digest('hex');
 const sources=[
  'supabase-migration-010-preserve-bookings-on-listing-delete.sql',
@@ -13,7 +16,7 @@ const sources=[
  'supabase-migration-012-host-role-listings-rls.sql',
  'supabase-migration-013-listing-photos-storage.sql',
  ...['bug-005118-unpaid-hold-rate-limits.sql','qa-atomic-extensions-and-refunds.sql','bug-005156-property-local-canonical-bookings.sql','bug-005136-listing-postal-validation.sql','bug-005137-hourly-price-constraint.sql','bug-005138-future-exceptions.sql','qa-verified-reviews.sql','bug-005183-restrict-public-data-api.sql','qa-account-deletion-booking-retention.sql','qa-private-messages-rls.sql'].map(f=>'docs/sql-proposals/'+f),
- ...(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')&&f>'20261019135322_betterqa_verified_listing_zones_oct19.sql').sort().map(f=>'supabase/migrations/'+f),
+ ...(await readdir(new URL('supabase/migrations/',root))).filter(f=>f.endsWith('.sql')&&f>'20261019135322_betterqa_verified_listing_zones_oct19.sql'&&f<LAST_CUTOVER_MIGRATION).sort().map(f=>'supabase/migrations/'+f),
  'docs/sql-proposals/qa-message-notifications-005536.sql',
  'docs/sql-proposals/payment-emergency-alert-outbox.sql'
 ];

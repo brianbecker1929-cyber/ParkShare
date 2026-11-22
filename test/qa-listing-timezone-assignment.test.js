@@ -53,13 +53,10 @@ test('anonymous, Driver and wrong-method requests never publish even with forged
  for(const opts of [{anonymous:true},{role:'driver'},{role:null}]){const r=route(opts),res=await r.run(payload());assert.equal(res.code,opts.anonymous?401:403);assert.equal(r.writes.length,0);}
  const r=route();assert.equal((await r.run(payload(),'GET')).code,405);assert.equal(r.writes.length,0);
 });
-test('Host preview performs no writes; publishing independently recomputes its zone',async()=>{
+test('Host location preview performs no writes; legacy publication requires staff application approval',async()=>{
  const r=route();assert.deepEqual((await r.run({preview:true,lat:46.77,lng:23.59,time_zone:'America/Toronto'})).body,{timeZone:'Europe/Bucharest'});assert.equal(r.writes.length,0);
- const res=await r.run({...payload(),time_zone:'Asia/Tokyo'});assert.equal(res.code,201);assert.equal(r.writes[0].time_zone,'America/Toronto');
- const invalid=route();assert.equal((await invalid.run({...payload(),lat:null})).code,400);assert.equal(invalid.writes.length,0);
-});
-test('database insert failure is actionable and does not claim success',async()=>{
- const r=route({dbError:{code:'57014'}});const res=await r.run(payload());assert.equal(res.code,503);assert.match(res.body.error,/Check your Host Dashboard/);
+ const res=await r.run({...payload(),time_zone:'Asia/Tokyo'});assert.equal(res.code,409);assert.equal(res.body.code,'host_application_required');assert.equal(r.writes.length,0);
+ const invalid=route();assert.equal((await invalid.run({preview:true,lat:null,lng:null})).code,400);assert.equal(invalid.writes.length,0);
 });
 test('frontend publishes only with an authenticated bearer token and handles uncertain outcomes without photo deletion',async()=>{
  let request;const listing=await publishHostListing(client,payload(),async(url,options)=>{request={url,options};return Response.json({listing:{id:123,timeZone:'America/Toronto'}},{status:201});});

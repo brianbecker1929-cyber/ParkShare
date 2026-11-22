@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
 
 test("Driver navigation exposes personal transactions without Host management pages", () => {
-  const start = app.indexOf("  const tabs = user?.role === \"host\"");
+  const start = app.indexOf("  const roleTabs = user?.role === \"host\"");
   assert.notEqual(start, -1);
   const snippet = app.slice(start, app.indexOf(";", start) + 1);
   const driverTabs = snippet.split(":")[1];
@@ -25,4 +25,13 @@ test("Host-only pages are guarded even on direct route navigation", () => {
 test("Public Host information remains accessible without Host permission", () => {
   assert.match(app, /screen === "host" \? \(/);
   assert.match(app, /<HostPage/);
+});
+
+test("only an authenticated approval account receives the Host approvals navigation item",()=>{
+ const start=app.indexOf('  const roleTabs = user?.role === "host"');
+ const end=app.indexOf(';',app.indexOf('  const tabs = user?.canReviewHostApplications',start))+1;
+ const navigation=new Function('user',app.slice(start,end)+';return tabs;');
+ assert.equal(navigation({role:'driver'}).includes('Host approvals'),false);
+ assert.equal(navigation({role:'host'}).includes('Host approvals'),false);
+ assert.equal(navigation({role:'driver',canReviewHostApplications:true}).includes('Host approvals'),true);
 });

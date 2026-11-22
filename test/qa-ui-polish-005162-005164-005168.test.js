@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {canReviewHostApplications} from '../src/lib/hostApplication.js';
 import {readFile} from 'node:fs/promises';
 import {test} from 'node:test';
 import React from 'react';
@@ -13,7 +14,7 @@ async function component(name,end,deps={}){
  const compiled=await transform(source,{loader:'jsx',jsx:'transform'});
  return new Function('deps',`const {${Object.keys(deps)}}=deps;${compiled.code};return ${name};`)(deps);
 }
-const build=await component('buildAppUser','// Guards',{normaliseDriverProfile,getDriverProfileCompletion});
+const build=await component('buildAppUser','// Guards',{normaliseDriverProfile,getDriverProfileCompletion,canReviewHostApplications});
 const welcome=app.slice(app.indexOf('{/* Welcome banner */}'),app.indexOf('{/* Content-sized responsive grid'));
 const compiled=await transform(`function Welcome({user}){return <div>${welcome}</div>;}`,{loader:'jsx'});
 const Welcome=new Function('React','C','setTab',compiled.code+';return Welcome;')(React,{},()=>{});

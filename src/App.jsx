@@ -1,3 +1,6 @@
+import OwnershipDocumentStep from "./components/OwnershipDocumentStep.jsx";
+import HostApplicationsView from "./components/HostApplicationsView.jsx";
+import {canReviewHostApplications,submitHostApplication} from "./lib/hostApplication.js";
 import {CANCELLATION_REASONS} from "./lib/cancellationReasons.js";
 import {createHostListingJournal, listingEditMatches, listingSettingsMatch} from "./lib/hostListingState.js";
 import ListingAvailabilityEditor from "./components/ListingAvailabilityEditor.jsx";
@@ -255,6 +258,7 @@ function buildAppUser(profile, authUser) {
     email: authUser?.email || "",
     createdAt: authUser?.created_at || null,
     isParkShareStaff: authUser?.app_metadata?.parkshare_staff === true,
+    canReviewHostApplications: canReviewHostApplications(authUser),
     role: profile?.role || metadata.role || "driver",
     phone: driverProfile.phone,
     vehicleDetails: driverProfile.vehicleDetails,
@@ -274,7 +278,7 @@ function buildAppUser(profile, authUser) {
 class SpotMapBoundary extends Component {
   constructor(props) { super(props); this.state = { hasError: false }; }
   static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(error, info) { console.error("Satellite spot view crashed — falling back:", error, info); }
+  componentDidCatch(error, info) { console.error("Satellite spot view crashed — falling back:", error, info); this.props.onFallback?.(); }
   render() { return this.state.hasError ? this.props.fallback : this.props.children; }
 }
 
@@ -4492,7 +4496,8 @@ function HostDashboard({ user, setTab }) {
         </div>
 
         {/* My Listings */}
-        <div id="host-dashboard-listings" className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
+        <HostApplicationsView key={user.id} client={supabase} user={user} compact />
+      <div id="host-dashboard-listings" className="host-dashboard-panel host-dashboard-listings" style={{ background: C.white, border: "1px solid "+C.concrete, borderRadius: 14, overflow: "visible", display: "flex", flexDirection: "column", scrollMarginTop: 112 }}>
           <div className="host-dashboard-panel-heading" style={{ minHeight: 50, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 15px", borderBottom: "2px solid "+C.amber }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: C.navy }}>🏠 Your listings</div>
             {myListings.length > 3 && (
@@ -5065,7 +5070,7 @@ const SPOT_FILL_PRIVATE = "rgba(28,43,57,0.35)"; // navy — private / not for r
 const SPOT_STROKE_RENT = "#3F7A5E";
 const SPOT_STROKE_PRIVATE = "#0E1B2E";
 
-function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRemoveSpot, maxSpots = 8 }) {
+function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRemoveSpot, onUnavailable, maxSpots = 8 }) {
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
@@ -5089,6 +5094,7 @@ function DrivewaySpotSatelliteMap({ center, spots, onAddSpot, onToggleSpot, onRe
   const changeDraft = next => { drawingRef.current = next; setDraft(next); setDrawError(""); };
   useEffect(() => { changeDraft(null); }, [locationKey, maxSpots]);
   useEffect(() => () => { drawingRef.current = null; mapRef.current = null; }, []);
+  useEffect(() => { if (loadError) onUnavailable?.(); }, [loadError, onUnavailable]);
 
   const chooseCorner = latLng => {
     const current = drawingRef.current, context = latest.current;
@@ -5226,7 +5232,7 @@ function ListDrivewayView({ user }) {
   const [photoError, setPhotoError] = useState("");
   const [uploadProgress, setUploadProgress] = useState("");
   const [publishing, setPublishing] = useState(false);
-  const publication = useMemo(() => createListingPublication({client: supabase, hostId: user?.id}), [user?.id]);
+  const publication = useMemo(() => createListingPublication({client: supabase, hostId: user?.id, submit: submitHostApplication, receiptPrefix: "parkshare:host-application"}), [user?.id]);
   const publicationRef = useRef(publication);
   publicationRef.current = publication;
   const [publicationPending, setPublicationPending] = useState(() => publication.pending);
@@ -5239,15 +5245,18 @@ function ListDrivewayView({ user }) {
     photoPreviewUrls.current.clear();
   }, []);
   const [form, setForm] = useState({
-    street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false,
+    street: "", city: "", region: "", postal: "", ownershipApplicationId: null,
     photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [],
     price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "",
     availability: createAvailabilityPreset("anytime"),
   });
+  const [spotMapUnavailable, setSpotMapUnavailable] = useState(false);
+  const handleSpotMapUnavailable = useCallback(() => { setSpotMapUnavailable(true); setForm(current => ({...current, spots: []})); }, []);
   const [zoneResult, setZoneResult] = useState(null);
   const [zoneRetry, setZoneRetry] = useState(0);
   const locationKey = hasListingCoordinates(form) ? `${form.lat}:${form.lng}` : "";
   const propertyTimeZone = zoneResult?.key === locationKey ? zoneResult.timeZone : null;
+  useEffect(() => { setSpotMapUnavailable(false); }, [locationKey]);
   useEffect(() => {
     if (!locationKey) return;
     const controller = new AbortController();
@@ -5276,6 +5285,7 @@ function ListDrivewayView({ user }) {
   const labelStyle = { fontSize: 12, color: C.muted, display: "block", marginBottom: 6, fontWeight: 600 };
   const postalCheck = validateCanadianPostalCode(form.postal);
   const fullAddress = [form.street, form.city, [form.region, postalCheck.normalized || form.postal.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  useEffect(() => { setForm(current => ({...current,ownershipApplicationId:null})); }, [fullAddress, locationKey]);
 
   const searchAddress = (val) => {
     update("street", val);
@@ -5311,11 +5321,6 @@ function ListDrivewayView({ user }) {
     }, 350);
   };
   const chooseSuggestion = (s) => { setZoneRetry(n => n + 1); addressRequest.current++; addressAbort.current?.abort(); clearTimeout(debounceRef.current); setLoadingSug(false); const code = validateCanadianPostalCode(s.postal); setForm(f => ({ ...f, street: s.street, city: s.city, region: s.region, postal: code.normalized || String(s.postal || ""), lat: s.lat, lng: s.lng, spots: [] })); setSuggestions([]); };
-
-  const submitVerification = () => {
-    update("verifying", true);
-    setTimeout(() => setForm(f => ({ ...f, verifying: false, verified: true })), 1600);
-  };
 
   const addPhotos = (files) => {
     setPhotoError("");
@@ -5488,7 +5493,8 @@ function ListDrivewayView({ user }) {
     };
   });
 
-  const rentableSpotCount = form.selectedSpots.filter(Boolean).length;
+  const useSatelliteSpotPicker = Boolean(hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY && !spotMapUnavailable);
+  const rentableSpotCount = useSatelliteSpotPicker ? form.spots.filter(spot => spot.forRent).length : form.selectedSpots.filter(Boolean).length;
   const normalizedAvailability = normalizeAvailability(form.availability);
   const exceptionDateValidation = validateHostAvailabilityExceptions(normalizedAvailability);
   const availabilitySummary = formatAvailabilitySummary(normalizedAvailability);
@@ -5512,12 +5518,17 @@ function ListDrivewayView({ user }) {
     !postalCheck.valid && { label: "Enter a valid Canadian postal code (A1A 1A1)", step: 1 },
     !hasListingCoordinates(form) && { label: "Select an address suggestion and confirm the driveway pin", step: 1 },
     hasListingCoordinates(form) && !propertyTimeZone && { label: zoneResult?.key === locationKey && zoneResult.error || "Confirming the property location…", step: 1 },
+    !form.ownershipApplicationId && { label: "Upload private ownership proof", step: 2 },
     form.photos.length < 1 && { label: "Add at least one driveway photo", step: 3 },
     rentableSpotCount < 1 && { label: "Mark at least one driveway space as available", step: 4 },
     !hasAnyAvailability(normalizedAvailability) && { label: "Make at least one time available", step: 6 },
     !exceptionDateValidation.valid && { label: exceptionDateValidation.issues[0].error, step: 6 },
     !validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid && { label: "Set a valid hourly rate", step: 7 },
   ].filter(Boolean);
+  const goToStep = nextStep => {
+    if (nextStep > step && previewIssues.some(issue => issue.step < nextStep)) return;
+    setStep(nextStep);
+  };
 
   const publish = async () => {
     if (publishing) return;
@@ -5528,6 +5539,11 @@ function ListDrivewayView({ user }) {
       return;
     }
     if (!publication.pending) {
+      if (!form.ownershipApplicationId) {
+        setPublishError("Upload private ownership proof before publishing.");
+        setStep(2);
+        return;
+      }
       const rate = validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD });
       if (!rate.valid) {
         setPublishError(rate.error);
@@ -5562,6 +5578,7 @@ function ListDrivewayView({ user }) {
     setPublishing(true);
     try {
       const saved = await publication.publish((photoUrls) => ({
+        applicationId: form.ownershipApplicationId,
         title: fullAddress ? "Driveway at " + form.street : "New driveway listing",
         address: fullAddress,
         price: Number(form.price),
@@ -5602,17 +5619,17 @@ function ListDrivewayView({ user }) {
     setPhotoError("");
     setUploadProgress("");
     setSubmitted(false); setPublishedDetails(null); setStep(1);
-    setForm({ street: "", city: "", region: "", postal: "", docType: "tax", ownerFileName: "", verifying: false, verified: false, verifySkipped: false, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
+    setForm({ street: "", city: "", region: "", postal: "", ownershipApplicationId: null, photos: [], totalSpots: 3, selectedSpots: [true, true, false], spots: [], price: "", covered: false, cctv: false, lighting: false, snowRemoval: false, evCharging: false, gated: false, description: "", availability: createAvailabilityPreset("anytime") });
   };
 
   if (publicationPending && !submitted) {
     return (
       <div style={{padding: 28, maxWidth: 560, margin: "0 auto", fontFamily: "Poppins, sans-serif"}}>
-        <h2 style={{color: C.navy}}>Check your listing publication</h2>
-        <p>Your previous publication has not been confirmed. Checking again safely resumes the same request and reuses its uploaded photos.</p>
-        <p>Check the result before editing or publishing another driveway. You can also view your Host Dashboard.</p>
+        <h2 style={{color: C.navy}}>Check your application</h2>
+        <p>Your previous application has not been confirmed. Check again to safely resume the same request using its uploaded photos.</p>
+        <p>Check the result before submitting another application. You can also view your Host Dashboard.</p>
         {publishError && <p role="alert" style={{color: C.red}}>{publishError}</p>}
-        <Btn variant="amber" onClick={publish} disabled={publishing}>{publishing ? "Checking…" : "Check publication"}</Btn>
+        <Btn variant="amber" onClick={publish} disabled={publishing}>{publishing ? "Checking…" : "Check application"}</Btn>
       </div>
     );
   }
@@ -5626,26 +5643,26 @@ function ListDrivewayView({ user }) {
             src="/william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp"
             srcSet="/william-v3/web/480px/ParkShare_William_11_Keys_Thumbs_Up-480.webp 480w, /william-v3/web/768px/ParkShare_William_11_Keys_Thumbs_Up-768.webp 768w, /william-v3/web/1122px/ParkShare_William_11_Keys_Thumbs_Up-1122.webp 1122w"
             sizes="110px"
-            alt="William celebrating a newly listed parking space"
+            alt="William thanking you for your Host application"
             style={{ height: 110, width: "auto", marginBottom: 16 }}
             loading="eager"
             decoding="async"
           />
         </div>
-        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>You're listed!</h2>
-        <p style={{ color: C.muted, marginBottom: 24 }}>Your driveway at <strong>{publishedDetails.address}</strong> — {rentable} spot{rentable !== 1 ? "s" : ""} for rent — is live at <strong style={{ color: C.amber }}>{money(publishedDetails.price)}/hr</strong>.</p>
-        <Btn onClick={resetAll}>List another driveway</Btn>
+        <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 26, marginBottom: 8 }}>Application submitted</h2>
+        <p style={{ color: C.muted, marginBottom: 24 }}>Your application for <strong>{publishedDetails.address}</strong> has been received. Your listing is not live yet. ParkShare staff must approve it, and Stripe payment setup must be complete, before it can be published.</p>
+        <p><a href="/host-dashboard">View your application and payment setup in the Host Dashboard →</a></p>
+        <Btn onClick={resetAll}>Apply for another driveway</Btn>
       </div>
     );
   }
 
   const steps = [{ label: "Location", num: 1 }, { label: "Verify", num: 2 }, { label: "Photos", num: 3 }, { label: "Spots", num: 4 }, { label: "Details", num: 5 }, { label: "Availability", num: 6 }, { label: "Pricing", num: 7 }, { label: "Preview", num: 8 }];
-  const docTypes = [{ v: "tax", l: "Property tax bill" }, { v: "mortgage", l: "Mortgage statement" }, { v: "utility", l: "Utility bill" }, { v: "license", l: "Driver's license" }, { v: "bank", l: "Bank statement" }];
 
   return (
     <div style={{ padding: "24px 28px", fontFamily: "'Poppins', sans-serif", maxWidth: 560, margin: "0 auto" }}>
       <h2 style={{ fontFamily: "'Poppins', sans-serif", color: C.navy, fontSize: 22, marginBottom: 6 }}>List your driveway</h2>
-      <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Earn extra income from your empty driveway. We verify ownership to keep the marketplace trustworthy.</p>
+      <p style={{ color: C.muted, fontSize: 13, marginBottom: 24 }}>Complete every step to apply. ParkShare staff must approve your application before your driveway can go live.</p>
 
       {/* Progress */}
       <div style={{ display: "flex", gap: 0, marginBottom: 10 }}>
@@ -5710,44 +5727,19 @@ function ListDrivewayView({ user }) {
           {hasListingCoordinates(form) && zoneResult?.key === locationKey && zoneResult.error && <button type="button" onClick={() => setZoneRetry(n => n + 1)}>Check location again</button>}
           {!hasListingCoordinates(form) && <p role="status" style={{ color: C.muted, fontSize: 12 }}>Select your driveway from the address suggestions to place its map pin. If you edit the address, select a matching suggestion again.</p>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <button onClick={() => setStep(2)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-            <Btn onClick={() => setStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid || !hasListingCoordinates(form) || !propertyTimeZone}>Continue →</Btn>
+            <Btn onClick={() => goToStep(2)} disabled={!form.street.trim() || !form.city.trim() || !form.region.trim() || !postalCheck.valid || !hasListingCoordinates(form) || !propertyTimeZone}>Continue →</Btn>
           </div>
         </div>
       )}
 
-      {/* Step 2: Ownership verification */}
+      {/* Step 2: Private ownership proof; approval happens after the complete application is submitted. */}
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <p style={{ fontSize: 12, color: C.muted, margin: 0 }}>To protect renters, we confirm you own or manage this property before your listing goes live.</p>
-          <div><label style={labelStyle}>Proof of ownership document</label>
-            <select style={inputStyle} value={form.docType} onChange={e => update("docType", e.target.value)}>
-              {docTypes.map(d => <option key={d.v} value={d.v}>{d.l}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Upload document</label>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, border: "1.5px dashed "+C.concrete, borderRadius: 10, padding: "14px 16px", cursor: "pointer", background: C.warmWhite }}>
-              <span style={{ fontSize: 20 }}>📄</span>
-              <span style={{ fontSize: 13, color: form.ownerFileName ? C.navy : C.muted, fontWeight: form.ownerFileName ? 700 : 400 }}>{form.ownerFileName || "Choose a file (PDF or image)…"}</span>
-              <input type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={e => e.target.files[0] && update("ownerFileName", e.target.files[0].name)} />
-            </label>
-          </div>
-          {!form.verified && !form.verifySkipped ? (
-            <Btn variant="amber" onClick={submitVerification} disabled={!form.ownerFileName || form.verifying} full>
-              {form.verifying ? "Verifying…" : "Submit for verification"}
-            </Btn>
-          ) : form.verified ? (
-            <div style={{ background: C.mossLight, border: "1px solid "+C.moss, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.moss, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>✅ Ownership verified</div>
-          ) : (
-            <div style={{ background: C.amberLight, border: "1px solid "+C.amber, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.navy, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>⏳ Verification skipped — finish this later from your host dashboard.</div>
-          )}
-          {!form.verified && !form.verifySkipped && (
-            <button onClick={() => { update("verifySkipped", true); setStep(3); }} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer", alignSelf: "center" }}>Skip for now</button>
-          )}
+          <OwnershipDocumentStep key={`${user.id}:${fullAddress}:${locationKey}`} client={supabase} hostId={user.id} address={fullAddress} lat={form.lat} lng={form.lng}
+            applicationId={form.ownershipApplicationId} onUploaded={id => setForm(current => ({...current,ownershipApplicationId:id}))} />
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <Btn variant="pill" onClick={() => setStep(1)}>← Back</Btn>
-            <Btn onClick={() => setStep(3)} disabled={!form.verified && !form.verifySkipped}>Continue →</Btn>
+            <Btn onClick={() => goToStep(3)} disabled={!form.ownershipApplicationId}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -5868,15 +5860,14 @@ function ListDrivewayView({ user }) {
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <Btn variant="pill" onClick={() => setStep(2)}>← Back</Btn>
+            <Btn variant="pill" onClick={() => goToStep(2)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <button onClick={() => setStep(4)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-              <Btn onClick={() => setStep(4)} disabled={form.photos.length === 0}>Continue →</Btn>
+              <Btn onClick={() => goToStep(4)} disabled={form.photos.length === 0}>Continue →</Btn>
             </div>
           </div>
           {form.photos.length === 0 && (
             <p style={{ fontSize: 10, color: C.muted, margin: "-7px 0 0", textAlign: "right" }}>
-              You can skip this step temporarily, but at least one photo is required before publishing.
+              At least one driveway photo is required to continue.
             </p>
           )}
         </div>
@@ -5885,8 +5876,8 @@ function ListDrivewayView({ user }) {
       {/* Step 4: Spot template */}
       {step === 4 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? (
-            <SpotMapBoundary fallback={
+          {useSatelliteSpotPicker ? (
+            <SpotMapBoundary onFallback={handleSpotMapUnavailable} fallback={
               <>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <label style={{ ...labelStyle, marginBottom: 0 }}>How many spots does your driveway have?</label>
@@ -5910,6 +5901,7 @@ function ListDrivewayView({ user }) {
                 onAddSpot={addSatelliteSpot}
                 onToggleSpot={toggleSatelliteSpot}
                 onRemoveSpot={removeSatelliteSpot}
+                onUnavailable={handleSpotMapUnavailable}
                 maxSpots={8}
               />
               <div role="status" style={{ fontSize: 12, color: C.navy, fontWeight: 700, textAlign: "center", marginTop: 10 }}>{form.spots.length ? `${form.spots.filter(spot => spot.forRent).length} of ${form.spots.length} marked spot${form.spots.length !== 1 ? "s" : ""} available for rent` : "No spots marked yet"}</div>
@@ -5930,10 +5922,9 @@ function ListDrivewayView({ user }) {
             </>
           )}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Btn variant="pill" onClick={() => setStep(3)}>← Back</Btn>
+            <Btn variant="pill" onClick={() => goToStep(3)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={() => setStep(5)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Skip for now</button>
-              <Btn onClick={() => setStep(5)} disabled={(hasListingCoordinates(form) && import.meta.env.VITE_GOOGLE_MAPS_API_KEY ? form.spots.filter(spot => spot.forRent) : form.selectedSpots.filter(Boolean)).length === 0}>Continue →</Btn>
+              <Btn onClick={() => goToStep(5)} disabled={rentableSpotCount === 0}>Continue →</Btn>
             </div>
           </div>
         </div>
@@ -5945,10 +5936,9 @@ function ListDrivewayView({ user }) {
           <ListingFeatureFields form={form} onChange={update} C={C} />
           <div><label style={labelStyle}>Description (optional)</label><textarea style={{ ...inputStyle, resize:"vertical", minHeight:80 }} placeholder="Anything useful for drivers to know…" value={form.description} onChange={e => update("description", e.target.value)} /></div>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center" }}>
-            <Btn variant="pill" onClick={() => setStep(4)}>← Back</Btn>
+            <Btn variant="pill" onClick={() => goToStep(4)}>← Back</Btn>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <button onClick={() => setStep(6)} style={{ background: "none", border: "none", color: C.muted, fontSize: 12, fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Use default availability</button>
-              <Btn onClick={() => setStep(6)}>Continue →</Btn>
+              <Btn onClick={() => goToStep(6)}>Continue →</Btn>
             </div>
           </div>
         </div>
@@ -6083,8 +6073,8 @@ function ListDrivewayView({ user }) {
           </div>
 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <Btn variant="pill" onClick={() => setStep(5)}>← Back</Btn>
-            <Btn onClick={() => setStep(7)} disabled={!hasAnyAvailability(normalizedAvailability) || !exceptionDateValidation.valid}>Continue →</Btn>
+            <Btn variant="pill" onClick={() => goToStep(5)}>← Back</Btn>
+            <Btn onClick={() => goToStep(7)} disabled={!hasAnyAvailability(normalizedAvailability) || !exceptionDateValidation.valid}>Continue →</Btn>
           </div>
         </div>
       )}
@@ -6107,8 +6097,8 @@ function ListDrivewayView({ user }) {
             </ParkerTip>
           )}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <Btn variant="pill" onClick={() => setStep(6)}>← Back</Btn>
-            <Btn variant="amber" disabled={!validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid} onClick={() => { setPublishError(""); setStep(8); }}>Preview listing →</Btn>
+            <Btn variant="pill" onClick={() => goToStep(6)}>← Back</Btn>
+            <Btn variant="amber" disabled={!validateHourlyRate(form.price, { maxRate: NEW_LISTING_MAX_HOURLY_RATE_CAD }).valid} onClick={() => { setPublishError(""); goToStep(8); }}>Preview listing →</Btn>
           </div>
         </div>
       )}
@@ -6119,7 +6109,7 @@ function ListDrivewayView({ user }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div role="status" style={{ background: C.amberLight, border: "1.5px solid " + C.amber, borderRadius: 12, padding: "12px 14px", color: C.navy }}>
             <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 3 }}>👀 Preview mode — your listing is not live yet</div>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: C.muted }}>Review the same listing details Drivers will use to decide whether to book. Nothing is published until you press <strong style={{ color: C.navy }}>Publish listing</strong>.</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: C.muted }}>Review the same listing details Drivers will use to decide whether to book. Your listing stays private after you submit. ParkShare staff must approve it before it can go live. Send your completed application using <strong style={{ color: C.navy }}>Submit application</strong>.</div>
           </div>
 
           {previewIssues.length > 0 && (
@@ -6148,7 +6138,7 @@ function ListDrivewayView({ user }) {
               <div style={{ marginBottom: 18 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Photos</div>
-                  <button onClick={() => setStep(3)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => goToStep(3)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
                 </div>
                 {form.photos.length > 0 ? (
                   <>
@@ -6188,7 +6178,7 @@ function ListDrivewayView({ user }) {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Driveway features</div>
-                  <button onClick={() => setStep(5)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => goToStep(5)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
                 </div>
                 {listingFeatures.length > 0 ? (
                   <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>{listingFeatures.map(feature => <Badge key={feature}>{feature}</Badge>)}</div>
@@ -6204,7 +6194,7 @@ function ListDrivewayView({ user }) {
                     <div style={{ color: C.navy, fontSize: 13, fontWeight: 700 }}>{availabilitySummary}</div>
                     {normalizedAvailability.exceptions.length > 0 && <div style={{ color: C.muted, fontSize: 10, marginTop: 3 }}>{normalizedAvailability.exceptions.length} special date exception{normalizedAvailability.exceptions.length === 1 ? "" : "s"} configured</div>}
                   </div>
-                  <button onClick={() => setStep(6)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => goToStep(6)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
                 </div>
               </div>
 
@@ -6221,7 +6211,7 @@ function ListDrivewayView({ user }) {
                     <div style={{ fontSize: 11, color: C.muted, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Available driveway spaces</div>
                     <div style={{ fontSize: 12, color: C.navy, fontWeight: 700, marginTop: 2 }}>{rentableSpotCount} of {form.totalSpots} spot{form.totalSpots === 1 ? "" : "s"} for rent</div>
                   </div>
-                  <button onClick={() => setStep(4)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => goToStep(4)} style={{ background: "none", border: 0, color: C.navy, fontSize: 11, fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}>Edit</button>
                 </div>
 
                 {hasPreviewSatelliteSpots ? (
@@ -6260,8 +6250,8 @@ function ListDrivewayView({ user }) {
           {uploadProgress && <div role="status" style={{ color: C.moss, fontSize: 12.5, fontWeight: 700 }}>{uploadProgress}</div>}
 
           <div style={{ position: "sticky", bottom: 0, zIndex: 20, margin: "0 -28px -24px", padding: "12px 28px calc(12px + env(safe-area-inset-bottom, 0px))", background: "rgba(250,247,240,0.97)", borderTop: "1px solid " + C.concrete, boxShadow: "0 -6px 18px rgba(14,27,46,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-            <Btn variant="pill" disabled={publishing} onClick={() => setStep(7)}>← Back to edit</Btn>
-            <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Publishing…" : "Publish listing"}</Btn>
+            <Btn variant="pill" disabled={publishing} onClick={() => goToStep(7)}>← Back to edit</Btn>
+            <Btn variant="amber" onClick={publish} disabled={previewIssues.length > 0 || publishing}>{publishing ? "Submitting…" : "Submit application"}</Btn>
           </div>
         </div>
       )}
@@ -8181,9 +8171,10 @@ function DiscoverNav({ tab, onTabChange, signedIn = false }) {
 
 function Header({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, onHostClick, onAboutClick, onTrustClick, onHelpClick, isLandingPage = false }) {
   const [dashboardMenuOpen, setDashboardMenuOpen] = useState(false);
-  const tabs = user?.role === "host"
+  const roleTabs = user?.role === "host"
     ? ["Browse", "Discover", "Host Dashboard", "List Your Driveway", "Messages", "My Bookings", "Transactions", "Profile"]
     : ["Browse", "Discover", "My Bookings", "Messages", "Transactions", "Profile"];
+  const tabs = user?.canReviewHostApplications ? [...roleTabs, "Host approvals"] : roleTabs;
   // The compact hamburger header belongs only to the in-app Host Dashboard.
   // Returning home must always restore the shared branded site header, even
   // when the last selected app tab was Host Dashboard.
@@ -12218,9 +12209,10 @@ export default function App() {
           {tab === "Messages" && requireAuth(<MessagesView key={user?.id} onOpenThread={setMessageThread} user={user} />, "Sign in to view your messages.")}
           {tab === "Profile" && user?.role === "host" && <HostProfileView key={user.id} user={user} client={supabase} onProfileUpdated={profile => setUser(current => current?.id === profile.id && current.role === "host" ? { ...current, ...profile } : current)} />}
           {tab === "Profile" && user?.role !== "host" && requireDriver(<DriverProfileView key={user?.id} user={user} onProfileUpdated={profile => setUser(current => current?.id === profile.id ? { ...current, ...profile } : current)} />)}
-          {tab === "List Your Driveway" && requireHost(<ListDrivewayView user={user} />)}
+          {tab === "List Your Driveway" && requireHost(<ListDrivewayView key={user?.id} user={user} />)}
           {tab === "My Bookings" && requireAuth(<MyBookingsView key={user?.id} onMessage={setMessageThread} onExtend={setExtendBookingId} onNavigateToParking={navigateToParking} onChangeNavigationApp={changeNavigationApp} user={user} highlightBookingId={viewBookingId} />, "Sign in to view your bookings.")}
           {tab === "Host Dashboard" && requireHost(<HostDashboard key={user?.id} user={user} setTab={changeTab} />)}
+          {tab === "Host approvals" && requireAuth(user?.canReviewHostApplications ? <HostApplicationsView key={user.id} client={supabase} user={user} review /> : <p role="alert">Sign in with the ParkShare approval account to review Host applications.</p>, "Sign in to review Host applications.")}
           {tab === "Transactions" && requireAuth(user?.role === "driver"
             ? <TransactionsView key={"driver:" + user?.id} user={user} />
             : requireHost(<TransactionsView key={"host:" + user?.id} user={user} />), "Sign in to view your transactions.")}

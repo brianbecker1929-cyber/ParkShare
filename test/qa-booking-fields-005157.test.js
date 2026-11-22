@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {canReviewHostApplications} from '../src/lib/hostApplication.js';
 import {readFile} from 'node:fs/promises';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
@@ -88,7 +89,7 @@ for(const [label,options,accepted] of [['both accepted',{},true],['Host failed',
 
 test('BUG-005157 refreshed application user retains the saved primary and guest body class',()=>{
  const code=app.slice(app.indexOf('function buildAppUser('),app.indexOf('// Guards the new satellite-map'));
- const build=new Function('normaliseDriverProfile','getDriverProfileCompletion',code+';return buildAppUser;')(normaliseDriverProfile,()=>({complete:true}));
+ const build=new Function('canReviewHostApplications','normaliseDriverProfile','getDriverProfileCompletion',code+';return buildAppUser;')(canReviewHostApplications,normaliseDriverProfile,()=>({complete:true}));
  const user=build({id:'driver',role:'driver'},{id:'driver',email:'driver@example.invalid',user_metadata:{vehicle_type:'sedan',vehicle_make:'Honda',vehicle_model:'Civic',vehicle_colour:'Blue',license_plate:'TYPE 157',guest_vehicles:[guest]}});
  assert.equal(user.vehicleType,'sedan');assert.equal(user.guestVehicles[0].vehicleType,'hatchback');
 });

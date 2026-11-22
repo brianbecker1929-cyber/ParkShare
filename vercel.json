@@ -231,6 +231,14 @@
     {
       "source": "/liability/",
       "destination": "/liability/index.html"
+    },
+    {
+      "source": "/host-applications",
+      "destination": "/host-applications/index.html"
+    },
+    {
+      "source": "/host-applications/",
+      "destination": "/host-applications/index.html"
     }
   ],
   "crons": [
@@ -245,6 +253,10 @@
     {
       "path": "/api/send-refund-notifications",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/send-host-application-notifications",
+      "schedule": "*/5 * * * *"
     }
   ],
   "functions": {
@@ -258,6 +270,14 @@
       "maxDuration": 300
     },
     "api/send-refund-notifications.js": {
+      "maxDuration": 300
+    },
+    "api/host-applications.js": {
+      "includeFiles": "node_modules/geo-tz/data/timezones.geojson.*",
+      "maxDuration": 60
+    },
+    "api/send-host-application-notifications.js": {
+      "includeFiles": "node_modules/geo-tz/data/timezones.geojson.*",
       "maxDuration": 300
     }
   },
