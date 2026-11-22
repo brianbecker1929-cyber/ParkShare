@@ -5360,7 +5360,7 @@ function ListDrivewayView({ user }) {
     return { ...f, totalSpots, selectedSpots };
   });
 
-  // Satellite-drawn spots keep totalSpots/selectedSpots in sync so pricing (step 6)
+  // Satellite-drawn spots keep totalSpots/selectedSpots in sync so pricing (step 7)
   // and publish() — which only look at those two fields — work unchanged.
   const syncSpots = (f, spots) => ({ ...f, spots, totalSpots: Math.max(spots.length, 1), selectedSpots: spots.length ? spots.map(s => s.forRent) : [true] });
   const addSatelliteSpot = (bounds) => setForm(f => {
@@ -9795,7 +9795,7 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
         {/* Hosting Made Simple */}
         <section id="steps" className="ps-host-steps" style={{ scrollMarginTop: 20, marginBottom: 28 }}>
           <div style={{ color: C.amber, fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>How ParkShare Works</div>
-          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>Three simple steps. Your space stays yours.</p>
+          <p style={{ fontWeight: 700, fontSize: 15, color: C.navy, margin: "0 0 14px" }}>List. Set. Earn. Your space stays yours.</p>
           <div className="ps-host-steps-grid" style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
             {[
               { n: 1, icon: "🏠", word: "List", t: "Create your parking listing.", d: "Add your space, photos, parking details and instructions so Drivers know what you're offering." },
@@ -9814,14 +9814,16 @@ function HostPage({ tab, onTabChange, onLogoClick, user, onShowAuth, onSignOut, 
           </div>
           <div className="ps-host-video-card">
             <div className="ps-host-video-copy">
-              <div className="ps-host-video-eyebrow">Watch the Host walkthrough</div>
-              <h3>List your driveway in six simple steps.</h3>
-              <p>Watch this one-minute guide to see the complete ParkShare Host listing process.</p>
+              <div className="ps-host-video-eyebrow">Your Host listing guide</div>
+              <h3>Prepare your driveway listing in eight steps.</h3>
+              <p>The listing wizard covers Location, Verify, Photos, Spots, Details, Availability, Pricing and Preview.</p>
+              <p>Create your Host account and complete Stripe payment setup as well. Your listing goes live after ParkShare staff approves your application and Stripe is ready.</p>
+              <p>Watch the short Host overview below.</p>
             </div>
             <div className="ps-host-video-frame">
               <iframe
                 src="https://www.youtube-nocookie.com/embed/yT3ZIq2OeIo?rel=0&playsinline=1"
-                title="How to become a ParkShare Host and list your driveway"
+                title="ParkShare Host overview"
                 loading="lazy"
                 referrerPolicy="strict-origin-when-cross-origin"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
